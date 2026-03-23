@@ -127,6 +127,106 @@ Open `http://localhost:3000` in your browser.
 
 ---
 
+## 🌐 Remote Access via Tailscale
+
+Access CYBERFRAME from anywhere using [Tailscale](https://tailscale.com/).
+
+### 1. Install Tailscale
+
+Download from [tailscale.com/download](https://tailscale.com/download) and sign in.
+
+### 2. Serve CYBERFRAME over Tailscale (HTTPS)
+
+```powershell
+# Serve port 3000 over HTTPS on port 3443
+tailscale serve --bg --https 3443 http://127.0.0.1:3000
+```
+
+Now access from any device on your tailnet:
+```
+https://your-machine-name.your-tailnet.ts.net:3443
+```
+
+### 3. (Optional) Funnel — Public Internet Access
+
+```powershell
+# Expose to the public internet (no tailnet required)
+tailscale funnel --bg --https 443 http://127.0.0.1:3000
+```
+
+⚠️ **Warning:** Funnel exposes your terminal to the internet. Make sure you use a strong password!
+
+---
+
+## ⚙️ Auto-Start on Boot
+
+### Option 1: Windows Task Scheduler (Recommended)
+
+```powershell
+# Create a scheduled task that runs at startup
+$action = New-ScheduledTaskAction `
+  -Execute "node.exe" `
+  -Argument "server.js" `
+  -WorkingDirectory "C:\path\to\WEB-TERMINAL-WIN"
+
+$trigger = New-ScheduledTaskTrigger -AtStartup
+$settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable
+
+Register-ScheduledTask `
+  -TaskName "CYBERFRAME" `
+  -Action $action `
+  -Trigger $trigger `
+  -Settings $settings `
+  -RunLevel Highest `
+  -User "$env:USERNAME" `
+  -Description "CYBERFRAME Web Terminal"
+```
+
+To remove:
+```powershell
+Unregister-ScheduledTask -TaskName "CYBERFRAME" -Confirm:$false
+```
+
+### Option 2: PM2 (Process Manager)
+
+```powershell
+# Install PM2 globally
+npm install -g pm2
+
+# Start CYBERFRAME
+cd C:\path\to\WEB-TERMINAL-WIN
+pm2 start server.js --name cyberframe
+
+# Save process list & setup startup
+pm2 save
+pm2-startup install
+```
+
+PM2 commands:
+```powershell
+pm2 status          # Check status
+pm2 logs cyberframe # View logs
+pm2 restart cyberframe
+pm2 stop cyberframe
+```
+
+### Option 3: Simple startup script
+
+Create `start-cyberframe.bat` in your Startup folder:
+
+```
+Win+R → shell:startup → Enter
+```
+
+Create the file:
+```bat
+@echo off
+cd /d "C:\path\to\WEB-TERMINAL-WIN"
+start /min node server.js
+```
+
+---
+
 ## 🏗️ Architecture
 
 ```
