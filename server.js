@@ -344,8 +344,26 @@ app.get("/api/files/list", requireAuth, (req, res) => {
   const dirPath = req.query.path || process.env.USERPROFILE || process.env.HOME;
   try {
     const resolved = path.resolve(dirPath);
+    const HIDDEN_NAMES = new Set([
+      '$Recycle.Bin', '$WinREAgent', 'System Volume Information', 'Recovery',
+      'DumpStack.log.tmp', 'hiberfil.sys', 'pagefile.sys', 'swapfile.sys',
+      'bootmgr', 'BOOTNXT', 'BOOTSECT.BAK',
+      'Documents and Settings', 'PerfLogs',
+      'ntuser.dat.LOG1', 'ntuser.dat.LOG2', 'ntuser.ini',
+      'NTUSER.DAT', 'Application Data', 'Cookies', 'Local Settings',
+      'My Documents', 'NetHood', 'PrintHood', 'Recent', 'SendTo',
+      'Start Menu', 'Templates',
+    ]);
+    const HIDDEN_EXTS = new Set(['.sys', '.tmp', '.blf', '.regtrans-ms']);
+
     const entries = fs.readdirSync(resolved, { withFileTypes: true });
-    const items = entries.map(e => {
+    const items = entries.filter(e => {
+      if (HIDDEN_NAMES.has(e.name)) return false;
+      if (e.name.startsWith('$') || e.name.startsWith('NTUSER.DAT{')) return false;
+      const ext = path.extname(e.name).toLowerCase();
+      if (HIDDEN_EXTS.has(ext)) return false;
+      return true;
+    }).map(e => {
       let size = 0, mtime = null;
       try {
         const st = fs.statSync(path.join(resolved, e.name));
