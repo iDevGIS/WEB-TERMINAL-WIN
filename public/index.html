@@ -1488,7 +1488,7 @@
   <div class="snippets-overlay" id="snippets-overlay"></div>
   <div class="snippets-drawer" id="snippets-drawer">
     <div class="file-drawer-header">
-      <h2>⚡ Snippets</h2>
+      <h2><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" style="vertical-align:-2px;margin-right:6px"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>Snippets</h2>
       <button class="toolbar-icon" onclick="closeSnippets()">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
       </button>
@@ -1511,7 +1511,7 @@
         </button>
         <h3 id="editor-filename"></h3>
         <span class="editor-modified" id="editor-modified" style="display:none">● Modified</span>
-        <button class="file-action-btn" onclick="saveEditor()" id="editor-save-btn">💾 Save</button>
+        <button class="file-action-btn" onclick="saveEditor()" id="editor-save-btn"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> Save</button>
         <button class="toolbar-icon" onclick="closeEditor()" title="Close">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </button>
@@ -2478,7 +2478,7 @@
           // Add edit button for text files
           const editBtn = document.createElement('button');
           editBtn.className = 'file-action-btn';
-          editBtn.innerHTML = '✏️ Edit';
+          editBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Edit';
           editBtn.onclick = () => openEditor(fullPath, name);
           header.querySelector('.preview-meta').after(editBtn);
 
