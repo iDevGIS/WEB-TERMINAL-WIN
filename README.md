@@ -23,8 +23,17 @@
 ### 📁 File Manager
 - **Browse, upload, download** files
 - **Drive selector** — switch between C:, D:, etc.
-- **Drag & drop** upload support
+- **Drag & drop** upload zone with visual feedback
 - **File type icons** — visual indicators for 30+ file types
+- **System files hidden** — no clutter from `$Recycle.Bin`, `NTUSER.DAT`, `.sys`, etc.
+
+### 👁️ File Preview
+- **Code viewer** — syntax highlighting (25+ languages) with line numbers
+- **Image viewer** — zoom (scroll/pinch), pan (drag), double-click toggle, zoom controls (25%–500%)
+- **PDF viewer** — inline iframe preview
+- **JSON formatter** — auto pretty-print
+- **Full-screen overlay** — press Esc to close
+- Powered by [highlight.js](https://highlightjs.org/) (Tokyo Night Dark theme)
 
 ### 🎨 Themes
 8 built-in terminal color schemes:
