@@ -2238,7 +2238,7 @@
         const fullPath = fileCwd.replace(/\\/g, '/') + '/' + f.name;
 
         return `
-          <div class="file-item" onclick="${f.isDir ? `loadFiles('${escAttr(fullPath)}')` : `selectFileItem(this,'${escAttr(f.name)}','${escAttr(fullPath)}')`}" ondblclick="${f.isDir ? '' : `previewFile('${escAttr(fullPath)}','${escAttr(f.name)}')`}">
+          <div class="file-item" onclick="${f.isDir ? `loadFiles('${escAttr(fullPath)}')` : `fileItemClick(event,this,'${escAttr(f.name)}','${escAttr(fullPath)}')`}">
             <span class="file-icon">${icon}</span>
             <span class="file-name">${escHtml(f.name)}</span>
             <span class="file-size">${size}</span>
@@ -2826,6 +2826,24 @@
         selectedFile = null;
         loadFiles(fileCwd);
       } catch (e) { showToast(e.message, 'error'); }
+    }
+
+    let fileClickTimer = null;
+    function fileItemClick(e, el, name, fullPath) {
+      // If clicking download button, skip
+      if (e.target.closest('.toolbar-icon')) return;
+      if (fileClickTimer) {
+        // Double click → preview
+        clearTimeout(fileClickTimer);
+        fileClickTimer = null;
+        previewFile(fullPath, name);
+      } else {
+        // Single click → select (wait to confirm not double)
+        fileClickTimer = setTimeout(() => {
+          fileClickTimer = null;
+          selectFileItem(el, name, fullPath);
+        }, 250);
+      }
     }
 
     function selectFileItem(el, name, fullPath) {
