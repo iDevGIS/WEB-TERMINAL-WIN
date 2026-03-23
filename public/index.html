@@ -1224,6 +1224,90 @@
     .toast.info { border-left: 3px solid var(--accent); }
     @keyframes toastIn { from { opacity: 0; transform: translateX(40px); } to { opacity: 1; transform: translateX(0); } }
 
+    /* === Custom Confirm Dialog === */
+    .confirm-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 1100;
+      background: rgba(0,0,0,.6);
+      backdrop-filter: blur(8px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      animation: confirmFadeIn .2s ease;
+    }
+    @keyframes confirmFadeIn { from { opacity: 0; } to { opacity: 1; } }
+    .confirm-dialog {
+      background: var(--sidebar-bg);
+      backdrop-filter: blur(20px);
+      border: 1px solid var(--glass-border);
+      border-radius: 16px;
+      padding: 28px 32px;
+      max-width: 400px;
+      width: 90%;
+      box-shadow: 0 20px 60px rgba(0,0,0,.5);
+      animation: confirmSlideIn .25s ease;
+    }
+    @keyframes confirmSlideIn { from { opacity: 0; transform: scale(.95) translateY(-10px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+    .confirm-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 16px;
+      font-size: 22px;
+    }
+    .confirm-icon.danger { background: rgba(248,113,113,.1); }
+    .confirm-icon.warning { background: rgba(251,191,36,.1); }
+    .confirm-icon.info { background: rgba(108,99,255,.1); }
+    .confirm-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 8px;
+    }
+    .confirm-message {
+      font-size: 13px;
+      color: var(--text3);
+      line-height: 1.5;
+      margin-bottom: 24px;
+    }
+    .confirm-message strong { color: var(--text); }
+    .confirm-buttons {
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+    }
+    .confirm-btn {
+      padding: 8px 20px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all .15s;
+      border: 1px solid var(--glass-border);
+      font-family: inherit;
+    }
+    .confirm-btn-cancel {
+      background: rgba(255,255,255,.04);
+      color: var(--text2);
+    }
+    .confirm-btn-cancel:hover { background: rgba(255,255,255,.08); }
+    .confirm-btn-danger {
+      background: rgba(248,113,113,.15);
+      color: #f87171;
+      border-color: rgba(248,113,113,.3);
+    }
+    .confirm-btn-danger:hover { background: rgba(248,113,113,.25); }
+    .confirm-btn-primary {
+      background: rgba(108,99,255,.15);
+      color: var(--accent);
+      border-color: rgba(108,99,255,.3);
+    }
+    .confirm-btn-primary:hover { background: rgba(108,99,255,.25); }
+
     /* === File toolbar row === */
     .file-toolbar-row {
       display: flex;
@@ -2633,6 +2717,34 @@
       }
     });
 
+    // === Custom Confirm Dialog ===
+    function cyberConfirm({ icon = '⚠️', iconClass = 'warning', title, message, confirmText = 'Confirm', confirmClass = 'confirm-btn-primary', cancelText = 'Cancel' }) {
+      return new Promise((resolve) => {
+        const overlay = document.createElement('div');
+        overlay.className = 'confirm-overlay';
+        overlay.innerHTML = `
+          <div class="confirm-dialog">
+            <div class="confirm-icon ${iconClass}">${icon}</div>
+            <div class="confirm-title">${title}</div>
+            <div class="confirm-message">${message}</div>
+            <div class="confirm-buttons">
+              <button class="confirm-btn confirm-btn-cancel" id="cf-cancel">${cancelText}</button>
+              <button class="confirm-btn ${confirmClass}" id="cf-ok">${confirmText}</button>
+            </div>
+          </div>`;
+        document.body.appendChild(overlay);
+
+        const cleanup = (result) => { overlay.remove(); resolve(result); };
+        overlay.querySelector('#cf-cancel').onclick = () => cleanup(false);
+        overlay.querySelector('#cf-ok').onclick = () => cleanup(true);
+        overlay.addEventListener('click', (e) => { if (e.target === overlay) cleanup(false); });
+        document.addEventListener('keydown', function esc(e) {
+          if (e.key === 'Escape') { document.removeEventListener('keydown', esc); cleanup(false); }
+        });
+        overlay.querySelector('#cf-ok').focus();
+      });
+    }
+
     // === Toast Notifications ===
     function showToast(msg, type = 'info', duration = 4000) {
       const container = document.getElementById('toast-container');
@@ -2758,9 +2870,17 @@
       } catch (e) { showToast(e.message, 'error'); }
     }
 
-    function closeEditor() {
+    async function closeEditor() {
       const modified = document.getElementById('editor-content').value !== editorOriginal;
-      if (modified && !confirm('Unsaved changes. Close anyway?')) return;
+      if (modified) {
+        const ok = await cyberConfirm({
+          icon: '📝', iconClass: 'warning',
+          title: 'Unsaved changes',
+          message: 'You have unsaved changes. Are you sure you want to close without saving?',
+          confirmText: 'Discard', confirmClass: 'confirm-btn-danger', cancelText: 'Keep editing'
+        });
+        if (!ok) return;
+      }
       document.getElementById('editor-overlay').style.display = 'none';
       editorFilePath = null;
     }
@@ -2834,8 +2954,13 @@
     async function promptDelete() {
       if (!selectedFile) { showToast('Click a file first to select it', 'info'); return; }
       const name = selectedFile.name;
-      if (!confirm(`⚠️ Delete "${name}"?\n\nThis cannot be undone!`)) return;
-      if (!confirm(`Are you REALLY sure you want to delete "${name}"?`)) return;
+      const ok = await cyberConfirm({
+        icon: '🗑️', iconClass: 'danger',
+        title: `Delete "${name}"?`,
+        message: 'This action <strong>cannot be undone</strong>. The file will be permanently removed from the system.',
+        confirmText: 'Delete', confirmClass: 'confirm-btn-danger'
+      });
+      if (!ok) return;
       try {
         const r = await fetch('/api/files/delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ filePath: selectedFile.path }) });
         const data = await r.json();
