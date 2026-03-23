@@ -1028,6 +1028,229 @@
       .preview-panel { padding: 12px; }
     }
 
+    /* === Terminal Search Bar === */
+    .term-search-bar {
+      display: none;
+      position: absolute;
+      top: 8px;
+      right: 16px;
+      z-index: 100;
+      background: var(--glass);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--glass-border);
+      border-radius: 10px;
+      padding: 6px 10px;
+      gap: 6px;
+      align-items: center;
+    }
+    .term-search-bar.active { display: flex; }
+    .term-search-bar input {
+      background: rgba(0,0,0,.3);
+      border: 1px solid var(--glass-border);
+      border-radius: 6px;
+      padding: 5px 10px;
+      color: var(--text);
+      font-size: 12px;
+      width: 220px;
+      outline: none;
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .term-search-bar input:focus { border-color: var(--accent); }
+    .term-search-bar button {
+      background: none;
+      border: none;
+      color: var(--text2);
+      cursor: pointer;
+      padding: 4px 6px;
+      border-radius: 4px;
+      font-size: 13px;
+    }
+    .term-search-bar button:hover { background: rgba(255,255,255,.08); color: var(--text); }
+
+    /* === Text Editor Modal === */
+    .editor-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 960;
+      background: rgba(6,6,18,.95);
+      backdrop-filter: blur(20px);
+      display: flex;
+      flex-direction: column;
+    }
+    .editor-panel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      max-width: 1200px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 16px 24px;
+      min-height: 0;
+      overflow: hidden;
+    }
+    .editor-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--glass-border);
+      margin-bottom: 12px;
+      flex-shrink: 0;
+    }
+    .editor-header h3 {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text);
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .editor-modified { color: var(--accent); font-size: 11px; }
+    .editor-textarea {
+      flex: 1;
+      background: rgba(0,0,0,.4);
+      border: 1px solid var(--glass-border);
+      border-radius: 12px;
+      padding: 20px;
+      color: var(--text);
+      font-family: 'JetBrains Mono', 'Cascadia Code', monospace;
+      font-size: 13px;
+      line-height: 1.7;
+      tab-size: 2;
+      resize: none;
+      outline: none;
+      min-height: 0;
+    }
+    .editor-textarea:focus { border-color: var(--accent); }
+
+    /* === Snippets Drawer === */
+    .snippets-drawer {
+      position: fixed;
+      top: 0;
+      right: 0;
+      width: 380px;
+      height: 100%;
+      background: var(--sidebar-bg);
+      backdrop-filter: blur(20px);
+      border-left: 1px solid var(--glass-border);
+      z-index: 800;
+      display: flex;
+      flex-direction: column;
+      transform: translateX(100%);
+      transition: transform .25s ease;
+    }
+    .snippets-drawer.open { transform: translateX(0); }
+    .snippets-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.4);
+      z-index: 799;
+      display: none;
+    }
+    .snippets-overlay.open { display: block; }
+    .snippet-item {
+      padding: 10px 14px;
+      border-bottom: 1px solid rgba(255,255,255,.04);
+      cursor: pointer;
+      transition: background .15s;
+    }
+    .snippet-item:hover { background: rgba(255,255,255,.04); }
+    .snippet-name { font-size: 13px; color: var(--text); font-weight: 500; }
+    .snippet-cmd {
+      font-size: 11px;
+      color: var(--text3);
+      font-family: 'JetBrains Mono', monospace;
+      margin-top: 3px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .snippet-cat {
+      font-size: 10px;
+      color: var(--accent);
+      background: rgba(108,99,255,.1);
+      padding: 1px 6px;
+      border-radius: 4px;
+      margin-left: 6px;
+    }
+    .snippet-add-form {
+      padding: 12px 14px;
+      border-top: 1px solid var(--glass-border);
+    }
+    .snippet-add-form input, .snippet-add-form textarea {
+      width: 100%;
+      background: rgba(0,0,0,.3);
+      border: 1px solid var(--glass-border);
+      border-radius: 6px;
+      padding: 6px 10px;
+      color: var(--text);
+      font-size: 12px;
+      outline: none;
+      margin-bottom: 6px;
+      font-family: inherit;
+    }
+    .snippet-add-form textarea {
+      font-family: 'JetBrains Mono', monospace;
+      resize: vertical;
+      min-height: 40px;
+    }
+
+    /* === Notification Toast === */
+    .toast-container {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      z-index: 1000;
+      display: flex;
+      flex-direction: column-reverse;
+      gap: 8px;
+    }
+    .toast {
+      background: var(--glass);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--glass-border);
+      border-radius: 10px;
+      padding: 12px 16px;
+      color: var(--text);
+      font-size: 13px;
+      max-width: 340px;
+      animation: toastIn .3s ease;
+      box-shadow: 0 8px 32px rgba(0,0,0,.3);
+    }
+    .toast.success { border-left: 3px solid #4ade80; }
+    .toast.error { border-left: 3px solid #f87171; }
+    .toast.info { border-left: 3px solid var(--accent); }
+    @keyframes toastIn { from { opacity: 0; transform: translateX(40px); } to { opacity: 1; transform: translateX(0); } }
+
+    /* === File action buttons in drawer === */
+    .file-actions-bar {
+      display: flex;
+      gap: 4px;
+      padding: 8px 14px;
+      border-bottom: 1px solid rgba(255,255,255,.04);
+      flex-wrap: wrap;
+    }
+    .file-action-btn {
+      background: rgba(255,255,255,.04);
+      border: 1px solid var(--glass-border);
+      border-radius: 6px;
+      padding: 4px 10px;
+      color: var(--text2);
+      font-size: 11px;
+      cursor: pointer;
+      transition: all .15s;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .file-action-btn:hover { background: rgba(255,255,255,.08); color: var(--text); }
+    .file-item.selected { background: rgba(108,99,255,.12) !important; border-left: 2px solid var(--accent); }
+
+    @media (max-width: 768px) {
+      .snippets-drawer { width: 100%; }
+    }
+
     /* === Theme Grid === */
     .theme-grid {
       display: grid;
@@ -1244,6 +1467,11 @@
       </div>
     </div>
     <div id="drive-bar" class="drive-bar"></div>
+    <div class="file-actions-bar">
+      <button class="file-action-btn" onclick="promptNewFile()">📄 New File</button>
+      <button class="file-action-btn" onclick="promptNewFolder()">📁 New Folder</button>
+      <button class="file-action-btn" onclick="promptRename()">✏️ Rename</button>
+    </div>
     <div id="file-breadcrumb" class="file-breadcrumb"></div>
     <div id="file-list" class="file-list"></div>
     <div id="file-drop-zone" class="file-drop-zone" style="display:none">
@@ -1251,6 +1479,45 @@
     </div>
   </div>
   <input type="file" id="file-upload-input" multiple style="display:none">
+
+  <!-- Toast Container -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <!-- Snippets Drawer -->
+  <div class="snippets-overlay" id="snippets-overlay"></div>
+  <div class="snippets-drawer" id="snippets-drawer">
+    <div class="file-drawer-header">
+      <h2>⚡ Snippets</h2>
+      <button class="toolbar-icon" onclick="closeSnippets()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div id="snippet-list" style="flex:1;overflow-y:auto;padding:4px 0"></div>
+    <div class="snippet-add-form" id="snippet-form">
+      <input type="text" id="snip-name" placeholder="Name (e.g. Git Pull)">
+      <textarea id="snip-cmd" placeholder="Command (e.g. git pull origin main)"></textarea>
+      <input type="text" id="snip-cat" placeholder="Category (optional)">
+      <button class="file-action-btn" onclick="addSnippet()" style="width:100%;justify-content:center;margin-top:4px">+ Add Snippet</button>
+    </div>
+  </div>
+
+  <!-- Editor Overlay -->
+  <div id="editor-overlay" class="editor-overlay" style="display:none">
+    <div class="editor-panel">
+      <div class="editor-header">
+        <button class="toolbar-icon" onclick="closeEditor()" title="Close">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <h3 id="editor-filename"></h3>
+        <span class="editor-modified" id="editor-modified" style="display:none">● Modified</span>
+        <button class="file-action-btn" onclick="saveEditor()" id="editor-save-btn">💾 Save</button>
+        <button class="toolbar-icon" onclick="closeEditor()" title="Close">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <textarea class="editor-textarea" id="editor-content" spellcheck="false"></textarea>
+    </div>
+  </div>
 
   <!-- File Preview Overlay -->
   <div id="preview-overlay" class="preview-overlay" style="display:none">
@@ -1331,6 +1598,15 @@
       <button class="toolbar-icon" id="btn-vnc" title="Remote Desktop">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
       </button>
+      <button class="toolbar-icon" id="btn-search" title="Search terminal (Ctrl+F)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      </button>
+      <button class="toolbar-icon" id="btn-snippets" title="Command Snippets">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+      </button>
+      <button class="toolbar-icon" id="btn-export" title="Export terminal output">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      </button>
       <button class="toolbar-icon" id="btn-files" title="File Manager">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
       </button>
@@ -1400,13 +1676,22 @@
           </div>
         </div>
       </div>
-      <div id="terminal-wrap" style="display:none;height:100%"></div>
+      <div style="position:relative;flex:1;display:flex;flex-direction:column;min-height:0">
+        <div class="term-search-bar" id="term-search-bar">
+          <input type="text" id="term-search-input" placeholder="Search terminal..." autocomplete="off">
+          <button onclick="termSearchNext(-1)" title="Previous">▲</button>
+          <button onclick="termSearchNext(1)" title="Next">▼</button>
+          <button onclick="closeTermSearch()" title="Close">✕</button>
+        </div>
+        <div id="terminal-wrap" style="display:none;flex:1"></div>
+      </div>
     </div>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-web-links@0.11.0/lib/addon-web-links.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-search@0.15.0/lib/addon-search.min.js"></script>
   <script>
     // === Terminal Themes ===
     const THEMES = {
@@ -1520,6 +1805,7 @@
     let ws = null;
     let term = null;
     let fitAddon = null;
+    let searchAddon = null;
     let currentSessionId = null;
     let sessions = [];
     let availableShells = [];
@@ -1552,6 +1838,8 @@
       fitAddon = new FitAddon.FitAddon();
       term.loadAddon(fitAddon);
       term.loadAddon(new WebLinksAddon.WebLinksAddon());
+      searchAddon = new SearchAddon.SearchAddon();
+      term.loadAddon(searchAddon);
       term.open(termWrap);
       fitAddon.fit();
 
@@ -1586,6 +1874,11 @@
       ws.onopen = () => {
         console.log('[WS] Connected');
         ws.send(JSON.stringify({ type: 'list' }));
+        // Re-attach to previous session if reconnecting
+        if (currentSessionId) {
+          ws.send(JSON.stringify({ type: 'attach', id: currentSessionId }));
+          showToast('Reconnected!', 'success', 2000);
+        }
       };
 
       ws.onmessage = (e) => {
@@ -1602,6 +1895,10 @@
             break;
           case 'output':
             if (term) term.write(msg.data);
+            // Notify on output when tab is hidden (long-running command finished)
+            if (document.hidden && msg.data.includes('$') || document.hidden && msg.data.includes('#') || document.hidden && msg.data.includes('>')) {
+              notifyUser('CYBERFRAME', 'Command completed');
+            }
             break;
           case 'session-died':
             if (msg.id === currentSessionId) {
@@ -1629,6 +1926,7 @@
       ws.onclose = () => {
         toolbarStatus.textContent = '↻ Reconnecting…';
         toolbarStatus.className = 'status-badge disconnected pulse';
+        showToast('Connection lost. Reconnecting...', 'error', 3000);
         setTimeout(connect, 2000);
       };
 
@@ -1938,7 +2236,7 @@
         const fullPath = fileCwd.replace(/\\/g, '/') + '/' + f.name;
 
         return `
-          <div class="file-item" onclick="${f.isDir ? `loadFiles('${escAttr(fullPath)}')` : `previewFile('${escAttr(fullPath)}','${escAttr(f.name)}')`}">
+          <div class="file-item" onclick="${f.isDir ? `loadFiles('${escAttr(fullPath)}')` : `selectFileItem(this,'${escAttr(f.name)}','${escAttr(fullPath)}')`}" ondblclick="${f.isDir ? '' : `previewFile('${escAttr(fullPath)}','${escAttr(f.name)}')`}">
             <span class="file-icon">${icon}</span>
             <span class="file-name">${escHtml(f.name)}</span>
             <span class="file-size">${size}</span>
@@ -2175,6 +2473,13 @@
 
           document.getElementById('preview-meta-info').textContent = `${formatSize(data.size)} · ${data.ext || 'text'}`;
 
+          // Add edit button for text files
+          const editBtn = document.createElement('button');
+          editBtn.className = 'file-action-btn';
+          editBtn.innerHTML = '✏️ Edit';
+          editBtn.onclick = () => openEditor(fullPath, name);
+          header.querySelector('.preview-meta').after(editBtn);
+
           // Detect language from extension
           const langMap = {
             '.js': 'javascript', '.ts': 'typescript', '.py': 'python', '.rb': 'ruby',
@@ -2296,10 +2601,221 @@
 
     // Close preview on Escape
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && document.getElementById('preview-overlay').style.display !== 'none') {
-        closePreview();
+      if (e.key === 'Escape') {
+        if (document.getElementById('editor-overlay').style.display !== 'none') { closeEditor(); return; }
+        if (document.getElementById('preview-overlay').style.display !== 'none') { closePreview(); return; }
+        if (document.getElementById('term-search-bar').classList.contains('active')) { closeTermSearch(); return; }
+      }
+      // Ctrl+F → terminal search (intercept browser search)
+      if ((e.ctrlKey || e.metaKey) && e.key === 'f' && term && currentSessionId) {
+        e.preventDefault();
+        openTermSearch();
       }
     });
+
+    // === Toast Notifications ===
+    function showToast(msg, type = 'info', duration = 4000) {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      toast.className = `toast ${type}`;
+      toast.textContent = msg;
+      container.appendChild(toast);
+      setTimeout(() => { toast.style.opacity = '0'; toast.style.transition = 'opacity .3s'; setTimeout(() => toast.remove(), 300); }, duration);
+    }
+
+    // === Browser Notifications ===
+    let notifyPermission = Notification?.permission || 'default';
+    if (notifyPermission === 'default') Notification?.requestPermission?.().then(p => notifyPermission = p);
+
+    function notifyUser(title, body) {
+      if (notifyPermission === 'granted' && document.hidden) {
+        new Notification(title, { body, icon: '/favicon.svg' });
+      }
+    }
+
+    // === Terminal Search ===
+    function openTermSearch() {
+      const bar = document.getElementById('term-search-bar');
+      bar.classList.add('active');
+      document.getElementById('term-search-input').focus();
+    }
+    function closeTermSearch() {
+      const bar = document.getElementById('term-search-bar');
+      bar.classList.remove('active');
+      if (searchAddon) searchAddon.clearDecorations();
+      document.getElementById('term-search-input').value = '';
+    }
+    function termSearchNext(dir) {
+      const q = document.getElementById('term-search-input').value;
+      if (!q || !searchAddon) return;
+      if (dir > 0) searchAddon.findNext(q); else searchAddon.findPrevious(q);
+    }
+    document.getElementById('term-search-input')?.addEventListener('input', (e) => {
+      if (searchAddon && e.target.value) searchAddon.findNext(e.target.value);
+    });
+    document.getElementById('term-search-input')?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); termSearchNext(e.shiftKey ? -1 : 1); }
+      if (e.key === 'Escape') closeTermSearch();
+    });
+
+    // === Command Snippets ===
+    async function openSnippets() {
+      document.getElementById('snippets-drawer').classList.add('open');
+      document.getElementById('snippets-overlay').classList.add('open');
+      await renderSnippets();
+    }
+    function closeSnippets() {
+      document.getElementById('snippets-drawer').classList.remove('open');
+      document.getElementById('snippets-overlay').classList.remove('open');
+    }
+    document.getElementById('snippets-overlay').onclick = closeSnippets;
+
+    async function renderSnippets() {
+      const list = document.getElementById('snippet-list');
+      try {
+        const r = await fetch('/api/snippets');
+        const snippets = await r.json();
+        if (!snippets.length) { list.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text3)">No snippets yet.<br>Add one below!</div>'; return; }
+        list.innerHTML = snippets.map(s => `
+          <div class="snippet-item" onclick="runSnippet('${escAttr(s.command)}')" title="Click to run">
+            <div style="display:flex;align-items:center;gap:4px">
+              <span class="snippet-name">${escHtml(s.name)}</span>
+              ${s.category ? `<span class="snippet-cat">${escHtml(s.category)}</span>` : ''}
+              <button class="toolbar-icon" onclick="event.stopPropagation();deleteSnippet('${s.id}')" style="margin-left:auto;opacity:.4" title="Delete">✕</button>
+            </div>
+            <div class="snippet-cmd">${escHtml(s.command)}</div>
+          </div>`).join('');
+      } catch { list.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text3)">Failed to load</div>'; }
+    }
+
+    function runSnippet(cmd) {
+      if (!ws || !currentSessionId) { showToast('No active session', 'error'); return; }
+      ws.send(JSON.stringify({ type: 'input', sessionId: currentSessionId, data: cmd + '\r' }));
+      closeSnippets();
+      showToast(`Running: ${cmd.substring(0, 50)}`, 'info', 2000);
+    }
+
+    async function addSnippet() {
+      const name = document.getElementById('snip-name').value.trim();
+      const command = document.getElementById('snip-cmd').value.trim();
+      const category = document.getElementById('snip-cat').value.trim();
+      if (!name || !command) { showToast('Name and command required', 'error'); return; }
+      await fetch('/api/snippets', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, command, category }) });
+      document.getElementById('snip-name').value = '';
+      document.getElementById('snip-cmd').value = '';
+      document.getElementById('snip-cat').value = '';
+      await renderSnippets();
+      showToast('Snippet added!', 'success');
+    }
+
+    async function deleteSnippet(id) {
+      await fetch(`/api/snippets/${id}`, { method: 'DELETE' });
+      await renderSnippets();
+    }
+
+    // === Export Terminal ===
+    function exportTerminal(fmt = 'txt') {
+      if (!currentSessionId) { showToast('No active session', 'error'); return; }
+      window.open(`/api/sessions/${currentSessionId}/export?format=${fmt}`, '_blank');
+    }
+
+    // === Text Editor ===
+    let editorFilePath = null;
+    let editorOriginal = '';
+
+    async function openEditor(filePath, name) {
+      try {
+        const r = await fetch(`/api/files/preview?path=${encodeURIComponent(filePath)}`);
+        const data = await r.json();
+        if (data.error) { showToast(data.error, 'error'); return; }
+        editorFilePath = filePath;
+        editorOriginal = data.content;
+        document.getElementById('editor-filename').textContent = '✏️ ' + name;
+        document.getElementById('editor-content').value = data.content;
+        document.getElementById('editor-modified').style.display = 'none';
+        document.getElementById('editor-overlay').style.display = 'flex';
+        closePreview();
+      } catch (e) { showToast(e.message, 'error'); }
+    }
+
+    function closeEditor() {
+      const modified = document.getElementById('editor-content').value !== editorOriginal;
+      if (modified && !confirm('Unsaved changes. Close anyway?')) return;
+      document.getElementById('editor-overlay').style.display = 'none';
+      editorFilePath = null;
+    }
+
+    async function saveEditor() {
+      if (!editorFilePath) return;
+      try {
+        const content = document.getElementById('editor-content').value;
+        const r = await fetch('/api/files/save', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ filePath: editorFilePath, content }) });
+        const data = await r.json();
+        if (data.error) { showToast(data.error, 'error'); return; }
+        editorOriginal = content;
+        document.getElementById('editor-modified').style.display = 'none';
+        showToast('File saved!', 'success');
+      } catch (e) { showToast(e.message, 'error'); }
+    }
+
+    document.getElementById('editor-content')?.addEventListener('input', () => {
+      const modified = document.getElementById('editor-content').value !== editorOriginal;
+      document.getElementById('editor-modified').style.display = modified ? 'inline' : 'none';
+    });
+
+    // Ctrl+S to save in editor
+    document.getElementById('editor-content')?.addEventListener('keydown', (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); saveEditor(); }
+      // Tab inserts tab
+      if (e.key === 'Tab') { e.preventDefault(); const ta = e.target; const s = ta.selectionStart; ta.value = ta.value.substring(0, s) + '  ' + ta.value.substring(ta.selectionEnd); ta.selectionStart = ta.selectionEnd = s + 2; }
+    });
+
+    // === File Manager: New File / New Folder / Rename ===
+    let selectedFile = null;
+
+    async function promptNewFile() {
+      const name = prompt('New file name:');
+      if (!name) return;
+      try {
+        const r = await fetch('/api/files/new-file', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dirPath: fileCwd, name }) });
+        const data = await r.json();
+        if (data.error) { showToast(data.error, 'error'); return; }
+        showToast(`Created: ${name}`, 'success');
+        loadFiles(fileCwd);
+      } catch (e) { showToast(e.message, 'error'); }
+    }
+
+    async function promptNewFolder() {
+      const name = prompt('New folder name:');
+      if (!name) return;
+      try {
+        const r = await fetch('/api/files/new-folder', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dirPath: fileCwd, name }) });
+        const data = await r.json();
+        if (data.error) { showToast(data.error, 'error'); return; }
+        showToast(`Created folder: ${name}`, 'success');
+        loadFiles(fileCwd);
+      } catch (e) { showToast(e.message, 'error'); }
+    }
+
+    async function promptRename() {
+      if (!selectedFile) { showToast('Click a file first to select it', 'info'); return; }
+      const newName = prompt(`Rename "${selectedFile.name}" to:`, selectedFile.name);
+      if (!newName || newName === selectedFile.name) return;
+      try {
+        const r = await fetch('/api/files/rename', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ oldPath: selectedFile.path, newName }) });
+        const data = await r.json();
+        if (data.error) { showToast(data.error, 'error'); return; }
+        showToast(`Renamed to: ${newName}`, 'success');
+        selectedFile = null;
+        loadFiles(fileCwd);
+      } catch (e) { showToast(e.message, 'error'); }
+    }
+
+    function selectFileItem(el, name, fullPath) {
+      document.querySelectorAll('.file-item.selected').forEach(e => e.classList.remove('selected'));
+      el.classList.add('selected');
+      selectedFile = { name, path: fullPath };
+    }
 
     document.getElementById('btn-files').onclick = openFileModal;
 
@@ -2343,6 +2859,9 @@
     }
 
     document.getElementById('btn-theme').onclick = openThemeModal;
+    document.getElementById('btn-search').onclick = openTermSearch;
+    document.getElementById('btn-snippets').onclick = openSnippets;
+    document.getElementById('btn-export').onclick = () => exportTerminal('txt');
 
     // Close modal on backdrop click
     document.querySelector('.modal-backdrop')?.addEventListener('click', closeShellModal);

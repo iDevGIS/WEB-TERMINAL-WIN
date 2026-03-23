@@ -326,6 +326,7 @@ app.post("/api/login", (req, res) => {
   if (username === USERNAME && password === PASSWORD) {
     req.session.authenticated = true;
     req.session.user = username;
+    logActivity(req, "login", `User: ${username}`);
     return res.json({ ok: true });
   }
   res.status(401).json({ error: "Invalid credentials" });
@@ -424,6 +425,107 @@ app.post("/api/files/mkdir", requireAuth, (req, res) => {
   } catch (e) {
     res.status(400).json({ error: e.message });
   }
+});
+
+// File save (text editor)
+app.put("/api/files/save", requireAuth, (req, res) => {
+  const { filePath: fp, content } = req.body;
+  if (!fp) return res.status(400).json({ error: "No path" });
+  try {
+    const resolved = path.resolve(fp);
+    fs.writeFileSync(resolved, content, "utf8");
+    logActivity(req, "file-save", resolved);
+    res.json({ ok: true });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+// Create new file
+app.post("/api/files/new-file", requireAuth, (req, res) => {
+  const { dirPath, name } = req.body;
+  if (!dirPath || !name) return res.status(400).json({ error: "Missing dirPath or name" });
+  try {
+    const resolved = path.resolve(dirPath, name);
+    if (fs.existsSync(resolved)) return res.status(409).json({ error: "File already exists" });
+    fs.writeFileSync(resolved, "", "utf8");
+    logActivity(req, "file-create", resolved);
+    res.json({ ok: true });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+// Create new folder
+app.post("/api/files/new-folder", requireAuth, (req, res) => {
+  const { dirPath, name } = req.body;
+  if (!dirPath || !name) return res.status(400).json({ error: "Missing dirPath or name" });
+  try {
+    const resolved = path.resolve(dirPath, name);
+    if (fs.existsSync(resolved)) return res.status(409).json({ error: "Folder already exists" });
+    fs.mkdirSync(resolved, { recursive: true });
+    logActivity(req, "folder-create", resolved);
+    res.json({ ok: true });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+// Rename file/folder
+app.post("/api/files/rename", requireAuth, (req, res) => {
+  const { oldPath, newName } = req.body;
+  if (!oldPath || !newName) return res.status(400).json({ error: "Missing oldPath or newName" });
+  try {
+    const resolved = path.resolve(oldPath);
+    const newPath = path.join(path.dirname(resolved), newName);
+    if (fs.existsSync(newPath)) return res.status(409).json({ error: "Target already exists" });
+    fs.renameSync(resolved, newPath);
+    logActivity(req, "file-rename", `${resolved} → ${newPath}`);
+    res.json({ ok: true });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+// Move file/folder
+app.post("/api/files/move", requireAuth, (req, res) => {
+  const { srcPath, destDir } = req.body;
+  if (!srcPath || !destDir) return res.status(400).json({ error: "Missing srcPath or destDir" });
+  try {
+    const src = path.resolve(srcPath);
+    const dest = path.join(path.resolve(destDir), path.basename(src));
+    if (fs.existsSync(dest)) return res.status(409).json({ error: "Target already exists" });
+    fs.renameSync(src, dest);
+    logActivity(req, "file-move", `${src} → ${dest}`);
+    res.json({ ok: true });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+// Command snippets
+const SNIPPETS_FILE = path.join(__dirname, "snippets.json");
+function loadSnippets() {
+  try { return JSON.parse(fs.readFileSync(SNIPPETS_FILE, "utf8")); } catch { return []; }
+}
+function saveSnippets(arr) { fs.writeFileSync(SNIPPETS_FILE, JSON.stringify(arr, null, 2)); }
+
+app.get("/api/snippets", requireAuth, (req, res) => { res.json(loadSnippets()); });
+app.post("/api/snippets", requireAuth, (req, res) => {
+  const { name, command, category } = req.body;
+  if (!name || !command) return res.status(400).json({ error: "Missing name or command" });
+  const snippets = loadSnippets();
+  snippets.push({ id: crypto.randomUUID(), name, command, category: category || "general", created: Date.now() });
+  saveSnippets(snippets);
+  res.json({ ok: true });
+});
+app.delete("/api/snippets/:id", requireAuth, (req, res) => {
+  let snippets = loadSnippets();
+  snippets = snippets.filter(s => s.id !== req.params.id);
+  saveSnippets(snippets);
+  res.json({ ok: true });
+});
+
+// Activity log
+const ACTIVITY_LOG = [];
+const MAX_ACTIVITY = 500;
+function logActivity(req, action, detail) {
+  ACTIVITY_LOG.unshift({ time: Date.now(), user: req.session?.user || "unknown", action, detail });
+  if (ACTIVITY_LOG.length > MAX_ACTIVITY) ACTIVITY_LOG.length = MAX_ACTIVITY;
+}
+app.get("/api/activity", requireAuth, (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit) || 50, MAX_ACTIVITY);
+  res.json(ACTIVITY_LOG.slice(0, limit));
 });
 
 // File delete disabled for safety
@@ -526,6 +628,25 @@ app.post("/api/sessions/:id/rename", requireAuth, (req, res) => {
 app.delete("/api/sessions/:id", requireAuth, (req, res) => {
   if (destroySession(req.params.id)) res.json({ ok: true });
   else res.status(404).json({ error: "Session not found" });
+});
+
+// Export terminal output
+app.get("/api/sessions/:id/export", requireAuth, (req, res) => {
+  const sess = termSessions.get(req.params.id);
+  if (!sess) return res.status(404).json({ error: "Session not found" });
+  const fmt = req.query.format || "txt";
+  const output = sess.scrollback || "";
+  // Strip ANSI codes for plain text
+  const plain = output.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, "").replace(/\x1b\][^\x07]*\x07/g, "");
+  if (fmt === "txt") {
+    res.setHeader("Content-Type", "text/plain");
+    res.setHeader("Content-Disposition", `attachment; filename="${sess.name || sess.id}.txt"`);
+    res.send(plain);
+  } else {
+    res.setHeader("Content-Type", "text/html");
+    res.setHeader("Content-Disposition", `attachment; filename="${sess.name || sess.id}.html"`);
+    res.send(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${sess.name}</title><style>body{background:#0a0a14;color:#e0e0e0;font-family:'JetBrains Mono',monospace;font-size:13px;padding:20px;white-space:pre-wrap;}</style></head><body>${plain.replace(/&/g,"&amp;").replace(/</g,"&lt;")}</body></html>`);
+  }
 });
 
 // Protected static files
