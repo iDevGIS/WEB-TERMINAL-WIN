@@ -839,17 +839,39 @@
       .file-date { display: none; }
     }
 
-    /* === File Preview === */
+    /* === File Preview Overlay === */
+    .preview-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 950;
+      background: rgba(6,6,18,.95);
+      backdrop-filter: blur(20px);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .preview-panel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      max-width: 1200px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 16px 24px;
+    }
+
     .preview-header {
       display: flex;
       align-items: center;
-      justify-content: space-between;
+      gap: 12px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--glass-border);
       margin-bottom: 12px;
-      gap: 8px;
+      flex-shrink: 0;
     }
 
     .preview-header h3 {
-      font-size: 13px;
+      font-size: 14px;
       font-weight: 500;
       color: var(--text);
       white-space: nowrap;
@@ -859,25 +881,25 @@
     }
 
     .preview-meta {
-      font-size: 10px;
+      font-size: 11px;
       color: var(--text3);
-      margin-bottom: 8px;
       font-family: 'JetBrains Mono', monospace;
+      flex-shrink: 0;
     }
 
     .preview-content {
       flex: 1;
       overflow: auto;
-      border-radius: 10px;
+      border-radius: 12px;
       background: rgba(0,0,0,.3);
       border: 1px solid var(--glass-border);
     }
 
     .preview-text {
-      padding: 14px;
+      padding: 20px;
       font-family: 'JetBrains Mono', 'Cascadia Code', monospace;
-      font-size: 12px;
-      line-height: 1.6;
+      font-size: 13px;
+      line-height: 1.7;
       color: var(--text);
       white-space: pre-wrap;
       word-break: break-all;
@@ -886,35 +908,39 @@
 
     .preview-text .line-num {
       display: inline-block;
-      width: 36px;
+      width: 40px;
       text-align: right;
-      margin-right: 12px;
+      margin-right: 16px;
       color: var(--text3);
       user-select: none;
-      opacity: .5;
+      opacity: .4;
     }
 
     .preview-image {
       display: flex;
       align-items: center;
       justify-content: center;
-      padding: 16px;
-      min-height: 200px;
+      padding: 24px;
+      flex: 1;
     }
 
     .preview-image img {
       max-width: 100%;
-      max-height: 60vh;
-      border-radius: 8px;
+      max-height: 80vh;
+      border-radius: 10px;
       object-fit: contain;
+      box-shadow: 0 4px 30px rgba(0,0,0,.3);
     }
 
     .preview-pdf {
       width: 100%;
       height: 100%;
-      min-height: 400px;
       border: none;
-      border-radius: 10px;
+      border-radius: 12px;
+    }
+
+    @media (max-width: 768px) {
+      .preview-panel { padding: 12px; }
     }
 
     /* === Theme Grid === */
@@ -1140,6 +1166,14 @@
     </div>
   </div>
   <input type="file" id="file-upload-input" multiple style="display:none">
+
+  <!-- File Preview Overlay -->
+  <div id="preview-overlay" class="preview-overlay" style="display:none">
+    <div class="preview-panel">
+      <div class="preview-header" id="preview-header"></div>
+      <div class="preview-content" id="preview-body"></div>
+    </div>
+  </div>
 
   <!-- Theme Picker Drawer -->
   <div id="theme-drawer-overlay" class="file-drawer-overlay" onclick="closeThemeModal()"></div>
@@ -1993,79 +2027,77 @@
       '.pdf',
     ]);
 
+    function closePreview() {
+      document.getElementById('preview-overlay').style.display = 'none';
+      document.getElementById('preview-header').innerHTML = '';
+      document.getElementById('preview-body').innerHTML = '';
+    }
+
     async function previewFile(fullPath, name) {
       const ext = '.' + name.split('.').pop().toLowerCase();
       if (!PREVIEWABLE_EXTS.has(ext) && name.includes('.')) {
-        // Not previewable, just download
         downloadFile(fullPath);
         return;
       }
 
-      const listEl = document.getElementById('file-list');
-      const breadcrumb = document.getElementById('file-breadcrumb');
-      const driveBar = document.getElementById('drive-bar');
+      const overlay = document.getElementById('preview-overlay');
+      const header = document.getElementById('preview-header');
+      const body = document.getElementById('preview-body');
 
-      // Hide file list, show preview
       const imgExts = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.bmp', '.ico'];
       const isPdf = ext === '.pdf';
       const isImg = imgExts.includes(ext);
 
-      if (isPdf || isImg) {
+      // Show overlay
+      overlay.style.display = 'flex';
+
+      // Header with back, name, download
+      header.innerHTML = `
+        <button class="toolbar-icon" onclick="closePreview()" title="Close">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <h3>${escHtml(name)}</h3>
+        <div class="preview-meta" id="preview-meta-info"></div>
+        <button class="toolbar-icon" onclick="downloadFile('${escAttr(fullPath)}')" title="Download">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        </button>
+        <button class="toolbar-icon" onclick="closePreview()" title="Close">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>`;
+
+      if (isPdf) {
         const previewUrl = `/api/files/preview?path=${encodeURIComponent(fullPath)}`;
-        driveBar.style.display = 'none';
-        breadcrumb.innerHTML = '';
-
-        let content = '';
-        if (isPdf) {
-          content = `<iframe class="preview-pdf" src="${previewUrl}"></iframe>`;
-        } else {
-          content = `<div class="preview-image"><img src="${previewUrl}" alt="${escHtml(name)}"></div>`;
-        }
-
-        listEl.innerHTML = `
-          <div class="preview-header">
-            <button class="toolbar-icon" onclick="loadFiles(fileCwd)" title="Back">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>
-            </button>
-            <h3>${escHtml(name)}</h3>
-            <button class="toolbar-icon" onclick="downloadFile('${escAttr(fullPath)}')" title="Download">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            </button>
-          </div>
-          <div class="preview-content">${content}</div>`;
+        body.innerHTML = `<iframe class="preview-pdf" src="${previewUrl}"></iframe>`;
+      } else if (isImg) {
+        const previewUrl = `/api/files/preview?path=${encodeURIComponent(fullPath)}`;
+        body.innerHTML = `<div class="preview-image"><img src="${previewUrl}" alt="${escHtml(name)}"></div>`;
       } else {
-        // Text file
-        listEl.innerHTML = '<div class="file-loading">Loading preview...</div>';
-        driveBar.style.display = 'none';
-        breadcrumb.innerHTML = '';
-
+        body.innerHTML = '<div class="file-loading" style="padding:40px">Loading...</div>';
         try {
           const r = await fetch(`/api/files/preview?path=${encodeURIComponent(fullPath)}`);
           const data = await r.json();
-          if (data.error) { listEl.innerHTML = `<div class="file-loading">⚠ ${escHtml(data.error)}</div>`; return; }
+          if (data.error) { body.innerHTML = `<div class="file-loading" style="padding:40px">⚠ ${escHtml(data.error)}</div>`; return; }
+
+          document.getElementById('preview-meta-info').textContent = `${formatSize(data.size)} · ${data.ext || 'text'}`;
 
           const lines = data.content.split('\n');
           const numbered = lines.map((line, i) =>
             `<span class="line-num">${i + 1}</span>${escHtml(line)}`
           ).join('\n');
 
-          listEl.innerHTML = `
-            <div class="preview-header">
-              <button class="toolbar-icon" onclick="loadFiles(fileCwd)" title="Back">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>
-              </button>
-              <h3>${escHtml(name)}</h3>
-              <div class="preview-meta">${formatSize(data.size)} · ${data.ext || 'text'}</div>
-              <button class="toolbar-icon" onclick="downloadFile('${escAttr(fullPath)}')" title="Download">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-              </button>
-            </div>
-            <div class="preview-content"><pre class="preview-text">${numbered}</pre></div>`;
+          body.innerHTML = `<pre class="preview-text">${numbered}</pre>`;
         } catch (e) {
-          listEl.innerHTML = `<div class="file-loading">⚠ ${e.message}</div>`;
+          body.innerHTML = `<div class="file-loading" style="padding:40px">⚠ ${e.message}</div>`;
         }
       }
     }
+
+    // Close preview on Escape
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && document.getElementById('preview-overlay').style.display !== 'none') {
+        closePreview();
+      }
+    });
 
     document.getElementById('btn-files').onclick = openFileModal;
 
