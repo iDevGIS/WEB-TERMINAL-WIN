@@ -6,6 +6,8 @@
   <title>CYBERFRAME</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.min.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.10.0/styles/tokyo-night-dark.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.10.0/highlight.min.js"></script>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
@@ -895,25 +897,52 @@
       border: 1px solid var(--glass-border);
     }
 
-    .preview-text {
-      padding: 20px;
+    .preview-code-wrap {
+      display: flex;
+      flex: 1;
+      overflow: auto;
+    }
+
+    .preview-line-nums {
+      padding: 20px 0;
+      text-align: right;
+      user-select: none;
+      flex-shrink: 0;
+      border-right: 1px solid rgba(255,255,255,.06);
+      background: rgba(0,0,0,.15);
+    }
+
+    .preview-line-nums span {
+      display: block;
+      padding: 0 12px 0 16px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      line-height: 1.7;
+      color: var(--text3);
+      opacity: .35;
+    }
+
+    .preview-code-block {
+      flex: 1;
+      overflow-x: auto;
+    }
+
+    .preview-code-block pre {
+      margin: 0;
+      padding: 20px 16px;
+    }
+
+    .preview-code-block code {
       font-family: 'JetBrains Mono', 'Cascadia Code', monospace;
       font-size: 13px;
       line-height: 1.7;
-      color: var(--text);
-      white-space: pre-wrap;
-      word-break: break-all;
       tab-size: 2;
     }
 
-    .preview-text .line-num {
-      display: inline-block;
-      width: 40px;
-      text-align: right;
-      margin-right: 16px;
-      color: var(--text3);
-      user-select: none;
-      opacity: .4;
+    /* Override hljs background */
+    .preview-code-block .hljs {
+      background: transparent !important;
+      padding: 0 !important;
     }
 
     .preview-image {
@@ -922,7 +951,12 @@
       justify-content: center;
       padding: 24px;
       flex: 1;
+      overflow: hidden;
+      cursor: grab;
+      position: relative;
     }
+
+    .preview-image.dragging { cursor: grabbing; }
 
     .preview-image img {
       max-width: 100%;
@@ -930,6 +964,48 @@
       border-radius: 10px;
       object-fit: contain;
       box-shadow: 0 4px 30px rgba(0,0,0,.3);
+      transition: transform .15s ease;
+      transform-origin: center center;
+    }
+
+    .preview-zoom-controls {
+      position: absolute;
+      bottom: 16px;
+      right: 16px;
+      display: flex;
+      gap: 4px;
+      background: var(--glass);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--glass-border);
+      border-radius: 10px;
+      padding: 4px;
+      z-index: 5;
+    }
+
+    .preview-zoom-controls button {
+      background: none;
+      border: none;
+      color: var(--text);
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background .15s;
+    }
+
+    .preview-zoom-controls button:hover { background: rgba(255,255,255,.1); }
+
+    .preview-zoom-level {
+      color: var(--text3);
+      font-size: 11px;
+      display: flex;
+      align-items: center;
+      padding: 0 6px;
+      font-family: 'JetBrains Mono', monospace;
     }
 
     .preview-pdf {
@@ -2070,7 +2146,17 @@
         body.innerHTML = `<iframe class="preview-pdf" src="${previewUrl}"></iframe>`;
       } else if (isImg) {
         const previewUrl = `/api/files/preview?path=${encodeURIComponent(fullPath)}`;
-        body.innerHTML = `<div class="preview-image"><img src="${previewUrl}" alt="${escHtml(name)}"></div>`;
+        body.innerHTML = `
+          <div class="preview-image" id="img-container">
+            <img id="preview-img" src="${previewUrl}" alt="${escHtml(name)}">
+            <div class="preview-zoom-controls">
+              <button onclick="imgZoom(-1)" title="Zoom out">−</button>
+              <span class="preview-zoom-level" id="zoom-level">100%</span>
+              <button onclick="imgZoom(1)" title="Zoom in">+</button>
+              <button onclick="imgZoomReset()" title="Reset">⟲</button>
+            </div>
+          </div>`;
+        initImageZoom();
       } else {
         body.innerHTML = '<div class="file-loading" style="padding:40px">Loading...</div>';
         try {
@@ -2080,16 +2166,123 @@
 
           document.getElementById('preview-meta-info').textContent = `${formatSize(data.size)} · ${data.ext || 'text'}`;
 
-          const lines = data.content.split('\n');
-          const numbered = lines.map((line, i) =>
-            `<span class="line-num">${i + 1}</span>${escHtml(line)}`
-          ).join('\n');
+          // Detect language from extension
+          const langMap = {
+            '.js': 'javascript', '.ts': 'typescript', '.py': 'python', '.rb': 'ruby',
+            '.go': 'go', '.rs': 'rust', '.java': 'java', '.c': 'c', '.cpp': 'cpp',
+            '.h': 'c', '.cs': 'csharp', '.html': 'html', '.css': 'css', '.scss': 'scss',
+            '.less': 'less', '.sql': 'sql', '.sh': 'bash', '.bash': 'bash',
+            '.bat': 'dos', '.cmd': 'dos', '.ps1': 'powershell', '.json': 'json',
+            '.xml': 'xml', '.yaml': 'yaml', '.yml': 'yaml', '.toml': 'ini',
+            '.md': 'markdown', '.csv': 'plaintext', '.log': 'plaintext',
+            '.txt': 'plaintext', '.ini': 'ini', '.cfg': 'ini', '.conf': 'ini',
+            '.env': 'bash', '.gitignore': 'plaintext',
+          };
+          const lang = langMap[data.ext] || '';
 
-          body.innerHTML = `<pre class="preview-text">${numbered}</pre>`;
+          const lines = data.content.split('\n');
+          const lineNums = lines.map((_, i) => `<span>${i + 1}</span>`).join('');
+
+          // Format JSON nicely
+          let codeContent = data.content;
+          if (data.ext === '.json') {
+            try { codeContent = JSON.stringify(JSON.parse(codeContent), null, 2); } catch {}
+          }
+
+          body.innerHTML = `
+            <div class="preview-code-wrap">
+              <div class="preview-line-nums">${lineNums}</div>
+              <div class="preview-code-block">
+                <pre><code class="${lang ? `language-${lang}` : ''}">${escHtml(codeContent)}</code></pre>
+              </div>
+            </div>`;
+
+          // Apply highlight.js
+          if (typeof hljs !== 'undefined' && lang && lang !== 'plaintext') {
+            body.querySelectorAll('pre code').forEach(el => hljs.highlightElement(el));
+            // Re-count lines after formatting
+            const highlighted = body.querySelector('code');
+            if (highlighted) {
+              const newLines = highlighted.innerHTML.split('\n');
+              const numsEl = body.querySelector('.preview-line-nums');
+              numsEl.innerHTML = newLines.map((_, i) => `<span>${i + 1}</span>`).join('');
+            }
+          }
+
+          // Sync scroll between line nums and code
+          const codeWrap = body.querySelector('.preview-code-wrap');
+          const numsDiv = body.querySelector('.preview-line-nums');
+          const codeDiv = body.querySelector('.preview-code-block');
+          if (codeWrap && numsDiv && codeDiv) {
+            codeWrap.addEventListener('scroll', () => {
+              numsDiv.scrollTop = codeWrap.scrollTop;
+            });
+          }
         } catch (e) {
           body.innerHTML = `<div class="file-loading" style="padding:40px">⚠ ${e.message}</div>`;
         }
       }
+    }
+
+    // === Image Zoom ===
+    let imgScale = 1, imgPanX = 0, imgPanY = 0, imgDragging = false, imgDragStart = {};
+
+    function imgZoom(dir) {
+      const steps = [25, 50, 75, 100, 150, 200, 300, 400, 500];
+      const curIdx = steps.findIndex(s => s >= imgScale * 100);
+      const newIdx = Math.max(0, Math.min(steps.length - 1, (curIdx === -1 ? 3 : curIdx) + dir));
+      imgScale = steps[newIdx] / 100;
+      applyImgTransform();
+    }
+
+    function imgZoomReset() {
+      imgScale = 1; imgPanX = 0; imgPanY = 0;
+      applyImgTransform();
+    }
+
+    function applyImgTransform() {
+      const img = document.getElementById('preview-img');
+      const label = document.getElementById('zoom-level');
+      if (img) img.style.transform = `translate(${imgPanX}px, ${imgPanY}px) scale(${imgScale})`;
+      if (label) label.textContent = `${Math.round(imgScale * 100)}%`;
+    }
+
+    function initImageZoom() {
+      imgScale = 1; imgPanX = 0; imgPanY = 0;
+      const container = document.getElementById('img-container');
+      if (!container) return;
+
+      container.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        imgZoom(e.deltaY < 0 ? 1 : -1);
+      }, { passive: false });
+
+      container.addEventListener('pointerdown', (e) => {
+        if (e.target.closest('.preview-zoom-controls')) return;
+        imgDragging = true;
+        imgDragStart = { x: e.clientX - imgPanX, y: e.clientY - imgPanY };
+        container.classList.add('dragging');
+        container.setPointerCapture(e.pointerId);
+      });
+
+      container.addEventListener('pointermove', (e) => {
+        if (!imgDragging) return;
+        imgPanX = e.clientX - imgDragStart.x;
+        imgPanY = e.clientY - imgDragStart.y;
+        applyImgTransform();
+      });
+
+      container.addEventListener('pointerup', () => {
+        imgDragging = false;
+        container.classList.remove('dragging');
+      });
+
+      // Double-click to toggle zoom
+      container.addEventListener('dblclick', (e) => {
+        if (e.target.closest('.preview-zoom-controls')) return;
+        if (imgScale === 1) { imgScale = 2; } else { imgScale = 1; imgPanX = 0; imgPanY = 0; }
+        applyImgTransform();
+      });
     }
 
     // Close preview on Escape
