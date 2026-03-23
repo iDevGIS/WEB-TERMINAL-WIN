@@ -1471,6 +1471,7 @@
       <button class="file-action-btn" onclick="promptNewFile()">📄 New File</button>
       <button class="file-action-btn" onclick="promptNewFolder()">📁 New Folder</button>
       <button class="file-action-btn" onclick="promptRename()">✏️ Rename</button>
+      <button class="file-action-btn" onclick="promptDelete()" style="color:#f87171">🗑️ Delete</button>
     </div>
     <div id="file-breadcrumb" class="file-breadcrumb"></div>
     <div id="file-list" class="file-list"></div>
@@ -2806,6 +2807,21 @@
         const data = await r.json();
         if (data.error) { showToast(data.error, 'error'); return; }
         showToast(`Renamed to: ${newName}`, 'success');
+        selectedFile = null;
+        loadFiles(fileCwd);
+      } catch (e) { showToast(e.message, 'error'); }
+    }
+
+    async function promptDelete() {
+      if (!selectedFile) { showToast('Click a file first to select it', 'info'); return; }
+      const name = selectedFile.name;
+      if (!confirm(`⚠️ Delete "${name}"?\n\nThis cannot be undone!`)) return;
+      if (!confirm(`Are you REALLY sure you want to delete "${name}"?`)) return;
+      try {
+        const r = await fetch('/api/files/delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ filePath: selectedFile.path }) });
+        const data = await r.json();
+        if (data.error) { showToast(data.error, 'error'); return; }
+        showToast(`Deleted: ${name}`, 'success');
         selectedFile = null;
         loadFiles(fileCwd);
       } catch (e) { showToast(e.message, 'error'); }

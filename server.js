@@ -528,7 +528,22 @@ app.get("/api/activity", requireAuth, (req, res) => {
   res.json(ACTIVITY_LOG.slice(0, limit));
 });
 
-// File delete disabled for safety
+// File delete (with client-side confirm)
+app.post("/api/files/delete", requireAuth, (req, res) => {
+  const { filePath: fp } = req.body;
+  if (!fp) return res.status(400).json({ error: "No path" });
+  try {
+    const resolved = path.resolve(fp);
+    const st = fs.statSync(resolved);
+    if (st.isDirectory()) {
+      fs.rmSync(resolved, { recursive: true, force: true });
+    } else {
+      fs.unlinkSync(resolved);
+    }
+    logActivity(req, "file-delete", resolved);
+    res.json({ ok: true });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
 
 app.get("/api/files/drives", requireAuth, (req, res) => {
   try {
