@@ -9,60 +9,121 @@
 ## ✨ Features
 
 ### 🖥️ Multi-Shell Terminal
-- **Persistent sessions** — tmux-like, disconnect without killing the process
-- **5 shell profiles** — PowerShell, Windows PowerShell, CMD, Git Bash, WSL
-- **Auto-detect** available shells at startup
-- **Scrollback buffer** — 50,000 chars retained per session
-- **Session idle timeout** — auto-cleanup after 30 min
+- **Persistent sessions** — tmux-like architecture; disconnect without killing the process, reconnect and resume exactly where you left off
+- **5 shell profiles** — PowerShell (⚡), Windows PowerShell (🔵), CMD (⬛), Git Bash (🟠), WSL Ubuntu (🐧)
+- **Auto-detect** available shells at startup — only shows what's actually installed
+- **Scrollback buffer** — 50,000 characters retained per session
+- **Session idle timeout** — auto-cleanup after 30 minutes of inactivity
+- **Session rename** — double-click session name to rename
+- **Multiple concurrent sessions** — run as many shells as you need simultaneously
+
+### 🔍 Terminal Search
+- **Ctrl+F** to search — intercepts browser search, uses xterm's built-in search addon
+- **Navigate results** — ▲ Previous / ▼ Next buttons or Enter/Shift+Enter
+- **Real-time highlight** — matches highlighted as you type
+- **Esc to close** — returns focus to terminal
+
+### ⚡ Command Snippets
+- **Save frequently used commands** — name, command, and optional category
+- **One-click execute** — click a snippet to run it in the active terminal session
+- **Persistent storage** — saved to `snippets.json`, survives server restarts
+- **Categories** — organize snippets with tags (e.g. `git`, `docker`, `system`)
+- **Slide-in drawer** — accessible from toolbar, doesn't block terminal view
+
+### 📥 Export Terminal Output
+- **Download as .txt** — click the export button in toolbar
+- **ANSI stripped** — clean plain text, no escape codes
+- **HTML export** — preserves terminal styling (dark background, monospace font)
+- **Named files** — exported with session name as filename
 
 ### 🖼️ Remote Desktop
-- **TightVNC + noVNC** integration
-- **WebSocket proxy** — no extra ports needed, runs through the same server
-- **View & control** your desktop from any browser
+- **TightVNC + noVNC** integration — full remote desktop in your browser
+- **WebSocket proxy** — no extra ports needed, VNC traffic tunneled through the same server on `/vnc-ws`
+- **View & control** your desktop from any device — mouse, keyboard, clipboard sharing
+- **One-click connect** — toolbar button opens VNC viewer instantly
 
 ### 📁 File Manager
-- **Browse, upload, download** files
-- **Drive selector** — switch between C:, D:, etc.
-- **Drag & drop** upload zone with visual feedback
-- **File type icons** — visual indicators for 30+ file types
-- **System files hidden** — no clutter from `$Recycle.Bin`, `NTUSER.DAT`, `.sys`, etc.
+- **Browse, upload, download** files from any drive on the system
+- **Drive selector** — switch between C:, D:, etc. with free space indicators
+- **Drag & drop upload** — drop zone at bottom of file list with visual feedback (purple highlight)
+- **New File / New Folder** — create directly from the file manager toolbar
+- **Rename** — click to select a file, then rename with one click
+- **File type icons** — visual indicators for 30+ file types (folders 📁, images 🖼️, code 📄, etc.)
+- **System files hidden** — automatically filters out `$Recycle.Bin`, `NTUSER.DAT`, `.sys`, `.tmp`, `.blf`, `.regtrans-ms`, junction points, etc.
+- **Breadcrumb navigation** — click any path segment to jump directly
 
 ### 👁️ File Preview
-- **Code viewer** — syntax highlighting (25+ languages) with line numbers
-- **Image viewer** — zoom (scroll/pinch), pan (drag), double-click toggle, zoom controls (25%–500%)
-- **PDF viewer** — inline iframe preview
-- **JSON formatter** — auto pretty-print
-- **Full-screen overlay** — press Esc to close
-- Powered by [highlight.js](https://highlightjs.org/) (Tokyo Night Dark theme)
+- **Code viewer** — syntax highlighting for 25+ languages (JavaScript, Python, TypeScript, Go, Rust, Java, C/C++, C#, PowerShell, Bash, SQL, HTML, CSS, YAML, TOML, and more) powered by [highlight.js](https://highlightjs.org/) with Tokyo Night Dark theme
+- **Line numbers** — separate scrollable column, synced with code view
+- **Image viewer** — full zoom support:
+  - 🖱️ Scroll wheel to zoom in/out (25%–500%)
+  - ✋ Click and drag to pan
+  - 👆 Double-click to toggle 100% ↔ 200%
+  - 🔘 Zoom controls: [−] level [+] ⟲ reset
+- **PDF viewer** — inline iframe, native browser PDF rendering
+- **JSON formatter** — auto pretty-print with indentation
+- **Full-screen overlay** — blurred backdrop, max-width 1200px centered, Esc to close
+- **Download button** — always accessible from preview header
+
+### ✏️ Text Editor
+- **Edit files in-browser** — open from file preview with one click
+- **Full-screen editor** — monospace textarea with proper tab handling
+- **Ctrl+S to save** — saves directly to the server filesystem
+- **Unsaved indicator** — purple "● Modified" badge when content differs from saved version
+- **Tab key inserts spaces** — 2-space soft tabs, doesn't lose focus
+- **Unsaved warning** — prompts before closing if you have changes
 
 ### 🎨 Themes
-8 built-in terminal color schemes:
-- 🔮 Cyberframe (default)
-- 🌃 Tokyo Night
-- 🧛 Dracula
-- 🐱 Catppuccin Mocha
-- 🍂 Gruvbox Dark
-- ❄️ Nord
-- 🌆 Synthwave
-- ☀️ Solarized Dark
+8 built-in terminal color schemes, persisted in `localStorage`:
+- 🔮 **Cyberframe** (default) — deep purple cyberpunk
+- 🌃 **Tokyo Night** — soft blue city lights
+- 🧛 **Dracula** — classic dark with vibrant accents
+- 🐱 **Catppuccin Mocha** — warm pastel tones
+- 🍂 **Gruvbox Dark** — retro warm earth tones
+- ❄️ **Nord** — arctic cool blue palette
+- 🌆 **Synthwave** — neon retrowave
+- ☀️ **Solarized Dark** — precision-engineered contrast
 
 ### 📱 Mobile Ready
-- **Special keys bar** — Esc, Tab, Ctrl, Alt, arrows, PgUp/PgDn, Del, Home, End
-- **Modifier toggle** — tap Ctrl, then type any key for combos (Ctrl+C, etc.)
-- **Clipboard** — copy selection / paste from clipboard
-- **Font size controls** — A- / A+ buttons
-- **Responsive sidebar** — overlay mode on small screens
+- **Special keys bar** — horizontal scrollable bar with: Esc, Tab, Ctrl, Alt, Fn, ▲▼◀▶ arrows, PgUp/PgDn, Del, Home, End, `|`, `/`, `.`, `~`, `_`, `-`
+- **One-shot modifier toggle** — tap Ctrl (turns purple) → type any key → sends combo (e.g. Ctrl+C) → auto-clears
+- **Clipboard integration** — 📋 Copy (terminal selection) / 📥 Paste (from clipboard with prompt fallback)
+- **Font size controls** — A- / A+ buttons, range 8–32px, persisted in `localStorage`
+- **Responsive sidebar** — overlay mode on screens < 768px
+- **Touch-friendly** — minimum 44px tap targets, no hover-dependent UI
 
 ### 💓 Heartbeat Monitor
-- **ECG waveform** with real-time latency visualization
-- **Animated heart** with BPM display
-- **Bitrate indicator** — live WebSocket throughput
-- **Connection status** — green (connected) / red (disconnected)
+- **ECG waveform** — real-time canvas-drawn latency visualization with 60 data points
+- **Animated heart** — pulses with each successful ping, color indicates health
+- **BPM display** — calculated from actual ping frequency (30 BPM = every 2 seconds)
+- **Latency readout** — exact millisecond round-trip time
+- **Bitrate indicator** — live WebSocket throughput in bps / Kbps / Mbps
+- **Connection status** — green dot (connected) / red dot (disconnected) with pulse animation
+
+### 🔔 Notifications
+- **Browser notifications** — alerts you when a long-running command completes while the tab is in the background
+- **Permission request** — asks for notification permission on first visit
+- **Toast notifications** — in-app popup messages for file operations, connection status, errors, and confirmations
+- **Auto-dismiss** — toasts disappear after 4 seconds with fade-out animation
+
+### 🔄 Auto-Reconnect
+- **Automatic WebSocket reconnection** — reconnects every 2 seconds when connection drops
+- **Session re-attach** — automatically re-attaches to the previously active terminal session after reconnect
+- **Visual feedback** — toolbar shows "↻ Reconnecting…" with pulse animation during disconnect
+- **Toast alert** — notifies you of connection loss and successful reconnection
+
+### 📋 Activity Log
+- **Server-side audit trail** — logs login events, file saves, creates, renames, moves, and deletions
+- **API access** — `GET /api/activity?limit=50` returns recent activity entries
+- **In-memory store** — last 500 actions with timestamp, user, action type, and detail
+- **Security auditing** — know who did what and when
 
 ### 🔒 Security
-- **Session-based auth** with configurable credentials
-- **WebSocket auth check** — no unauthenticated access
-- **Credentials in `.env`** — never committed to git
+- **Session-based authentication** — Express session with configurable secret, 24-hour cookie lifetime
+- **WebSocket auth check** — every WS upgrade request validates the session cookie; unauthorized connections are immediately destroyed
+- **Credentials in `.env`** — username and password stored in environment file, never committed to git (`.gitignore`)
+- **File delete disabled** — intentionally removed to prevent accidental data loss
+- **No external dependencies for auth** — self-contained, no third-party auth services required
 
 ---
 
@@ -253,17 +314,28 @@ CYBERFRAME
 
 | Method | Path | Description |
 |--------|------|-------------|
-| POST | `/api/login` | Authenticate |
-| GET | `/api/logout` | Logout |
+| POST | `/api/login` | Authenticate with username/password |
+| GET | `/api/logout` | Destroy session and redirect to login |
 | GET | `/api/shells` | List available shell profiles |
-| GET | `/api/sessions` | List active sessions |
-| POST | `/api/sessions` | Create session (REST fallback) |
-| DELETE | `/api/sessions/:id` | Destroy session |
-| POST | `/api/sessions/:id/rename` | Rename session |
-| GET | `/api/files/list` | Browse directory |
-| GET | `/api/files/download` | Download file |
-| POST | `/api/files/upload` | Upload file (base64) |
-| GET | `/api/files/drives` | List available drives |
+| GET | `/api/sessions` | List active terminal sessions |
+| POST | `/api/sessions` | Create new session (REST fallback) |
+| DELETE | `/api/sessions/:id` | Destroy a terminal session |
+| POST | `/api/sessions/:id/rename` | Rename a session |
+| GET | `/api/sessions/:id/export` | Export session output (`?format=txt\|html`) |
+| GET | `/api/files` | Browse directory (`?path=`) |
+| GET | `/api/files/download` | Download a file (`?path=`) |
+| POST | `/api/files/upload` | Upload file (base64 body) |
+| GET | `/api/files/drives` | List drives with free space |
+| GET | `/api/files/preview` | Preview file content (`?path=`, max 5MB) |
+| PUT | `/api/files/save` | Save file content (text editor) |
+| POST | `/api/files/new-file` | Create new empty file |
+| POST | `/api/files/new-folder` | Create new folder |
+| POST | `/api/files/rename` | Rename file or folder |
+| POST | `/api/files/move` | Move file or folder |
+| GET | `/api/snippets` | List saved command snippets |
+| POST | `/api/snippets` | Add new snippet |
+| DELETE | `/api/snippets/:id` | Delete a snippet |
+| GET | `/api/activity` | Activity log (`?limit=50`, max 500) |
 
 ### WebSocket Messages
 
@@ -289,6 +361,16 @@ CYBERFRAME
 
 ---
 
+## ⌨️ Keyboard Shortcuts
+
+| Shortcut | Action |
+|----------|--------|
+| `Ctrl+F` | Search terminal output |
+| `Enter` / `Shift+Enter` | Next / Previous search result |
+| `Ctrl+S` | Save file (in text editor) |
+| `Esc` | Close search / preview / editor |
+| `Tab` | Insert 2 spaces (in text editor) |
+
 ## 📱 Mobile Tips
 
 - **Ctrl+C**: Tap `ctrl` (turns purple) → tap `c` on keyboard
@@ -296,6 +378,7 @@ CYBERFRAME
 - **Paste**: Tap `📥paste` button to paste from clipboard
 - **Copy**: Select text in terminal → tap `📋copy`
 - **Font size**: Use `A-` / `A+` buttons
+- **File select**: Single tap to select, double tap to preview
 
 ---
 
