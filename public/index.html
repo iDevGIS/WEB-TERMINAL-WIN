@@ -761,6 +761,25 @@
       display: flex;
       flex-direction: column;
       gap: 2px;
+      position: relative;
+    }
+
+    .file-list-drop-hint {
+      margin-top: auto;
+      padding: 24px 16px;
+      border: 2px dashed rgba(255,255,255,.08);
+      border-radius: 12px;
+      text-align: center;
+      color: var(--text3);
+      font-size: 12px;
+      transition: all .2s;
+      flex-shrink: 0;
+    }
+
+    .file-list-drop-hint.drag-over {
+      border-color: var(--accent);
+      background: rgba(108,99,255,.08);
+      color: var(--accent);
     }
 
     .file-item {
@@ -1734,6 +1753,7 @@
           </div>`;
       }).join('');
 
+      html += `<div class="file-list-drop-hint" id="drop-hint">📥 Drag files here to upload</div>`;
       listEl.innerHTML = html;
     }
 
@@ -1802,12 +1822,17 @@
     document.getElementById('file-drawer')?.addEventListener('dragenter', (e) => {
       e.preventDefault();
       dragCounter++;
-      dropZone.style.display = 'flex';
+      const hint = document.getElementById('drop-hint');
+      if (hint) hint.classList.add('drag-over');
     });
 
     document.getElementById('file-drawer')?.addEventListener('dragleave', () => {
       dragCounter--;
-      if (dragCounter <= 0) { dropZone.style.display = 'none'; dragCounter = 0; }
+      if (dragCounter <= 0) {
+        dragCounter = 0;
+        const hint = document.getElementById('drop-hint');
+        if (hint) hint.classList.remove('drag-over');
+      }
     });
 
     document.getElementById('file-drawer')?.addEventListener('dragover', (e) => e.preventDefault());
@@ -1815,7 +1840,8 @@
     document.getElementById('file-drawer')?.addEventListener('drop', async (e) => {
       e.preventDefault();
       dragCounter = 0;
-      dropZone.style.display = 'none';
+      const hint = document.getElementById('drop-hint');
+      if (hint) hint.classList.remove('drag-over');
       const files = e.dataTransfer.files;
       for (const file of files) {
         const data = await readFileBase64(file);
