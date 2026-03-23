@@ -1355,6 +1355,50 @@
       .snippets-drawer { width: 100%; }
     }
 
+    /* === Activity Log === */
+    .activity-item {
+      padding: 10px 14px;
+      border-bottom: 1px solid rgba(255,255,255,.04);
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+    }
+    .activity-icon {
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      flex-shrink: 0;
+    }
+    .activity-icon.login { background: rgba(108,99,255,.12); }
+    .activity-icon.file { background: rgba(74,222,128,.12); }
+    .activity-icon.delete { background: rgba(248,113,113,.12); }
+    .activity-info { flex: 1; min-width: 0; }
+    .activity-action {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text);
+    }
+    .activity-detail {
+      font-size: 11px;
+      color: var(--text3);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      font-family: 'JetBrains Mono', monospace;
+      margin-top: 2px;
+    }
+    .activity-time {
+      font-size: 10px;
+      color: var(--text3);
+      opacity: .6;
+      flex-shrink: 0;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
     /* === Theme Grid === */
     .theme-grid {
       display: grid;
@@ -1587,6 +1631,18 @@
   </div>
   <input type="file" id="file-upload-input" multiple style="display:none">
 
+  <!-- Activity Log Drawer -->
+  <div class="snippets-overlay" id="activity-overlay"></div>
+  <div class="snippets-drawer" id="activity-drawer">
+    <div class="file-drawer-header">
+      <h2><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" style="vertical-align:-2px;margin-right:6px"><path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="10"/></svg>Activity Log</h2>
+      <button class="toolbar-icon" onclick="closeActivity()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div id="activity-list" style="flex:1;overflow-y:auto;padding:4px 0"></div>
+  </div>
+
   <!-- Toast Container -->
   <div class="toast-container" id="toast-container"></div>
 
@@ -1713,6 +1769,9 @@
       </button>
       <button class="toolbar-icon" id="btn-export" title="Export terminal output">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      </button>
+      <button class="toolbar-icon" id="btn-activity" title="Activity Log">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="10"/></svg>
       </button>
       <button class="toolbar-icon" id="btn-files" title="File Manager">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
@@ -3053,6 +3112,58 @@
       selectedFile = { name, path: fullPath };
     }
 
+    // === Activity Log ===
+    async function openActivity() {
+      document.getElementById('activity-drawer').classList.add('open');
+      document.getElementById('activity-overlay').classList.add('open');
+      const list = document.getElementById('activity-list');
+      list.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text3)">Loading...</div>';
+      try {
+        const r = await fetch('/api/activity?limit=100');
+        const items = await r.json();
+        if (!items.length) { list.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text3)">No activity yet</div>'; return; }
+
+        const iconMap = {
+          'login': { icon: '🔑', cls: 'login' },
+          'file-save': { icon: '💾', cls: 'file' },
+          'file-create': { icon: '📄', cls: 'file' },
+          'folder-create': { icon: '📁', cls: 'file' },
+          'file-rename': { icon: '✏️', cls: 'file' },
+          'file-move': { icon: '📦', cls: 'file' },
+          'file-delete': { icon: '🗑️', cls: 'delete' },
+        };
+
+        list.innerHTML = items.map(a => {
+          const info = iconMap[a.action] || { icon: '📋', cls: 'file' };
+          const ago = timeAgo(a.time);
+          const detail = a.detail ? a.detail.replace(/\\/g, '/').split('/').slice(-2).join('/') : '';
+          return `<div class="activity-item">
+            <div class="activity-icon ${info.cls}">${info.icon}</div>
+            <div class="activity-info">
+              <div class="activity-action">${a.action.replace(/-/g, ' ')}</div>
+              <div class="activity-detail" title="${escAttr(a.detail || '')}">${escHtml(detail)}</div>
+            </div>
+            <span class="activity-time">${ago}</span>
+          </div>`;
+        }).join('');
+      } catch { list.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text3)">Failed to load</div>'; }
+    }
+
+    function closeActivity() {
+      document.getElementById('activity-drawer').classList.remove('open');
+      document.getElementById('activity-overlay').classList.remove('open');
+    }
+    document.getElementById('activity-overlay').onclick = closeActivity;
+
+    function timeAgo(ts) {
+      const diff = Date.now() - ts;
+      if (diff < 60000) return 'just now';
+      if (diff < 3600000) return `${Math.floor(diff/60000)}m ago`;
+      if (diff < 86400000) return `${Math.floor(diff/3600000)}h ago`;
+      return new Date(ts).toLocaleDateString();
+    }
+
+    document.getElementById('btn-activity').onclick = openActivity;
     document.getElementById('btn-files').onclick = openFileModal;
 
     // === Theme Switcher ===
