@@ -650,7 +650,7 @@ app.get("/api/sessions/:id/export", requireAuth, (req, res) => {
   const sess = termSessions.get(req.params.id);
   if (!sess) return res.status(404).json({ error: "Session not found" });
   const fmt = req.query.format || "txt";
-  const output = sess.scrollback || "";
+  const output = sess.buffer || "";
   // Strip ANSI codes for plain text
   const plain = output.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, "").replace(/\x1b\][^\x07]*\x07/g, "");
   if (fmt === "txt") {
