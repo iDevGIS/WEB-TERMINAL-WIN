@@ -459,6 +459,44 @@ app.get("/api/files/drives", requireAuth, (req, res) => {
   }
 });
 
+// File preview API
+app.get("/api/files/preview", requireAuth, (req, res) => {
+  const filePath = req.query.path;
+  if (!filePath) return res.status(400).json({ error: "No path" });
+  try {
+    const resolved = path.resolve(filePath);
+    const st = fs.statSync(resolved);
+    if (st.isDirectory()) return res.status(400).json({ error: "Is a directory" });
+    if (st.size > 5 * 1024 * 1024) return res.status(413).json({ error: "File too large (max 5MB)" });
+
+    const ext = path.extname(resolved).toLowerCase();
+    const imgExts = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.bmp', '.ico'];
+    const textExts = [
+      '.txt', '.md', '.json', '.log', '.csv', '.xml', '.yaml', '.yml', '.toml',
+      '.js', '.ts', '.py', '.rb', '.go', '.rs', '.java', '.c', '.cpp', '.h', '.cs',
+      '.html', '.css', '.scss', '.less', '.sql', '.sh', '.bash', '.bat', '.cmd', '.ps1',
+      '.env', '.gitignore', '.dockerfile', '.makefile', '.cfg', '.ini', '.conf',
+    ];
+
+    if (ext === '.pdf') {
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', 'inline');
+      fs.createReadStream(resolved).pipe(res);
+    } else if (imgExts.includes(ext)) {
+      const mimeMap = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp', '.svg': 'image/svg+xml', '.bmp': 'image/bmp', '.ico': 'image/x-icon' };
+      res.setHeader('Content-Type', mimeMap[ext] || 'application/octet-stream');
+      fs.createReadStream(resolved).pipe(res);
+    } else if (textExts.includes(ext) || ext === '') {
+      const content = fs.readFileSync(resolved, 'utf8');
+      res.json({ type: 'text', ext, content, size: st.size });
+    } else {
+      res.status(415).json({ error: "Unsupported file type" });
+    }
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
 // Shell profiles API
 app.get("/api/shells", requireAuth, (req, res) => {
   res.json(getAvailableShells().map(s => ({ id: s.id, name: s.name, icon: s.icon })));

@@ -839,6 +839,84 @@
       .file-date { display: none; }
     }
 
+    /* === File Preview === */
+    .preview-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+      gap: 8px;
+    }
+
+    .preview-header h3 {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      flex: 1;
+    }
+
+    .preview-meta {
+      font-size: 10px;
+      color: var(--text3);
+      margin-bottom: 8px;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .preview-content {
+      flex: 1;
+      overflow: auto;
+      border-radius: 10px;
+      background: rgba(0,0,0,.3);
+      border: 1px solid var(--glass-border);
+    }
+
+    .preview-text {
+      padding: 14px;
+      font-family: 'JetBrains Mono', 'Cascadia Code', monospace;
+      font-size: 12px;
+      line-height: 1.6;
+      color: var(--text);
+      white-space: pre-wrap;
+      word-break: break-all;
+      tab-size: 2;
+    }
+
+    .preview-text .line-num {
+      display: inline-block;
+      width: 36px;
+      text-align: right;
+      margin-right: 12px;
+      color: var(--text3);
+      user-select: none;
+      opacity: .5;
+    }
+
+    .preview-image {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      min-height: 200px;
+    }
+
+    .preview-image img {
+      max-width: 100%;
+      max-height: 60vh;
+      border-radius: 8px;
+      object-fit: contain;
+    }
+
+    .preview-pdf {
+      width: 100%;
+      height: 100%;
+      min-height: 400px;
+      border: none;
+      border-radius: 10px;
+    }
+
     /* === Theme Grid === */
     .theme-grid {
       display: grid;
@@ -1741,14 +1819,13 @@
         const fullPath = fileCwd.replace(/\\/g, '/') + '/' + f.name;
 
         return `
-          <div class="file-item" ${f.isDir ? `onclick="loadFiles('${escAttr(fullPath)}')"` : ''}>
+          <div class="file-item" onclick="${f.isDir ? `loadFiles('${escAttr(fullPath)}')` : `previewFile('${escAttr(fullPath)}','${escAttr(f.name)}')`}">
             <span class="file-icon">${icon}</span>
             <span class="file-name">${escHtml(f.name)}</span>
             <span class="file-size">${size}</span>
             <span class="file-date">${date}</span>
             <div class="file-actions">
               ${!f.isDir ? `<button class="toolbar-icon" onclick="event.stopPropagation();downloadFile('${escAttr(fullPath)}')" title="Download"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>` : ''}
-
             </div>
           </div>`;
       }).join('');
@@ -1905,6 +1982,90 @@
       const vncUrl = `/novnc/index.html?autoconnect=true&reconnect=true&resize=scale&path=vnc-ws&host=${location.hostname}&port=${location.port}&encrypt=${location.protocol === 'https:' ? 'true' : 'false'}`;
       window.open(vncUrl, '_blank');
     };
+
+    // === File Preview ===
+    const PREVIEWABLE_EXTS = new Set([
+      '.txt', '.md', '.json', '.log', '.csv', '.xml', '.yaml', '.yml', '.toml',
+      '.js', '.ts', '.py', '.rb', '.go', '.rs', '.java', '.c', '.cpp', '.h', '.cs',
+      '.html', '.css', '.scss', '.less', '.sql', '.sh', '.bash', '.bat', '.cmd', '.ps1',
+      '.env', '.gitignore', '.cfg', '.ini', '.conf',
+      '.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.bmp', '.ico',
+      '.pdf',
+    ]);
+
+    async function previewFile(fullPath, name) {
+      const ext = '.' + name.split('.').pop().toLowerCase();
+      if (!PREVIEWABLE_EXTS.has(ext) && name.includes('.')) {
+        // Not previewable, just download
+        downloadFile(fullPath);
+        return;
+      }
+
+      const listEl = document.getElementById('file-list');
+      const breadcrumb = document.getElementById('file-breadcrumb');
+      const driveBar = document.getElementById('drive-bar');
+
+      // Hide file list, show preview
+      const imgExts = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.bmp', '.ico'];
+      const isPdf = ext === '.pdf';
+      const isImg = imgExts.includes(ext);
+
+      if (isPdf || isImg) {
+        const previewUrl = `/api/files/preview?path=${encodeURIComponent(fullPath)}`;
+        driveBar.style.display = 'none';
+        breadcrumb.innerHTML = '';
+
+        let content = '';
+        if (isPdf) {
+          content = `<iframe class="preview-pdf" src="${previewUrl}"></iframe>`;
+        } else {
+          content = `<div class="preview-image"><img src="${previewUrl}" alt="${escHtml(name)}"></div>`;
+        }
+
+        listEl.innerHTML = `
+          <div class="preview-header">
+            <button class="toolbar-icon" onclick="loadFiles(fileCwd)" title="Back">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>
+            </button>
+            <h3>${escHtml(name)}</h3>
+            <button class="toolbar-icon" onclick="downloadFile('${escAttr(fullPath)}')" title="Download">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            </button>
+          </div>
+          <div class="preview-content">${content}</div>`;
+      } else {
+        // Text file
+        listEl.innerHTML = '<div class="file-loading">Loading preview...</div>';
+        driveBar.style.display = 'none';
+        breadcrumb.innerHTML = '';
+
+        try {
+          const r = await fetch(`/api/files/preview?path=${encodeURIComponent(fullPath)}`);
+          const data = await r.json();
+          if (data.error) { listEl.innerHTML = `<div class="file-loading">⚠ ${escHtml(data.error)}</div>`; return; }
+
+          const lines = data.content.split('\n');
+          const numbered = lines.map((line, i) =>
+            `<span class="line-num">${i + 1}</span>${escHtml(line)}`
+          ).join('\n');
+
+          listEl.innerHTML = `
+            <div class="preview-header">
+              <button class="toolbar-icon" onclick="loadFiles(fileCwd)" title="Back">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>
+              </button>
+              <h3>${escHtml(name)}</h3>
+              <div class="preview-meta">${formatSize(data.size)} · ${data.ext || 'text'}</div>
+              <button class="toolbar-icon" onclick="downloadFile('${escAttr(fullPath)}')" title="Download">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              </button>
+            </div>
+            <div class="preview-content"><pre class="preview-text">${numbered}</pre></div>`;
+        } catch (e) {
+          listEl.innerHTML = `<div class="file-loading">⚠ ${e.message}</div>`;
+        }
+      }
+    }
 
     document.getElementById('btn-files').onclick = openFileModal;
 
