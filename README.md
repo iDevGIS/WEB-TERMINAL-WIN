@@ -109,9 +109,21 @@ Open `http://localhost:3000` in your browser.
 
 ## 📸 Screenshots
 
-| Login | Terminal | File Manager |
-|-------|----------|-------------|
-| Glassmorphism login with animated grid | Multi-shell with theme switcher | Slide-in drawer with drive selector |
+### Login
+![Login](docs/images/login.jpg)
+
+### Welcome & Shell Picker
+![Welcome](docs/images/welcome.jpg)
+![Shell Picker](docs/images/shell-picker.jpg)
+
+### Terminal
+![Terminal](docs/images/terminal.jpg)
+
+### File Manager
+![File Manager](docs/images/file-manager.jpg)
+
+### Theme Switcher
+![Themes](docs/images/themes.jpg)
 
 ---
 
