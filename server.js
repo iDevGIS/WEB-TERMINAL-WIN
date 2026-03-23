@@ -6,6 +6,7 @@ try { require("dotenv").config(); } catch { /* dotenv optional — uses process.
 
 const express = require("express");
 const session = require("express-session");
+const net = require("net");
 const { WebSocketServer } = require("ws");
 let pty;
 try { pty = require("@lydell/node-pty"); } catch(e) { pty = require("node-pty"); }
@@ -476,8 +477,10 @@ app.use(requireAuth, express.static(path.join(__dirname, "public")));
 
 const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true });
+const vncWss = new WebSocketServer({ noServer: true });
+const VNC_PORT = parseInt(process.env.VNC_PORT) || 5900;
 
-// Upgrade with session check
+// Upgrade with session check — route terminal vs VNC
 server.on("upgrade", (req, socket, head) => {
   sessionMiddleware(req, {}, () => {
     if (!req.session || !req.session.authenticated) {
@@ -485,9 +488,15 @@ server.on("upgrade", (req, socket, head) => {
       socket.destroy();
       return;
     }
-    wss.handleUpgrade(req, socket, head, (ws) => {
-      wss.emit("connection", ws, req);
-    });
+    if (req.url === "/vnc-ws") {
+      vncWss.handleUpgrade(req, socket, head, (ws) => {
+        vncWss.emit("connection", ws, req);
+      });
+    } else {
+      wss.handleUpgrade(req, socket, head, (ws) => {
+        wss.emit("connection", ws, req);
+      });
+    }
   });
 });
 
@@ -589,8 +598,29 @@ wss.on("connection", (ws, req) => {
   });
 });
 
+// === VNC WebSocket Proxy ===
+vncWss.on("connection", (ws) => {
+  console.log("[VNC] WebSocket client connected");
+  const vnc = net.createConnection(VNC_PORT, "127.0.0.1");
+
+  vnc.on("connect", () => console.log("[VNC] Connected to VNC server on port", VNC_PORT));
+
+  vnc.on("data", (data) => {
+    try { if (ws.readyState === 1) ws.send(data); } catch {}
+  });
+
+  ws.on("message", (data) => {
+    try { vnc.write(Buffer.from(data)); } catch {}
+  });
+
+  ws.on("close", () => { console.log("[VNC] WebSocket disconnected"); vnc.end(); });
+  vnc.on("close", () => ws.close());
+  vnc.on("error", (e) => { console.error("[VNC] Error:", e.message); ws.close(); });
+});
+
 server.listen(PORT, "0.0.0.0", () => {
   console.log(`⚡ CYBERFRAME running at http://127.0.0.1:${PORT}`);
   console.log(`🔐 Login: ${USERNAME} / ${"*".repeat(PASSWORD.length)}`);
+  console.log(`🖥️  VNC proxy: ws://127.0.0.1:${PORT}/vnc-ws → localhost:${VNC_PORT}`);
   console.log(`⏰ Session timeout: ${SESSION_TIMEOUT_MS / 1000}s`);
 });
