@@ -1,0 +1,18 @@
+{
+  "name": "web-terminal",
+  "version": "1.0.0",
+  "description": "Web-based terminal with xterm.js + node-pty",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "@lydell/node-pty": "^1.2.0-beta.3",
+    "cookie": "^1.1.1",
+    "dotenv": "^17.3.1",
+    "express": "^4.21.0",
+    "express-session": "^1.19.0",
+    "node-pty": "^1.1.0",
+    "ws": "^8.18.0"
+  }
+}
