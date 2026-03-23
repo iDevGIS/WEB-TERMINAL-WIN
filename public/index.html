@@ -2239,7 +2239,7 @@
         const fullPath = fileCwd.replace(/\\/g, '/') + '/' + f.name;
 
         return `
-          <div class="file-item" onclick="${f.isDir ? `loadFiles('${escAttr(fullPath)}')` : `fileItemClick(event,this,'${escAttr(f.name)}','${escAttr(fullPath)}')`}">
+          <div class="file-item" onclick="fileItemClick(event,this,'${escAttr(f.name)}','${escAttr(fullPath)}',${f.isDir})">
             <span class="file-icon">${icon}</span>
             <span class="file-name">${escHtml(f.name)}</span>
             <span class="file-size">${size}</span>
@@ -2830,14 +2830,14 @@
     }
 
     let fileClickTimer = null;
-    function fileItemClick(e, el, name, fullPath) {
-      // If clicking download button, skip
+    function fileItemClick(e, el, name, fullPath, isDir) {
       if (e.target.closest('.toolbar-icon')) return;
       if (fileClickTimer) {
-        // Double click → preview
+        // Double click → open folder or preview file
         clearTimeout(fileClickTimer);
         fileClickTimer = null;
-        previewFile(fullPath, name);
+        if (isDir) loadFiles(fullPath);
+        else previewFile(fullPath, name);
       } else {
         // Single click → select (wait to confirm not double)
         fileClickTimer = setTimeout(() => {
