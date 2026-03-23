@@ -1456,7 +1456,7 @@
   <div id="file-drawer-overlay" class="file-drawer-overlay" onclick="closeFileModal()"></div>
   <div id="file-drawer" class="file-drawer">
     <div class="file-drawer-header">
-      <h2>📁 Files</h2>
+      <h2><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" style="vertical-align:-2px;margin-right:6px"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>Files</h2>
       <div style="display:flex;gap:4px;align-items:center">
         <button class="toolbar-icon" onclick="fileUploadClick()" title="Upload">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
@@ -1468,10 +1468,10 @@
     </div>
     <div id="drive-bar" class="drive-bar"></div>
     <div class="file-actions-bar">
-      <button class="file-action-btn" onclick="promptNewFile()">📄 New File</button>
-      <button class="file-action-btn" onclick="promptNewFolder()">📁 New Folder</button>
-      <button class="file-action-btn" onclick="promptRename()">✏️ Rename</button>
-      <button class="file-action-btn" onclick="promptDelete()" style="color:#f87171">🗑️ Delete</button>
+      <button class="file-action-btn" onclick="promptNewFile()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg> New File</button>
+      <button class="file-action-btn" onclick="promptNewFolder()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/></svg> New Folder</button>
+      <button class="file-action-btn" onclick="promptRename()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Rename</button>
+      <button class="file-action-btn" onclick="promptDelete()" style="color:#f87171"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg> Delete</button>
     </div>
     <div id="file-breadcrumb" class="file-breadcrumb"></div>
     <div id="file-list" class="file-list"></div>
@@ -2166,7 +2166,8 @@
       const currentDrive = fileCwd ? fileCwd.charAt(0).toUpperCase() : '';
       bar.innerHTML = drives.map(d => `
         <button class="drive-btn ${d.Name === currentDrive ? 'active' : ''}" onclick="loadFiles('${d.Root.replace(/\\/g,'/')}')">
-          💾 ${d.Name}:
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="2" y="4" width="20" height="16" rx="2"/><line x1="2" y1="14" x2="22" y2="14"/><circle cx="6" cy="18" r="1"/><circle cx="10" cy="18" r="1"/></svg>
+          ${d.Name}:
           <span class="drive-size">${d.FreeGB}GB free</span>
         </button>
       `).join('');
