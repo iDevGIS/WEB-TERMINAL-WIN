@@ -1509,7 +1509,7 @@
     }
 
     @media (pointer: coarse), (max-width: 768px) {
-      .mobile-keys { display: block; }
+      .mobile-keys.active { display: block; }
     }
 
     /* === Mobile Overlay === */
@@ -2159,6 +2159,7 @@
     function showTerminal(name) {
       welcomeEl.style.display = 'none';
       termWrap.style.display = 'block';
+      document.getElementById('mobile-keys').classList.add('active');
       toolbarTitle.textContent = name;
       toolbarTitle.style.opacity = '1';
       toolbarStatus.textContent = '● Linked';
@@ -2178,6 +2179,7 @@
     function hideTerminal() {
       welcomeEl.style.display = 'flex';
       termWrap.style.display = 'none';
+      document.getElementById('mobile-keys').classList.remove('active');
       toolbarTitle.textContent = 'Idle — no link';
       toolbarTitle.style.opacity = '.5';
       toolbarStatus.textContent = '○ Idle';
