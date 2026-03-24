@@ -1537,22 +1537,20 @@
     /* === Mobile Responsive === */
     @media (max-width: 1024px) {
       #sidebar {
+        display: none !important;
         position: fixed !important;
-        left: -300px;
-        top: 0; bottom: 0;
+        left: 0; top: 0; bottom: 0;
         z-index: 100;
         width: 280px !important;
         min-width: 280px !important;
-        box-shadow: none;
-        transition: left .25s cubic-bezier(.4,0,.2,1), box-shadow .25s;
-      }
-
-      #sidebar.open {
-        left: 0;
         box-shadow: 4px 0 30px rgba(0,0,0,.5);
       }
 
-      #sidebar.collapsed { left: -300px; box-shadow: none; }
+      #sidebar.open {
+        display: flex !important;
+      }
+
+      #sidebar.collapsed { display: none !important; }
 
       #sidebar-overlay.show { display: block; }
 
@@ -2337,20 +2335,8 @@
 
     function toggleSidebar() {
       if (isMobile()) {
-        const isOpen = sidebar.classList.contains('open');
-        if (isOpen) {
-          sidebar.classList.remove('open');
-          sidebar.style.left = '-300px';
-          sidebar.style.visibility = 'hidden';
-          sidebar.style.boxShadow = 'none';
-          overlay.classList.remove('show');
-        } else {
-          sidebar.classList.add('open');
-          sidebar.style.left = '0';
-          sidebar.style.visibility = 'visible';
-          sidebar.style.boxShadow = '4px 0 30px rgba(0,0,0,.5)';
-          overlay.classList.add('show');
-        }
+        sidebar.classList.toggle('open');
+        overlay.classList.toggle('show', sidebar.classList.contains('open'));
       } else {
         sidebar.classList.toggle('collapsed');
       }
@@ -2359,16 +2345,12 @@
 
     function closeSidebarMobile() {
       sidebar.classList.remove('open');
-      sidebar.style.left = '-300px';
-      sidebar.style.visibility = 'hidden';
-      sidebar.style.boxShadow = 'none';
       overlay.classList.remove('show');
     }
 
-    // Auto-hide sidebar on mobile/touch
+    // Auto-hide sidebar on mobile/touch — CSS handles display:none via media query
     if (isMobile()) {
-      sidebar.style.cssText = 'position:fixed;left:-300px;top:0;bottom:0;z-index:100;width:280px;min-width:280px;box-shadow:none;display:flex;flex-direction:column;background:var(--glass-bg);backdrop-filter:blur(var(--blur));-webkit-backdrop-filter:blur(var(--blur));border-right:1px solid var(--glass-border);visibility:hidden;transition:left .25s,visibility .25s,box-shadow .25s';
-      // Hide toolbar extras
+      sidebar.classList.remove('open');
       ['toolbar-title','font-size-label','btn-font-up','btn-font-down'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.style.display = 'none';
