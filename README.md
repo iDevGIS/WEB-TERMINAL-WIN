@@ -62,16 +62,19 @@
   - 🔘 Zoom controls: [−] level [+] ⟲ reset
 - **PDF viewer** — inline iframe, native browser PDF rendering
 - **JSON formatter** — auto pretty-print with indentation
+- **HTML web preview** — render `.html` files as live webpages in iframe
 - **Full-screen overlay** — blurred backdrop, max-width 1200px centered, Esc to close
 - **Download button** — always accessible from preview header
 
-### ✏️ Text Editor
-- **Edit files in-browser** — open from file preview with one click
-- **Full-screen editor** — monospace textarea with proper tab handling
+### ✏️ Text Editor (Monaco / VS Code)
+- **Monaco Editor** — the same editor that powers VS Code, running in your browser
+- **Syntax highlighting** — 25+ languages with bracket pair colorization
+- **Minimap** — code overview panel on the right
+- **IntelliSense-ready** — auto-closing brackets, indentation guides, line highlight
 - **Ctrl+S to save** — saves directly to the server filesystem
-- **Unsaved indicator** — purple "● Modified" badge when content differs from saved version
-- **Tab key inserts spaces** — 2-space soft tabs, doesn't lose focus
-- **Unsaved warning** — prompts before closing if you have changes
+- **Unsaved indicator** — purple "● Modified" badge when content differs
+- **JSON auto-format** — pretty-prints JSON files on open
+- **Glassmorphism confirm** — custom styled dialog for unsaved changes (no ugly browser popups)
 
 ### 🎨 Themes
 8 built-in terminal color schemes, persisted in `localStorage`:
@@ -122,7 +125,7 @@
 - **Session-based authentication** — Express session with configurable secret, 24-hour cookie lifetime
 - **WebSocket auth check** — every WS upgrade request validates the session cookie; unauthorized connections are immediately destroyed
 - **Credentials in `.env`** — username and password stored in environment file, never committed to git (`.gitignore`)
-- **File delete disabled** — intentionally removed to prevent accidental data loss
+- **File delete with double confirm** — custom glassmorphism confirmation dialog, no accidental deletions
 - **No external dependencies for auth** — self-contained, no third-party auth services required
 
 ---
