@@ -603,48 +603,52 @@ app.get("/api/files/preview", requireAuth, (req, res) => {
       return;
     }
 
-    // Markdown preview mode
+    // Markdown preview mode — GitHub-style via marked + highlight.js CDN
     if (ext === '.md' && req.query.render === 'md') {
       const raw = fs.readFileSync(resolved, 'utf-8');
-      // Simple markdown → HTML conversion
-      let html = raw
-        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-        .replace(/^### (.+)$/gm, '<h3>$1</h3>')
-        .replace(/^## (.+)$/gm, '<h2>$1</h2>')
-        .replace(/^# (.+)$/gm, '<h1>$1</h1>')
-        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-        .replace(/\*(.+?)\*/g, '<em>$1</em>')
-        .replace(/`([^`]+)`/g, '<code>$1</code>')
-        .replace(/^```(\w*)\n([\s\S]*?)^```$/gm, '<pre><code class="lang-$1">$2</code></pre>')
-        .replace(/^\- (.+)$/gm, '<li>$1</li>')
-        .replace(/^\d+\. (.+)$/gm, '<li>$1</li>')
-        .replace(/(<li>.*<\/li>)/s, '<ul>$1</ul>')
-        .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" style="color:#60a5fa">$1</a>')
-        .replace(/^---$/gm, '<hr>')
-        .replace(/\n\n/g, '<br><br>')
-        .replace(/^(?!<[hluop]|<br|<hr|<pre)(.*\S.*)$/gm, '<p>$1</p>');
+      const escaped = JSON.stringify(raw);
       
       res.setHeader('Content-Type', 'text/html');
       res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/github-markdown-css@5.5.1/github-markdown-dark.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.10.0/styles/github-dark.min.css">
+<script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"><\/script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.10.0/highlight.min.js"><\/script>
 <style>
-  *{margin:0;padding:0;box-sizing:border-box}
-  body{background:#1a1a2e;color:#e0e0e0;font-family:'Inter',-apple-system,sans-serif;padding:24px;line-height:1.7;max-width:800px;margin:0 auto}
-  h1{font-size:24px;color:#f0f0f0;margin:20px 0 12px;padding-bottom:8px;border-bottom:1px solid rgba(255,255,255,.1)}
-  h2{font-size:20px;color:#e8e8f0;margin:18px 0 10px}
-  h3{font-size:16px;color:#d0d0e0;margin:14px 0 8px}
-  p{margin:6px 0}
-  strong{color:#f0f0f0}
-  code{background:rgba(108,99,255,.15);color:#c084fc;padding:2px 6px;border-radius:4px;font-family:'JetBrains Mono',monospace;font-size:13px}
-  pre{background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:16px;margin:12px 0;overflow-x:auto}
-  pre code{background:none;color:#e0e0e0;padding:0}
-  ul,ol{margin:8px 0 8px 24px}
-  li{margin:4px 0}
-  hr{border:none;border-top:1px solid rgba(255,255,255,.1);margin:16px 0}
-  a{color:#60a5fa;text-decoration:none}
-  a:hover{text-decoration:underline}
-  ::-webkit-scrollbar{width:6px;height:6px}
-  ::-webkit-scrollbar-thumb{background:rgba(255,255,255,.15);border-radius:3px}
-</style></head><body>${html}</body></html>`);
+  body{background:#0d1117;margin:0;padding:0}
+  .markdown-body{max-width:980px;margin:0 auto;padding:32px 24px;font-size:15px}
+  .markdown-body img{max-width:100%;border-radius:6px}
+  .markdown-body pre{position:relative}
+  .markdown-body table{display:block;width:max-content;max-width:100%;overflow:auto}
+  .copy-btn{position:absolute;top:8px;right:8px;padding:4px 8px;font-size:11px;color:#8b949e;background:#161b22;border:1px solid #30363d;border-radius:6px;cursor:pointer;opacity:0;transition:opacity .2s}
+  pre:hover .copy-btn{opacity:1}
+  .copy-btn:hover{color:#c9d1d9;border-color:#8b949e}
+  ::-webkit-scrollbar{width:8px;height:8px}
+  ::-webkit-scrollbar-thumb{background:#30363d;border-radius:4px}
+  ::-webkit-scrollbar-track{background:#0d1117}
+  @media(max-width:767px){.markdown-body{padding:16px 12px;font-size:14px}}
+</style></head><body>
+<article class="markdown-body" id="content"></article>
+<script>
+  marked.setOptions({
+    highlight:function(code,lang){
+      if(lang&&hljs.getLanguage(lang))return hljs.highlight(code,{language:lang}).value;
+      return hljs.highlightAuto(code).value;
+    },
+    breaks:true,
+    gfm:true
+  });
+  const raw=${escaped};
+  document.getElementById('content').innerHTML=marked.parse(raw);
+  document.querySelectorAll('pre code').forEach(el=>{
+    const btn=document.createElement('button');
+    btn.className='copy-btn';btn.textContent='Copy';
+    btn.onclick=()=>{navigator.clipboard.writeText(el.textContent);btn.textContent='Copied!';setTimeout(()=>btn.textContent='Copy',2000)};
+    el.parentElement.style.position='relative';
+    el.parentElement.prepend(btn);
+  });
+  document.querySelectorAll('input[type=checkbox]').forEach(cb=>{cb.disabled=true});
+<\/script></body></html>`);
       return;
     }
 
