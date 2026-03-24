@@ -1528,20 +1528,21 @@
     /* === Mobile Responsive === */
     @media (max-width: 1024px) {
       #sidebar {
-        position: fixed;
+        position: fixed !important;
         left: 0; top: 0; bottom: 0;
         z-index: 100;
-        width: 280px;
-        min-width: 280px;
-        margin-left: -280px;
+        width: 280px !important;
+        min-width: 280px !important;
+        transform: translateX(-100%);
         box-shadow: 4px 0 30px rgba(0,0,0,.5);
+        transition: transform .25s cubic-bezier(.4,0,.2,1);
       }
 
       #sidebar.open {
-        margin-left: 0;
+        transform: translateX(0);
       }
 
-      #sidebar.collapsed { margin-left: -280px; }
+      #sidebar.collapsed { transform: translateX(-100%); }
 
       #sidebar-overlay.show { display: block; }
 
@@ -2317,10 +2318,8 @@
     }
 
     function closeSidebarMobile() {
-      if (isMobile()) {
-        sidebar.classList.remove('open');
-        overlay.classList.remove('show');
-      }
+      sidebar.classList.remove('open');
+      overlay.classList.remove('show');
     }
 
     document.getElementById('toggle-sidebar').onclick = toggleSidebar;
