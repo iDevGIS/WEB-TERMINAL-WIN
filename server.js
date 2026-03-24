@@ -664,8 +664,15 @@ app.get("/api/sessions/:id/export", requireAuth, (req, res) => {
   }
 });
 
-// Protected static files
-app.use(requireAuth, express.static(path.join(__dirname, "public")));
+// Protected static files — no cache for HTML
+app.use(requireAuth, (req, res, next) => {
+  if (req.path === '/' || req.path.endsWith('.html')) {
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+  }
+  next();
+}, express.static(path.join(__dirname, "public")));
 
 const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true });
