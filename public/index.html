@@ -1775,37 +1775,37 @@
   <!-- Main -->
   <div id="main">
     <div id="toolbar">
-      <button id="toggle-sidebar" title="Toggle Sidebar">☰</button>
+      <button id="toggle-sidebar" title="Toggle Sidebar" onclick="toggleSidebar()">☰</button>
       <div id="toolbar-title">
         <span id="current-session-name" style="opacity:.5">Idle — no link</span>
       </div>
       <span id="toolbar-status" class="status-badge idle" style="display:none">—</span>
-      <button class="toolbar-icon" id="btn-vnc" title="Remote Desktop">
+      <button class="toolbar-icon" id="btn-vnc" title="Remote Desktop" onclick="openVNC()">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
       </button>
-      <button class="toolbar-icon" id="btn-search" title="Search terminal (Ctrl+F)">
+      <button class="toolbar-icon" id="btn-search" title="Search terminal (Ctrl+F)" onclick="openTermSearch()">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
       </button>
-      <button class="toolbar-icon" id="btn-snippets" title="Command Snippets">
+      <button class="toolbar-icon" id="btn-snippets" title="Command Snippets" onclick="openSnippets()">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
       </button>
-      <button class="toolbar-icon" id="btn-export" title="Export terminal output">
+      <button class="toolbar-icon" id="btn-export" title="Export terminal output" onclick="exportTerminal('txt')">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
       </button>
-      <button class="toolbar-icon" id="btn-activity" title="Activity Log">
+      <button class="toolbar-icon" id="btn-activity" title="Activity Log" onclick="openActivity()">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="10"/></svg>
       </button>
-      <button class="toolbar-icon" id="btn-files" title="File Manager">
+      <button class="toolbar-icon" id="btn-files" title="File Manager" onclick="openFileModal()">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
       </button>
-      <button class="toolbar-icon" id="btn-font-down" title="Decrease font size">
+      <button class="toolbar-icon" id="btn-font-down" title="Decrease font size" onclick="changeFontSize(-2)">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 12h14"/></svg>
       </button>
       <span id="font-size-label" class="font-size-label">14</span>
-      <button class="toolbar-icon" id="btn-font-up" title="Increase font size">
+      <button class="toolbar-icon" id="btn-font-up" title="Increase font size" onclick="changeFontSize(2)">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
       </button>
-      <button class="toolbar-icon" id="btn-theme" title="Switch theme">
+      <button class="toolbar-icon" id="btn-theme" title="Switch theme" onclick="openThemeModal()">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
       </button>
     </div>
@@ -1845,7 +1845,7 @@
           <div class="welcome-icon">⚡</div>
           <h2>CYBERFRAME</h2>
           <p class="sub">Neural shell interface — ROG Strix Scar</p>
-          <button class="btn primary" id="btn-new-welcome" style="padding:10px 28px;font-size:14px">
+          <button class="btn primary" id="btn-new-welcome" style="padding:10px 28px;font-size:14px" onclick="createSession()">
             ▶ Initialize Shell
           </button>
           <div class="features">
@@ -1891,6 +1891,23 @@
     }
   </script>
   <script>
+    // === Global Error Handler (debug mobile) ===
+    window.onerror = function(msg, src, line, col, err) {
+      console.error('[CYBERFRAME]', msg, src, line);
+      const d = document.createElement('div');
+      d.style.cssText = 'position:fixed;bottom:0;left:0;right:0;background:rgba(248,113,113,.9);color:#fff;padding:8px 12px;font-size:11px;z-index:9999;font-family:monospace;word-break:break-all';
+      d.textContent = `JS Error: ${msg} (line ${line})`;
+      document.body.appendChild(d);
+      setTimeout(() => d.remove(), 15000);
+    };
+
+    // === VNC function (declared early) ===
+    function openVNC() {
+      const h = location.hostname;
+      const p = location.protocol === 'https:' ? 'wss' : 'ws';
+      window.open('/novnc/vnc.html?host=' + h + '&port=' + location.port + '&path=vnc-ws&resize=remote&autoconnect=true&reconnect=true&reconnect_delay=3000', '_blank');
+    }
+
     // === Terminal Themes ===
     const THEMES = {
       cyberframe: {
