@@ -1361,6 +1361,50 @@
     }
     .file-action-btn:hover { background: rgba(255,255,255,.06); color: var(--text); border-color: var(--glass-border); }
     .file-action-danger:hover { color: #f87171; border-color: rgba(248,113,113,.2); background: rgba(248,113,113,.06); }
+
+    .file-info-panel {
+      background: rgba(255,255,255,.03);
+      border: 1px solid var(--glass-border);
+      border-radius: 10px;
+      padding: 12px;
+      margin: 8px 0;
+      font-size: 11px;
+      line-height: 1.6;
+    }
+    .file-info-panel .info-row {
+      display: flex;
+      gap: 8px;
+    }
+    .file-info-panel .info-label {
+      color: var(--text3);
+      min-width: 60px;
+      flex-shrink: 0;
+    }
+    .file-info-panel .info-value {
+      color: var(--text);
+      word-break: break-all;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+    }
+    .fav-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 8px;
+      cursor: pointer;
+      font-size: 11px;
+      color: var(--text2);
+      border-radius: 6px;
+    }
+    .fav-item:hover { background: var(--glass-bg2); color: var(--text); }
+    .fav-item .fav-remove {
+      margin-left: auto;
+      opacity: 0;
+      cursor: pointer;
+      color: var(--red);
+      font-size: 12px;
+    }
+    .fav-item:hover .fav-remove { opacity: 1; }
     .file-item.selected { background: rgba(108,99,255,.12) !important; border-left: 2px solid var(--accent); }
 
     @media (max-width: 768px) {
@@ -1650,6 +1694,8 @@
     <div class="file-toolbar-row">
       <div id="drive-bar" class="drive-bar"></div>
       <div class="file-actions-inline">
+        <button class="file-action-btn" onclick="showFileInfo()" title="File Info"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg></button>
+        <button class="file-action-btn" onclick="toggleFavorite()" title="Favorite"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" id="fav-icon"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></button>
         <button class="file-action-btn" onclick="promptNewFile()" title="New File"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg></button>
         <button class="file-action-btn" onclick="promptNewFolder()" title="New Folder"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/></svg></button>
         <button class="file-action-btn" onclick="promptRename()" title="Rename"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
@@ -1657,6 +1703,10 @@
       </div>
     </div>
     <div id="file-breadcrumb" class="file-breadcrumb"></div>
+    <div id="favorites-bar" style="display:none;padding:4px 0;border-bottom:1px solid var(--glass-border)">
+      <div style="font-size:10px;color:var(--text3);padding:2px 4px;text-transform:uppercase;letter-spacing:.5px">★ Favorites</div>
+      <div id="favorites-list" style="display:flex;flex-direction:column;gap:1px"></div>
+    </div>
     <div id="file-list" class="file-list"></div>
     <div id="file-drop-zone" class="file-drop-zone" style="display:none">
       <div class="drop-content">📥 Drop files here</div>
@@ -2414,9 +2464,93 @@
       document.getElementById('file-drawer-overlay').classList.add('open');
       loadDrives();
       loadFiles();
+      renderFavorites();
     }
 
     function refreshFiles() { loadFiles(fileCwd); }
+
+    // === File Info ===
+    function showFileInfo() {
+      if (!selectedFile) { showToast('Select a file first', 'warning'); return; }
+      const f = selectedFile;
+      const fullPath = fileCwd + '\\' + f.name;
+      const ext = f.name.includes('.') ? f.name.slice(f.name.lastIndexOf('.')) : '—';
+      const sizeStr = f.isDir ? '—' : formatSize(f.size || 0);
+      const modStr = f.modified ? new Date(f.modified).toLocaleString() : '—';
+
+      // Toggle: if info panel exists, remove it
+      const existing = document.getElementById('file-info-panel');
+      if (existing) { existing.remove(); return; }
+
+      const panel = document.createElement('div');
+      panel.className = 'file-info-panel';
+      panel.id = 'file-info-panel';
+      panel.innerHTML = `
+        <div class="info-row"><span class="info-label">Name</span><span class="info-value">${escHtml(f.name)}</span></div>
+        <div class="info-row"><span class="info-label">Path</span><span class="info-value">${escHtml(fullPath)}</span></div>
+        <div class="info-row"><span class="info-label">Type</span><span class="info-value">${f.isDir ? 'Folder' : ext}</span></div>
+        <div class="info-row"><span class="info-label">Size</span><span class="info-value">${sizeStr}</span></div>
+        <div class="info-row"><span class="info-label">Modified</span><span class="info-value">${modStr}</span></div>
+      `;
+      document.getElementById('file-list').before(panel);
+    }
+
+    // === Favorites ===
+    let favorites = JSON.parse(localStorage.getItem('cyberframe-favorites') || '[]');
+
+    function saveFavorites() {
+      localStorage.setItem('cyberframe-favorites', JSON.stringify(favorites));
+      renderFavorites();
+    }
+
+    function toggleFavorite() {
+      if (!selectedFile) { showToast('Select a file/folder first', 'warning'); return; }
+      const fullPath = fileCwd + '\\' + selectedFile.name;
+      const idx = favorites.findIndex(f => f.path === fullPath);
+      if (idx >= 0) {
+        favorites.splice(idx, 1);
+        showToast('Removed from favorites', 'info');
+      } else {
+        favorites.push({ name: selectedFile.name, path: fullPath, isDir: selectedFile.isDir });
+        showToast('★ Added to favorites', 'success');
+      }
+      saveFavorites();
+      updateFavIcon();
+    }
+
+    function updateFavIcon() {
+      const icon = document.getElementById('fav-icon');
+      if (!icon) return;
+      if (selectedFile) {
+        const fullPath = fileCwd + '\\' + selectedFile.name;
+        const isFav = favorites.some(f => f.path === fullPath);
+        icon.style.fill = isFav ? '#fbbf24' : 'none';
+        icon.style.stroke = isFav ? '#fbbf24' : 'currentColor';
+      } else {
+        icon.style.fill = 'none';
+        icon.style.stroke = 'currentColor';
+      }
+    }
+
+    function renderFavorites() {
+      const bar = document.getElementById('favorites-bar');
+      const list = document.getElementById('favorites-list');
+      if (!favorites.length) { bar.style.display = 'none'; return; }
+      bar.style.display = 'block';
+      list.innerHTML = favorites.map((f, i) => {
+        const navPath = f.isDir ? f.path : f.path.replace(/[\\/][^\\/]+$/, '');
+        return `<div class="fav-item" onclick="loadFiles(decodeURIComponent('${encodeURIComponent(navPath)}'))">
+          <span>${f.isDir ? '📁' : '📄'}</span>
+          <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(f.name)}</span>
+          <span class="fav-remove" onclick="event.stopPropagation();removeFav(${i})">✕</span>
+        </div>`;
+      }).join('');
+    }
+
+    function removeFav(idx) {
+      favorites.splice(idx, 1);
+      saveFavorites();
+    }
 
     function closeFileModal() {
       document.getElementById('file-drawer').classList.remove('open');
@@ -2476,7 +2610,7 @@
         const fullPath = fileCwd.replace(/\\/g, '/') + '/' + f.name;
 
         return `
-          <div class="file-item" onclick="fileItemClick(event,this,'${escAttr(f.name)}','${escAttr(fullPath)}',${f.isDir})">
+          <div class="file-item" data-size="${f.size||0}" data-mtime="${escAttr(f.mtime||'')}" onclick="fileItemClick(event,this,'${escAttr(f.name)}','${escAttr(fullPath)}',${f.isDir})">
             <span class="file-icon">${icon}</span>
             <span class="file-name">${escHtml(f.name)}</span>
             <span class="file-size">${size}</span>
@@ -3172,25 +3306,28 @@
     let fileClickTimer = null;
     function fileItemClick(e, el, name, fullPath, isDir) {
       if (e.target.closest('.toolbar-icon')) return;
+      const meta = { isDir, size: parseInt(el.dataset.size||'0'), modified: el.dataset.mtime };
       if (fileClickTimer) {
-        // Double click → open folder or preview file
         clearTimeout(fileClickTimer);
         fileClickTimer = null;
         if (isDir) loadFiles(fullPath);
         else previewFile(fullPath, name);
       } else {
-        // Single click → select (wait to confirm not double)
         fileClickTimer = setTimeout(() => {
           fileClickTimer = null;
-          selectFileItem(el, name, fullPath);
+          selectFileItem(el, name, fullPath, meta);
         }, 250);
       }
     }
 
-    function selectFileItem(el, name, fullPath) {
+    function selectFileItem(el, name, fullPath, meta) {
       document.querySelectorAll('.file-item.selected').forEach(e => e.classList.remove('selected'));
       el.classList.add('selected');
-      selectedFile = { name, path: fullPath };
+      selectedFile = { name, path: fullPath, ...meta };
+      // Remove old info panel
+      const p = document.getElementById('file-info-panel');
+      if (p) p.remove();
+      updateFavIcon();
     }
 
     // === Activity Log ===
