@@ -1568,7 +1568,8 @@
       #font-size-label { display: none; }
       #btn-font-down, #btn-font-up { display: none; }
 
-      #terminal-container { padding: 0; }
+      #terminal-container { padding: 0; overflow: hidden; }
+      #main { width: 100vw; max-width: 100vw; overflow: hidden; }
 
       .welcome-card {
         padding: 32px 24px;
@@ -2340,11 +2341,13 @@
         if (isOpen) {
           sidebar.classList.remove('open');
           sidebar.style.left = '-300px';
+          sidebar.style.visibility = 'hidden';
           sidebar.style.boxShadow = 'none';
           overlay.classList.remove('show');
         } else {
           sidebar.classList.add('open');
           sidebar.style.left = '0';
+          sidebar.style.visibility = 'visible';
           sidebar.style.boxShadow = '4px 0 30px rgba(0,0,0,.5)';
           overlay.classList.add('show');
         }
@@ -2357,27 +2360,19 @@
     function closeSidebarMobile() {
       sidebar.classList.remove('open');
       sidebar.style.left = '-300px';
+      sidebar.style.visibility = 'hidden';
       sidebar.style.boxShadow = 'none';
       overlay.classList.remove('show');
     }
 
     // Auto-hide sidebar on mobile/touch
     if (isMobile()) {
-      sidebar.style.left = '-300px';
-      sidebar.style.position = 'fixed';
-      sidebar.style.zIndex = '100';
-      sidebar.style.width = '280px';
-      sidebar.style.minWidth = '280px';
-      sidebar.style.boxShadow = 'none';
+      sidebar.style.cssText = 'position:fixed;left:-300px;top:0;bottom:0;z-index:100;width:280px;min-width:280px;box-shadow:none;display:flex;flex-direction:column;background:var(--glass-bg);backdrop-filter:blur(var(--blur));-webkit-backdrop-filter:blur(var(--blur));border-right:1px solid var(--glass-border);visibility:hidden;transition:left .25s,visibility .25s,box-shadow .25s';
       // Hide toolbar extras
-      const tt = document.getElementById('toolbar-title');
-      if (tt) tt.style.display = 'none';
-      const fl = document.getElementById('font-size-label');
-      if (fl) fl.style.display = 'none';
-      const fu = document.getElementById('btn-font-up');
-      if (fu) fu.style.display = 'none';
-      const fd = document.getElementById('btn-font-down');
-      if (fd) fd.style.display = 'none';
+      ['toolbar-title','font-size-label','btn-font-up','btn-font-down'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = 'none';
+      });
     }
 
     document.getElementById('toggle-sidebar').onclick = toggleSidebar;
