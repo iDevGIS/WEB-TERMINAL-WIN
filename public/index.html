@@ -2856,22 +2856,50 @@
 
           // Add web preview button for HTML files
           if (data.ext === '.html' || data.ext === '.htm') {
+            let webPreviewOn = false;
+            let htmlCodeContent = null;
             const webBtn = document.createElement('button');
             webBtn.className = 'file-action-btn';
             webBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg> Web';
             webBtn.onclick = () => {
-              body.innerHTML = `<iframe src="/api/files/preview?path=${encodeURIComponent(fullPath)}&render=web" style="width:100%;height:100%;border:none;border-radius:12px;background:#fff"></iframe>`;
+              webPreviewOn = !webPreviewOn;
+              if (webPreviewOn) {
+                htmlCodeContent = body.innerHTML;
+                body.innerHTML = `<iframe src="/api/files/preview?path=${encodeURIComponent(fullPath)}&render=web" style="width:100%;height:100%;border:none;border-radius:12px;background:#fff"></iframe>`;
+                webBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg> Code';
+                webBtn.style.background = 'rgba(108,99,255,.15)';
+                webBtn.style.borderColor = 'rgba(108,99,255,.3)';
+              } else {
+                body.innerHTML = htmlCodeContent;
+                webBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg> Web';
+                webBtn.style.background = '';
+                webBtn.style.borderColor = '';
+              }
             };
             editBtn.after(webBtn);
           }
 
           // Add markdown preview button for .md files
           if (data.ext === '.md') {
+            let mdPreviewOn = false;
+            let codeContent = null;
             const mdBtn = document.createElement('button');
             mdBtn.className = 'file-action-btn';
             mdBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg> Preview';
             mdBtn.onclick = () => {
-              body.innerHTML = `<iframe src="/api/files/preview?path=${encodeURIComponent(fullPath)}&render=md" style="width:100%;height:100%;border:none;border-radius:12px;background:#1a1a2e"></iframe>`;
+              mdPreviewOn = !mdPreviewOn;
+              if (mdPreviewOn) {
+                codeContent = body.innerHTML;
+                body.innerHTML = `<iframe src="/api/files/preview?path=${encodeURIComponent(fullPath)}&render=md" style="width:100%;height:100%;border:none;border-radius:12px;background:#1a1a2e"></iframe>`;
+                mdBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg> Code';
+                mdBtn.style.background = 'rgba(108,99,255,.15)';
+                mdBtn.style.borderColor = 'rgba(108,99,255,.3)';
+              } else {
+                body.innerHTML = codeContent;
+                mdBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg> Preview';
+                mdBtn.style.background = '';
+                mdBtn.style.borderColor = '';
+              }
             };
             editBtn.after(mdBtn);
           }
