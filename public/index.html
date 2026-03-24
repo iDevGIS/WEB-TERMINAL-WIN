@@ -1542,9 +1542,20 @@
 
       #sidebar-overlay.show { display: block; }
 
-      #toolbar { padding: 6px 10px; min-height: 42px; }
-      #toolbar-title { font-size: 12px; }
-      .status-badge { font-size: 10px; padding: 2px 8px; }
+      #toolbar {
+        padding: 4px 8px;
+        min-height: 40px;
+        gap: 3px;
+        overflow-x: auto;
+        scrollbar-width: none;
+        -webkit-overflow-scrolling: touch;
+      }
+      #toolbar::-webkit-scrollbar { display: none; }
+      #toolbar-title { display: none; }
+      .status-badge { display: none; }
+      .toolbar-icon { padding: 6px; }
+      #font-size-label { display: none; }
+      #btn-font-down, #btn-font-up { display: none; }
 
       #terminal-container { padding: 0; }
 
