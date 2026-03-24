@@ -1508,7 +1508,7 @@
       box-shadow: 0 0 10px var(--accent-glow);
     }
 
-    @media (pointer: coarse), (max-width: 768px) {
+    @media (pointer: coarse) {
       .mobile-keys.active { display: block; }
     }
 
@@ -1523,7 +1523,7 @@
     }
 
     /* === Mobile Responsive === */
-    @media (max-width: 768px) {
+    @media (max-width: 1024px) {
       #sidebar {
         position: fixed;
         left: 0; top: 0; bottom: 0;
@@ -2297,7 +2297,7 @@
 
     const sidebar = document.getElementById('sidebar');
     const overlay = document.getElementById('sidebar-overlay');
-    const isMobile = () => window.innerWidth <= 768;
+    const isMobile = () => window.innerWidth <= 1024;
 
     function toggleSidebar() {
       if (isMobile()) {
