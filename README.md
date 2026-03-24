@@ -51,10 +51,16 @@
 - **File type icons** — visual indicators for 30+ file types (folders 📁, images 🖼️, code 📄, etc.)
 - **System files hidden** — automatically filters out `$Recycle.Bin`, `NTUSER.DAT`, `.sys`, `.tmp`, `.blf`, `.regtrans-ms`, junction points, etc.
 - **Breadcrumb navigation** — click any path segment to jump directly
+- **File info panel** — select a file and click ℹ️ to see full path, type, size, and modified date
+- **Favorites** — ★ star files/folders for quick access, persisted in `localStorage`
+- **Refresh button** — reload current directory without navigating away
 
 ### 👁️ File Preview
 - **Code viewer** — syntax highlighting for 25+ languages (JavaScript, Python, TypeScript, Go, Rust, Java, C/C++, C#, PowerShell, Bash, SQL, HTML, CSS, YAML, TOML, and more) powered by [highlight.js](https://highlightjs.org/) with Tokyo Night Dark theme
 - **Line numbers** — separate scrollable column, synced with code view
+- **Markdown preview** — GitHub-style rendering via [marked.js](https://marked.js.org/) + [github-markdown-css](https://github.com/sindresorhus/github-markdown-css) dark theme, with syntax-highlighted code blocks and copy buttons
+- **HTML web preview** — render `.html` files as live webpages in iframe
+- **Toggle view** — switch between code/preview mode with one click (for `.md` and `.html` files)
 - **Image viewer** — full zoom support:
   - 🖱️ Scroll wheel to zoom in/out (25%–500%)
   - ✋ Click and drag to pan
@@ -62,7 +68,6 @@
   - 🔘 Zoom controls: [−] level [+] ⟲ reset
 - **PDF viewer** — inline iframe, native browser PDF rendering
 - **JSON formatter** — auto pretty-print with indentation
-- **HTML web preview** — render `.html` files as live webpages in iframe
 - **Full-screen overlay** — blurred backdrop, max-width 1200px centered, Esc to close
 - **Download button** — always accessible from preview header
 
@@ -92,7 +97,8 @@
 - **One-shot modifier toggle** — tap Ctrl (turns purple) → type any key → sends combo (e.g. Ctrl+C) → auto-clears
 - **Clipboard integration** — 📋 Copy (terminal selection) / 📥 Paste (from clipboard with prompt fallback)
 - **Font size controls** — A- / A+ buttons, range 8–32px, persisted in `localStorage`
-- **Responsive sidebar** — overlay mode on screens < 768px
+- **Responsive sidebar** — hidden by default, hamburger ☰ toggle with backdrop overlay
+- **iOS Safari support** — `100dvh` viewport fix, safe area insets, `touch-action: manipulation`
 - **Touch-friendly** — minimum 44px tap targets, no hover-dependent UI
 
 ### 💓 Heartbeat Monitor
