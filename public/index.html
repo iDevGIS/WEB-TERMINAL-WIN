@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no" />
   <title>CYBERFRAME</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.min.css" />
@@ -39,9 +39,16 @@
       --radius-sm: 10px;
     }
 
+    /* iOS safe area support */
+    html {
+      height: 100%;
+      height: -webkit-fill-available;
+    }
+
     body {
       font-family: 'Inter', -apple-system, sans-serif;
-      height: 100vh;
+      height: 100dvh;
+      height: -webkit-fill-available;
       display: flex;
       color: var(--text);
       overflow: hidden;
@@ -50,6 +57,7 @@
         radial-gradient(ellipse at 20% 50%, rgba(108,99,255,.08) 0%, transparent 50%),
         radial-gradient(ellipse at 80% 20%, rgba(96,165,250,.06) 0%, transparent 50%),
         radial-gradient(ellipse at 50% 80%, rgba(74,222,128,.04) 0%, transparent 50%);
+      padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
     }
 
     /* === Glass Panels === */
@@ -671,7 +679,8 @@
       top: 0;
       right: 0;
       width: 380px;
-      height: 100vh;
+      height: 100dvh;
+      height: -webkit-fill-available;
       background: rgba(14,14,30,.95);
       backdrop-filter: blur(20px);
       border-left: 1px solid var(--glass-border);

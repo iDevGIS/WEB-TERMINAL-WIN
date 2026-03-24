@@ -187,7 +187,7 @@ app.get("/login", (req, res) => {
   if (req.session && req.session.authenticated) return res.redirect("/");
   res.send(`<!DOCTYPE html>
 <html><head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1,user-scalable=no">
 <title>CYBERFRAME — Access</title>
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -195,7 +195,7 @@ app.get("/login", (req, res) => {
   *{margin:0;padding:0;box-sizing:border-box}
   body{
     background:#0a0a1a;
-    display:flex;justify-content:center;align-items:center;height:100vh;
+    display:flex;justify-content:center;align-items:center;height:100dvh;height:-webkit-fill-available;
     font-family:'Inter',sans-serif;
     overflow:hidden;
   }
@@ -275,6 +275,7 @@ app.get("/login", (req, res) => {
   }
   @keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
   .login-card{animation:fadeUp .6s ease}
+  button,input{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
   @media(max-width:480px){
     .login-card{width:calc(100% - 32px);padding:36px 28px;border-radius:16px}
     h1{font-size:20px}
