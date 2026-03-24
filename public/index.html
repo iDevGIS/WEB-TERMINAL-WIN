@@ -1529,20 +1529,21 @@
     @media (max-width: 1024px) {
       #sidebar {
         position: fixed !important;
-        left: 0; top: 0; bottom: 0;
+        left: -300px;
+        top: 0; bottom: 0;
         z-index: 100;
         width: 280px !important;
         min-width: 280px !important;
-        transform: translateX(-100%);
-        box-shadow: 4px 0 30px rgba(0,0,0,.5);
-        transition: transform .25s cubic-bezier(.4,0,.2,1);
+        box-shadow: none;
+        transition: left .25s cubic-bezier(.4,0,.2,1), box-shadow .25s;
       }
 
       #sidebar.open {
-        transform: translateX(0);
+        left: 0;
+        box-shadow: 4px 0 30px rgba(0,0,0,.5);
       }
 
-      #sidebar.collapsed { transform: translateX(-100%); }
+      #sidebar.collapsed { left: -300px; box-shadow: none; }
 
       #sidebar-overlay.show { display: block; }
 
@@ -1552,7 +1553,7 @@
         gap: 3px;
         flex-wrap: wrap;
       }
-      #toolbar-title { display: none; }
+      #toolbar-title { display: none !important; }
       .status-badge { display: none; }
       .toolbar-icon { padding: 8px; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
       #font-size-label { display: none; }
@@ -2305,12 +2306,22 @@
 
     const sidebar = document.getElementById('sidebar');
     const overlay = document.getElementById('sidebar-overlay');
-    const isMobile = () => window.innerWidth <= 1024;
+    const isMobile = () => window.innerWidth <= 1024 || ('ontouchstart' in window);
 
     function toggleSidebar() {
       if (isMobile()) {
-        sidebar.classList.toggle('open');
-        overlay.classList.toggle('show', sidebar.classList.contains('open'));
+        const isOpen = sidebar.classList.contains('open');
+        if (isOpen) {
+          sidebar.classList.remove('open');
+          sidebar.style.left = '-300px';
+          sidebar.style.boxShadow = 'none';
+          overlay.classList.remove('show');
+        } else {
+          sidebar.classList.add('open');
+          sidebar.style.left = '0';
+          sidebar.style.boxShadow = '4px 0 30px rgba(0,0,0,.5)';
+          overlay.classList.add('show');
+        }
       } else {
         sidebar.classList.toggle('collapsed');
       }
@@ -2319,7 +2330,28 @@
 
     function closeSidebarMobile() {
       sidebar.classList.remove('open');
+      sidebar.style.left = '-300px';
+      sidebar.style.boxShadow = 'none';
       overlay.classList.remove('show');
+    }
+
+    // Auto-hide sidebar on mobile/touch
+    if (isMobile()) {
+      sidebar.style.left = '-300px';
+      sidebar.style.position = 'fixed';
+      sidebar.style.zIndex = '100';
+      sidebar.style.width = '280px';
+      sidebar.style.minWidth = '280px';
+      sidebar.style.boxShadow = 'none';
+      // Hide toolbar extras
+      const tt = document.getElementById('toolbar-title');
+      if (tt) tt.style.display = 'none';
+      const fl = document.getElementById('font-size-label');
+      if (fl) fl.style.display = 'none';
+      const fu = document.getElementById('btn-font-up');
+      if (fu) fu.style.display = 'none';
+      const fd = document.getElementById('btn-font-down');
+      if (fd) fd.style.display = 'none';
     }
 
     document.getElementById('toggle-sidebar').onclick = toggleSidebar;
