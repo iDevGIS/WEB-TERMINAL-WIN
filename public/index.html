@@ -2912,11 +2912,13 @@
     }
 
     // === Browser Notifications ===
-    let notifyPermission = Notification?.permission || 'default';
-    if (notifyPermission === 'default') Notification?.requestPermission?.().then(p => notifyPermission = p);
+    let notifyPermission = (typeof Notification !== 'undefined') ? (Notification.permission || 'default') : 'denied';
+    if (notifyPermission === 'default' && typeof Notification !== 'undefined') {
+      Notification.requestPermission().then(p => notifyPermission = p);
+    }
 
     function notifyUser(title, body) {
-      if (notifyPermission === 'granted' && document.hidden) {
+      if (typeof Notification !== 'undefined' && notifyPermission === 'granted' && document.hidden) {
         new Notification(title, { body, icon: '/favicon.svg' });
       }
     }
