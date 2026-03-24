@@ -2473,7 +2473,7 @@
     function showFileInfo() {
       if (!selectedFile) { showToast('Select a file first', 'warning'); return; }
       const f = selectedFile;
-      const fullPath = fileCwd + '\\' + f.name;
+      const fullPath = (fileCwd + '/' + f.name).replace(/\\/g, '/');
       const ext = f.name.includes('.') ? f.name.slice(f.name.lastIndexOf('.')) : '—';
       const sizeStr = f.isDir ? '—' : formatSize(f.size || 0);
       const modStr = f.modified ? new Date(f.modified).toLocaleString() : '—';
@@ -2505,7 +2505,7 @@
 
     function toggleFavorite() {
       if (!selectedFile) { showToast('Select a file/folder first', 'warning'); return; }
-      const fullPath = fileCwd + '\\' + selectedFile.name;
+      const fullPath = (fileCwd + '/' + selectedFile.name).replace(/\\/g, '/');
       const idx = favorites.findIndex(f => f.path === fullPath);
       if (idx >= 0) {
         favorites.splice(idx, 1);
