@@ -659,14 +659,11 @@
       background: rgba(0,0,0,.4);
       backdrop-filter: blur(4px);
       z-index: 900;
-      opacity: 0;
-      pointer-events: none;
-      transition: opacity .3s;
+      display: none;
     }
 
     .file-drawer-overlay.open {
-      opacity: 1;
-      pointer-events: all;
+      display: block;
     }
 
     .file-drawer {
@@ -1853,7 +1850,7 @@
           </div>
         </div>
       </div>
-      <div style="position:relative;flex:1;display:flex;flex-direction:column;min-height:0">
+      <div id="term-container-inner" style="position:relative;flex:1;display:flex;flex-direction:column;min-height:0;display:none">
         <div class="term-search-bar" id="term-search-bar">
           <input type="text" id="term-search-input" placeholder="Search terminal..." autocomplete="off">
           <button onclick="termSearchNext(-1)" title="Previous">▲</button>
@@ -2158,6 +2155,7 @@
 
     function showTerminal(name) {
       welcomeEl.style.display = 'none';
+      document.getElementById('term-container-inner').style.display = 'flex';
       termWrap.style.display = 'block';
       document.getElementById('mobile-keys').classList.add('active');
       toolbarTitle.textContent = name;
@@ -2178,6 +2176,7 @@
 
     function hideTerminal() {
       welcomeEl.style.display = 'flex';
+      document.getElementById('term-container-inner').style.display = 'none';
       termWrap.style.display = 'none';
       document.getElementById('mobile-keys').classList.remove('active');
       toolbarTitle.textContent = 'Idle — no link';
