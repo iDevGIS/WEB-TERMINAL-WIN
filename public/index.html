@@ -2416,7 +2416,7 @@
       loadFiles();
     }
 
-    function refreshFiles() { loadFiles(); }
+    function refreshFiles() { loadFiles(fileCwd); }
 
     function closeFileModal() {
       document.getElementById('file-drawer').classList.remove('open');
