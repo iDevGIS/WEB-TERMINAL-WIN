@@ -1548,6 +1548,15 @@
 
       #sidebar.open {
         display: flex !important;
+        flex-direction: column;
+        height: 100dvh;
+        height: -webkit-fill-available;
+        background: rgba(14,14,30,.98);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        border-right: 1px solid var(--glass-border);
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
       }
 
       #sidebar.collapsed { display: none !important; }
