@@ -2383,8 +2383,8 @@
       return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     }
 
-    function escHtml(s) { return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]); }
-    function escAttr(s) { return s.replace(/'/g, "\\'"); }
+    function escHtml(s) { return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]); }
+    function escAttr(s) { return String(s||'').replace(/'/g, "\\'"); }
 
     // === Events ===
     document.getElementById('btn-new').onclick = () => createSession();
@@ -2538,7 +2538,7 @@
       if (!favorites.length) { bar.style.display = 'none'; return; }
       bar.style.display = 'block';
       list.innerHTML = favorites.map((f, i) => {
-        const navPath = f.isDir ? f.path : f.path.replace(/[\\/][^\\/]+$/, '');
+        const navPath = f.isDir ? f.path : String(f.path||'').replace(/[\\/][^\\/]+$/, '');
         return `<div class="fav-item" onclick="loadFiles(decodeURIComponent('${encodeURIComponent(navPath)}'))">
           <span>${f.isDir ? '📁' : '📄'}</span>
           <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(f.name)}</span>
