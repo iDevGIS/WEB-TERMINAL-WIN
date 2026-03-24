@@ -595,6 +595,13 @@ app.get("/api/files/preview", requireAuth, (req, res) => {
       '.env', '.gitignore', '.dockerfile', '.makefile', '.cfg', '.ini', '.conf',
     ];
 
+    // HTML web preview mode
+    if ((ext === '.html' || ext === '.htm') && req.query.render === 'web') {
+      res.setHeader('Content-Type', 'text/html');
+      fs.createReadStream(resolved).pipe(res);
+      return;
+    }
+
     if (ext === '.pdf') {
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', 'inline');

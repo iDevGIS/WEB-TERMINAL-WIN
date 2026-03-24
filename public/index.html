@@ -2664,6 +2664,17 @@
           editBtn.onclick = () => openEditor(fullPath, name);
           header.querySelector('.preview-meta').after(editBtn);
 
+          // Add web preview button for HTML files
+          if (data.ext === '.html' || data.ext === '.htm') {
+            const webBtn = document.createElement('button');
+            webBtn.className = 'file-action-btn';
+            webBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg> Web Preview';
+            webBtn.onclick = () => {
+              body.innerHTML = `<iframe src="/api/files/preview?path=${encodeURIComponent(fullPath)}&render=web" style="width:100%;height:100%;border:none;border-radius:12px;background:#fff"></iframe>`;
+            };
+            editBtn.after(webBtn);
+          }
+
           // Detect language from extension
           const langMap = {
             '.js': 'javascript', '.ts': 'typescript', '.py': 'python', '.rb': 'ruby',
