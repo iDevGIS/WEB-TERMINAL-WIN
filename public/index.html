@@ -1158,6 +1158,12 @@
     }
     .snippet-item:hover { background: rgba(255,255,255,.04); }
     .file-item { user-select: none; -webkit-user-select: none; }
+
+    /* Mobile touch fix */
+    button, .btn, .toolbar-icon, .file-action-btn, .drive-btn, .session-item, .snippet-item {
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+    }
     .snippet-name { font-size: 13px; color: var(--text); font-weight: 500; }
     .snippet-cmd {
       font-size: 11px;
@@ -1543,14 +1549,11 @@
         padding: 4px 8px;
         min-height: 40px;
         gap: 3px;
-        overflow-x: auto;
-        scrollbar-width: none;
-        -webkit-overflow-scrolling: touch;
+        flex-wrap: wrap;
       }
-      #toolbar::-webkit-scrollbar { display: none; }
       #toolbar-title { display: none; }
       .status-badge { display: none; }
-      .toolbar-icon { padding: 6px; }
+      .toolbar-icon { padding: 8px; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
       #font-size-label { display: none; }
       #btn-font-down, #btn-font-up { display: none; }
 
@@ -1868,8 +1871,13 @@
   <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-search@0.15.0/lib/addon-search.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs/loader.js"></script>
   <script>
-    require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs' }});
-    window.monacoReady = new Promise(resolve => { require(['vs/editor/editor.main'], () => resolve()); });
+    try {
+      require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs' }});
+      window.monacoReady = new Promise(resolve => { require(['vs/editor/editor.main'], () => resolve()); });
+    } catch(e) {
+      console.warn('[Monaco] Failed to load:', e);
+      window.monacoReady = new Promise(() => {}); // never resolves, editor won't open but app works
+    }
   </script>
   <script>
     // === Terminal Themes ===
