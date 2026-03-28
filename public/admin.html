@@ -671,7 +671,7 @@
           <td>${s.id.slice(0,6)}</td>
           <td>${(s.shell && s.shell.name) || s.name || '—'}</td>
           <td><span class="status ${s.attached ? '' : 'idle'}">${s.attached ? 'Linked' : 'Idle'}</span></td>
-          <td>${timeAgo(s.created)}</td>
+          <td>${timeAgo(s.createdAt)}</td>
           <td><button class="kill-btn" onclick="killSession('${s.id}')">Kill</button></td>
         </tr>
       `).join('');
