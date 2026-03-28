@@ -2659,7 +2659,7 @@
         drawer.classList.add('in-tab');
         container.appendChild(paneEl);
         // Load files
-        setTimeout(() => { if (typeof loadDrives === 'function') loadDrives(); }, 100);
+        setTimeout(() => { if (typeof loadDrives === 'function') loadDrives(); if (typeof renderFavorites === 'function') renderFavorites(); }, 100);
       }
 
       tabs.set(tabId, tabData);
@@ -3320,7 +3320,7 @@
       const icon = document.getElementById('fav-icon');
       if (!icon) return;
       if (selectedFile) {
-        const fullPath = fileCwd + '\\' + selectedFile.name;
+        const fullPath = String(fileCwd + '/' + selectedFile.name).replace(/\\/g, '/');
         const isFav = favorites.some(f => f.path === fullPath);
         icon.style.fill = isFav ? '#fbbf24' : 'none';
         icon.style.stroke = isFav ? '#fbbf24' : 'currentColor';
@@ -3333,10 +3333,12 @@
     function renderFavorites() {
       const bar = document.getElementById('favorites-bar');
       const list = document.getElementById('favorites-list');
+      if (!bar || !list) return;
       if (!favorites.length) { bar.style.display = 'none'; return; }
       bar.style.display = 'block';
       list.innerHTML = favorites.map((f, i) => {
-        const navPath = f.isDir ? f.path : String(f.path||'').replace(/[\\/][^\\/]+$/, '');
+        const safePath = String(f.path||'').replace(/\\/g, '/');
+        const navPath = f.isDir ? safePath : safePath.replace(/\/[^/]+$/, '');
         return `<div class="fav-item" onclick="loadFiles(decodeURIComponent('${encodeURIComponent(navPath)}'))">
           <span>${f.isDir ? '📁' : '📄'}</span>
           <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(f.name)}</span>
