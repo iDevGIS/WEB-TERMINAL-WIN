@@ -3586,6 +3586,9 @@
           t.term.options.fontSize = next;
           if (t.fitAddon) t.fitAddon.fit();
         }
+        if (t.type === 'editor' && t.monacoEditor) {
+          t.monacoEditor.updateOptions({ fontSize: next });
+        }
       });
     }
 
