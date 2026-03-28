@@ -685,6 +685,9 @@
     }
 
     .xterm { height: 100%; }
+    .xterm-helper-textarea {
+      autocomplete: off !important;
+    }
 
     /* Welcome */
     #welcome {
@@ -2439,6 +2442,18 @@
         const sa = new SearchAddon.SearchAddon();
         t.loadAddon(sa);
         t.open(paneEl.querySelector('.term-wrap'));
+
+        // Disable iOS autofill bar on xterm's hidden textarea
+        const xtextarea = paneEl.querySelector('.xterm-helper-textarea');
+        if (xtextarea) {
+          xtextarea.setAttribute('autocomplete', 'off');
+          xtextarea.setAttribute('autocorrect', 'off');
+          xtextarea.setAttribute('autocapitalize', 'off');
+          xtextarea.setAttribute('spellcheck', 'false');
+          xtextarea.setAttribute('data-1p-ignore', '');       // 1Password
+          xtextarea.setAttribute('data-lpignore', 'true');    // LastPass
+          xtextarea.setAttribute('data-form-type', 'other');  // Dashlane
+        }
 
         t.onData((data) => {
           if (mods.ctrl || mods.alt) {
