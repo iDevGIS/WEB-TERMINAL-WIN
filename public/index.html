@@ -2261,7 +2261,7 @@
     </div>
     <!-- Tab Bar -->
     <div id="tab-bar" style="display:none">
-      <button class="tab-add" onclick="createSession()" title="New tab">+</button>
+      <button class="tab-add" onclick="showWelcomeTab()" title="New tab">+</button>
     </div>
     <div id="terminal-container">
       <div id="welcome" class="fade-in">
@@ -2836,6 +2836,20 @@
         if (tab.type === 'admin') { switchTab(tabId); return; }
       }
       createTab('admin', { name: 'Admin', icon: '🛡️' });
+    }
+
+    // Show welcome/feature cards (new tab button)
+    function showWelcomeTab() {
+      // Deactivate all tabs visually
+      tabs.forEach(t => {
+        if (t.tabEl) t.tabEl.classList.remove('active');
+        if (t.paneEl) t.paneEl.classList.remove('active');
+      });
+      activeTabId = null;
+      // Show welcome screen
+      const welcomeEl = document.getElementById('welcome');
+      welcomeEl.style.display = 'flex';
+      document.getElementById('term-container-inner').style.display = 'none';
     }
 
     // Preview from editor (for .md/.html/.htm)
