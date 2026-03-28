@@ -10,7 +10,8 @@
 
 ### 🖥️ Multi-Shell Terminal
 - **Persistent sessions** — tmux-like architecture; disconnect without killing the process, reconnect and resume exactly where you left off
-- **5 shell profiles** — PowerShell (⚡), Windows PowerShell (🔵), CMD (⬛), Git Bash (🟠), WSL Ubuntu (🐧)
+- **7 shell profiles** — PowerShell (⚡), PowerShell Admin (🛡️), Windows PowerShell (🔵), CMD (⬛), CMD Admin (🛡️), Git Bash (🟠), WSL Ubuntu (🐧)
+- **🛡️ Admin shells** — run as administrator via [gsudo](https://github.com/gerardog/gsudo) (sudo for Windows), UAC prompt on first use then cached
 - **Auto-detect** available shells at startup — only shows what's actually installed
 - **Scrollback buffer** — 50,000 characters retained per session
 - **Session idle timeout** — auto-cleanup after 30 minutes of inactivity
@@ -142,6 +143,7 @@
 - **Node.js** 18+
 - **Windows** (uses `node-pty` for PTY)
 - **TightVNC** (optional, for Remote Desktop)
+- **gsudo** (optional, for Admin shells) — `winget install gerardog.gsudo`
 
 ### Install
 
