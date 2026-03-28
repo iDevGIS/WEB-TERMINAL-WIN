@@ -275,8 +275,7 @@
       background: linear-gradient(180deg, #020208 0%, #050510 50%, #020208 100%);
       border: 1px solid rgba(40,120,255,.1);
       box-shadow:
-        0 4px 20px rgba(0,0,0,.6),
-        0 0 30px rgba(40,120,255,.03) inset;
+        0 4px 16px rgba(0,0,0,.5);
       overflow: hidden;
       position: relative;
     }
@@ -285,7 +284,7 @@
       position: absolute;
       top: 0; left: 0; right: 0; bottom: 0;
       background:
-        radial-gradient(ellipse at 50% 50%, rgba(40,120,255,.04) 0%, transparent 70%);
+        radial-gradient(ellipse at 50% 50%, rgba(40,120,255,.02) 0%, transparent 70%);
       pointer-events: none;
     }
 
@@ -299,8 +298,8 @@
     #heart-icon {
       width: 18px;
       height: 18px;
-      color: #5cb8ff;
-      filter: drop-shadow(0 0 4px rgba(92,184,255,.9)) drop-shadow(0 0 12px rgba(59,158,255,.4));
+      color: #4da6ff;
+      filter: drop-shadow(0 0 3px rgba(77,166,255,.4));
     }
 
     .heart-beat {
@@ -325,10 +324,10 @@
     #hb-bpm {
       font-size: 12px;
       font-weight: 700;
-      color: #5cb8ff;
+      color: #4da6ff;
       font-family: 'JetBrains Mono', monospace;
       letter-spacing: .5px;
-      text-shadow: 0 0 6px rgba(92,184,255,.6), 0 0 16px rgba(59,158,255,.25);
+      text-shadow: 0 0 4px rgba(77,166,255,.3);
     }
 
     #hb-bpm.dead { color: #f87171; text-shadow: 0 0 8px rgba(248,113,113,.4); }
@@ -354,20 +353,18 @@
     }
 
     #heartbeat-line {
-      stroke: #5cb8ff;
-      stroke-width: 1.8;
+      stroke: #4da6ff;
+      stroke-width: 1.6;
       filter:
-        drop-shadow(0 0 2px rgba(92,184,255,1))
-        drop-shadow(0 0 6px rgba(59,158,255,.9))
-        drop-shadow(0 0 14px rgba(59,158,255,.5))
-        drop-shadow(0 0 28px rgba(40,120,255,.3));
+        drop-shadow(0 0 2px rgba(77,166,255,.6))
+        drop-shadow(0 0 6px rgba(59,158,255,.3));
       transition: stroke .3s;
     }
     #heartbeat-glow {
       stroke: #3b9eff;
-      stroke-width: 8;
-      opacity: .2;
-      filter: blur(5px);
+      stroke-width: 5;
+      opacity: .1;
+      filter: blur(3px);
     }
 
     #heartbeat-line.dead {
