@@ -746,10 +746,10 @@ app.get("/api/admin/status", requireAuth, (req, res) => {
   let disk = { totalGB: 0, usedGB: 0, usedPercent: 0 };
   try {
     const { execSync } = require("child_process");
-    const out = execSync('wmic logicaldisk where "DeviceID=\'C:\'" get Size,FreeSpace /format:csv', { encoding: 'utf-8' });
-    const parts = out.trim().split('\n').pop().split(',');
-    const freeBytes = parseInt(parts[1]);
-    const totalBytes = parseInt(parts[2]);
+    const out = execSync("powershell -NoProfile -Command \"Get-CimInstance Win32_LogicalDisk -Filter 'DeviceID=''C:''' | Select-Object Size,FreeSpace | ConvertTo-Json\"", { encoding: 'utf-8', timeout: 5000 });
+    const d = JSON.parse(out);
+    const totalBytes = d.Size;
+    const freeBytes = d.FreeSpace;
     disk.totalGB = (totalBytes / 1073741824).toFixed(0);
     disk.usedGB = ((totalBytes - freeBytes) / 1073741824).toFixed(0);
     disk.usedPercent = Math.round((totalBytes - freeBytes) / totalBytes * 100);
