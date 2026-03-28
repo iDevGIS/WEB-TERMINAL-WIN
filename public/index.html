@@ -3261,9 +3261,19 @@
       _splitResizeTimer = setTimeout(() => {
         const tab = tabs.get(activeTabId);
         if (tab && tab.panes) {
-          tab.panes.forEach(p => { if (p.fitAddon) { try { p.fitAddon.fit(); } catch(e) {} } });
+          tab.panes.forEach(p => {
+            if (p.fitAddon) {
+              try {
+                p.fitAddon.fit();
+                // Send new size to server PTY
+                if (p.sessionId && ws && ws.readyState === WebSocket.OPEN) {
+                  ws.send(JSON.stringify({ type: 'resize', id: p.sessionId, cols: p.term.cols, rows: p.term.rows }));
+                }
+              } catch(e) {}
+            }
+          });
         }
-      }, 50);
+      }, 80);
     }
 
     function initSplitResize(handle, container, direction) {
