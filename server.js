@@ -775,7 +775,17 @@ app.get("/api/admin/status", requireAuth, (req, res) => {
     }
   }
 
+  // GPU (nvidia-smi)
+  let gpu = null;
+  try {
+    const { execSync } = require("child_process");
+    const gpuOut = execSync('nvidia-smi --query-gpu=name,utilization.gpu,memory.used,memory.total,temperature.gpu,power.draw --format=csv,noheader,nounits', { encoding: 'utf-8', timeout: 3000 }).trim();
+    const [name, util, memUsed, memTotal, temp, power] = gpuOut.split(',').map(s => s.trim());
+    gpu = { name, util: parseInt(util), memUsed: parseInt(memUsed), memTotal: parseInt(memTotal), temp: parseInt(temp), power: parseFloat(power).toFixed(0) };
+  } catch {}
+
   res.json({
+    gpu,
     cpu: { percent: cpuPercent, model: cpuModel.replace(/\(R\)|\(TM\)/g, '').replace(/\s+/g, ' ').trim(), cores: cpus.length },
     memory: { totalGB: (totalMem / 1073741824).toFixed(1), usedGB: (usedMem / 1073741824).toFixed(1), freeGB: (freeMem / 1073741824).toFixed(1) },
     disk,

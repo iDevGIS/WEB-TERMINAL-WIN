@@ -164,6 +164,7 @@
   .stat-card.cpu::after { background: var(--accent); }
   .stat-card.ram::after { background: var(--blue); }
   .stat-card.disk::after { background: var(--yellow); }
+  .stat-card.gpu::after { background: #76b900; }
   .stat-card.uptime::after { background: var(--green); }
   .stat-label {
     font-size: 11px;
@@ -181,6 +182,7 @@
   .stat-value.cpu { color: var(--accent); }
   .stat-value.ram { color: var(--blue); }
   .stat-value.disk { color: var(--yellow); }
+  .stat-value.gpu { color: #76b900; }
   .stat-value.uptime { color: var(--green); }
   .stat-sub {
     font-size: 11px;
@@ -205,6 +207,7 @@
   .progress-fill.cpu { background: var(--accent); }
   .progress-fill.ram { background: var(--blue); }
   .progress-fill.disk { background: var(--yellow); }
+  .progress-fill.gpu { background: #76b900; }
 
   /* === Table === */
   .admin-table {
@@ -366,6 +369,12 @@
     <div class="stat-sub" id="disk-sub">Loading...</div>
     <div class="progress-bar"><div class="progress-fill disk" id="disk-bar" style="width:0%"></div></div>
   </div>
+  <div class="stat-card gpu">
+    <div class="stat-label">GPU</div>
+    <div class="stat-value gpu" id="gpu-val">--</div>
+    <div class="stat-sub" id="gpu-sub">Loading...</div>
+    <div class="progress-bar"><div class="progress-fill gpu" id="gpu-bar" style="width:0%"></div></div>
+  </div>
   <div class="stat-card uptime">
     <div class="stat-label">Uptime</div>
     <div class="stat-value uptime" id="uptime-val">--</div>
@@ -465,6 +474,16 @@
       document.getElementById('disk-val').textContent = d.disk.usedPercent + '%';
       document.getElementById('disk-sub').textContent = d.disk.usedGB + ' / ' + d.disk.totalGB + ' GB';
       document.getElementById('disk-bar').style.width = d.disk.usedPercent + '%';
+
+      // GPU
+      if (d.gpu) {
+        document.getElementById('gpu-val').textContent = d.gpu.util + '%';
+        document.getElementById('gpu-sub').textContent = d.gpu.name + ' · ' + d.gpu.temp + '°C · ' + d.gpu.power + 'W · ' + d.gpu.memUsed + '/' + d.gpu.memTotal + ' MB';
+        document.getElementById('gpu-bar').style.width = d.gpu.util + '%';
+      } else {
+        document.getElementById('gpu-val').textContent = 'N/A';
+        document.getElementById('gpu-sub').textContent = 'No NVIDIA GPU';
+      }
 
       // Uptime
       document.getElementById('uptime-val').textContent = d.uptime.formatted;
