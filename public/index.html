@@ -2963,7 +2963,7 @@
         }
       });
 
-      // Focus click → set active pane + highlight
+      // Focus click → set active pane + highlight + sync sidebar
       function activatePane() {
         if (tabData.panes) {
           const idx = tabData.panes.indexOf(pane);
@@ -2978,6 +2978,14 @@
             });
             const el = pane.wrapEl.closest('.split-pane');
             if (el) el.classList.add('split-active');
+            // Sync sidebar + toolbar
+            renderSessions();
+            const s = sessions.find(s => s.id === pane.sessionId);
+            if (s) {
+              toolbarTitle.textContent = s.name;
+              toolbarStatus.textContent = '● Linked';
+              toolbarStatus.className = 'status-badge connected';
+            }
           }
         }
       }
