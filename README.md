@@ -233,9 +233,9 @@ Open `http://localhost:3000` in your browser.
 |-----------|-------------|
 | ![Split Pane](docs/images/split-pane.png) | ![File Manager](docs/images/file-manager.png) |
 
-| Theme Switcher |
-|---------------|
-| ![Themes](docs/images/themes.png) |
+| Theme Switcher | Admin Panel |
+|---------------|-------------|
+| ![Themes](docs/images/themes.png) | ![Admin](docs/images/admin.png) |
 
 ### 📱 Mobile (iOS Safari)
 
