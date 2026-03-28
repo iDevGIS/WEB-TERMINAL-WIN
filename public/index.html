@@ -3255,25 +3255,20 @@
     }
 
     // Resize handle drag
-    let _splitResizeTimer = null;
-    function fitAllSplitPanes() {
-      if (_splitResizeTimer) clearTimeout(_splitResizeTimer);
-      _splitResizeTimer = setTimeout(() => {
+    let _splitFitRaf = null;
+    function fitAllSplitPanes(sendResize) {
+      if (_splitFitRaf) cancelAnimationFrame(_splitFitRaf);
+      _splitFitRaf = requestAnimationFrame(() => {
         const tab = tabs.get(activeTabId);
-        if (tab && tab.panes) {
-          tab.panes.forEach(p => {
-            if (p.fitAddon) {
-              try {
-                p.fitAddon.fit();
-                // Send new size to server PTY
-                if (p.sessionId && ws && ws.readyState === WebSocket.OPEN) {
-                  ws.send(JSON.stringify({ type: 'resize', id: p.sessionId, cols: p.term.cols, rows: p.term.rows }));
-                }
-              } catch(e) {}
-            }
-          });
-        }
-      }, 80);
+        if (!tab || !tab.panes) return;
+        tab.panes.forEach(p => {
+          if (!p.fitAddon) return;
+          try { p.fitAddon.fit(); } catch(e) {}
+          if (sendResize && p.sessionId && ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'resize', id: p.sessionId, cols: p.term.cols, rows: p.term.rows }));
+          }
+        });
+      });
     }
 
     function initSplitResize(handle, container, direction) {
@@ -3282,6 +3277,9 @@
       handle.addEventListener('mousedown', (e) => {
         e.preventDefault();
         handle.classList.add('dragging');
+        document.body.style.cursor = direction === 'horizontal' ? 'col-resize' : 'row-resize';
+        document.body.style.userSelect = 'none';
+
         const childPanes = container.querySelectorAll(':scope > .split-pane');
         pane1 = childPanes[0]; pane2 = childPanes[1];
         if (!pane1 || !pane2) return;
@@ -3303,14 +3301,16 @@
           const pct = (newSize1 / total * 100).toFixed(1);
           pane1.style.flex = `0 0 ${pct}%`;
           pane2.style.flex = `1 1 0`;
-          fitAllSplitPanes();
+          fitAllSplitPanes(false);  // fit only, no server resize during drag
         }
 
         function onUp() {
           handle.classList.remove('dragging');
+          document.body.style.cursor = '';
+          document.body.style.userSelect = '';
           document.removeEventListener('mousemove', onMove);
           document.removeEventListener('mouseup', onUp);
-          fitAllSplitPanes();
+          fitAllSplitPanes(true);  // fit + send resize to server
         }
 
         document.addEventListener('mousemove', onMove);
