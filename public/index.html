@@ -673,6 +673,25 @@
       border: none;
     }
 
+    /* Files tab — file drawer displayed inline in tab */
+    .files-tab-pane {
+      overflow: hidden;
+    }
+    .file-drawer.in-tab .file-drawer-close-btn { display: none; }
+    .file-drawer.in-tab {
+      position: relative !important;
+      right: auto !important;
+      top: auto !important;
+      width: 100% !important;
+      height: 100% !important;
+      transform: none !important;
+      display: flex !important;
+      flex-direction: column;
+      border-radius: 0 0 16px 16px;
+      border: 1px solid rgba(255,255,255,.06);
+      border-top: none;
+    }
+
     #terminal-wrap {
       border-radius: 16px;
       overflow: hidden;
@@ -1942,7 +1961,7 @@
         <button class="toolbar-icon" onclick="fileUploadClick()" title="Upload">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
         </button>
-        <button class="toolbar-icon" onclick="closeFileModal()">
+        <button class="toolbar-icon file-drawer-close-btn" onclick="closeFileModal()">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </button>
       </div>
@@ -2516,6 +2535,16 @@
       } else if (type === 'admin') {
         paneEl.innerHTML = '<div class="admin-tab-wrap"><iframe src="/admin.html"></iframe></div>';
         container.appendChild(paneEl);
+
+      } else if (type === 'files') {
+        // Move file drawer content into tab
+        const drawer = document.getElementById('file-drawer');
+        paneEl.className = 'tab-pane files-tab-pane';
+        paneEl.appendChild(drawer);
+        drawer.classList.add('in-tab');
+        container.appendChild(paneEl);
+        // Load files
+        setTimeout(() => { if (typeof loadDrives === 'function') loadDrives(); }, 100);
       }
 
       tabs.set(tabId, tabData);
@@ -2588,6 +2617,15 @@
           if (!confirm('Unsaved changes. Close anyway?')) return;
         }
         tab.monacoEditor.dispose();
+      }
+
+      // Restore file drawer to body when closing files tab
+      if (tab.type === 'files') {
+        const drawer = document.getElementById('file-drawer');
+        if (drawer) {
+          drawer.classList.remove('in-tab');
+          document.body.appendChild(drawer);
+        }
       }
 
       // Destroy terminal session? No — just detach, session lives on
@@ -3082,8 +3120,12 @@
     }
 
     function openFileModal() {
-      document.getElementById('file-drawer').classList.add('open');
-      document.getElementById('file-drawer-overlay').classList.add('open');
+      // Open as tab
+      for (const [tabId, tab] of tabs) {
+        if (tab.type === 'files') { switchTab(tabId); return; }
+      }
+      createTab('files', { name: 'Files', icon: '📂' });
+      return;
       loadDrives();
       loadFiles();
       renderFavorites();
@@ -3175,6 +3217,10 @@
     }
 
     function closeFileModal() {
+      // If in tab, close the tab
+      for (const [tabId, tab] of tabs) {
+        if (tab.type === 'files') { closeTab(tabId); return; }
+      }
       document.getElementById('file-drawer').classList.remove('open');
       document.getElementById('file-drawer-overlay').classList.remove('open');
     }
@@ -3423,6 +3469,24 @@
         return;
       }
 
+      const imgExtsCheck = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.bmp', '.ico'];
+      const isImgCheck = imgExtsCheck.includes(ext);
+      const isPdfCheck = ext === '.pdf';
+
+      // Text/code/markdown/html → open in tab
+      if (!isImgCheck && !isPdfCheck) {
+        // Markdown/HTML → preview tab
+        if (ext === '.md' || ext === '.html') {
+          const renderMode = ext === '.md' ? 'md' : 'web';
+          openPreviewInTab(fullPath, `/api/files/preview?path=${encodeURIComponent(fullPath)}&render=${renderMode}`);
+          return;
+        }
+        // Code/text → editor tab
+        openEditor(fullPath, name);
+        return;
+      }
+
+      // Images + PDF → overlay (better UX for zoom/scroll)
       const overlay = document.getElementById('preview-overlay');
       const header = document.getElementById('preview-header');
       const body = document.getElementById('preview-body');
