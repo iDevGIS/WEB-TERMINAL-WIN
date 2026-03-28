@@ -2128,6 +2128,14 @@
       </button>
     </div>
     <div id="theme-list" class="theme-grid"></div>
+    <div style="padding:12px 0;border-top:1px solid rgba(255,255,255,.06);margin-top:12px">
+      <div style="font-size:11px;color:rgba(255,255,255,.4);margin-bottom:8px;font-weight:500">Font Size</div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <button class="toolbar-icon" onclick="changeFontSize(-2)" style="width:32px;height:32px;border-radius:8px;font-size:14px;font-weight:600">A-</button>
+        <span id="theme-font-size-label" style="font-size:18px;font-weight:600;color:var(--text);min-width:30px;text-align:center;font-family:'JetBrains Mono',monospace"></span>
+        <button class="toolbar-icon" onclick="changeFontSize(2)" style="width:32px;height:32px;border-radius:8px;font-size:14px;font-weight:600">A+</button>
+      </div>
+    </div>
   </div>
 
   <!-- Mobile overlay -->
@@ -3581,6 +3589,8 @@
       const next = Math.max(8, Math.min(32, cur + delta));
       localStorage.setItem('cyberframe-fontsize', next);
       document.getElementById('font-size-label').textContent = next;
+      const tfl = document.getElementById('theme-font-size-label');
+      if (tfl) tfl.textContent = next + 'px';
       tabs.forEach(t => {
         if (t.type === 'terminal' && t.term) {
           t.term.options.fontSize = next;
@@ -4296,6 +4306,8 @@
       }).join('');
       document.getElementById('theme-drawer').classList.add('open');
       document.getElementById('theme-drawer-overlay').classList.add('open');
+      const tfl = document.getElementById('theme-font-size-label');
+      if (tfl) tfl.textContent = (parseInt(localStorage.getItem('cyberframe-fontsize')) || 14) + 'px';
     }
 
     function closeThemeModal() {
