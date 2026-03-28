@@ -389,12 +389,41 @@
   /* === Responsive === */
   @media (max-width: 768px) {
     .admin-grid { padding: 12px; gap: 12px; }
-    .stats-row { padding: 0 12px; gap: 8px; }
+    .stats-row {
+      padding: 0 12px;
+      gap: 8px;
+      grid-template-columns: repeat(2, 1fr);
+    }
     .stat-card { padding: 12px; }
-    .stat-value { font-size: 22px; }
+    .stat-value { font-size: 20px; }
+    .stat-sub { font-size: 9px; }
     .admin-header { padding: 12px 16px; }
     .admin-header h1 { font-size: 15px; }
     .section-title { padding: 12px 12px 0; }
+    .quick-actions { grid-template-columns: repeat(3, 1fr); }
+    .admin-table { font-size: 10px; }
+    .admin-table th, .admin-table td { padding: 6px 6px; }
+    .card { padding: 14px; }
+    .net-item { font-size: 11px; }
+  }
+
+  @media (max-width: 480px) {
+    .stats-row {
+      grid-template-columns: repeat(2, 1fr);
+      padding: 0 8px;
+      gap: 6px;
+    }
+    .stat-card { padding: 10px; }
+    .stat-value { font-size: 18px; }
+    .stat-sub { font-size: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .stat-label { font-size: 9px; }
+    .admin-grid { padding: 8px; gap: 8px; }
+    .admin-header { padding: 10px 12px; }
+    .admin-header h1 { font-size: 13px; }
+    .quick-actions { grid-template-columns: repeat(2, 1fr); }
+    .qa-label { font-size: 9px; }
+    .card { padding: 12px; }
+    .log-viewer { max-height: 200px; font-size: 10px; }
   }
 </style>
 </head>
