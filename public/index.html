@@ -3046,6 +3046,15 @@
 
     setInterval(refreshSessions, 5000);
 
+    // Listen for admin tab close message from iframe
+    window.addEventListener('message', (e) => {
+      if (e.data === 'close-admin-tab') {
+        for (const [tabId, tab] of tabs) {
+          if (tab.type === 'admin') { closeTab(tabId); break; }
+        }
+      }
+    });
+
     // === File Manager ===
     let fileCwd = '';
 
@@ -3660,7 +3669,7 @@
           saveEditorTab(activeTabId);
         }
       }
-      // Ctrl+W → close active tab
+      // Ctrl+W → close active tab  
       if ((e.ctrlKey || e.metaKey) && e.key === 'w' && activeTabId && tabs.size > 0) {
         e.preventDefault();
         closeTab(activeTabId);
