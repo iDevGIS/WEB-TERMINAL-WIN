@@ -3060,10 +3060,8 @@
       tab.sessionId = oldSessionId;
       currentSessionId = oldSessionId;
 
-      // Attach to existing session
-      if (oldSessionId && ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'attach', id: oldSessionId }));
-      }
+      // DON'T re-attach — session is already attached to this WS client.
+      // Just need pane.sessionId set (done above) so output routes correctly.
 
       // Create pane 2 terminal
       const newPane2 = createTermPane(tab, activeTabId, wrap2);
@@ -3143,10 +3141,7 @@
       newPaneA.sessionId = oldSessionId;
       tab.panes[activePaneIdx] = newPaneA;
 
-      // Re-attach existing session
-      if (oldSessionId && ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'attach', id: oldSessionId }));
-      }
+      // DON'T re-attach — session already attached to this WS client.
 
       // Create pane B terminal
       const newPaneB = createTermPane(tab, activeTabId, wrapB);
@@ -3231,8 +3226,8 @@
       tab.sessionId = keptSessionId;
       currentSessionId = keptSessionId;
 
-      // Re-attach
-      if (keptSessionId && ws && ws.readyState === WebSocket.OPEN) {
+      // DON'T re-attach — session already attached to this WS client
+      if (false && keptSessionId && ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: 'attach', id: keptSessionId }));
       }
 
@@ -3394,9 +3389,11 @@
           case 'attached': {
             const existingTab = findTabBySessionId(msg.id);
             if (existingTab) {
+              // Session already has a tab — just update, don't create new
               const tab = tabs.get(existingTab);
-              tab.sessionId = msg.id;
-              switchTab(existingTab);
+              if (!tab.sessionId) tab.sessionId = msg.id;
+              // Don't switchTab if we're in a split — just ignore the re-attach ack
+              break;
             } else {
               // Check if this is for a split pane
               const activeTab = tabs.get(activeTabId);
