@@ -336,6 +336,56 @@
     font-weight: 500;
   }
 
+  /* === Quick Actions === */
+  .quick-actions {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
+  .qa-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 14px 8px;
+    background: rgba(255,255,255,.02);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    color: var(--text2);
+    cursor: pointer;
+    transition: all .25s cubic-bezier(.4,0,.2,1);
+    position: relative;
+    overflow: hidden;
+  }
+  .qa-btn::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at 50% 0%, rgba(108,99,255,.08), transparent 70%);
+    opacity: 0;
+    transition: opacity .25s;
+  }
+  .qa-btn:hover {
+    border-color: rgba(108,99,255,.3);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(108,99,255,.08);
+  }
+  .qa-btn:hover::before { opacity: 1; }
+  .qa-btn:active { transform: translateY(0); }
+  .qa-icon {
+    font-size: 20px;
+    filter: drop-shadow(0 0 4px rgba(108,99,255,.2));
+    transition: transform .2s;
+  }
+  .qa-btn:hover .qa-icon { transform: scale(1.15); }
+  .qa-label {
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: .3px;
+    position: relative;
+    z-index: 1;
+  }
+
   /* === Responsive === */
   @media (max-width: 768px) {
     .admin-grid { padding: 12px; gap: 12px; }
@@ -432,6 +482,24 @@
       <div class="net-item"><span class="net-label">Port</span><span class="net-value" id="net-port">—</span></div>
       <div class="net-item"><span class="net-label">Node.js</span><span class="net-value" id="net-node">—</span></div>
       <div class="net-item"><span class="net-label">Platform</span><span class="net-value" id="net-platform">—</span></div>
+    </div>
+  </div>
+
+  <!-- Quick Actions -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+        Quick Actions
+      </div>
+    </div>
+    <div class="quick-actions">
+      <button class="qa-btn" onclick="window.open('/','_self')"><span class="qa-icon">⚡</span><span class="qa-label">New Shell</span></button>
+      <button class="qa-btn" onclick="killAllSessions()"><span class="qa-icon">💀</span><span class="qa-label">Kill All Sessions</span></button>
+      <button class="qa-btn" onclick="window.open('/admin.html','_self')"><span class="qa-icon">🔄</span><span class="qa-label">Restart Dashboard</span></button>
+      <button class="qa-btn" onclick="openVNC()"><span class="qa-icon">🖥️</span><span class="qa-label">Remote Desktop</span></button>
+      <button class="qa-btn" onclick="copyIP()"><span class="qa-icon">📋</span><span class="qa-label">Copy IP</span></button>
+      <button class="qa-btn" onclick="exportLogs()"><span class="qa-icon">📥</span><span class="qa-label">Export Logs</span></button>
     </div>
   </div>
 
@@ -607,6 +675,46 @@
     btn.classList.add('loading');
     await Promise.all([fetchStatus(), fetchSessions(), fetchProcesses(), fetchLogs()]);
     btn.classList.remove('loading');
+  }
+
+  // === Quick Action Helpers ===
+  async function killAllSessions() {
+    if (!confirm('Kill ALL active sessions?')) return;
+    try {
+      const r = await fetch(API + '/api/sessions');
+      const sessions = await r.json();
+      for (const s of sessions) {
+        await fetch(API + '/api/sessions/' + s.id, { method: 'DELETE' });
+      }
+      fetchSessions();
+    } catch (e) { alert('Error: ' + e.message); }
+  }
+
+  function openVNC() {
+    window.open('/novnc/vnc.html?autoconnect=true&resize=scale&path=vnc-ws', '_blank');
+  }
+
+  function copyIP() {
+    const ip = document.getElementById('net-local').textContent;
+    navigator.clipboard.writeText(ip).then(() => {
+      const btn = event.target.closest('.qa-btn');
+      const label = btn.querySelector('.qa-label');
+      const orig = label.textContent;
+      label.textContent = 'Copied!';
+      label.style.color = 'var(--green)';
+      setTimeout(() => { label.textContent = orig; label.style.color = ''; }, 1500);
+    });
+  }
+
+  function exportLogs() {
+    const viewer = document.getElementById('log-viewer');
+    const text = viewer.innerText;
+    const blob = new Blob([text], { type: 'text/plain' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'cyberframe-logs-' + new Date().toISOString().slice(0,10) + '.txt';
+    a.click();
+    URL.revokeObjectURL(a.href);
   }
 
   // === Auto Refresh ===
