@@ -685,6 +685,16 @@
       border-bottom: 1px solid rgba(255,255,255,.1);
     }
 
+    .split-pane.split-active {
+      outline: 1px solid var(--accent);
+      outline-offset: -1px;
+      border-radius: 4px;
+    }
+    .split-pane.split-active > .split-toolbar {
+      background: rgba(108,99,255,.08);
+      color: var(--text);
+    }
+
     .split-toolbar {
       display: flex;
       gap: 2px;
@@ -2953,17 +2963,27 @@
         }
       });
 
-      // Focus click → set active pane
-      t.element.addEventListener('click', () => {
+      // Focus click → set active pane + highlight
+      function activatePane() {
         if (tabData.panes) {
           const idx = tabData.panes.indexOf(pane);
           if (idx >= 0) {
             tabData.activePane = idx;
             tabData.sessionId = pane.sessionId;
             currentSessionId = pane.sessionId;
+            // Highlight active pane
+            tabData.panes.forEach(p => {
+              const el = p.wrapEl.closest('.split-pane');
+              if (el) el.classList.remove('split-active');
+            });
+            const el = pane.wrapEl.closest('.split-pane');
+            if (el) el.classList.add('split-active');
           }
         }
-      });
+      }
+      t.element.addEventListener('mousedown', activatePane);
+      t.element.addEventListener('focus', activatePane, true);
+      t.textarea?.addEventListener('focus', activatePane);
 
       return pane;
     }
@@ -3036,6 +3056,10 @@
       tab.fitAddon = newPane1.fitAddon;
       tab.searchAddon = newPane1.searchAddon;
 
+      // Keep tab.sessionId pointing to pane 0
+      tab.sessionId = oldSessionId;
+      currentSessionId = oldSessionId;
+
       // Attach to existing session
       if (oldSessionId && ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: 'attach', id: oldSessionId }));
@@ -3045,11 +3069,13 @@
       const newPane2 = createTermPane(tab, activeTabId, wrap2);
       tab.panes.push(newPane2);
 
-      // Fit both after layout settles
+      // Fit both after layout settles + highlight pane 1 as active initially
       setTimeout(() => {
         newPane1.fitAddon.fit();
         newPane2.fitAddon.fit();
-        newPane2.term.focus();
+        // Mark pane 0 as active initially
+        pane1El.classList.add('split-active');
+        newPane1.term.focus();
       }, 100);
 
       // Auto-spawn shell for pane 2
@@ -3219,45 +3245,52 @@
     }
 
     // Resize handle drag
+    let _splitResizeTimer = null;
+    function fitAllSplitPanes() {
+      if (_splitResizeTimer) clearTimeout(_splitResizeTimer);
+      _splitResizeTimer = setTimeout(() => {
+        const tab = tabs.get(activeTabId);
+        if (tab && tab.panes) {
+          tab.panes.forEach(p => { if (p.fitAddon) { try { p.fitAddon.fit(); } catch(e) {} } });
+        }
+      }, 50);
+    }
+
     function initSplitResize(handle, container, direction) {
-      let startPos, startSize1, startSize2, pane1, pane2;
+      let startPos, startSize1, pane1, pane2, total;
 
       handle.addEventListener('mousedown', (e) => {
         e.preventDefault();
         handle.classList.add('dragging');
-        const panes = container.querySelectorAll('.split-pane');
-        pane1 = panes[0]; pane2 = panes[1];
+        const childPanes = container.querySelectorAll(':scope > .split-pane');
+        pane1 = childPanes[0]; pane2 = childPanes[1];
+        if (!pane1 || !pane2) return;
+
         if (direction === 'horizontal') {
           startPos = e.clientX;
           startSize1 = pane1.getBoundingClientRect().width;
-          startSize2 = pane2.getBoundingClientRect().width;
+          total = startSize1 + pane2.getBoundingClientRect().width;
         } else {
           startPos = e.clientY;
           startSize1 = pane1.getBoundingClientRect().height;
-          startSize2 = pane2.getBoundingClientRect().height;
+          total = startSize1 + pane2.getBoundingClientRect().height;
         }
 
         function onMove(e2) {
           const delta = direction === 'horizontal' ? e2.clientX - startPos : e2.clientY - startPos;
-          const total = startSize1 + startSize2;
-          const newSize1 = Math.max(80, Math.min(total - 80, startSize1 + delta));
-          pane1.style.flex = `0 0 ${newSize1}px`;
+          const min = 60;
+          const newSize1 = Math.max(min, Math.min(total - min, startSize1 + delta));
+          const pct = (newSize1 / total * 100).toFixed(1);
+          pane1.style.flex = `0 0 ${pct}%`;
           pane2.style.flex = `1 1 0`;
-          // Fit terminals
-          const tab = tabs.get(activeTabId);
-          if (tab && tab.panes) {
-            tab.panes.forEach(p => { if (p.fitAddon) setTimeout(() => p.fitAddon.fit(), 0); });
-          }
+          fitAllSplitPanes();
         }
 
         function onUp() {
           handle.classList.remove('dragging');
           document.removeEventListener('mousemove', onMove);
           document.removeEventListener('mouseup', onUp);
-          const tab = tabs.get(activeTabId);
-          if (tab && tab.panes) {
-            tab.panes.forEach(p => { if (p.fitAddon) p.fitAddon.fit(); });
-          }
+          fitAllSplitPanes();
         }
 
         document.addEventListener('mousemove', onMove);
