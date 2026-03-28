@@ -638,11 +638,71 @@
     .tab-pane .editor-tab-wrap {
       flex: 1;
       min-height: 0;
-      border-radius: 0 0 16px 16px;
+      border-radius: 0;
       overflow: hidden;
       border: 1px solid rgba(255,255,255,.06);
       border-top: none;
     }
+
+    .editor-status-bar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 4px 12px;
+      background: rgba(10,10,25,.95);
+      border: 1px solid rgba(255,255,255,.06);
+      border-top: none;
+      border-radius: 0 0 16px 16px;
+      font-size: 11px;
+      font-family: 'JetBrains Mono', monospace;
+      color: rgba(255,255,255,.4);
+      flex-shrink: 0;
+    }
+    .editor-status-bar .esb-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex: 1;
+      overflow: hidden;
+    }
+    .editor-status-bar .esb-right {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      flex-shrink: 0;
+    }
+    .editor-status-bar .esb-item {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .editor-status-bar .esb-sep {
+      width: 1px;
+      height: 12px;
+      background: rgba(255,255,255,.08);
+      flex-shrink: 0;
+    }
+    .editor-status-bar .esb-modified {
+      color: #fbbf24;
+      font-weight: 600;
+    }
+    .esb-btn {
+      padding: 2px 8px;
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: 4px;
+      background: rgba(255,255,255,.03);
+      color: rgba(255,255,255,.4);
+      font-size: 10px;
+      cursor: pointer;
+      transition: all .15s;
+      display: flex;
+      align-items: center;
+      gap: 3px;
+    }
+    .esb-btn:hover { background: rgba(255,255,255,.08); color: rgba(255,255,255,.7); }
+    .esb-btn.save-btn:hover { background: rgba(108,99,255,.15); color: var(--accent); border-color: rgba(108,99,255,.3); }
+    .esb-btn:disabled { opacity: .3; cursor: default; }
+    .esb-btn:disabled:hover { background: rgba(255,255,255,.03); color: rgba(255,255,255,.4); }
 
     .tab-pane .preview-tab-wrap {
       flex: 1;
@@ -2498,30 +2558,81 @@
         tabData.sessionId = opts.sessionId || null;
 
       } else if (type === 'editor') {
-        paneEl.innerHTML = '<div class="editor-tab-wrap" id="' + tabId + '-editor"></div>';
+        const ext = (opts.filePath || '').split('.').pop().toLowerCase();
+        const langMap = {'.js':'javascript','.ts':'typescript','.py':'python','.json':'json','.yaml':'yaml','.yml':'yaml','.html':'html','.css':'css','.ps1':'powershell','.sh':'shell','.bash':'shell','.go':'go','.rs':'rust','.java':'java','.c':'c','.cpp':'cpp','.cs':'csharp','.sql':'sql','.md':'markdown','.xml':'xml','.bat':'bat','.cmd':'bat','.rb':'ruby','.scss':'scss','.less':'less','.toml':'ini','.ini':'ini','.cfg':'ini','.conf':'ini','.env':'shell'};
+        const lang = langMap['.' + ext] || 'plaintext';
+        const contentLen = (opts.content || '').length;
+        const lineCount = (opts.content || '').split('\n').length;
+        const fileSize = contentLen < 1024 ? contentLen + ' B' : (contentLen / 1024).toFixed(1) + ' KB';
+
+        paneEl.innerHTML = `<div class="editor-tab-wrap" id="${tabId}-editor"></div>
+          <div class="editor-status-bar" id="${tabId}-statusbar">
+            <div class="esb-left">
+              <span class="esb-item" id="${tabId}-lang">${lang}</span>
+              <span class="esb-sep"></span>
+              <span class="esb-item" id="${tabId}-cursor">Ln 1, Col 1</span>
+              <span class="esb-sep"></span>
+              <span class="esb-item" id="${tabId}-lines">${lineCount} lines</span>
+              <span class="esb-sep"></span>
+              <span class="esb-item" id="${tabId}-size">${fileSize}</span>
+              <span class="esb-item esb-modified" id="${tabId}-modified" style="display:none">● Modified</span>
+            </div>
+            <div class="esb-right">
+              <button class="esb-btn" onclick="editorTabUndo('${tabId}')" title="Undo (Ctrl+Z)">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+              </button>
+              <button class="esb-btn" onclick="editorTabRedo('${tabId}')" title="Redo (Ctrl+Y)">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+              </button>
+              <button class="esb-btn save-btn" onclick="saveEditorTab('${tabId}')" title="Save (Ctrl+S)">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                Save
+              </button>
+            </div>
+          </div>`;
         container.appendChild(paneEl);
         tabData.filePath = opts.filePath;
         // Load Monaco editor
         if (window.monacoReady) {
           window.monacoReady.then(() => {
-            const ext = (opts.filePath || '').split('.').pop().toLowerCase();
-            const langMap = {'.js':'javascript','.ts':'typescript','.py':'python','.json':'json','.yaml':'yaml','.yml':'yaml','.html':'html','.css':'css','.ps1':'powershell','.sh':'shell','.bash':'shell','.go':'go','.rs':'rust','.java':'java','.c':'c','.cpp':'cpp','.cs':'csharp','.sql':'sql','.md':'markdown','.xml':'xml','.bat':'bat','.cmd':'bat','.rb':'ruby','.scss':'scss','.less':'less','.toml':'ini','.ini':'ini','.cfg':'ini','.conf':'ini','.env':'shell'};
-            const lang = langMap['.' + ext] || 'plaintext';
             tabData.monacoEditor = monaco.editor.create(document.getElementById(tabId + '-editor'), {
               value: opts.content || '',
               language: lang,
               theme: 'vs-dark',
               automaticLayout: true,
-              minimap: { enabled: false },
+              minimap: { enabled: true, scale: 1 },
               fontSize: 13,
+              fontFamily: "'JetBrains Mono', 'Cascadia Code', 'Fira Code', monospace",
               wordWrap: 'on',
               scrollBeyondLastLine: false,
+              tabSize: 2,
+              insertSpaces: true,
+              bracketPairColorization: { enabled: true },
+              guides: { bracketPairs: true, indentation: true },
+              renderLineHighlight: 'all',
+              smoothScrolling: true,
+              padding: { top: 8 },
             });
             tabData.originalContent = opts.content || '';
+
+            // Track modifications + cursor position
             tabData.monacoEditor.onDidChangeModelContent(() => {
               const modified = tabData.monacoEditor.getValue() !== tabData.originalContent;
               tabData.tabEl.querySelector('.tab-label').textContent = (modified ? '● ' : '') + tabData.name;
+              const modEl = document.getElementById(tabId + '-modified');
+              if (modEl) modEl.style.display = modified ? 'inline' : 'none';
+              // Update line count
+              const linesEl = document.getElementById(tabId + '-lines');
+              if (linesEl) linesEl.textContent = tabData.monacoEditor.getModel().getLineCount() + ' lines';
             });
+
+            tabData.monacoEditor.onDidChangeCursorPosition((e) => {
+              const curEl = document.getElementById(tabId + '-cursor');
+              if (curEl) curEl.textContent = `Ln ${e.position.lineNumber}, Col ${e.position.column}`;
+            });
+
+            // Ctrl+S to save
+            tabData.monacoEditor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => saveEditorTab(tabId));
           });
         }
 
@@ -2711,6 +2822,16 @@
         if (tab.type === 'admin') { switchTab(tabId); return; }
       }
       createTab('admin', { name: 'Admin', icon: '🛡️' });
+    }
+
+    // Editor tab undo/redo
+    function editorTabUndo(tabId) {
+      const tab = tabs.get(tabId);
+      if (tab && tab.monacoEditor) tab.monacoEditor.trigger('statusbar', 'undo');
+    }
+    function editorTabRedo(tabId) {
+      const tab = tabs.get(tabId);
+      if (tab && tab.monacoEditor) tab.monacoEditor.trigger('statusbar', 'redo');
     }
 
     // Save editor tab content
