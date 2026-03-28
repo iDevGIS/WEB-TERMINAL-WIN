@@ -2971,13 +2971,12 @@
             tabData.activePane = idx;
             tabData.sessionId = pane.sessionId;
             currentSessionId = pane.sessionId;
-            // Highlight active pane
-            tabData.panes.forEach(p => {
-              const el = p.wrapEl.closest('.split-pane');
-              if (el) el.classList.remove('split-active');
-            });
-            const el = pane.wrapEl.closest('.split-pane');
-            if (el) el.classList.add('split-active');
+            // Highlight active pane — clear ALL, then mark only the direct parent
+            tabData.paneEl?.querySelectorAll('.split-active').forEach(el => el.classList.remove('split-active'));
+            const directParent = pane.wrapEl.parentElement;
+            if (directParent && directParent.classList.contains('split-pane')) {
+              directParent.classList.add('split-active');
+            }
             // Sync sidebar + toolbar
             renderSessions();
             const s = sessions.find(s => s.id === pane.sessionId);
