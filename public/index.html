@@ -299,8 +299,8 @@
     #heart-icon {
       width: 18px;
       height: 18px;
-      color: #3b9eff;
-      filter: drop-shadow(0 0 6px rgba(59,158,255,.7)) drop-shadow(0 0 14px rgba(59,158,255,.3));
+      color: #5cb8ff;
+      filter: drop-shadow(0 0 4px rgba(92,184,255,.9)) drop-shadow(0 0 12px rgba(59,158,255,.4));
     }
 
     .heart-beat {
@@ -325,10 +325,10 @@
     #hb-bpm {
       font-size: 12px;
       font-weight: 700;
-      color: #3b9eff;
+      color: #5cb8ff;
       font-family: 'JetBrains Mono', monospace;
       letter-spacing: .5px;
-      text-shadow: 0 0 8px rgba(59,158,255,.5), 0 0 20px rgba(59,158,255,.2);
+      text-shadow: 0 0 6px rgba(92,184,255,.6), 0 0 16px rgba(59,158,255,.25);
     }
 
     #hb-bpm.dead { color: #f87171; text-shadow: 0 0 8px rgba(248,113,113,.4); }
@@ -348,19 +348,20 @@
     }
 
     #heartbeat-line {
-      stroke: #3b9eff;
-      stroke-width: 2;
+      stroke: #5cb8ff;
+      stroke-width: 1.8;
       filter:
-        drop-shadow(0 0 4px rgba(59,158,255,.8))
-        drop-shadow(0 0 12px rgba(59,158,255,.5))
-        drop-shadow(0 0 24px rgba(59,158,255,.25));
+        drop-shadow(0 0 2px rgba(92,184,255,1))
+        drop-shadow(0 0 6px rgba(59,158,255,.9))
+        drop-shadow(0 0 14px rgba(59,158,255,.5))
+        drop-shadow(0 0 28px rgba(40,120,255,.3));
       transition: stroke .3s;
     }
     #heartbeat-glow {
       stroke: #3b9eff;
-      stroke-width: 6;
-      opacity: .25;
-      filter: blur(4px);
+      stroke-width: 8;
+      opacity: .2;
+      filter: blur(5px);
     }
 
     #heartbeat-line.dead {
