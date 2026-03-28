@@ -2,13 +2,16 @@
 
 ## 🔥 Priority: High
 
-### 🖥️ Admin Panel UI (`/admin`)
-- [ ] Dashboard page with glassmorphism UI
-- [ ] System Monitor — real-time CPU%, RAM%, Disk, Uptime, OS info
-- [ ] Session Manager — view all active sessions, kill remotely
-- [ ] Server Logs — live tail with auto-scroll, filter by level
-- [ ] Process Manager — top processes by CPU/RAM, kill by PID
-- [ ] Network Info — active connections, listening ports, bandwidth
+### 🖥️ Admin Panel UI (`/admin`) ✅
+- [x] Dashboard page with glassmorphism UI
+- [x] System Monitor — real-time CPU%, RAM%, Disk, GPU, Uptime (auto refresh 5s)
+- [x] Session Manager — view all active sessions, kill remotely
+- [x] Server Logs — activity log viewer
+- [x] Process Manager — top 20 processes by RAM, kill by PID
+- [x] Network Info — hostname, local IP, Tailscale IP, port, Node version
+- [x] Quick Actions — New Shell, Kill All, VNC, Copy IP, Export Logs
+- [x] Server Info — PID, memory, server uptime, shell profiles
+- [ ] Log level filter (info/warn/error)
 
 ### ⌨️ Command Palette (`Ctrl+K`)
 - [ ] Popup search box with fuzzy matching
@@ -110,5 +113,9 @@
 - [x] Auto-reconnect WebSocket
 - [x] Activity log
 - [x] Admin shell profiles (gsudo)
+- [x] Admin Panel UI (system monitor, sessions, processes, GPU, network)
+- [x] Quick Actions (kill all, VNC, copy IP, export logs)
+- [x] Neon blue heartbeat monitor (3D, gradient mask, grid)
+- [x] Welcome feature cards (SVG icons, grid layout, hover glow)
 - [x] Custom confirm dialog (glassmorphism)
 - [x] No-cache headers for HTML

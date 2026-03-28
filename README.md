@@ -102,9 +102,20 @@
 - **iOS Safari support** — `100dvh` viewport fix, safe area insets, `touch-action: manipulation`
 - **Touch-friendly** — minimum 44px tap targets, no hover-dependent UI
 
+### 🛡️ Admin Panel (`/admin`)
+- **System Monitor** — real-time CPU%, RAM%, Disk, GPU (nvidia-smi), Uptime with progress bars (auto refresh 5s)
+- **GPU Monitoring** — utilization %, temperature, power draw, VRAM usage
+- **Session Manager** — view all active sessions, kill remotely
+- **Process Manager** — top 20 processes by memory, kill by PID
+- **Network Info** — hostname, local IP, Tailscale IP, Node version, platform
+- **Server Info** — PID, memory (RSS + heap), server uptime, shell profile count
+- **Quick Actions** — New Shell, Kill All Sessions, Remote Desktop, Copy IP, Export Logs
+- **Activity Log** — real-time server activity viewer
+- **REST API** — `GET /api/admin/status`, `GET /api/admin/processes`, `POST /api/admin/kill-process`, `GET /api/admin/server`
+
 ### 💓 Heartbeat Monitor
-- **ECG waveform** — real-time canvas-drawn latency visualization with 60 data points
-- **Animated heart** — pulses with each successful ping, color indicates health
+- **Neon blue ECG** — 3D waveform with 4-layer glow, grid overlay, gradient mask fade edges
+- **Animated heart** — pulses with each successful ping, neon blue glow
 - **BPM display** — calculated from actual ping frequency (30 BPM = every 2 seconds)
 - **Latency readout** — exact millisecond round-trip time
 - **Bitrate indicator** — live WebSocket throughput in bps / Kbps / Mbps
@@ -394,14 +405,6 @@ CYBERFRAME
 ---
 
 ## 🚧 Next Features (Roadmap)
-
-### 🖥️ Admin Panel UI
-Dashboard page (`/admin`) with glassmorphism UI:
-- **System Monitor** — real-time CPU%, RAM%, Disk usage, Uptime, OS info
-- **Session Manager** — view all active sessions, kill remotely
-- **Server Logs** — live tail with auto-scroll, filter by level
-- **Process Manager** — top processes by CPU/RAM, kill by PID
-- **Network Info** — active connections, listening ports, bandwidth
 
 ### ⌨️ Command Palette
 Quick access via `Ctrl+K`:
