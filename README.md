@@ -18,6 +18,14 @@
 - **Session rename** — double-click session name to rename
 - **Multiple concurrent sessions** — run as many shells as you need simultaneously
 
+### 📑 Multi-Tab Interface
+- **Tab bar** — each session opens in its own tab with dedicated terminal instance
+- **Mixed tabs** — terminal, editor (Monaco), preview, and admin dashboard tabs
+- **`+` button** — spawn new shell tab from tab bar
+- **Keyboard shortcuts** — `Ctrl+S` save editor tab, `Ctrl+W` close active tab
+- **Per-tab xterm** — no more detach/attach; switch tabs instantly
+- **Auto-fit** — terminal resizes on tab switch and window resize
+
 ### 🔍 Terminal Search
 - **Ctrl+F** to search — intercepts browser search, uses xterm's built-in search addon
 - **Navigate results** — ▲ Previous / ▼ Next buttons or Enter/Shift+Enter
