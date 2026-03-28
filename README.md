@@ -209,21 +209,36 @@ Open `http://localhost:3000` in your browser.
 
 ## 📸 Screenshots
 
-### Login
-![Login](docs/images/login.jpg)
+### Desktop
 
-### Welcome & Shell Picker
-![Welcome](docs/images/welcome.jpg)
-![Shell Picker](docs/images/shell-picker.jpg)
+| Login | Welcome & Shell Picker |
+|-------|----------------------|
+| ![Login](docs/images/login.jpg) | ![Welcome](docs/images/welcome.jpg) |
 
-### Terminal
-![Terminal](docs/images/terminal.jpg)
+| Terminal | File Manager |
+|----------|-------------|
+| ![Terminal](docs/images/terminal.jpg) | ![File Manager](docs/images/file-manager.jpg) |
 
-### File Manager
-![File Manager](docs/images/file-manager.jpg)
+| Shell Picker | Theme Switcher |
+|-------------|---------------|
+| ![Shell Picker](docs/images/shell-picker.jpg) | ![Themes](docs/images/themes.jpg) |
 
-### Theme Switcher
-![Themes](docs/images/themes.jpg)
+### 📱 Mobile (iOS Safari)
+
+<table>
+<tr>
+<td width="25%"><strong>Login</strong><br><img src="docs/images/mobile-login.png" width="200"></td>
+<td width="25%"><strong>Welcome</strong><br><img src="docs/images/mobile-welcome.png" width="200"></td>
+<td width="25%"><strong>Terminal</strong><br><img src="docs/images/mobile-terminal.png" width="200"></td>
+<td width="25%"><strong>Sidebar</strong><br><img src="docs/images/mobile-sidebar.png" width="200"></td>
+</tr>
+<tr>
+<td><strong>Admin Panel</strong><br><img src="docs/images/mobile-admin.png" width="200"></td>
+<td><strong>File Manager</strong><br><img src="docs/images/mobile-files.png" width="200"></td>
+<td><strong>Monaco Editor</strong><br><img src="docs/images/mobile-editor.png" width="200"></td>
+<td><strong>Sessions</strong><br><img src="docs/images/mobile-session.png" width="200"></td>
+</tr>
+</table>
 
 ---
 
