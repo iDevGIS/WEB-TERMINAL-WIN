@@ -407,6 +407,11 @@
     .net-item { font-size: 11px; }
   }
 
+  @media (max-width: 768px) {
+    .admin-table .hide-mobile { display: none; }
+    .card-full { grid-column: 1 / -1; overflow-x: auto; }
+  }
+
   @media (max-width: 480px) {
     .stats-row {
       grid-template-columns: repeat(2, 1fr);
@@ -579,7 +584,7 @@
       <span class="card-badge" id="proc-count">0</span>
     </div>
     <table class="admin-table">
-      <thead><tr><th>PID</th><th>Name</th><th>CPU%</th><th>Memory</th><th></th></tr></thead>
+      <thead><tr><th>PID</th><th>Name</th><th class="hide-mobile">CPU%</th><th>Memory</th><th></th></tr></thead>
       <tbody id="proc-body">
         <tr><td colspan="5" style="text-align:center;color:var(--text3)">Loading...</td></tr>
       </tbody>
@@ -684,8 +689,8 @@
       document.getElementById('proc-body').innerHTML = procs.map(p => `
         <tr>
           <td>${p.pid}</td>
-          <td>${p.name}</td>
-          <td>${p.cpu}</td>
+          <td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.name}</td>
+          <td class="hide-mobile">${p.cpu}</td>
           <td>${p.memory}</td>
           <td><button class="kill-btn" onclick="killProcess(${p.pid})">Kill</button></td>
         </tr>
