@@ -822,6 +822,26 @@ app.post("/api/admin/kill-process", requireAuth, (req, res) => {
   }
 });
 
+app.get("/api/admin/server", requireAuth, (req, res) => {
+  const mem = process.memoryUsage();
+  const uptimeSec = process.uptime();
+  const days = Math.floor(uptimeSec / 86400);
+  const hours = Math.floor((uptimeSec % 86400) / 3600);
+  const mins = Math.floor((uptimeSec % 3600) / 60);
+  const formatted = days > 0 ? `${days}d ${hours}h ${mins}m` : hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
+  const sessions = listSessions();
+  const shells = getAvailableShells();
+  res.json({
+    pid: process.pid,
+    memoryMB: Math.round(mem.rss / 1048576),
+    heapMB: Math.round(mem.heapUsed / 1048576),
+    uptime: formatted,
+    activeSessions: sessions.length,
+    availableShells: shells.map(s => s.icon + ' ' + s.name).join(', '),
+    shellCount: shells.length,
+  });
+});
+
 // Protected static files — no cache for HTML
 app.use(requireAuth, (req, res, next) => {
   if (req.path === '/' || req.path.endsWith('.html')) {

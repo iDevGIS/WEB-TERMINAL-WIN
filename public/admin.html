@@ -503,6 +503,25 @@
     </div>
   </div>
 
+  <!-- Server Info -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><circle cx="6" cy="6" r="1"/><circle cx="6" cy="18" r="1"/></svg>
+        Server Info
+      </div>
+      <span class="card-badge" id="server-status-badge">Running</span>
+    </div>
+    <div id="server-info">
+      <div class="net-item"><span class="net-label">Application</span><span class="net-value" style="color:var(--accent)">CYBERFRAME</span></div>
+      <div class="net-item"><span class="net-label">PID</span><span class="net-value" id="srv-pid">—</span></div>
+      <div class="net-item"><span class="net-label">Memory (Server)</span><span class="net-value" id="srv-mem">—</span></div>
+      <div class="net-item"><span class="net-label">Server Uptime</span><span class="net-value" id="srv-uptime">—</span></div>
+      <div class="net-item"><span class="net-label">Active Shells</span><span class="net-value" id="srv-shells">—</span></div>
+      <div class="net-item"><span class="net-label">Available Shells</span><span class="net-value" id="srv-avail-shells">—</span></div>
+    </div>
+  </div>
+
   <!-- Processes -->
   <div class="card card-full">
     <div class="card-header">
@@ -673,8 +692,23 @@
   async function refreshAll() {
     const btn = document.getElementById('refresh-btn');
     btn.classList.add('loading');
-    await Promise.all([fetchStatus(), fetchSessions(), fetchProcesses(), fetchLogs()]);
+    await Promise.all([fetchStatus(), fetchSessions(), fetchProcesses(), fetchLogs(), fetchServerInfo()]);
     btn.classList.remove('loading');
+  }
+
+  // === Fetch Server Info ===
+  async function fetchServerInfo() {
+    try {
+      const r = await fetch(API + '/api/admin/server');
+      const d = await r.json();
+      document.getElementById('srv-pid').textContent = d.pid;
+      document.getElementById('srv-mem').textContent = d.memoryMB + ' MB (heap: ' + d.heapMB + ' MB)';
+      document.getElementById('srv-uptime').textContent = d.uptime;
+      document.getElementById('srv-shells').textContent = d.activeSessions;
+      document.getElementById('srv-avail-shells').textContent = d.shellCount + ' profiles';
+    } catch (e) {
+      console.error('Server info fetch failed:', e);
+    }
   }
 
   // === Quick Action Helpers ===
