@@ -86,7 +86,7 @@ function createTermSession(name, cols = 120, rows = 30, shellId = "pwsh") {
     shell: { id: profile.id, name: profile.name, icon: profile.icon },
     createdAt: Date.now(),
     lastActivity: Date.now(),
-    ws: null,
+    clients: new Set(),
     timeout: null,
     dead: false,
   };
@@ -98,18 +98,22 @@ function createTermSession(name, cols = 120, rows = 30, shellId = "pwsh") {
     if (sess.buffer.length > SCROLLBACK_LIMIT) {
       sess.buffer = sess.buffer.slice(-SCROLLBACK_LIMIT);
     }
-    // Forward to attached client
-    if (sess.ws && sess.ws.readyState === 1) {
-      try { sess.ws.send(JSON.stringify({ type: "output", data })); } catch (e) {}
-    }
+    // Forward to all attached clients
+    sess.clients.forEach(c => {
+      if (c.readyState === 1) {
+        try { c.send(JSON.stringify({ type: "output", id: sess.id, data })); } catch (e) {}
+      }
+    });
   });
 
   term.onExit(({ exitCode }) => {
     console.log(`[×] Session "${sess.name}" (${id}) exited (code ${exitCode})`);
     sess.dead = true;
-    if (sess.ws && sess.ws.readyState === 1) {
-      try { sess.ws.send(JSON.stringify({ type: "session-died", id, code: exitCode })); } catch (e) {}
-    }
+    sess.clients.forEach(c => {
+      if (c.readyState === 1) {
+        try { c.send(JSON.stringify({ type: "session-died", id, code: exitCode })); } catch (e) {}
+      }
+    });
     clearTimeout(sess.timeout);
     termSessions.delete(id);
   });
@@ -120,26 +124,25 @@ function createTermSession(name, cols = 120, rows = 30, shellId = "pwsh") {
 }
 
 function attachSession(sess, ws) {
-  // Detach previous client if any
-  if (sess.ws && sess.ws !== ws && sess.ws.readyState === 1) {
-    try { sess.ws.send(JSON.stringify({ type: "detached", reason: "Another client attached" })); } catch (e) {}
-  }
-  sess.ws = ws;
+  sess.clients.add(ws);
   sess.lastActivity = Date.now();
   clearTimeout(sess.timeout);
-  console.log(`[↔] Attached to session "${sess.name}" (${sess.id})`);
+  console.log(`[↔] Attached to session "${sess.name}" (${sess.id}), clients: ${sess.clients.size}`);
 }
 
-function detachSession(sess) {
-  sess.ws = null;
-  // Start idle timeout
-  sess.timeout = setTimeout(() => {
-    if (!sess.ws && !sess.dead) {
-      console.log(`[⏰] Session "${sess.name}" (${sess.id}) timed out, killing`);
-      sess.pty.kill();
-    }
-  }, SESSION_TIMEOUT_MS);
-  console.log(`[⊘] Detached from session "${sess.name}" (${sess.id}), timeout ${SESSION_TIMEOUT_MS / 1000}s`);
+function detachSession(sess, ws) {
+  if (ws) sess.clients.delete(ws);
+  else sess.clients.clear();
+  // Start idle timeout if no clients
+  if (sess.clients.size === 0) {
+    sess.timeout = setTimeout(() => {
+      if (sess.clients.size === 0 && !sess.dead) {
+        console.log(`[⏰] Session "${sess.name}" (${sess.id}) timed out, killing`);
+        sess.pty.kill();
+      }
+    }, SESSION_TIMEOUT_MS);
+  }
+  console.log(`[⊘] Detached from session "${sess.name}" (${sess.id}), clients: ${sess.clients.size}`);
 }
 
 function destroySession(id) {
@@ -164,7 +167,7 @@ function listSessions() {
     name: s.name,
     createdAt: s.createdAt,
     lastActivity: s.lastActivity,
-    attached: !!(s.ws && s.ws.readyState === 1),
+    attached: s.clients.size > 0,
     dead: s.dead,
     pid: s.pty.pid,
     shell: s.shell,
@@ -887,7 +890,8 @@ server.on("upgrade", (req, socket, head) => {
 wss.on("connection", (ws, req) => {
   const user = req.session?.user || "unknown";
   console.log(`[+] ${user} WebSocket connected`);
-  let currentSession = null;
+  // Track all sessions attached by this WS client (multi-tab support)
+  const attachedSessions = new Map(); // id → session
 
   ws.on("message", (msg) => {
     try {
@@ -900,51 +904,47 @@ wss.on("connection", (ws, req) => {
             ws.send(JSON.stringify({ type: "error", message: "Session not found or dead" }));
             return;
           }
-          // Detach from previous session first
-          if (currentSession && currentSession.id !== sess.id) {
-            currentSession.ws = null;
-          }
-          currentSession = sess;
+          attachedSessions.set(sess.id, sess);
           attachSession(sess, ws);
           // Send buffered output for restore
           ws.send(JSON.stringify({ type: "attached", id: sess.id, name: sess.name }));
           if (sess.buffer.length > 0) {
-            ws.send(JSON.stringify({ type: "output", data: sess.buffer }));
+            ws.send(JSON.stringify({ type: "output", id: sess.id, data: sess.buffer }));
           }
           break;
         }
 
         case "create": {
-          // Detach from previous session first
-          if (currentSession) {
-            currentSession.ws = null;
-          }
           const sess = createTermSession(parsed.name, parsed.cols || 120, parsed.rows || 30, parsed.shell || "pwsh");
-          currentSession = sess;
+          attachedSessions.set(sess.id, sess);
           attachSession(sess, ws);
           ws.send(JSON.stringify({ type: "attached", id: sess.id, name: sess.name, fresh: true }));
           break;
         }
 
         case "detach": {
-          if (currentSession) {
-            detachSession(currentSession);
-            currentSession = null;
-            ws.send(JSON.stringify({ type: "detached", reason: "User detached" }));
+          const sessId = parsed.id;
+          const sess = sessId ? attachedSessions.get(sessId) : null;
+          if (sess) {
+            detachSession(sess, ws);
+            attachedSessions.delete(sessId);
+            ws.send(JSON.stringify({ type: "detached", id: sessId, reason: "User detached" }));
           }
           break;
         }
 
         case "input": {
-          if (currentSession && !currentSession.dead) {
-            currentSession.pty.write(parsed.data);
+          const sess = parsed.id ? attachedSessions.get(parsed.id) : null;
+          if (sess && !sess.dead) {
+            sess.pty.write(parsed.data);
           }
           break;
         }
 
         case "resize": {
-          if (currentSession && !currentSession.dead) {
-            currentSession.pty.resize(parsed.cols, parsed.rows);
+          const sess = parsed.id ? attachedSessions.get(parsed.id) : null;
+          if (sess && !sess.dead) {
+            sess.pty.resize(parsed.cols, parsed.rows);
           }
           break;
         }
@@ -961,7 +961,7 @@ wss.on("connection", (ws, req) => {
 
         case "destroy": {
           if (parsed.id) {
-            if (currentSession && currentSession.id === parsed.id) currentSession = null;
+            attachedSessions.delete(parsed.id);
             destroySession(parsed.id);
             ws.send(JSON.stringify({ type: "sessions", sessions: listSessions() }));
           }
@@ -974,11 +974,9 @@ wss.on("connection", (ws, req) => {
   });
 
   ws.on("close", () => {
-    console.log(`[-] ${user} WebSocket disconnected`);
-    if (currentSession) {
-      detachSession(currentSession);
-      currentSession = null;
-    }
+    console.log(`[-] ${user} WebSocket disconnected, detaching ${attachedSessions.size} sessions`);
+    attachedSessions.forEach(sess => detachSession(sess, ws));
+    attachedSessions.clear();
   });
 });
 

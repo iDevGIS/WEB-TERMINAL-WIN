@@ -2558,7 +2558,7 @@
             }
           }
           if (ws && ws.readyState === WebSocket.OPEN && tabData.sessionId) {
-            ws.send(JSON.stringify({ type: 'input', data }));
+            ws.send(JSON.stringify({ type: 'input', id: tabData.sessionId, data }));
           }
         });
 
@@ -2712,7 +2712,7 @@
         setTimeout(() => {
           tab.fitAddon.fit();
           if (ws && ws.readyState === WebSocket.OPEN && tab.sessionId) {
-            ws.send(JSON.stringify({ type: 'resize', cols: tab.term.cols, rows: tab.term.rows }));
+            ws.send(JSON.stringify({ type: 'resize', id: tab.sessionId, cols: tab.term.cols, rows: tab.term.rows }));
           }
           tab.term.focus();
         }, 50);
@@ -2756,10 +2756,7 @@
       // Destroy terminal session? No — just detach, session lives on
       if (tab.type === 'terminal' && tab.term) {
         if (tab.sessionId && ws && ws.readyState === WebSocket.OPEN) {
-          // Only detach if this is the active attached session
-          if (tab.sessionId === currentSessionId) {
-            ws.send(JSON.stringify({ type: 'detach' }));
-          }
+          ws.send(JSON.stringify({ type: 'detach', id: tab.sessionId }));
         }
         tab.term.dispose();
       }
@@ -2952,7 +2949,7 @@
                 setTimeout(() => {
                   activeTab.fitAddon.fit();
                   if (ws && ws.readyState === WebSocket.OPEN) {
-                    ws.send(JSON.stringify({ type: 'resize', cols: activeTab.term.cols, rows: activeTab.term.rows }));
+                    ws.send(JSON.stringify({ type: 'resize', id: activeTab.sessionId, cols: activeTab.term.cols, rows: activeTab.term.rows }));
                   }
                   activeTab.term.focus();
                 }, 50);
@@ -3148,7 +3145,7 @@
 
     function detachCurrent() {
       if (!currentSessionId) return;
-      ws.send(JSON.stringify({ type: 'detach' }));
+      ws.send(JSON.stringify({ type: 'detach', id: currentSessionId }));
     }
 
     function destroySession(id) {
@@ -3231,7 +3228,7 @@
       if (activeT && activeT.type === 'terminal' && activeT.fitAddon) {
         activeT.fitAddon.fit();
         if (ws && ws.readyState === WebSocket.OPEN && activeT.sessionId) {
-          ws.send(JSON.stringify({ type: 'resize', cols: activeT.term.cols, rows: activeT.term.rows }));
+          ws.send(JSON.stringify({ type: 'resize', id: activeT.sessionId, cols: activeT.term.cols, rows: activeT.term.rows }));
         }
       }
     });
@@ -3996,7 +3993,7 @@
 
     function runSnippet(cmd) {
       if (!ws || !currentSessionId) { showToast('No active session', 'error'); return; }
-      ws.send(JSON.stringify({ type: 'input', sessionId: currentSessionId, data: cmd + '\r' }));
+      ws.send(JSON.stringify({ type: 'input', id: currentSessionId, data: cmd + '\r' }));
       closeSnippets();
       showToast(`Running: ${cmd.substring(0, 50)}`, 'info', 2000);
     }
