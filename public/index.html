@@ -3075,8 +3075,11 @@
       tab.sessionId = oldSessionId;
       currentSessionId = oldSessionId;
 
-      // DON'T re-attach — session is already attached to this WS client.
-      // Just need pane.sessionId set (done above) so output routes correctly.
+      // Re-attach to get buffered output (terminal was disposed so buffer is lost)
+      // The `attached` handler will find existing tab and just break (no duplicate)
+      if (oldSessionId && ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'attach', id: oldSessionId }));
+      }
 
       // Create pane 2 terminal
       const newPane2 = createTermPane(tab, activeTabId, wrap2);
@@ -3156,7 +3159,10 @@
       newPaneA.sessionId = oldSessionId;
       tab.panes[activePaneIdx] = newPaneA;
 
-      // DON'T re-attach — session already attached to this WS client.
+      // Re-attach to restore buffer (terminal was disposed)
+      if (oldSessionId && ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'attach', id: oldSessionId }));
+      }
 
       // Create pane B terminal
       const newPaneB = createTermPane(tab, activeTabId, wrapB);
@@ -3241,8 +3247,8 @@
       tab.sessionId = keptSessionId;
       currentSessionId = keptSessionId;
 
-      // DON'T re-attach — session already attached to this WS client
-      if (false && keptSessionId && ws && ws.readyState === WebSocket.OPEN) {
+      // Re-attach to restore buffer (terminal was disposed)
+      if (keptSessionId && ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: 'attach', id: keptSessionId }));
       }
 
