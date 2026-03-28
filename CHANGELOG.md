@@ -58,9 +58,22 @@ All notable changes to this project will be documented in this file.
 - **Kill Session → Close Tab** — `destroySession()` broadcasts `session-died` via WS to all clients
 - **8 Mobile Screenshots** in README — login, welcome, terminal, sidebar, admin, files, editor, sessions
 - **CHANGELOG.md** — full project history from initial release
+- **Split Pane** — divide terminal tab into multiple panes
+  - Horizontal split (side by side) + Vertical split (top/bottom)
+  - Nested splits: split active pane again for 3-4 pane layouts
+  - Each pane has own xterm instance + session
+  - Shell picker when creating new split pane
+  - Draggable resize handle with smooth RAF animation
+  - Active pane highlight (purple border + toolbar tint)
+  - Focus sync: click pane ↔ sidebar session card ↔ toolbar title
+  - Close pane: 3→2 and 2→1 transitions with layout rebuild
+  - Buffer restore on split (re-attach fetches server buffer)
+  - Hidden on mobile (< 1024px) — desktop only
+- **Theme/File drawer scrollable on mobile** — `overflow-y: auto`
 
 ### Changed
 - Editor default font size: 14px from localStorage (was hardcoded 13px)
+- Split resize: uses `requestAnimationFrame` + server PTY resize on mouseup only
 - Disk usage: replaced deprecated `wmic` with `Get-CimInstance Win32_LogicalDisk`
 - Quick Actions: emoji → color-coded SVG icons
 - Admin button: opens as tab instead of navigating to separate page
