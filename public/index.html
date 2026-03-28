@@ -2584,6 +2584,10 @@
               <button class="esb-btn" onclick="editorTabRedo('${tabId}')" title="Redo (Ctrl+Y)">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
               </button>
+              ${['.md','.html','.htm'].includes('.' + ext) ? `<button class="esb-btn" onclick="previewFromEditor('${tabId}')" title="Preview rendered">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                Preview
+              </button>` : ''}
               <button class="esb-btn save-btn" onclick="saveEditorTab('${tabId}')" title="Save (Ctrl+S)">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
                 Save
@@ -2822,6 +2826,15 @@
         if (tab.type === 'admin') { switchTab(tabId); return; }
       }
       createTab('admin', { name: 'Admin', icon: '🛡️' });
+    }
+
+    // Preview from editor (for .md/.html/.htm)
+    function previewFromEditor(tabId) {
+      const tab = tabs.get(tabId);
+      if (!tab || !tab.filePath) return;
+      const ext = '.' + tab.filePath.split('.').pop().toLowerCase();
+      const renderMode = ext === '.md' ? 'md' : 'web';
+      openPreviewInTab(tab.filePath, `/api/files/preview?path=${encodeURIComponent(tab.filePath)}&render=${renderMode}`);
     }
 
     // Editor tab undo/redo
@@ -3594,15 +3607,8 @@
       const isImgCheck = imgExtsCheck.includes(ext);
       const isPdfCheck = ext === '.pdf';
 
-      // Text/code/markdown/html → open in tab
+      // Text/code/markdown/html → open in editor tab (code view)
       if (!isImgCheck && !isPdfCheck) {
-        // Markdown/HTML → preview tab
-        if (ext === '.md' || ext === '.html') {
-          const renderMode = ext === '.md' ? 'md' : 'web';
-          openPreviewInTab(fullPath, `/api/files/preview?path=${encodeURIComponent(fullPath)}&render=${renderMode}`);
-          return;
-        }
-        // Code/text → editor tab
         openEditor(fullPath, name);
         return;
       }
