@@ -38,8 +38,29 @@ All notable changes to this project will be documented in this file.
   - Deep black background, grid overlay with gradient mask fade
   - 4-layer glow, sharp 1.2px stroke, geometricPrecision rendering
 - **TODO.md** — full roadmap with High/Medium/Low priorities + completed checklist
+- **Multi-Session WebSocket** — server tracks multiple attached sessions per WS client
+  - `sess.clients` Set replaces single `sess.ws` reference
+  - All messages (input, resize, detach) include session `id`
+  - Multiple tabs show correct Linked/Idle status simultaneously
+- **File Manager Tab** — opens as tab instead of drawer overlay
+  - File drawer moves into tab pane with `.in-tab` class
+  - Close tab restores drawer to original DOM position
+- **Editor Status Bar** — VS Code-style footer in editor tabs
+  - Language, cursor position (Ln/Col), line count, file size
+  - ● Modified indicator, Undo/Redo/Save buttons with SVG icons
+  - Preview button for `.md`/`.html`/`.htm` files
+- **Welcome Feature Cards Clickable** — each card triggers its action
+  - Immortal/Multi-link/Raw PTY → shell picker, Admin → admin tab, Files → file tab
+  - Remote → VNC, Monitor → admin tab, Themes → theme picker
+- **Tab `+` Button → Welcome Screen** — Chrome-style new tab page with feature cards
+- **Font Size in Theme Drawer** — A-/A+ buttons with current size display
+- **Font Size Sync** — changes apply to both terminal and Monaco editor tabs
+- **Kill Session → Close Tab** — `destroySession()` broadcasts `session-died` via WS to all clients
+- **8 Mobile Screenshots** in README — login, welcome, terminal, sidebar, admin, files, editor, sessions
+- **CHANGELOG.md** — full project history from initial release
 
 ### Changed
+- Editor default font size: 14px from localStorage (was hardcoded 13px)
 - Disk usage: replaced deprecated `wmic` with `Get-CimInstance Win32_LogicalDisk`
 - Quick Actions: emoji → color-coded SVG icons
 - Admin button: opens as tab instead of navigating to separate page
@@ -48,7 +69,16 @@ All notable changes to this project will be documented in this file.
 - iOS autofill bar: added autocomplete/autocorrect/spellcheck off on xterm textarea
 - Admin iframe navigation: back button no longer causes nested terminal view
 - Activity log "Invalid Date": field name was `time` not `timestamp`
+- Admin sessions "NaN" age: field name was `createdAt` not `created`
+- Admin sessions "[object Object]": display `shell.name` not shell object
 - Admin process table: mobile responsive, CPU column hidden, names truncated
+- Favorites: consistent forward slash paths, `updateFavIcon()` path mismatch
+- Tab focus: removed outline ring and text selection
+- Theme/snippets drawer z-index: no longer blocked by file manager tab
+- Login panel: centered vertically (`min-height` instead of `-webkit-fill-available`)
+- Sidebar header + toolbar: pixel-perfect height alignment (fixed 42px)
+- Empty state sidebar: no longer flickers on refresh (skip re-render if unchanged)
+- `.md`/`.html` files: double-click opens code view, Preview button in status bar
 
 ---
 
