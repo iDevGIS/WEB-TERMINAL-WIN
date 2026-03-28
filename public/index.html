@@ -2973,7 +2973,12 @@
       if (!activeTabId) return;
       const tab = tabs.get(activeTabId);
       if (!tab || tab.type !== 'terminal') { showToast('Only terminal tabs can split', 'warning'); return; }
-      if (tab.panes && tab.panes.length >= 2) { showToast('Already split', 'warning'); return; }
+      if (tab.panes && tab.panes.length >= 4) { showToast('Max 4 panes', 'warning'); return; }
+      if (tab.panes && tab.panes.length >= 2) {
+        // Nested split: split the active pane
+        splitActivePane(tab, direction);
+        return;
+      }
 
       // Open shell picker for the split pane
       const paneEl = tab.paneEl;
@@ -3051,6 +3056,86 @@
       openShellModalForSplit(tab, 1);
       tab.splitContainer = splitContainer;
 
+      showToast(`Split ${direction}`, 'success', 1500);
+    }
+
+    function splitActivePane(tab, direction) {
+      const activePaneIdx = tab.activePane || 0;
+      const pane = tab.panes[activePaneIdx];
+      if (!pane) return;
+
+      // Find the split-pane element containing the active pane
+      const splitPaneEl = pane.wrapEl.closest('.split-pane');
+      if (!splitPaneEl) return;
+
+      // Save session info
+      const oldSessionId = pane.sessionId;
+      pane.term.dispose();
+
+      // Create nested split container inside this pane
+      // Keep the toolbar, replace the term-wrap with a nested split
+      const oldWrap = splitPaneEl.querySelector('.term-wrap');
+      splitPaneEl.removeChild(oldWrap);
+
+      const nestedSplit = document.createElement('div');
+      nestedSplit.className = `split-container ${direction}`;
+      nestedSplit.style.flex = '1';
+      nestedSplit.style.minHeight = '0';
+
+      // Sub-pane A (existing session)
+      const subA = document.createElement('div');
+      subA.className = 'split-pane';
+      const wrapA = document.createElement('div');
+      wrapA.className = 'term-wrap';
+      subA.appendChild(wrapA);
+
+      // Handle
+      const handle = document.createElement('div');
+      handle.className = 'split-handle';
+      initSplitResize(handle, nestedSplit, direction);
+
+      // Sub-pane B (new)
+      const subB = document.createElement('div');
+      subB.className = 'split-pane';
+      const toolbarB = document.createElement('div');
+      toolbarB.className = 'split-toolbar';
+      const newPaneIdx = tab.panes.length;
+      toolbarB.innerHTML = `<span class="split-label">Shell ${newPaneIdx + 1}</span>
+        <button onclick="closeSplitPane(${newPaneIdx})" title="Close pane">✕</button>`;
+      subB.appendChild(toolbarB);
+      const wrapB = document.createElement('div');
+      wrapB.className = 'term-wrap';
+      subB.appendChild(wrapB);
+
+      nestedSplit.appendChild(subA);
+      nestedSplit.appendChild(handle);
+      nestedSplit.appendChild(subB);
+      splitPaneEl.appendChild(nestedSplit);
+
+      // Re-create pane A terminal
+      const newPaneA = createTermPane(tab, activeTabId, wrapA);
+      newPaneA.sessionId = oldSessionId;
+      tab.panes[activePaneIdx] = newPaneA;
+
+      // Re-attach existing session
+      if (oldSessionId && ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'attach', id: oldSessionId }));
+      }
+
+      // Create pane B terminal
+      const newPaneB = createTermPane(tab, activeTabId, wrapB);
+      tab.panes.push(newPaneB);
+
+      // Fit after layout
+      setTimeout(() => {
+        newPaneA.fitAddon.fit();
+        newPaneB.fitAddon.fit();
+        newPaneB.term.focus();
+        tab.activePane = newPaneIdx;
+      }, 100);
+
+      // Spawn shell for new pane
+      openShellModalForSplit(tab, newPaneIdx);
       showToast(`Split ${direction}`, 'success', 1500);
     }
 
