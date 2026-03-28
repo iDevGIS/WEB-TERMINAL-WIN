@@ -26,6 +26,16 @@
 - **Per-tab xterm** — no more detach/attach; switch tabs instantly
 - **Auto-fit** — terminal resizes on tab switch and window resize
 
+### ⫿ Split Pane
+- **Horizontal split** — side-by-side terminals (⫿ button)
+- **Vertical split** — top/bottom terminals (⫻ button)
+- **Nested splits** — split the active pane again for 3–4 pane layouts
+- **Draggable resize handle** — smooth `requestAnimationFrame` animation
+- **Active pane highlight** — purple border + toolbar tint shows focus
+- **Sidebar sync** — click a session in sidebar to focus its pane
+- **Buffer preservation** — text content survives split operations
+- **Desktop only** — hidden on mobile (< 1024px)
+
 ### 🔍 Terminal Search
 - **Ctrl+F** to search — intercepts browser search, uses xterm's built-in search addon
 - **Navigate results** — ▲ Previous / ▼ Next buttons or Enter/Shift+Enter
@@ -211,17 +221,21 @@ Open `http://localhost:3000` in your browser.
 
 ### Desktop
 
-| Login | Welcome & Shell Picker |
-|-------|----------------------|
-| ![Login](docs/images/login.jpg) | ![Welcome](docs/images/welcome.jpg) |
+| Login | Welcome |
+|-------|---------|
+| ![Login](docs/images/login.png) | ![Welcome](docs/images/welcome.png) |
 
-| Terminal | File Manager |
-|----------|-------------|
-| ![Terminal](docs/images/terminal.jpg) | ![File Manager](docs/images/file-manager.jpg) |
+| Shell Picker | Terminal |
+|-------------|----------|
+| ![Shell Picker](docs/images/shell-picker.png) | ![Terminal](docs/images/terminal.png) |
 
-| Shell Picker | Theme Switcher |
-|-------------|---------------|
-| ![Shell Picker](docs/images/shell-picker.jpg) | ![Themes](docs/images/themes.jpg) |
+| Split Pane | File Manager |
+|-----------|-------------|
+| ![Split Pane](docs/images/split-pane.png) | ![File Manager](docs/images/file-manager.png) |
+
+| Theme Switcher |
+|---------------|
+| ![Themes](docs/images/themes.png) |
 
 ### 📱 Mobile (iOS Safari)
 
