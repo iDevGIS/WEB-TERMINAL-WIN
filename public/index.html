@@ -3414,28 +3414,43 @@
                 }
                 break;
               }
-              // Find the tab that just requested attach (active terminal tab with no session)
-              if (activeTab && activeTab.type === 'terminal' && !activeTab.sessionId) {
-                activeTab.sessionId = msg.id;
+              // Find the tab waiting for this create response
+              let targetTab = null, targetTabId = null;
+              for (const [tid, t] of tabs) {
+                if (t.type === 'terminal' && t._pendingCreate) {
+                  targetTab = t; targetTabId = tid;
+                  break;
+                }
+              }
+              if (!targetTab && activeTab && activeTab.type === 'terminal' && !activeTab.sessionId) {
+                targetTab = activeTab; targetTabId = activeTabId;
+              }
+
+              if (targetTab) {
+                delete targetTab._pendingCreate;
+                targetTab.sessionId = msg.id;
+                if (targetTab.panes && targetTab.panes[0]) targetTab.panes[0].sessionId = msg.id;
                 const s = sessions.find(s => s.id === msg.id);
                 const icon = s?.shell?.icon || '⚡';
-                updateTabName(activeTabId, msg.name, icon);
+                updateTabName(targetTabId, msg.name, icon);
                 currentSessionId = msg.id;
                 toolbarTitle.textContent = msg.name;
                 toolbarStatus.textContent = '● Linked';
                 toolbarStatus.className = 'status-badge connected';
+                switchTab(targetTabId);
                 setTimeout(() => {
-                  activeTab.fitAddon.fit();
+                  if (targetTab.fitAddon) targetTab.fitAddon.fit();
                   if (ws && ws.readyState === WebSocket.OPEN) {
-                    ws.send(JSON.stringify({ type: 'resize', id: activeTab.sessionId, cols: activeTab.term.cols, rows: activeTab.term.rows }));
+                    const t = targetTab.term || (targetTab.panes && targetTab.panes[0]?.term);
+                    if (t) ws.send(JSON.stringify({ type: 'resize', id: targetTab.sessionId, cols: t.cols, rows: t.rows }));
                   }
-                  activeTab.term.focus();
+                  if (targetTab.term) targetTab.term.focus();
                 }, 50);
               } else {
-                // Create new tab for this session
+                // Create new tab for this session (fallback — e.g. from another client)
                 const s = sessions.find(s => s.id === msg.id);
                 const icon = s?.shell?.icon || '⚡';
-                const tabId = createTab('terminal', { name: msg.name, icon, sessionId: msg.id });
+                createTab('terminal', { name: msg.name, icon, sessionId: msg.id });
               }
             }
             break;
@@ -3586,6 +3601,7 @@
       const tab = tabs.get(tabId);
       const cols = tab.term ? tab.term.cols : 120;
       const rows = tab.term ? tab.term.rows : 30;
+      tab._pendingCreate = true;
       const msg = JSON.stringify({ type: 'create', name, cols, rows, shell: shellId });
 
       if (ws && ws.readyState === WebSocket.OPEN) {
