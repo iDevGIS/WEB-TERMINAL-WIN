@@ -197,7 +197,8 @@ app.get("/login", (req, res) => {
   *{margin:0;padding:0;box-sizing:border-box}
   body{
     background:#0a0a1a;
-    display:flex;justify-content:center;align-items:center;height:100dvh;height:-webkit-fill-available;
+    display:flex;justify-content:center;align-items:center;
+    min-height:100vh;min-height:100dvh;
     font-family:'Inter',sans-serif;
     overflow:hidden;
   }
