@@ -148,6 +148,12 @@ function destroySession(id) {
   clearTimeout(sess.timeout);
   if (!sess.dead) sess.pty.kill();
   termSessions.delete(id);
+  // Broadcast session-died to all connected WS clients
+  wss.clients.forEach(client => {
+    if (client.readyState === 1) {
+      try { client.send(JSON.stringify({ type: 'session-died', id })); } catch (e) {}
+    }
+  });
   console.log(`[🗑] Destroyed session "${sess.name}" (${id})`);
   return true;
 }

@@ -2982,14 +2982,10 @@
           case 'session-died': {
             const diedTab = findTabBySessionId(msg.id);
             if (diedTab) {
-              const t = tabs.get(diedTab);
-              if (t && t.term) t.term.write('\r\n\x1b[31m[Session ended]\x1b[0m\r\n');
-              t.sessionId = null;
-              if (msg.id === currentSessionId) {
-                toolbarStatus.textContent = 'Exited';
-                toolbarStatus.className = 'status-badge disconnected';
-                currentSessionId = null;
-              }
+              closeTab(diedTab);
+            }
+            if (msg.id === currentSessionId) {
+              currentSessionId = null;
             }
             refreshSessions();
             break;
