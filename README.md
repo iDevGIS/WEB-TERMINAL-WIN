@@ -393,6 +393,52 @@ CYBERFRAME
 
 ---
 
+## 🚧 Next Features (Roadmap)
+
+### 🖥️ Admin Panel UI
+Dashboard page (`/admin`) with glassmorphism UI:
+- **System Monitor** — real-time CPU%, RAM%, Disk usage, Uptime, OS info
+- **Session Manager** — view all active sessions, kill remotely
+- **Server Logs** — live tail with auto-scroll, filter by level
+- **Process Manager** — top processes by CPU/RAM, kill by PID
+- **Network Info** — active connections, listening ports, bandwidth
+
+### ⌨️ Command Palette
+Quick access via `Ctrl+K`:
+- `/status` — system info at a glance
+- `/sessions` — list active sessions
+- `/kill <id>` — terminate a session
+- `/restart` — restart CYBERFRAME server
+- `/ip` — show all IP addresses
+- `/disk` — disk usage summary
+- `/top` — top processes by resource usage
+
+### 🔌 Admin REST API
+Programmatic access for automation & monitoring:
+- `GET /api/admin/status` — system metrics (JSON)
+- `GET /api/admin/processes` — running process list
+- `POST /api/admin/kill-session/:id` — kill session
+- `POST /api/admin/restart` — graceful restart
+- `GET /api/admin/logs` — server log tail
+
+### 📟 Terminal Built-in Commands
+Server-intercepted commands (type directly in terminal):
+- `!status` — display system info inline
+- `!sessions` — list active sessions
+- `!kill <id>` — kill a session
+- `!ip` — show IP addresses
+- `!ports` — listening ports
+
+### 🔮 Future Ideas
+- **Split Pane / Multi-tab** — side-by-side terminals
+- **2FA / TOTP** — two-factor authentication
+- **Session Timeout Warning** — countdown before auto-disconnect
+- **Terminal Sharing** — read-only link for collaboration
+- **Session Recording** — asciinema-style playback
+- **Custom Keybindings** — user-configurable shortcuts
+
+---
+
 ## 🤝 Contributing
 
 Pull requests welcome! For major changes, please open an issue first.
