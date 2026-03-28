@@ -272,21 +272,21 @@
       margin: 0 12px 8px;
       padding: 0;
       border-radius: 14px;
-      background: linear-gradient(145deg, rgba(20,20,40,.95), rgba(10,10,25,.98));
-      border: 1px solid rgba(255,255,255,.06);
+      background: linear-gradient(180deg, #020208 0%, #050510 50%, #020208 100%);
+      border: 1px solid rgba(40,120,255,.1);
       box-shadow:
-        0 4px 16px rgba(0,0,0,.4),
-        0 1px 0 rgba(255,255,255,.03) inset,
-        0 -2px 8px rgba(0,0,0,.3) inset;
+        0 4px 20px rgba(0,0,0,.6),
+        0 0 30px rgba(40,120,255,.03) inset;
       overflow: hidden;
       position: relative;
     }
     #heartbeat-panel::before {
       content: '';
       position: absolute;
-      top: 0; left: 0; right: 0;
-      height: 1px;
-      background: linear-gradient(90deg, transparent 10%, rgba(74,222,128,.15) 50%, transparent 90%);
+      top: 0; left: 0; right: 0; bottom: 0;
+      background:
+        radial-gradient(ellipse at 50% 50%, rgba(40,120,255,.04) 0%, transparent 70%);
+      pointer-events: none;
     }
 
     #heartbeat-top {
@@ -299,8 +299,8 @@
     #heart-icon {
       width: 18px;
       height: 18px;
-      color: #f87171;
-      filter: drop-shadow(0 0 8px rgba(248,113,113,.6)) drop-shadow(0 0 16px rgba(248,113,113,.3));
+      color: #3b9eff;
+      filter: drop-shadow(0 0 6px rgba(59,158,255,.7)) drop-shadow(0 0 14px rgba(59,158,255,.3));
     }
 
     .heart-beat {
@@ -325,55 +325,54 @@
     #hb-bpm {
       font-size: 12px;
       font-weight: 700;
-      color: #f87171;
+      color: #3b9eff;
       font-family: 'JetBrains Mono', monospace;
       letter-spacing: .5px;
-      text-shadow: 0 0 8px rgba(248,113,113,.4), 0 0 20px rgba(248,113,113,.15);
+      text-shadow: 0 0 8px rgba(59,158,255,.5), 0 0 20px rgba(59,158,255,.2);
     }
 
-    #hb-bpm.dead { color: var(--text3); text-shadow: none; }
+    #hb-bpm.dead { color: #f87171; text-shadow: 0 0 8px rgba(248,113,113,.4); }
 
     #heartbeat-svg-wrap {
       position: relative;
-      margin: 4px 0;
-      padding: 0 6px;
-    }
-    #heartbeat-svg-wrap::before {
-      content: '';
-      position: absolute;
-      top: 0; left: 14px; right: 14px; bottom: 0;
-      background: linear-gradient(180deg, rgba(74,222,128,.02) 0%, transparent 40%, transparent 60%, rgba(74,222,128,.02) 100%);
-      border-radius: 4px;
-      pointer-events: none;
+      margin: 2px 0;
+      padding: 0 4px;
     }
 
     #heartbeat-svg {
       width: 100%;
-      height: 40px;
+      height: 48px;
       display: block;
       position: relative;
       z-index: 1;
     }
 
     #heartbeat-line {
-      stroke: #4ade80;
-      filter: drop-shadow(0 0 3px rgba(74,222,128,.5)) drop-shadow(0 0 8px rgba(74,222,128,.25));
+      stroke: #3b9eff;
+      stroke-width: 2;
+      filter:
+        drop-shadow(0 0 4px rgba(59,158,255,.8))
+        drop-shadow(0 0 12px rgba(59,158,255,.5))
+        drop-shadow(0 0 24px rgba(59,158,255,.25));
       transition: stroke .3s;
     }
     #heartbeat-glow {
-      stroke: #4ade80;
-      opacity: .15;
-      filter: blur(3px);
+      stroke: #3b9eff;
+      stroke-width: 6;
+      opacity: .25;
+      filter: blur(4px);
     }
 
     #heartbeat-line.dead {
       stroke: #f87171;
-      filter: drop-shadow(0 0 3px rgba(248,113,113,.5)) drop-shadow(0 0 8px rgba(248,113,113,.25));
+      filter:
+        drop-shadow(0 0 4px rgba(248,113,113,.8))
+        drop-shadow(0 0 12px rgba(248,113,113,.5));
     }
 
     /* Grid lines for depth */
     #heartbeat-grid line {
-      stroke: rgba(255,255,255,.03);
+      stroke: rgba(40,120,255,.04);
       stroke-width: .5;
     }
 
@@ -3668,7 +3667,7 @@
       const latencyEl = document.getElementById('hb-latency');
       const heartEl = document.getElementById('heart-icon');
       const bpmEl = document.getElementById('hb-bpm');
-      const w = 240, h = 36, pad = 2;
+      const w = 240, h = 40, pad = 2;
 
       // Build ECG-style waveform
       const points = [];
