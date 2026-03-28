@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0">
+<title>CYBERFRAME — Admin Panel</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a1a;
+    --glass: rgba(255,255,255,.03);
+    --glass2: rgba(255,255,255,.06);
+    --glass3: rgba(255,255,255,.1);
+    --border: rgba(255,255,255,.08);
+    --border-light: rgba(255,255,255,.12);
+    --text: #f0f0f0;
+    --text2: rgba(255,255,255,.5);
+    --text3: rgba(255,255,255,.3);
+    --accent: #6c63ff;
+    --green: #4ade80;
+    --red: #f87171;
+    --blue: #60a5fa;
+    --yellow: #fbbf24;
+    --radius: 16px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html { height: 100%; height: -webkit-fill-available; }
+
+  body {
+    font-family: 'Inter', -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100dvh;
+    min-height: -webkit-fill-available;
+    background-image:
+      radial-gradient(ellipse at 20% 50%, rgba(108,99,255,.06) 0%, transparent 50%),
+      radial-gradient(ellipse at 80% 20%, rgba(96,165,250,.04) 0%, transparent 50%);
+  }
+
+  /* === Header === */
+  .admin-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--border);
+    background: var(--glass);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  .admin-header h1 {
+    font-size: 18px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .admin-header h1 span { color: var(--accent); }
+  .admin-header .back-btn {
+    padding: 6px 12px;
+    background: var(--glass2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text2);
+    font-size: 12px;
+    cursor: pointer;
+    text-decoration: none;
+    transition: all .2s;
+  }
+  .admin-header .back-btn:hover { background: var(--glass3); color: var(--text); }
+  .header-right { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+  .status-pill {
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .status-pill.online { background: rgba(74,222,128,.1); color: var(--green); border: 1px solid rgba(74,222,128,.2); }
+  .status-pill .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .4; } }
+
+  /* === Grid Layout === */
+  .admin-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 16px;
+    padding: 20px 24px;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+
+  /* === Cards === */
+  .card {
+    background: var(--glass);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+    transition: border-color .2s;
+  }
+  .card:hover { border-color: var(--border-light); }
+  .card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+  }
+  .card-title {
+    font-size: 13px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .5px;
+    color: var(--text2);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .card-title svg { opacity: .5; }
+  .card-badge {
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    background: rgba(108,99,255,.12);
+    color: var(--accent);
+    font-weight: 500;
+  }
+
+  /* === Stat Cards === */
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px;
+    padding: 0 24px 4px;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+  .stat-card {
+    background: var(--glass);
+    backdrop-filter: blur(16px);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+    position: relative;
+    overflow: hidden;
+  }
+  .stat-card::after {
+    content: '';
+    position: absolute;
+    top: 0; right: 0;
+    width: 60px; height: 60px;
+    border-radius: 0 0 0 60px;
+    opacity: .06;
+  }
+  .stat-card.cpu::after { background: var(--accent); }
+  .stat-card.ram::after { background: var(--blue); }
+  .stat-card.disk::after { background: var(--yellow); }
+  .stat-card.uptime::after { background: var(--green); }
+  .stat-label {
+    font-size: 11px;
+    color: var(--text3);
+    text-transform: uppercase;
+    letter-spacing: .5px;
+    margin-bottom: 6px;
+  }
+  .stat-value {
+    font-size: 28px;
+    font-weight: 700;
+    font-family: 'JetBrains Mono', monospace;
+    line-height: 1;
+  }
+  .stat-value.cpu { color: var(--accent); }
+  .stat-value.ram { color: var(--blue); }
+  .stat-value.disk { color: var(--yellow); }
+  .stat-value.uptime { color: var(--green); }
+  .stat-sub {
+    font-size: 11px;
+    color: var(--text3);
+    margin-top: 4px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  /* === Progress Bar === */
+  .progress-bar {
+    height: 4px;
+    background: rgba(255,255,255,.06);
+    border-radius: 2px;
+    margin-top: 10px;
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width .6s cubic-bezier(.4,0,.2,1);
+  }
+  .progress-fill.cpu { background: var(--accent); }
+  .progress-fill.ram { background: var(--blue); }
+  .progress-fill.disk { background: var(--yellow); }
+
+  /* === Table === */
+  .admin-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+  .admin-table th {
+    text-align: left;
+    padding: 8px 10px;
+    color: var(--text3);
+    font-weight: 500;
+    text-transform: uppercase;
+    font-size: 10px;
+    letter-spacing: .5px;
+    border-bottom: 1px solid var(--border);
+  }
+  .admin-table td {
+    padding: 8px 10px;
+    border-bottom: 1px solid rgba(255,255,255,.03);
+    color: var(--text2);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+  }
+  .admin-table tr:hover td { background: rgba(255,255,255,.02); color: var(--text); }
+  .admin-table .status { display: inline-flex; align-items: center; gap: 4px; }
+  .admin-table .status::before {
+    content: '';
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: var(--green);
+  }
+  .admin-table .status.idle::before { background: var(--yellow); }
+  .admin-table .status.dead::before { background: var(--red); }
+
+  .kill-btn {
+    padding: 3px 8px;
+    background: rgba(248,113,113,.08);
+    border: 1px solid rgba(248,113,113,.15);
+    border-radius: 6px;
+    color: var(--red);
+    font-size: 10px;
+    cursor: pointer;
+    transition: all .2s;
+  }
+  .kill-btn:hover { background: rgba(248,113,113,.15); }
+
+  /* === Log Viewer === */
+  .log-viewer {
+    background: rgba(0,0,0,.3);
+    border-radius: 10px;
+    padding: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    line-height: 1.6;
+    max-height: 300px;
+    overflow-y: auto;
+    color: var(--text2);
+  }
+  .log-viewer::-webkit-scrollbar { width: 4px; }
+  .log-viewer::-webkit-scrollbar-thumb { background: rgba(255,255,255,.1); border-radius: 2px; }
+  .log-line { padding: 1px 0; }
+  .log-time { color: var(--text3); }
+  .log-info { color: var(--blue); }
+  .log-warn { color: var(--yellow); }
+  .log-error { color: var(--red); }
+  .log-success { color: var(--green); }
+
+  /* === Network === */
+  .net-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid rgba(255,255,255,.03);
+    font-size: 12px;
+  }
+  .net-item:last-child { border-bottom: none; }
+  .net-label { color: var(--text2); }
+  .net-value { font-family: 'JetBrains Mono', monospace; font-size: 11px; }
+
+  /* === Full Width Card === */
+  .card-full { grid-column: 1 / -1; }
+
+  /* === Refresh Button === */
+  .refresh-btn {
+    padding: 4px 10px;
+    background: var(--glass2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text3);
+    font-size: 11px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    transition: all .2s;
+  }
+  .refresh-btn:hover { color: var(--text); border-color: var(--border-light); }
+  .refresh-btn.loading svg { animation: spin 1s linear infinite; }
+  @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+  /* === Section Title === */
+  .section-title {
+    padding: 16px 24px 0;
+    max-width: 1400px;
+    margin: 0 auto;
+    font-size: 11px;
+    color: var(--text3);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-weight: 500;
+  }
+
+  /* === Responsive === */
+  @media (max-width: 768px) {
+    .admin-grid { padding: 12px; gap: 12px; }
+    .stats-row { padding: 0 12px; gap: 8px; }
+    .stat-card { padding: 12px; }
+    .stat-value { font-size: 22px; }
+    .admin-header { padding: 12px 16px; }
+    .admin-header h1 { font-size: 15px; }
+    .section-title { padding: 12px 12px 0; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="admin-header">
+  <a href="/" class="back-btn">← Terminal</a>
+  <h1>🛡️ <span>CYBERFRAME</span> Admin</h1>
+  <div class="header-right">
+    <button class="refresh-btn" id="refresh-btn" onclick="refreshAll()">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+      Refresh
+    </button>
+    <div class="status-pill online"><span class="dot"></span> Online</div>
+  </div>
+</div>
+
+<!-- Stats Row -->
+<div class="section-title">System Overview</div>
+<div class="stats-row" style="padding-top:12px">
+  <div class="stat-card cpu">
+    <div class="stat-label">CPU Usage</div>
+    <div class="stat-value cpu" id="cpu-val">--</div>
+    <div class="stat-sub" id="cpu-sub">Loading...</div>
+    <div class="progress-bar"><div class="progress-fill cpu" id="cpu-bar" style="width:0%"></div></div>
+  </div>
+  <div class="stat-card ram">
+    <div class="stat-label">Memory</div>
+    <div class="stat-value ram" id="ram-val">--</div>
+    <div class="stat-sub" id="ram-sub">Loading...</div>
+    <div class="progress-bar"><div class="progress-fill ram" id="ram-bar" style="width:0%"></div></div>
+  </div>
+  <div class="stat-card disk">
+    <div class="stat-label">Disk (C:)</div>
+    <div class="stat-value disk" id="disk-val">--</div>
+    <div class="stat-sub" id="disk-sub">Loading...</div>
+    <div class="progress-bar"><div class="progress-fill disk" id="disk-bar" style="width:0%"></div></div>
+  </div>
+  <div class="stat-card uptime">
+    <div class="stat-label">Uptime</div>
+    <div class="stat-value uptime" id="uptime-val">--</div>
+    <div class="stat-sub" id="uptime-sub">Loading...</div>
+  </div>
+</div>
+
+<!-- Main Grid -->
+<div class="admin-grid">
+
+  <!-- Sessions -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+        Active Sessions
+      </div>
+      <span class="card-badge" id="session-count">0</span>
+    </div>
+    <table class="admin-table" id="sessions-table">
+      <thead><tr><th>ID</th><th>Shell</th><th>Status</th><th>Age</th><th></th></tr></thead>
+      <tbody id="sessions-body">
+        <tr><td colspan="5" style="text-align:center;color:var(--text3)">Loading...</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Network -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+        Network
+      </div>
+    </div>
+    <div id="network-info">
+      <div class="net-item"><span class="net-label">Hostname</span><span class="net-value" id="net-hostname">—</span></div>
+      <div class="net-item"><span class="net-label">Local IP</span><span class="net-value" id="net-local">—</span></div>
+      <div class="net-item"><span class="net-label">Tailscale IP</span><span class="net-value" id="net-tailscale">—</span></div>
+      <div class="net-item"><span class="net-label">Port</span><span class="net-value" id="net-port">—</span></div>
+      <div class="net-item"><span class="net-label">Node.js</span><span class="net-value" id="net-node">—</span></div>
+      <div class="net-item"><span class="net-label">Platform</span><span class="net-value" id="net-platform">—</span></div>
+    </div>
+  </div>
+
+  <!-- Processes -->
+  <div class="card card-full">
+    <div class="card-header">
+      <div class="card-title">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/><line x1="20" y1="9" x2="23" y2="9"/><line x1="20" y1="14" x2="23" y2="14"/><line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="14" x2="4" y2="14"/></svg>
+        Top Processes
+      </div>
+      <span class="card-badge" id="proc-count">0</span>
+    </div>
+    <table class="admin-table">
+      <thead><tr><th>PID</th><th>Name</th><th>CPU%</th><th>Memory</th><th></th></tr></thead>
+      <tbody id="proc-body">
+        <tr><td colspan="5" style="text-align:center;color:var(--text3)">Loading...</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Server Logs -->
+  <div class="card card-full">
+    <div class="card-header">
+      <div class="card-title">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        Activity Log
+      </div>
+    </div>
+    <div class="log-viewer" id="log-viewer"></div>
+  </div>
+
+</div>
+
+<script>
+  const API = '';
+
+  // === Fetch System Status ===
+  async function fetchStatus() {
+    try {
+      const r = await fetch(API + '/api/admin/status');
+      const d = await r.json();
+
+      // CPU
+      document.getElementById('cpu-val').textContent = d.cpu.percent + '%';
+      document.getElementById('cpu-sub').textContent = d.cpu.model;
+      document.getElementById('cpu-bar').style.width = d.cpu.percent + '%';
+
+      // RAM
+      const ramPct = Math.round(d.memory.usedGB / d.memory.totalGB * 100);
+      document.getElementById('ram-val').textContent = ramPct + '%';
+      document.getElementById('ram-sub').textContent = d.memory.usedGB + ' / ' + d.memory.totalGB + ' GB';
+      document.getElementById('ram-bar').style.width = ramPct + '%';
+
+      // Disk
+      document.getElementById('disk-val').textContent = d.disk.usedPercent + '%';
+      document.getElementById('disk-sub').textContent = d.disk.usedGB + ' / ' + d.disk.totalGB + ' GB';
+      document.getElementById('disk-bar').style.width = d.disk.usedPercent + '%';
+
+      // Uptime
+      document.getElementById('uptime-val').textContent = d.uptime.formatted;
+      document.getElementById('uptime-sub').textContent = 'Since ' + d.uptime.since;
+
+      // Network
+      document.getElementById('net-hostname').textContent = d.network.hostname;
+      document.getElementById('net-local').textContent = d.network.localIP;
+      document.getElementById('net-tailscale').textContent = d.network.tailscaleIP || '—';
+      document.getElementById('net-port').textContent = d.network.port;
+      document.getElementById('net-node').textContent = d.network.nodeVersion;
+      document.getElementById('net-platform').textContent = d.network.platform;
+    } catch (e) {
+      console.error('Status fetch failed:', e);
+    }
+  }
+
+  // === Fetch Sessions ===
+  async function fetchSessions() {
+    try {
+      const r = await fetch(API + '/api/sessions');
+      const sessions = await r.json();
+      document.getElementById('session-count').textContent = sessions.length;
+      const body = document.getElementById('sessions-body');
+      if (!sessions.length) {
+        body.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text3)">No active sessions</td></tr>';
+        return;
+      }
+      body.innerHTML = sessions.map(s => `
+        <tr>
+          <td>${s.id.slice(0,6)}</td>
+          <td>${s.shell || s.name || '—'}</td>
+          <td><span class="status ${s.attached ? '' : 'idle'}">${s.attached ? 'Linked' : 'Idle'}</span></td>
+          <td>${timeAgo(s.created)}</td>
+          <td><button class="kill-btn" onclick="killSession('${s.id}')">Kill</button></td>
+        </tr>
+      `).join('');
+    } catch (e) {
+      console.error('Sessions fetch failed:', e);
+    }
+  }
+
+  // === Fetch Processes ===
+  async function fetchProcesses() {
+    try {
+      const r = await fetch(API + '/api/admin/processes');
+      const procs = await r.json();
+      document.getElementById('proc-count').textContent = procs.length;
+      document.getElementById('proc-body').innerHTML = procs.map(p => `
+        <tr>
+          <td>${p.pid}</td>
+          <td>${p.name}</td>
+          <td>${p.cpu}</td>
+          <td>${p.memory}</td>
+          <td><button class="kill-btn" onclick="killProcess(${p.pid})">Kill</button></td>
+        </tr>
+      `).join('');
+    } catch (e) {
+      document.getElementById('proc-body').innerHTML = '<tr><td colspan="5" style="color:var(--text3)">Failed to load</td></tr>';
+    }
+  }
+
+  // === Fetch Activity Log ===
+  async function fetchLogs() {
+    try {
+      const r = await fetch(API + '/api/activity?limit=50');
+      const logs = await r.json();
+      const viewer = document.getElementById('log-viewer');
+      if (!logs.length) { viewer.innerHTML = '<div class="log-line" style="color:var(--text3)">No activity yet</div>'; return; }
+      viewer.innerHTML = logs.reverse().map(l => {
+        const time = new Date(l.timestamp).toLocaleTimeString();
+        const cls = l.action.includes('delete') ? 'log-error' : l.action.includes('login') ? 'log-success' : l.action.includes('create') ? 'log-info' : 'log-warn';
+        return `<div class="log-line"><span class="log-time">${time}</span> <span class="${cls}">[${l.action}]</span> ${l.detail || ''}</div>`;
+      }).join('');
+      viewer.scrollTop = viewer.scrollHeight;
+    } catch (e) {
+      document.getElementById('log-viewer').innerHTML = '<div class="log-line log-error">Failed to load logs</div>';
+    }
+  }
+
+  // === Actions ===
+  async function killSession(id) {
+    if (!confirm('Kill session ' + id.slice(0,6) + '?')) return;
+    await fetch(API + '/api/sessions/' + id, { method: 'DELETE' });
+    fetchSessions();
+  }
+
+  async function killProcess(pid) {
+    if (!confirm('Kill process PID ' + pid + '?')) return;
+    await fetch(API + '/api/admin/kill-process', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({pid}) });
+    setTimeout(fetchProcesses, 1000);
+  }
+
+  // === Utils ===
+  function timeAgo(ts) {
+    const s = Math.floor((Date.now() - ts) / 1000);
+    if (s < 60) return s + 's';
+    if (s < 3600) return Math.floor(s/60) + 'm';
+    if (s < 86400) return Math.floor(s/3600) + 'h';
+    return Math.floor(s/86400) + 'd';
+  }
+
+  // === Refresh All ===
+  async function refreshAll() {
+    const btn = document.getElementById('refresh-btn');
+    btn.classList.add('loading');
+    await Promise.all([fetchStatus(), fetchSessions(), fetchProcesses(), fetchLogs()]);
+    btn.classList.remove('loading');
+  }
+
+  // === Auto Refresh ===
+  refreshAll();
+  setInterval(refreshAll, 5000);
+</script>
+</body>
+</html>

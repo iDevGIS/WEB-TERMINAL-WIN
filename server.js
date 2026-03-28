@@ -723,6 +723,95 @@ app.get("/api/sessions/:id/export", requireAuth, (req, res) => {
   }
 });
 
+// === Admin API ===
+app.get("/api/admin/status", requireAuth, (req, res) => {
+  const os = require("os");
+  const cpus = os.cpus();
+  const cpuModel = cpus[0]?.model || "Unknown";
+  
+  // CPU usage (average across cores)
+  const cpuTimes = cpus.map(c => {
+    const total = Object.values(c.times).reduce((a, b) => a + b, 0);
+    const idle = c.times.idle;
+    return ((total - idle) / total) * 100;
+  });
+  const cpuPercent = Math.round(cpuTimes.reduce((a, b) => a + b, 0) / cpuTimes.length);
+
+  // Memory
+  const totalMem = os.totalmem();
+  const freeMem = os.freemem();
+  const usedMem = totalMem - freeMem;
+
+  // Disk (C:)
+  let disk = { totalGB: 0, usedGB: 0, usedPercent: 0 };
+  try {
+    const { execSync } = require("child_process");
+    const out = execSync('wmic logicaldisk where "DeviceID=\'C:\'" get Size,FreeSpace /format:csv', { encoding: 'utf-8' });
+    const parts = out.trim().split('\n').pop().split(',');
+    const freeBytes = parseInt(parts[1]);
+    const totalBytes = parseInt(parts[2]);
+    disk.totalGB = (totalBytes / 1073741824).toFixed(0);
+    disk.usedGB = ((totalBytes - freeBytes) / 1073741824).toFixed(0);
+    disk.usedPercent = Math.round((totalBytes - freeBytes) / totalBytes * 100);
+  } catch {}
+
+  // Uptime
+  const uptimeSec = os.uptime();
+  const days = Math.floor(uptimeSec / 86400);
+  const hours = Math.floor((uptimeSec % 86400) / 3600);
+  const mins = Math.floor((uptimeSec % 3600) / 60);
+  const formatted = days > 0 ? `${days}d ${hours}h` : hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
+  const since = new Date(Date.now() - uptimeSec * 1000).toLocaleDateString();
+
+  // Network
+  const nets = os.networkInterfaces();
+  let localIP = '—', tailscaleIP = '—';
+  for (const [name, addrs] of Object.entries(nets)) {
+    for (const a of addrs) {
+      if (a.family === 'IPv4' && !a.internal) {
+        if (name.toLowerCase().includes('tailscale') || a.address.startsWith('100.')) tailscaleIP = a.address;
+        else if (localIP === '—') localIP = a.address;
+      }
+    }
+  }
+
+  res.json({
+    cpu: { percent: cpuPercent, model: cpuModel.replace(/\(R\)|\(TM\)/g, '').replace(/\s+/g, ' ').trim(), cores: cpus.length },
+    memory: { totalGB: (totalMem / 1073741824).toFixed(1), usedGB: (usedMem / 1073741824).toFixed(1), freeGB: (freeMem / 1073741824).toFixed(1) },
+    disk,
+    uptime: { seconds: uptimeSec, formatted, since },
+    network: { hostname: os.hostname(), localIP, tailscaleIP, port: process.env.PORT || 3000, nodeVersion: process.version, platform: `${os.type()} ${os.release()}` },
+  });
+});
+
+app.get("/api/admin/processes", requireAuth, async (req, res) => {
+  try {
+    const { execSync } = require("child_process");
+    const out = execSync('powershell -NoProfile -Command "Get-Process | Sort-Object -Property WS -Descending | Select-Object -First 20 Id,ProcessName,@{N=\'CPU\';E={[math]::Round($_.CPU,1)}},@{N=\'MemMB\';E={[math]::Round($_.WS/1MB)}} | ConvertTo-Json"', { encoding: 'utf-8', timeout: 5000 });
+    const procs = JSON.parse(out);
+    res.json((Array.isArray(procs) ? procs : [procs]).map(p => ({
+      pid: p.Id,
+      name: p.ProcessName,
+      cpu: (p.CPU || 0) + 's',
+      memory: p.MemMB + ' MB',
+    })));
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post("/api/admin/kill-process", requireAuth, (req, res) => {
+  const { pid } = req.body;
+  if (!pid) return res.status(400).json({ error: "No PID" });
+  try {
+    process.kill(pid, 'SIGTERM');
+    logActivity(req, "kill-process", `PID: ${pid}`);
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
 // Protected static files — no cache for HTML
 app.use(requireAuth, (req, res, next) => {
   if (req.path === '/' || req.path.endsWith('.html')) {
