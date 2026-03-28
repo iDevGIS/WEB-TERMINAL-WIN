@@ -3214,50 +3214,111 @@
       if (!activeTabId) return;
       const tab = tabs.get(activeTabId);
       if (!tab || tab.type !== 'terminal' || !tab.panes || tab.panes.length < 2) return;
+      if (paneIdx >= tab.panes.length) return;
 
       const removedPane = tab.panes[paneIdx];
-      const keepPane = tab.panes[paneIdx === 0 ? 1 : 0];
 
-      // Detach removed pane session
+      // Detach + dispose removed pane
       if (removedPane.sessionId && ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: 'detach', id: removedPane.sessionId }));
       }
       removedPane.term.dispose();
 
-      // Restructure - remove split, keep remaining pane
+      // Remove from panes array
+      const remainingPanes = tab.panes.filter((_, i) => i !== paneIdx);
+      const remainingSessionIds = remainingPanes.map(p => p.sessionId);
+
+      // Dispose all remaining terminals (will re-create)
+      remainingPanes.forEach(p => p.term.dispose());
+
+      // Rebuild layout from scratch
       const paneEl = tab.paneEl;
       paneEl.innerHTML = '';
-      const newWrap = document.createElement('div');
-      newWrap.className = 'term-wrap';
-      paneEl.appendChild(newWrap);
 
-      // Re-create the kept terminal
-      const keptSessionId = keepPane.sessionId;
-      keepPane.term.dispose();
+      if (remainingPanes.length === 1) {
+        // Single pane — no split
+        const newWrap = document.createElement('div');
+        newWrap.className = 'term-wrap';
+        paneEl.appendChild(newWrap);
 
-      const newPane = createTermPane(tab, activeTabId, newWrap);
-      newPane.sessionId = keptSessionId;
-      tab.panes = [newPane];
-      tab.activePane = 0;
-      tab.splitDirection = null;
-      tab.splitContainer = null;
-      tab.term = newPane.term;
-      tab.fitAddon = newPane.fitAddon;
-      tab.searchAddon = newPane.searchAddon;
-      tab.sessionId = keptSessionId;
-      currentSessionId = keptSessionId;
+        const newPane = createTermPane(tab, activeTabId, newWrap);
+        newPane.sessionId = remainingSessionIds[0];
+        tab.panes = [newPane];
+        tab.activePane = 0;
+        tab.splitDirection = null;
+        tab.splitContainer = null;
+        tab.term = newPane.term;
+        tab.fitAddon = newPane.fitAddon;
+        tab.searchAddon = newPane.searchAddon;
+        tab.sessionId = remainingSessionIds[0];
+        currentSessionId = remainingSessionIds[0];
 
-      // Re-attach to restore buffer (terminal was disposed)
-      if (keptSessionId && ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'attach', id: keptSessionId }));
+        // Re-attach to restore buffer
+        if (remainingSessionIds[0] && ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'attach', id: remainingSessionIds[0] }));
+        }
+
+        setTimeout(() => { newPane.fitAddon.fit(); newPane.term.focus(); }, 100);
+      } else {
+        // 2 panes — horizontal split
+        const splitContainer = document.createElement('div');
+        splitContainer.className = 'split-container horizontal';
+
+        const newPanes = [];
+        remainingSessionIds.forEach((sid, i) => {
+          const splitPaneEl = document.createElement('div');
+          splitPaneEl.className = 'split-pane';
+          const toolbar = document.createElement('div');
+          toolbar.className = 'split-toolbar';
+          const s = sessions.find(s => s.id === sid);
+          const label = s ? s.name : `Shell ${i + 1}`;
+          toolbar.innerHTML = `<span class="split-label">${label}</span>
+            ${i > 0 ? `<button onclick="closeSplitPane(${i})" title="Close pane">✕</button>` : ''}`;
+          splitPaneEl.appendChild(toolbar);
+          const wrap = document.createElement('div');
+          wrap.className = 'term-wrap';
+          splitPaneEl.appendChild(wrap);
+
+          if (i === 1) {
+            const handle = document.createElement('div');
+            handle.className = 'split-handle';
+            initSplitResize(handle, splitContainer, 'horizontal');
+            splitContainer.appendChild(handle);
+          }
+          splitContainer.appendChild(splitPaneEl);
+
+          const newPane = createTermPane(tab, activeTabId, wrap);
+          newPane.sessionId = sid;
+          newPanes.push(newPane);
+
+          // Re-attach to restore buffer
+          if (sid && ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'attach', id: sid }));
+          }
+        });
+
+        paneEl.appendChild(splitContainer);
+        tab.panes = newPanes;
+        tab.activePane = 0;
+        tab.splitDirection = 'horizontal';
+        tab.splitContainer = splitContainer;
+        tab.term = newPanes[0].term;
+        tab.fitAddon = newPanes[0].fitAddon;
+        tab.searchAddon = newPanes[0].searchAddon;
+        tab.sessionId = newPanes[0].sessionId;
+        currentSessionId = newPanes[0].sessionId;
+
+        setTimeout(() => {
+          newPanes.forEach(p => p.fitAddon.fit());
+          newPanes[0].term.focus();
+          // Highlight pane 0
+          const firstPaneEl = splitContainer.querySelector('.split-pane');
+          if (firstPaneEl) firstPaneEl.classList.add('split-active');
+        }, 100);
       }
 
-      setTimeout(() => {
-        newPane.fitAddon.fit();
-        newPane.term.focus();
-      }, 100);
-
-      showToast('Split closed', 'info', 1500);
+      renderSessions();
+      showToast('Pane closed', 'info', 1500);
     }
 
     // Resize handle drag
