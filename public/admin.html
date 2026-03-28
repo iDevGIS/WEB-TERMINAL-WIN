@@ -708,7 +708,7 @@
       const viewer = document.getElementById('log-viewer');
       if (!logs.length) { viewer.innerHTML = '<div class="log-line" style="color:var(--text3)">No activity yet</div>'; return; }
       viewer.innerHTML = logs.reverse().map(l => {
-        const time = new Date(l.timestamp).toLocaleTimeString();
+        const time = new Date(l.time).toLocaleTimeString();
         const cls = l.action.includes('delete') ? 'log-error' : l.action.includes('login') ? 'log-success' : l.action.includes('create') ? 'log-info' : 'log-warn';
         return `<div class="log-line"><span class="log-time">${time}</span> <span class="${cls}">[${l.action}]</span> ${l.detail || ''}</div>`;
       }).join('');
