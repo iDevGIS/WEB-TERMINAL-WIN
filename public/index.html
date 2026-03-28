@@ -337,6 +337,12 @@
       position: relative;
       margin: 2px 0;
       padding: 0 4px;
+      -webkit-mask-image: linear-gradient(to right, transparent 0%, black 12%, black 88%, transparent 100%),
+                          linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%);
+      -webkit-mask-composite: destination-in;
+      mask-image: linear-gradient(to right, transparent 0%, black 12%, black 88%, transparent 100%),
+                  linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%);
+      mask-composite: intersect;
     }
 
     #heartbeat-svg {
