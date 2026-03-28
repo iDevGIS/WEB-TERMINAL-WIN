@@ -3038,12 +3038,14 @@
       sessionCountEl.textContent = `${sessions.length} session${sessions.length !== 1 ? 's' : ''}`;
 
       if (sessions.length === 0) {
-        sessionListEl.innerHTML = `
-          <div class="empty-state fade-in">
-            <div class="icon">✨</div>
-            <p>No shells running</p>
-            <button class="btn primary" onclick="createSession()">+ Spawn Shell</button>
-          </div>`;
+        if (!sessionListEl.querySelector('.empty-state')) {
+          sessionListEl.innerHTML = `
+            <div class="empty-state fade-in">
+              <div class="icon">✨</div>
+              <p>No shells running</p>
+              <button class="btn primary" onclick="createSession()">+ Spawn Shell</button>
+            </div>`;
+        }
         return;
       }
 
