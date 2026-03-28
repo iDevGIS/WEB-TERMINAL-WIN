@@ -2016,6 +2016,7 @@
 
     /* === Mobile Responsive === */
     @media (max-width: 1024px) {
+      #btn-split-h, #btn-split-v { display: none !important; }
       #sidebar {
         display: none !important;
         position: fixed !important;
@@ -3006,6 +3007,7 @@
     // === Split Pane ===
     function splitTerminal(direction) {
       if (!activeTabId) return;
+      if (window.innerWidth < 1024) { showToast('Split not available on mobile', 'warning'); return; }
       const tab = tabs.get(activeTabId);
       if (!tab || tab.type !== 'terminal') { showToast('Only terminal tabs can split', 'warning'); return; }
       if (tab.panes && tab.panes.length >= 4) { showToast('Max 4 panes', 'warning'); return; }
