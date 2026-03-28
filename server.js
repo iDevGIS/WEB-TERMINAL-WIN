@@ -22,8 +22,10 @@ const DEFAULT_SHELL = process.env.SHELL || "pwsh.exe";
 // Available shell profiles
 const SHELL_PROFILES = [
   { id: "pwsh", name: "PowerShell", cmd: "pwsh.exe", args: ["-NoLogo"], icon: "⚡" },
+  { id: "pwsh-admin", name: "PowerShell (Admin)", cmd: "gsudo.exe", args: ["pwsh.exe", "-NoLogo"], icon: "🛡️", admin: true },
   { id: "powershell", name: "Windows PowerShell", cmd: "powershell.exe", args: ["-NoLogo"], icon: "🔵" },
   { id: "cmd", name: "Command Prompt", cmd: "cmd.exe", args: [], icon: "⬛" },
+  { id: "cmd-admin", name: "CMD (Admin)", cmd: "gsudo.exe", args: ["cmd.exe"], icon: "🛡️", admin: true },
   { id: "gitbash", name: "Git Bash", cmd: "C:\\Program Files\\Git\\bin\\bash.exe", args: ["--login", "-i"], icon: "🟠" },
   { id: "wsl-ubuntu2404", name: "Ubuntu 24.04 (WSL)", cmd: "wsl.exe", args: ["-d", "Ubuntu-24.04"], icon: "🐧" },
 ];
