@@ -2765,24 +2765,32 @@
       document.getElementById('term-container-inner').style.display = 'none';
 
       if (tab.type === 'terminal') {
-        // Update shortcuts
-        term = tab.term;
-        fitAddon = tab.fitAddon;
-        searchAddon = tab.searchAddon;
-        currentSessionId = tab.sessionId;
+        // Use active pane if split, otherwise tab-level
+        const activePane = (tab.panes && tab.panes.length > 1) ? tab.panes[tab.activePane || 0] : null;
+        const activeTerm = activePane ? activePane.term : tab.term;
+        const activeFit = activePane ? activePane.fitAddon : tab.fitAddon;
+        const activeSearch = activePane ? activePane.searchAddon : tab.searchAddon;
+        const activeSid = activePane ? activePane.sessionId : tab.sessionId;
+
+        term = activeTerm;
+        fitAddon = activeFit;
+        searchAddon = activeSearch;
+        currentSessionId = activeSid;
 
         document.getElementById('mobile-keys').classList.add('active');
-        toolbarTitle.textContent = tab.name;
+        const s = sessions.find(s => s.id === activeSid);
+        toolbarTitle.textContent = s ? s.name : tab.name;
         toolbarTitle.style.opacity = '1';
-        toolbarStatus.textContent = tab.sessionId ? '● Linked' : '○ Idle';
-        toolbarStatus.className = 'status-badge ' + (tab.sessionId ? 'connected' : 'idle');
+        toolbarStatus.textContent = activeSid ? '● Linked' : '○ Idle';
+        toolbarStatus.className = 'status-badge ' + (activeSid ? 'connected' : 'idle');
 
         setTimeout(() => {
-          tab.fitAddon.fit();
-          if (ws && ws.readyState === WebSocket.OPEN && tab.sessionId) {
-            ws.send(JSON.stringify({ type: 'resize', id: tab.sessionId, cols: tab.term.cols, rows: tab.term.rows }));
+          if (tab.panes) tab.panes.forEach(p => { if (p.fitAddon) p.fitAddon.fit(); });
+          else if (tab.fitAddon) tab.fitAddon.fit();
+          if (ws && ws.readyState === WebSocket.OPEN && activeSid) {
+            ws.send(JSON.stringify({ type: 'resize', id: activeSid, cols: activeTerm.cols, rows: activeTerm.rows }));
           }
-          tab.term.focus();
+          activeTerm.focus();
         }, 50);
       } else {
         term = null;
