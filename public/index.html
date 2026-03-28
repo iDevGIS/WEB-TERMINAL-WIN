@@ -518,15 +518,159 @@
     .status-badge.disconnected { background: var(--red-dim); color: var(--red); }
     .status-badge.idle { background: var(--glass-bg3); color: var(--text3); }
 
+    /* Tab Bar */
+    #tab-bar {
+      display: flex;
+      align-items: center;
+      gap: 2px;
+      padding: 6px 12px 0;
+      background: rgba(0,0,0,.2);
+      overflow-x: auto;
+      scrollbar-width: none;
+      flex-shrink: 0;
+    }
+    #tab-bar::-webkit-scrollbar { display: none; }
+
+    .tab-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 12px;
+      border-radius: 10px 10px 0 0;
+      background: rgba(255,255,255,.02);
+      border: 1px solid transparent;
+      border-bottom: none;
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--text3);
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all .2s;
+      max-width: 180px;
+      position: relative;
+    }
+    .tab-item:hover { background: rgba(255,255,255,.04); color: var(--text2); }
+    .tab-item.active {
+      background: rgba(0,0,0,.3);
+      border-color: rgba(255,255,255,.06);
+      color: var(--text);
+    }
+    .tab-item.active::after {
+      content: '';
+      position: absolute;
+      bottom: -1px;
+      left: 0; right: 0;
+      height: 2px;
+      background: var(--accent);
+      border-radius: 2px 2px 0 0;
+    }
+    .tab-icon { font-size: 12px; flex-shrink: 0; }
+    .tab-label {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .tab-close {
+      width: 16px; height: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 4px;
+      font-size: 10px;
+      color: var(--text3);
+      opacity: 0;
+      transition: all .15s;
+      flex-shrink: 0;
+      cursor: pointer;
+    }
+    .tab-item:hover .tab-close { opacity: .6; }
+    .tab-close:hover { opacity: 1 !important; background: rgba(248,113,113,.15); color: #f87171; }
+
+    .tab-add {
+      width: 28px; height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 8px;
+      background: none;
+      border: 1px dashed rgba(255,255,255,.08);
+      color: var(--text3);
+      font-size: 14px;
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: all .2s;
+    }
+    .tab-add:hover { border-color: var(--accent); color: var(--accent); background: rgba(108,99,255,.05); }
+
     /* Terminal */
     #terminal-container {
       flex: 1;
-      padding: 12px;
+      padding: 0 12px 12px;
       position: relative;
       background: rgba(0,0,0,.3);
       display: flex;
       flex-direction: column;
       min-height: 0;
+    }
+
+    .tab-pane {
+      display: none;
+      flex: 1;
+      min-height: 0;
+      flex-direction: column;
+    }
+    .tab-pane.active { display: flex; }
+
+    .tab-pane .term-wrap {
+      border-radius: 0 0 16px 16px;
+      overflow: hidden;
+      border: 1px solid rgba(255,255,255,.06);
+      border-top: none;
+      box-shadow:
+        0 2px 20px rgba(0,0,0,.3),
+        inset 0 1px 0 rgba(255,255,255,.04);
+      background: rgba(0,0,0,.2);
+      padding: 6px;
+      flex: 1;
+      min-height: 0;
+    }
+
+    .tab-pane .editor-tab-wrap {
+      flex: 1;
+      min-height: 0;
+      border-radius: 0 0 16px 16px;
+      overflow: hidden;
+      border: 1px solid rgba(255,255,255,.06);
+      border-top: none;
+    }
+
+    .tab-pane .preview-tab-wrap {
+      flex: 1;
+      min-height: 0;
+      border-radius: 0 0 16px 16px;
+      overflow: hidden;
+      border: 1px solid rgba(255,255,255,.06);
+      border-top: none;
+      background: #1a1a2e;
+    }
+    .tab-pane .preview-tab-wrap iframe {
+      width: 100%;
+      height: 100%;
+      border: none;
+    }
+
+    .tab-pane .admin-tab-wrap {
+      flex: 1;
+      min-height: 0;
+      border-radius: 0 0 16px 16px;
+      overflow: hidden;
+      border: 1px solid rgba(255,255,255,.06);
+      border-top: none;
+    }
+    .tab-pane .admin-tab-wrap iframe {
+      width: 100%;
+      height: 100%;
+      border: none;
     }
 
     #terminal-wrap {
@@ -1762,6 +1906,11 @@
     }
 
     @media (max-width: 480px) {
+      #tab-bar { padding: 4px 8px 0; gap: 1px; }
+      .tab-item { padding: 5px 8px; font-size: 10px; max-width: 120px; }
+      .tab-icon { font-size: 10px; }
+      .tab-close { width: 14px; height: 14px; font-size: 8px; }
+      .tab-add { width: 24px; height: 24px; font-size: 12px; }
       .welcome-card { padding: 24px 18px; margin: 12px; }
       #welcome h2 { font-size: 16px; }
       .btn.primary { padding: 6px 12px; font-size: 12px; }
@@ -1946,7 +2095,7 @@
 
     <div id="sidebar-footer">
       <span class="info" id="session-count">0 sessions</span>
-      <a href="/admin.html" class="btn-logout" style="color:var(--accent);border-color:rgba(108,99,255,.2)">🛡️ Admin</a>
+      <a href="javascript:void(0)" onclick="openAdminTab()" class="btn-logout" style="color:var(--accent);border-color:rgba(108,99,255,.2)">🛡️ Admin</a>
       <a href="/api/logout" class="btn-logout">⏻ Logout</a>
     </div>
   </div>
@@ -2017,6 +2166,10 @@
         <button class="mkey" data-action="font-down">A-</button>
         <button class="mkey" data-action="font-up">A+</button>
       </div>
+    </div>
+    <!-- Tab Bar -->
+    <div id="tab-bar" style="display:none">
+      <button class="tab-add" onclick="createSession()" title="New tab">+</button>
     </div>
     <div id="terminal-container">
       <div id="welcome" class="fade-in">
@@ -2225,12 +2378,310 @@
 
     // === State ===
     let ws = null;
-    let term = null;
-    let fitAddon = null;
-    let searchAddon = null;
+    let term = null;        // active tab's xterm (shortcut)
+    let fitAddon = null;    // active tab's fitAddon (shortcut)
+    let searchAddon = null; // active tab's searchAddon (shortcut)
     let currentSessionId = null;
     let sessions = [];
     let availableShells = [];
+
+    // === Tab System ===
+    const tabs = new Map(); // tabId → { type, sessionId, term, fitAddon, searchAddon, paneEl, name, icon, filePath }
+    let activeTabId = null;
+    let tabCounter = 0;
+
+    // === Tab Management ===
+    function createTab(type, opts = {}) {
+      const tabId = 'tab-' + (++tabCounter);
+      const tabBar = document.getElementById('tab-bar');
+      const container = document.getElementById('terminal-container');
+
+      // Show tab bar
+      tabBar.style.display = 'flex';
+
+      // Create tab button
+      const tabEl = document.createElement('div');
+      tabEl.className = 'tab-item';
+      tabEl.dataset.tabId = tabId;
+      const icon = opts.icon || (type === 'terminal' ? '⚡' : type === 'editor' ? '📝' : type === 'preview' ? '👁' : type === 'admin' ? '🛡️' : '📂');
+      const label = opts.name || (type === 'terminal' ? 'Shell' : type === 'editor' ? 'Editor' : type === 'preview' ? 'Preview' : type === 'admin' ? 'Admin' : 'Files');
+      tabEl.innerHTML = `<span class="tab-icon">${icon}</span><span class="tab-label">${escHtml(label)}</span><span class="tab-close" onclick="event.stopPropagation();closeTab('${tabId}')">✕</span>`;
+      tabEl.onclick = () => switchTab(tabId);
+      // Insert before the + button
+      tabBar.insertBefore(tabEl, tabBar.querySelector('.tab-add'));
+
+      // Create tab pane
+      const paneEl = document.createElement('div');
+      paneEl.className = 'tab-pane';
+      paneEl.id = tabId + '-pane';
+
+      const tabData = { type, name: label, icon, paneEl, tabEl };
+
+      if (type === 'terminal') {
+        paneEl.innerHTML = '<div class="term-wrap"></div>';
+        container.appendChild(paneEl);
+
+        // Create xterm instance for this tab
+        const savedTheme = THEMES[currentTheme]?.theme || THEMES.cyberframe.theme;
+        const savedFontSize = parseInt(localStorage.getItem('cyberframe-fontsize')) || 14;
+        const t = new Terminal({
+          theme: savedTheme,
+          fontSize: savedFontSize,
+          fontFamily: '"Cascadia Code", "Fira Code", "JetBrains Mono", "SF Mono", monospace',
+          cursorBlink: true,
+          cursorStyle: 'bar',
+          allowProposedApi: true,
+          scrollback: 10000,
+        });
+        const fa = new FitAddon.FitAddon();
+        t.loadAddon(fa);
+        t.loadAddon(new WebLinksAddon.WebLinksAddon());
+        const sa = new SearchAddon.SearchAddon();
+        t.loadAddon(sa);
+        t.open(paneEl.querySelector('.term-wrap'));
+
+        t.onData((data) => {
+          if (mods.ctrl || mods.alt) {
+            if (data.length === 1) {
+              let seq = '';
+              if (mods.ctrl) seq = String.fromCharCode(data.charCodeAt(0) & 0x1f);
+              else if (mods.alt) seq = '\x1b' + data;
+              if (seq && ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'input', id: tabData.sessionId, data: seq }));
+              }
+              Object.keys(mods).forEach(m => { mods[m] = false; document.querySelector(`.mkey[data-mod="${m}"]`)?.classList.remove('active'); });
+              return;
+            }
+          }
+          if (ws && ws.readyState === WebSocket.OPEN && tabData.sessionId) {
+            ws.send(JSON.stringify({ type: 'input', data }));
+          }
+        });
+
+        tabData.term = t;
+        tabData.fitAddon = fa;
+        tabData.searchAddon = sa;
+        tabData.sessionId = opts.sessionId || null;
+
+      } else if (type === 'editor') {
+        paneEl.innerHTML = '<div class="editor-tab-wrap" id="' + tabId + '-editor"></div>';
+        container.appendChild(paneEl);
+        tabData.filePath = opts.filePath;
+        // Load Monaco editor
+        if (window.monacoReady) {
+          window.monacoReady.then(() => {
+            const ext = (opts.filePath || '').split('.').pop().toLowerCase();
+            const langMap = {'.js':'javascript','.ts':'typescript','.py':'python','.json':'json','.yaml':'yaml','.yml':'yaml','.html':'html','.css':'css','.ps1':'powershell','.sh':'shell','.bash':'shell','.go':'go','.rs':'rust','.java':'java','.c':'c','.cpp':'cpp','.cs':'csharp','.sql':'sql','.md':'markdown','.xml':'xml','.bat':'bat','.cmd':'bat','.rb':'ruby','.scss':'scss','.less':'less','.toml':'ini','.ini':'ini','.cfg':'ini','.conf':'ini','.env':'shell'};
+            const lang = langMap['.' + ext] || 'plaintext';
+            tabData.monacoEditor = monaco.editor.create(document.getElementById(tabId + '-editor'), {
+              value: opts.content || '',
+              language: lang,
+              theme: 'vs-dark',
+              automaticLayout: true,
+              minimap: { enabled: false },
+              fontSize: 13,
+              wordWrap: 'on',
+              scrollBeyondLastLine: false,
+            });
+            tabData.originalContent = opts.content || '';
+            tabData.monacoEditor.onDidChangeModelContent(() => {
+              const modified = tabData.monacoEditor.getValue() !== tabData.originalContent;
+              tabData.tabEl.querySelector('.tab-label').textContent = (modified ? '● ' : '') + tabData.name;
+            });
+          });
+        }
+
+      } else if (type === 'preview') {
+        paneEl.innerHTML = '<div class="preview-tab-wrap"><iframe sandbox="allow-same-origin allow-scripts"></iframe></div>';
+        container.appendChild(paneEl);
+        tabData.filePath = opts.filePath;
+        const iframe = paneEl.querySelector('iframe');
+        if (opts.url) iframe.src = opts.url;
+
+      } else if (type === 'admin') {
+        paneEl.innerHTML = '<div class="admin-tab-wrap"><iframe src="/admin.html"></iframe></div>';
+        container.appendChild(paneEl);
+      }
+
+      tabs.set(tabId, tabData);
+      switchTab(tabId);
+      return tabId;
+    }
+
+    function switchTab(tabId) {
+      const tab = tabs.get(tabId);
+      if (!tab) return;
+
+      // Deactivate all tabs
+      tabs.forEach((t, id) => {
+        t.tabEl.classList.remove('active');
+        t.paneEl.classList.remove('active');
+      });
+
+      // Activate this tab
+      tab.tabEl.classList.add('active');
+      tab.paneEl.classList.add('active');
+      activeTabId = tabId;
+
+      // Hide welcome
+      document.getElementById('welcome').style.display = 'none';
+      document.getElementById('term-container-inner').style.display = 'none';
+
+      if (tab.type === 'terminal') {
+        // Update shortcuts
+        term = tab.term;
+        fitAddon = tab.fitAddon;
+        searchAddon = tab.searchAddon;
+        currentSessionId = tab.sessionId;
+
+        document.getElementById('mobile-keys').classList.add('active');
+        toolbarTitle.textContent = tab.name;
+        toolbarTitle.style.opacity = '1';
+        toolbarStatus.textContent = tab.sessionId ? '● Linked' : '○ Idle';
+        toolbarStatus.className = 'status-badge ' + (tab.sessionId ? 'connected' : 'idle');
+
+        setTimeout(() => {
+          tab.fitAddon.fit();
+          if (ws && ws.readyState === WebSocket.OPEN && tab.sessionId) {
+            ws.send(JSON.stringify({ type: 'resize', cols: tab.term.cols, rows: tab.term.rows }));
+          }
+          tab.term.focus();
+        }, 50);
+      } else {
+        term = null;
+        fitAddon = null;
+        searchAddon = null;
+        currentSessionId = null;
+        document.getElementById('mobile-keys').classList.remove('active');
+        toolbarTitle.textContent = tab.name;
+        toolbarTitle.style.opacity = '1';
+        toolbarStatus.textContent = tab.type;
+        toolbarStatus.className = 'status-badge idle';
+      }
+
+      // Scroll tab into view
+      tab.tabEl.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+    }
+
+    function closeTab(tabId) {
+      const tab = tabs.get(tabId);
+      if (!tab) return;
+
+      // Check for unsaved editor
+      if (tab.type === 'editor' && tab.monacoEditor) {
+        if (tab.monacoEditor.getValue() !== tab.originalContent) {
+          if (!confirm('Unsaved changes. Close anyway?')) return;
+        }
+        tab.monacoEditor.dispose();
+      }
+
+      // Destroy terminal session? No — just detach, session lives on
+      if (tab.type === 'terminal' && tab.term) {
+        if (tab.sessionId && ws && ws.readyState === WebSocket.OPEN) {
+          // Only detach if this is the active attached session
+          if (tab.sessionId === currentSessionId) {
+            ws.send(JSON.stringify({ type: 'detach' }));
+          }
+        }
+        tab.term.dispose();
+      }
+
+      tab.tabEl.remove();
+      tab.paneEl.remove();
+      tabs.delete(tabId);
+
+      // Switch to another tab or show welcome
+      if (tabs.size > 0) {
+        const lastTab = [...tabs.keys()].pop();
+        switchTab(lastTab);
+      } else {
+        activeTabId = null;
+        term = null;
+        fitAddon = null;
+        searchAddon = null;
+        currentSessionId = null;
+        document.getElementById('tab-bar').style.display = 'none';
+        document.getElementById('welcome').style.display = 'flex';
+        document.getElementById('mobile-keys').classList.remove('active');
+        toolbarTitle.textContent = 'Idle — no link';
+        toolbarTitle.style.opacity = '.5';
+        toolbarStatus.textContent = '○ Idle';
+        toolbarStatus.className = 'status-badge idle';
+      }
+    }
+
+    function updateTabName(tabId, name, icon) {
+      const tab = tabs.get(tabId);
+      if (!tab) return;
+      tab.name = name;
+      if (icon) tab.icon = icon;
+      tab.tabEl.querySelector('.tab-icon').textContent = icon || tab.icon;
+      tab.tabEl.querySelector('.tab-label').textContent = name;
+      if (tabId === activeTabId) toolbarTitle.textContent = name;
+    }
+
+    function findTabBySessionId(sessionId) {
+      for (const [tabId, tab] of tabs) {
+        if (tab.type === 'terminal' && tab.sessionId === sessionId) return tabId;
+      }
+      return null;
+    }
+
+    // Open file in editor tab (Phase 2)
+    function openFileInTab(filePath, content) {
+      // Check if already open
+      for (const [tabId, tab] of tabs) {
+        if (tab.type === 'editor' && tab.filePath === filePath) {
+          switchTab(tabId);
+          return;
+        }
+      }
+      const name = filePath.split('/').pop().split('\\').pop();
+      createTab('editor', { name, icon: '📝', filePath, content });
+    }
+
+    // Open preview in tab (Phase 2)
+    function openPreviewInTab(filePath, url) {
+      for (const [tabId, tab] of tabs) {
+        if (tab.type === 'preview' && tab.filePath === filePath) {
+          switchTab(tabId);
+          return;
+        }
+      }
+      const name = filePath.split('/').pop().split('\\').pop();
+      createTab('preview', { name: '👁 ' + name, icon: '👁', filePath, url });
+    }
+
+    // Open admin in tab
+    function openAdminTab() {
+      for (const [tabId, tab] of tabs) {
+        if (tab.type === 'admin') { switchTab(tabId); return; }
+      }
+      createTab('admin', { name: 'Admin', icon: '🛡️' });
+    }
+
+    // Save editor tab content
+    async function saveEditorTab(tabId) {
+      const tab = tabs.get(tabId || activeTabId);
+      if (!tab || tab.type !== 'editor' || !tab.monacoEditor) return;
+      try {
+        const content = tab.monacoEditor.getValue();
+        const res = await fetch('/api/files/save', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ path: tab.filePath, content }),
+        });
+        if (res.ok) {
+          tab.originalContent = content;
+          tab.tabEl.querySelector('.tab-label').textContent = tab.name;
+          showToast('Saved ' + tab.name, 'success');
+        } else {
+          showToast('Save failed', 'error');
+        }
+      } catch (e) {
+        showToast('Save error: ' + e.message, 'error');
+      }
+    }
 
     const sessionListEl = document.getElementById('session-list');
     const sessionCountEl = document.getElementById('session-count');
@@ -2242,50 +2693,8 @@
 
     // === Terminal ===
     function initTerminal() {
-      if (term) return;
-      const savedTheme = THEMES[currentTheme]?.theme || THEMES.cyberframe.theme;
-      const savedFontSize = parseInt(localStorage.getItem('cyberframe-fontsize')) || 14;
-      document.getElementById('font-size-label').textContent = savedFontSize;
-      term = new Terminal({
-        theme: savedTheme,
-        fontSize: savedFontSize,
-        fontFamily: '"Cascadia Code", "Fira Code", "JetBrains Mono", "SF Mono", monospace',
-        fontSize: 14,
-        cursorBlink: true,
-        cursorStyle: 'bar',
-        allowProposedApi: true,
-        scrollback: 10000,
-      });
-
-      fitAddon = new FitAddon.FitAddon();
-      term.loadAddon(fitAddon);
-      term.loadAddon(new WebLinksAddon.WebLinksAddon());
-      searchAddon = new SearchAddon.SearchAddon();
-      term.loadAddon(searchAddon);
-      term.open(termWrap);
-      fitAddon.fit();
-
-      term.onData((data) => {
-        // If modifier active, send modified key instead
-        if (mods.ctrl || mods.alt) {
-          if (data.length === 1) {
-            let seq = '';
-            if (mods.ctrl) seq = String.fromCharCode(data.charCodeAt(0) & 0x1f);
-            else if (mods.alt) seq = '\x1b' + data;
-            if (seq && ws && ws.readyState === WebSocket.OPEN) {
-              ws.send(JSON.stringify({ type: 'input', id: currentSessionId, data: seq }));
-            }
-            Object.keys(mods).forEach(m => {
-              mods[m] = false;
-              document.querySelector(`.mkey[data-mod="${m}"]`)?.classList.remove('active');
-            });
-            return; // don't send raw char
-          }
-        }
-        if (ws && ws.readyState === WebSocket.OPEN && currentSessionId) {
-          ws.send(JSON.stringify({ type: 'input', data }));
-        }
-      });
+      // Legacy — tabs now create their own xterm instances
+      // This is kept as a no-op for any remaining calls
     }
 
     // === WebSocket ===
@@ -2311,29 +2720,80 @@
             sessions = msg.sessions;
             renderSessions();
             break;
-          case 'attached':
-            currentSessionId = msg.id;
-            showTerminal(msg.name);
+          case 'attached': {
+            const existingTab = findTabBySessionId(msg.id);
+            if (existingTab) {
+              const tab = tabs.get(existingTab);
+              tab.sessionId = msg.id;
+              switchTab(existingTab);
+            } else {
+              // Find the tab that just requested attach (active terminal tab with no session)
+              const activeTab = tabs.get(activeTabId);
+              if (activeTab && activeTab.type === 'terminal' && !activeTab.sessionId) {
+                activeTab.sessionId = msg.id;
+                const s = sessions.find(s => s.id === msg.id);
+                const icon = s?.shell?.icon || '⚡';
+                updateTabName(activeTabId, msg.name, icon);
+                currentSessionId = msg.id;
+                toolbarTitle.textContent = msg.name;
+                toolbarStatus.textContent = '● Linked';
+                toolbarStatus.className = 'status-badge connected';
+                setTimeout(() => {
+                  activeTab.fitAddon.fit();
+                  if (ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({ type: 'resize', cols: activeTab.term.cols, rows: activeTab.term.rows }));
+                  }
+                  activeTab.term.focus();
+                }, 50);
+              } else {
+                // Create new tab for this session
+                const s = sessions.find(s => s.id === msg.id);
+                const icon = s?.shell?.icon || '⚡';
+                const tabId = createTab('terminal', { name: msg.name, icon, sessionId: msg.id });
+              }
+            }
             break;
-          case 'output':
-            if (term) term.write(msg.data);
-            // Notify on output when tab is hidden (long-running command finished)
-            if (document.hidden && msg.data.includes('$') || document.hidden && msg.data.includes('#') || document.hidden && msg.data.includes('>')) {
+          }
+          case 'output': {
+            // Route output to the correct tab
+            const targetTab = findTabBySessionId(msg.id || currentSessionId);
+            if (targetTab) {
+              const t = tabs.get(targetTab);
+              if (t && t.term) t.term.write(msg.data);
+            } else if (term) {
+              term.write(msg.data);
+            }
+            if (document.hidden && (msg.data.includes('$') || msg.data.includes('#') || msg.data.includes('>'))) {
               notifyUser('CYBERFRAME', 'Command completed');
             }
             break;
-          case 'session-died':
-            if (msg.id === currentSessionId) {
-              toolbarStatus.textContent = 'Exited';
-              toolbarStatus.className = 'status-badge disconnected';
-              if (term) term.write('\r\n\x1b[31m[Session ended]\x1b[0m\r\n');
-              currentSessionId = null;
+          }
+          case 'session-died': {
+            const diedTab = findTabBySessionId(msg.id);
+            if (diedTab) {
+              const t = tabs.get(diedTab);
+              if (t && t.term) t.term.write('\r\n\x1b[31m[Session ended]\x1b[0m\r\n');
+              t.sessionId = null;
+              if (msg.id === currentSessionId) {
+                toolbarStatus.textContent = 'Exited';
+                toolbarStatus.className = 'status-badge disconnected';
+                currentSessionId = null;
+              }
             }
             refreshSessions();
             break;
+          }
           case 'detached':
+            // Don't hide terminal — just update status
+            if (currentSessionId) {
+              const detachTab = findTabBySessionId(currentSessionId);
+              if (detachTab) {
+                tabs.get(detachTab).sessionId = null;
+              }
+            }
             currentSessionId = null;
-            hideTerminal();
+            toolbarStatus.textContent = '○ Idle';
+            toolbarStatus.className = 'status-badge idle';
             refreshSessions();
             break;
           case 'pong':
@@ -2397,35 +2857,11 @@
     }
 
     function showTerminal(name) {
-      welcomeEl.style.display = 'none';
-      document.getElementById('term-container-inner').style.display = 'flex';
-      termWrap.style.display = 'block';
-      document.getElementById('mobile-keys').classList.add('active');
-      toolbarTitle.textContent = name;
-      toolbarTitle.style.opacity = '1';
-      toolbarStatus.textContent = '● Linked';
-      toolbarStatus.className = 'status-badge connected';
-
-      initTerminal();
-      term.clear();
-      setTimeout(() => {
-        fitAddon.fit();
-        if (ws && ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }));
-        }
-        term.focus();
-      }, 50);
+      // Now handled by tab system — create/switch tab
     }
 
     function hideTerminal() {
-      welcomeEl.style.display = 'flex';
-      document.getElementById('term-container-inner').style.display = 'none';
-      termWrap.style.display = 'none';
-      document.getElementById('mobile-keys').classList.remove('active');
-      toolbarTitle.textContent = 'Idle — no link';
-      toolbarTitle.style.opacity = '.5';
-      toolbarStatus.textContent = '○ Idle';
-      toolbarStatus.className = 'status-badge idle';
+      // Now handled by tab system
     }
 
     // === Actions ===
@@ -2452,10 +2888,13 @@
       closeShellModal();
       const profile = availableShells.find(s => s.id === shellId);
       const name = `${profile ? profile.name : 'Session'} ${sessions.length + 1}`;
-      initTerminal();
-      if (term) term.clear();
-      const cols = fitAddon ? term.cols : 120;
-      const rows = fitAddon ? term.rows : 30;
+      const icon = profile ? profile.icon : '⚡';
+
+      // Create a new tab first
+      const tabId = createTab('terminal', { name, icon });
+      const tab = tabs.get(tabId);
+      const cols = tab.term ? tab.term.cols : 120;
+      const rows = tab.term ? tab.term.rows : 30;
       const msg = JSON.stringify({ type: 'create', name, cols, rows, shell: shellId });
 
       if (ws && ws.readyState === WebSocket.OPEN) {
@@ -2483,9 +2922,18 @@
     }
 
     function attachToSession(id) {
-      if (id === currentSessionId) { term && term.focus(); closeSidebarMobile(); return; }
-      initTerminal();
-      term.clear();
+      // Check if already open in a tab
+      const existingTab = findTabBySessionId(id);
+      if (existingTab) {
+        switchTab(existingTab);
+        closeSidebarMobile();
+        return;
+      }
+      // Create new tab and attach
+      const s = sessions.find(s => s.id === id);
+      const name = s ? s.name : 'Session';
+      const icon = s?.shell?.icon || '⚡';
+      const tabId = createTab('terminal', { name, icon, sessionId: id });
       ws.send(JSON.stringify({ type: 'attach', id }));
       closeSidebarMobile();
       setTimeout(refreshSessions, 300);
@@ -2499,7 +2947,9 @@
     function destroySession(id) {
       if (!confirm('Terminate this shell?')) return;
       ws.send(JSON.stringify({ type: 'destroy', id }));
-      if (id === currentSessionId) { currentSessionId = null; hideTerminal(); }
+      // Close the tab if it exists
+      const tabId = findTabBySessionId(id);
+      if (tabId) closeTab(tabId);
     }
 
     function renameSession(id, currentName) {
@@ -2569,10 +3019,12 @@
     overlay.onclick = closeSidebarMobile;
 
     window.addEventListener('resize', () => {
-      if (fitAddon && termWrap.style.display !== 'none') {
-        fitAddon.fit();
-        if (ws && ws.readyState === WebSocket.OPEN && currentSessionId) {
-          ws.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }));
+      // Fit active terminal tab
+      const activeT = tabs.get(activeTabId);
+      if (activeT && activeT.type === 'terminal' && activeT.fitAddon) {
+        activeT.fitAddon.fit();
+        if (ws && ws.readyState === WebSocket.OPEN && activeT.sessionId) {
+          ws.send(JSON.stringify({ type: 'resize', cols: activeT.term.cols, rows: activeT.term.rows }));
         }
       }
     });
@@ -2901,13 +3353,17 @@
     }
 
     function changeFontSize(delta) {
-      if (!term) return;
-      const cur = term.options.fontSize || 14;
+      // Update all terminal tabs
+      const cur = (term ? term.options.fontSize : parseInt(localStorage.getItem('cyberframe-fontsize'))) || 14;
       const next = Math.max(8, Math.min(32, cur + delta));
-      term.options.fontSize = next;
       localStorage.setItem('cyberframe-fontsize', next);
       document.getElementById('font-size-label').textContent = next;
-      if (fitAddon) fitAddon.fit();
+      tabs.forEach(t => {
+        if (t.type === 'terminal' && t.term) {
+          t.term.options.fontSize = next;
+          if (t.fitAddon) t.fitAddon.fit();
+        }
+      });
     }
 
     document.getElementById('btn-font-up').onclick = () => changeFontSize(2);
@@ -3181,6 +3637,19 @@
         e.preventDefault();
         openTermSearch();
       }
+      // Ctrl+S → save editor tab
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        const activeT = tabs.get(activeTabId);
+        if (activeT && activeT.type === 'editor') {
+          e.preventDefault();
+          saveEditorTab(activeTabId);
+        }
+      }
+      // Ctrl+W → close active tab
+      if ((e.ctrlKey || e.metaKey) && e.key === 'w' && activeTabId && tabs.size > 0) {
+        e.preventDefault();
+        closeTab(activeTabId);
+      }
     });
 
     // === Custom Confirm Dialog ===
@@ -3341,18 +3810,16 @@
         const r = await fetch(`/api/files/preview?path=${encodeURIComponent(filePath)}`);
         const data = await r.json();
         if (data.error) { showToast(data.error, 'error'); return; }
-        editorFilePath = filePath;
-        editorOriginal = data.content;
 
         // Format JSON
         let content = data.content;
         if (data.ext === '.json') {
-          try { content = JSON.stringify(JSON.parse(content), null, 2); editorOriginal = content; } catch {}
+          try { content = JSON.stringify(JSON.parse(content), null, 2); } catch {}
         }
 
-        document.getElementById('editor-filename').textContent = name;
-        document.getElementById('editor-modified').style.display = 'none';
-        document.getElementById('editor-overlay').style.display = 'flex';
+        // Open in tab instead of overlay
+        openFileInTab(filePath, content);
+        return;
         closePreview();
 
         await window.monacoReady;
@@ -3601,10 +4068,15 @@
 
     function applyTheme(id) {
       const t = THEMES[id];
-      if (!t || !term) return;
-      term.options.theme = t.theme;
+      if (!t) return;
       currentTheme = id;
       localStorage.setItem('cyberframe-theme', id);
+      // Apply to all terminal tabs
+      tabs.forEach(tab => {
+        if (tab.type === 'terminal' && tab.term) {
+          tab.term.options.theme = t.theme;
+        }
+      });
       closeThemeModal();
     }
 
