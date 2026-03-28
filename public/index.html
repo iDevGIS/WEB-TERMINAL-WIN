@@ -3636,10 +3636,31 @@
     }
 
     function attachToSession(id) {
-      // Check if already open in a tab
+      // Check if already open in a tab (or split pane)
       const existingTab = findTabBySessionId(id);
       if (existingTab) {
         switchTab(existingTab);
+        // Focus the correct split pane if split
+        const tab = tabs.get(existingTab);
+        if (tab && tab.panes && tab.panes.length > 1) {
+          const paneIdx = tab.panes.findIndex(p => p.sessionId === id);
+          if (paneIdx >= 0) {
+            const pane = tab.panes[paneIdx];
+            tab.activePane = paneIdx;
+            tab.sessionId = pane.sessionId;
+            currentSessionId = pane.sessionId;
+            // Update highlight
+            tab.paneEl?.querySelectorAll('.split-active').forEach(el => el.classList.remove('split-active'));
+            const directParent = pane.wrapEl.parentElement;
+            if (directParent && directParent.classList.contains('split-pane')) {
+              directParent.classList.add('split-active');
+            }
+            pane.term.focus();
+            renderSessions();
+            const s = sessions.find(s => s.id === id);
+            if (s) { toolbarTitle.textContent = s.name; }
+          }
+        }
         closeSidebarMobile();
         return;
       }
