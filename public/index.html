@@ -2623,7 +2623,7 @@
               theme: 'vs-dark',
               automaticLayout: true,
               minimap: { enabled: true, scale: 1 },
-              fontSize: 13,
+              fontSize: parseInt(localStorage.getItem('cyberframe-fontsize')) || 14,
               fontFamily: "'JetBrains Mono', 'Cascadia Code', 'Fira Code', monospace",
               wordWrap: 'on',
               scrollBeyondLastLine: false,
