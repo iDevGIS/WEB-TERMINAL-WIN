@@ -626,6 +626,95 @@
     }
     .tab-pane.active { display: flex; }
 
+    /* Split Pane */
+    .split-container {
+      display: flex;
+      flex: 1;
+      min-height: 0;
+      position: relative;
+    }
+    .split-container.vertical { flex-direction: column; }
+    .split-container.horizontal { flex-direction: row; }
+
+    .split-pane {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      min-height: 0;
+      position: relative;
+      overflow: hidden;
+    }
+    .split-pane .term-wrap {
+      flex: 1;
+      min-height: 0;
+    }
+
+    .split-handle {
+      flex-shrink: 0;
+      background: rgba(255,255,255,.04);
+      transition: background .15s;
+      position: relative;
+      z-index: 5;
+    }
+    .split-handle:hover, .split-handle.dragging {
+      background: var(--accent);
+    }
+    .split-container.horizontal > .split-handle {
+      width: 4px;
+      cursor: col-resize;
+    }
+    .split-container.vertical > .split-handle {
+      height: 4px;
+      cursor: row-resize;
+    }
+    .split-handle::after {
+      content: '';
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+    }
+    .split-container.horizontal > .split-handle::after {
+      width: 2px; height: 30px;
+      border-left: 1px solid rgba(255,255,255,.1);
+      border-right: 1px solid rgba(255,255,255,.1);
+    }
+    .split-container.vertical > .split-handle::after {
+      height: 2px; width: 30px;
+      border-top: 1px solid rgba(255,255,255,.1);
+      border-bottom: 1px solid rgba(255,255,255,.1);
+    }
+
+    .split-toolbar {
+      display: flex;
+      gap: 2px;
+      padding: 2px 4px;
+      background: rgba(0,0,0,.3);
+      border-bottom: 1px solid rgba(255,255,255,.04);
+      align-items: center;
+      font-size: 10px;
+      color: var(--text3);
+    }
+    .split-toolbar .split-label {
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      padding: 0 4px;
+    }
+    .split-toolbar button {
+      background: none;
+      border: none;
+      color: var(--text3);
+      cursor: pointer;
+      padding: 2px 4px;
+      border-radius: 3px;
+      font-size: 10px;
+      display: flex;
+      align-items: center;
+    }
+    .split-toolbar button:hover { background: rgba(255,255,255,.06); color: var(--text); }
+
     .tab-pane .term-wrap {
       border-radius: 0 0 16px 16px;
       overflow: hidden;
@@ -2211,6 +2300,12 @@
       <button class="toolbar-icon" id="btn-vnc" title="Remote Desktop" onclick="openVNC()">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
       </button>
+      <button class="toolbar-icon" id="btn-split-h" title="Split horizontal (side by side)" onclick="splitTerminal('horizontal')">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="12" y1="3" x2="12" y2="21"/></svg>
+      </button>
+      <button class="toolbar-icon" id="btn-split-v" title="Split vertical (top/bottom)" onclick="splitTerminal('vertical')">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="12" x2="21" y2="12"/></svg>
+      </button>
       <button class="toolbar-icon" id="btn-search" title="Search terminal (Ctrl+F)" onclick="openTermSearch()">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
       </button>
@@ -2521,59 +2616,14 @@
         paneEl.innerHTML = '<div class="term-wrap"></div>';
         container.appendChild(paneEl);
 
-        // Create xterm instance for this tab
-        const savedTheme = THEMES[currentTheme]?.theme || THEMES.cyberframe.theme;
-        const savedFontSize = parseInt(localStorage.getItem('cyberframe-fontsize')) || 14;
-        const t = new Terminal({
-          theme: savedTheme,
-          fontSize: savedFontSize,
-          fontFamily: '"Cascadia Code", "Fira Code", "JetBrains Mono", "SF Mono", monospace',
-          cursorBlink: true,
-          cursorStyle: 'bar',
-          allowProposedApi: true,
-          scrollback: 10000,
-        });
-        const fa = new FitAddon.FitAddon();
-        t.loadAddon(fa);
-        t.loadAddon(new WebLinksAddon.WebLinksAddon());
-        const sa = new SearchAddon.SearchAddon();
-        t.loadAddon(sa);
-        t.open(paneEl.querySelector('.term-wrap'));
-
-        // Disable iOS autofill bar on xterm's hidden textarea
-        const xtextarea = paneEl.querySelector('.xterm-helper-textarea');
-        if (xtextarea) {
-          xtextarea.setAttribute('autocomplete', 'off');
-          xtextarea.setAttribute('autocorrect', 'off');
-          xtextarea.setAttribute('autocapitalize', 'off');
-          xtextarea.setAttribute('spellcheck', 'false');
-          xtextarea.setAttribute('data-1p-ignore', '');       // 1Password
-          xtextarea.setAttribute('data-lpignore', 'true');    // LastPass
-          xtextarea.setAttribute('data-form-type', 'other');  // Dashlane
-        }
-
-        t.onData((data) => {
-          if (mods.ctrl || mods.alt) {
-            if (data.length === 1) {
-              let seq = '';
-              if (mods.ctrl) seq = String.fromCharCode(data.charCodeAt(0) & 0x1f);
-              else if (mods.alt) seq = '\x1b' + data;
-              if (seq && ws && ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({ type: 'input', id: tabData.sessionId, data: seq }));
-              }
-              Object.keys(mods).forEach(m => { mods[m] = false; document.querySelector(`.mkey[data-mod="${m}"]`)?.classList.remove('active'); });
-              return;
-            }
-          }
-          if (ws && ws.readyState === WebSocket.OPEN && tabData.sessionId) {
-            ws.send(JSON.stringify({ type: 'input', id: tabData.sessionId, data }));
-          }
-        });
-
-        tabData.term = t;
-        tabData.fitAddon = fa;
-        tabData.searchAddon = sa;
+        const termPane = createTermPane(tabData, tabId, paneEl.querySelector('.term-wrap'));
+        tabData.term = termPane.term;
+        tabData.fitAddon = termPane.fitAddon;
+        tabData.searchAddon = termPane.searchAddon;
         tabData.sessionId = opts.sessionId || null;
+        tabData.panes = [termPane];
+        tabData.activePane = 0;
+        tabData.splitDirection = null;
 
       } else if (type === 'editor') {
         const ext = (opts.filePath || '').split('.').pop().toLowerCase();
@@ -2805,7 +2855,15 @@
 
     function findTabBySessionId(sessionId) {
       for (const [tabId, tab] of tabs) {
-        if (tab.type === 'terminal' && tab.sessionId === sessionId) return tabId;
+        if (tab.type === 'terminal') {
+          if (tab.sessionId === sessionId) return tabId;
+          // Check split panes
+          if (tab.panes) {
+            for (const p of tab.panes) {
+              if (p.sessionId === sessionId) return tabId;
+            }
+          }
+        }
       }
       return null;
     }
@@ -2841,6 +2899,285 @@
         if (tab.type === 'admin') { switchTab(tabId); return; }
       }
       createTab('admin', { name: 'Admin', icon: '🛡️' });
+    }
+
+    // === Terminal Pane Factory ===
+    function createTermPane(tabData, tabId, wrapEl) {
+      const savedTheme = THEMES[currentTheme]?.theme || THEMES.cyberframe.theme;
+      const savedFontSize = parseInt(localStorage.getItem('cyberframe-fontsize')) || 14;
+      const t = new Terminal({
+        theme: savedTheme,
+        fontSize: savedFontSize,
+        fontFamily: '"Cascadia Code", "Fira Code", "JetBrains Mono", "SF Mono", monospace',
+        cursorBlink: true,
+        cursorStyle: 'bar',
+        allowProposedApi: true,
+        scrollback: 10000,
+      });
+      const fa = new FitAddon.FitAddon();
+      t.loadAddon(fa);
+      t.loadAddon(new WebLinksAddon.WebLinksAddon());
+      const sa = new SearchAddon.SearchAddon();
+      t.loadAddon(sa);
+      t.open(wrapEl);
+
+      // Disable iOS autofill
+      const xtextarea = wrapEl.querySelector('.xterm-helper-textarea');
+      if (xtextarea) {
+        xtextarea.setAttribute('autocomplete', 'off');
+        xtextarea.setAttribute('autocorrect', 'off');
+        xtextarea.setAttribute('autocapitalize', 'off');
+        xtextarea.setAttribute('spellcheck', 'false');
+        xtextarea.setAttribute('data-1p-ignore', '');
+        xtextarea.setAttribute('data-lpignore', 'true');
+        xtextarea.setAttribute('data-form-type', 'other');
+      }
+
+      const pane = { term: t, fitAddon: fa, searchAddon: sa, sessionId: null, wrapEl };
+
+      t.onData((data) => {
+        if (mods.ctrl || mods.alt) {
+          if (data.length === 1) {
+            let seq = '';
+            if (mods.ctrl) seq = String.fromCharCode(data.charCodeAt(0) & 0x1f);
+            else if (mods.alt) seq = '\x1b' + data;
+            if (seq && ws && ws.readyState === WebSocket.OPEN) {
+              ws.send(JSON.stringify({ type: 'input', id: pane.sessionId, data: seq }));
+            }
+            Object.keys(mods).forEach(m => { mods[m] = false; document.querySelector(`.mkey[data-mod="${m}"]`)?.classList.remove('active'); });
+            return;
+          }
+        }
+        if (ws && ws.readyState === WebSocket.OPEN && pane.sessionId) {
+          ws.send(JSON.stringify({ type: 'input', id: pane.sessionId, data }));
+        }
+      });
+
+      // Focus click → set active pane
+      t.element.addEventListener('click', () => {
+        if (tabData.panes) {
+          const idx = tabData.panes.indexOf(pane);
+          if (idx >= 0) {
+            tabData.activePane = idx;
+            tabData.sessionId = pane.sessionId;
+            currentSessionId = pane.sessionId;
+          }
+        }
+      });
+
+      return pane;
+    }
+
+    // === Split Pane ===
+    function splitTerminal(direction) {
+      if (!activeTabId) return;
+      const tab = tabs.get(activeTabId);
+      if (!tab || tab.type !== 'terminal') { showToast('Only terminal tabs can split', 'warning'); return; }
+      if (tab.panes && tab.panes.length >= 2) { showToast('Already split', 'warning'); return; }
+
+      // Open shell picker for the split pane
+      const paneEl = tab.paneEl;
+      tab.splitDirection = direction;
+
+      // Restructure: wrap existing term in split container
+      const origWrap = paneEl.querySelector('.term-wrap');
+      paneEl.innerHTML = '';
+
+      const splitContainer = document.createElement('div');
+      splitContainer.className = `split-container ${direction}`;
+
+      // Pane 1 (existing)
+      const pane1El = document.createElement('div');
+      pane1El.className = 'split-pane';
+      const toolbar1 = document.createElement('div');
+      toolbar1.className = 'split-toolbar';
+      toolbar1.innerHTML = `<span class="split-label">${tab.panes[0].sessionId ? tab.name : 'Shell 1'}</span>`;
+      pane1El.appendChild(toolbar1);
+      const wrap1 = document.createElement('div');
+      wrap1.className = 'term-wrap';
+      pane1El.appendChild(wrap1);
+
+      // Pane 2 (new)
+      const pane2El = document.createElement('div');
+      pane2El.className = 'split-pane';
+      const toolbar2 = document.createElement('div');
+      toolbar2.className = 'split-toolbar';
+      toolbar2.innerHTML = `<span class="split-label">Shell 2</span>
+        <button onclick="closeSplitPane(1)" title="Close split">✕</button>`;
+      pane2El.appendChild(toolbar2);
+      const wrap2 = document.createElement('div');
+      wrap2.className = 'term-wrap';
+      pane2El.appendChild(wrap2);
+
+      // Handle
+      const handle = document.createElement('div');
+      handle.className = 'split-handle';
+      initSplitResize(handle, splitContainer, direction);
+
+      splitContainer.appendChild(pane1El);
+      splitContainer.appendChild(handle);
+      splitContainer.appendChild(pane2El);
+      paneEl.appendChild(splitContainer);
+
+      // Re-create pane 1 terminal (old one is destroyed)
+      const oldPane = tab.panes[0];
+      const oldSessionId = oldPane.sessionId;
+      oldPane.term.dispose();
+
+      const newPane1 = createTermPane(tab, activeTabId, wrap1);
+      newPane1.sessionId = oldSessionId;
+      tab.panes[0] = newPane1;
+      tab.term = newPane1.term;
+      tab.fitAddon = newPane1.fitAddon;
+      tab.searchAddon = newPane1.searchAddon;
+
+      // Attach to existing session
+      if (oldSessionId && ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'attach', id: oldSessionId }));
+      }
+
+      // Create pane 2 terminal
+      const newPane2 = createTermPane(tab, activeTabId, wrap2);
+      tab.panes.push(newPane2);
+
+      // Fit both after layout settles
+      setTimeout(() => {
+        newPane1.fitAddon.fit();
+        newPane2.fitAddon.fit();
+        newPane2.term.focus();
+      }, 100);
+
+      // Auto-spawn shell for pane 2
+      openShellModalForSplit(tab, 1);
+      tab.splitContainer = splitContainer;
+
+      showToast(`Split ${direction}`, 'success', 1500);
+    }
+
+    function openShellModalForSplit(tab, paneIdx) {
+      // Just open shell picker - when session is created, attach to pane
+      const modal = document.getElementById('shell-modal');
+      const list = document.getElementById('shell-list');
+      list.innerHTML = availableShells.map(s =>
+        `<div class="shell-option" onclick="createSessionForSplit('${s.id}', ${paneIdx})">
+          <span class="shell-icon">${s.icon}</span>
+          <span class="shell-name">${s.name}</span>
+        </div>`
+      ).join('');
+      modal.style.display = 'flex';
+    }
+
+    function createSessionForSplit(shellId, paneIdx) {
+      if (!activeTabId) return;
+      const tab = tabs.get(activeTabId);
+      if (!tab || !tab.panes[paneIdx]) return;
+
+      document.getElementById('shell-modal').style.display = 'none';
+      const pane = tab.panes[paneIdx];
+
+      // Create session via WS
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        // Store pending split info
+        tab._pendingSplitPane = paneIdx;
+        ws.send(JSON.stringify({ type: 'create', shell: shellId, cols: pane.term.cols, rows: pane.term.rows }));
+      }
+    }
+
+    function closeSplitPane(paneIdx) {
+      if (!activeTabId) return;
+      const tab = tabs.get(activeTabId);
+      if (!tab || tab.type !== 'terminal' || !tab.panes || tab.panes.length < 2) return;
+
+      const removedPane = tab.panes[paneIdx];
+      const keepPane = tab.panes[paneIdx === 0 ? 1 : 0];
+
+      // Detach removed pane session
+      if (removedPane.sessionId && ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'detach', id: removedPane.sessionId }));
+      }
+      removedPane.term.dispose();
+
+      // Restructure - remove split, keep remaining pane
+      const paneEl = tab.paneEl;
+      paneEl.innerHTML = '';
+      const newWrap = document.createElement('div');
+      newWrap.className = 'term-wrap';
+      paneEl.appendChild(newWrap);
+
+      // Re-create the kept terminal
+      const keptSessionId = keepPane.sessionId;
+      keepPane.term.dispose();
+
+      const newPane = createTermPane(tab, activeTabId, newWrap);
+      newPane.sessionId = keptSessionId;
+      tab.panes = [newPane];
+      tab.activePane = 0;
+      tab.splitDirection = null;
+      tab.splitContainer = null;
+      tab.term = newPane.term;
+      tab.fitAddon = newPane.fitAddon;
+      tab.searchAddon = newPane.searchAddon;
+      tab.sessionId = keptSessionId;
+      currentSessionId = keptSessionId;
+
+      // Re-attach
+      if (keptSessionId && ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'attach', id: keptSessionId }));
+      }
+
+      setTimeout(() => {
+        newPane.fitAddon.fit();
+        newPane.term.focus();
+      }, 100);
+
+      showToast('Split closed', 'info', 1500);
+    }
+
+    // Resize handle drag
+    function initSplitResize(handle, container, direction) {
+      let startPos, startSize1, startSize2, pane1, pane2;
+
+      handle.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        handle.classList.add('dragging');
+        const panes = container.querySelectorAll('.split-pane');
+        pane1 = panes[0]; pane2 = panes[1];
+        if (direction === 'horizontal') {
+          startPos = e.clientX;
+          startSize1 = pane1.getBoundingClientRect().width;
+          startSize2 = pane2.getBoundingClientRect().width;
+        } else {
+          startPos = e.clientY;
+          startSize1 = pane1.getBoundingClientRect().height;
+          startSize2 = pane2.getBoundingClientRect().height;
+        }
+
+        function onMove(e2) {
+          const delta = direction === 'horizontal' ? e2.clientX - startPos : e2.clientY - startPos;
+          const total = startSize1 + startSize2;
+          const newSize1 = Math.max(80, Math.min(total - 80, startSize1 + delta));
+          pane1.style.flex = `0 0 ${newSize1}px`;
+          pane2.style.flex = `1 1 0`;
+          // Fit terminals
+          const tab = tabs.get(activeTabId);
+          if (tab && tab.panes) {
+            tab.panes.forEach(p => { if (p.fitAddon) setTimeout(() => p.fitAddon.fit(), 0); });
+          }
+        }
+
+        function onUp() {
+          handle.classList.remove('dragging');
+          document.removeEventListener('mousemove', onMove);
+          document.removeEventListener('mouseup', onUp);
+          const tab = tabs.get(activeTabId);
+          if (tab && tab.panes) {
+            tab.panes.forEach(p => { if (p.fitAddon) p.fitAddon.fit(); });
+          }
+        }
+
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
+      });
     }
 
     // Show welcome/feature cards (new tab button)
@@ -2943,8 +3280,26 @@
               tab.sessionId = msg.id;
               switchTab(existingTab);
             } else {
-              // Find the tab that just requested attach (active terminal tab with no session)
+              // Check if this is for a split pane
               const activeTab = tabs.get(activeTabId);
+              if (activeTab && activeTab._pendingSplitPane !== undefined) {
+                const paneIdx = activeTab._pendingSplitPane;
+                delete activeTab._pendingSplitPane;
+                const pane = activeTab.panes[paneIdx];
+                if (pane) {
+                  pane.sessionId = msg.id;
+                  if (paneIdx === activeTab.activePane) {
+                    activeTab.sessionId = msg.id;
+                    currentSessionId = msg.id;
+                  }
+                  // Update toolbar label
+                  const toolbar = pane.wrapEl.closest('.split-pane')?.querySelector('.split-label');
+                  if (toolbar) toolbar.textContent = msg.name;
+                  setTimeout(() => { pane.fitAddon.fit(); pane.term.focus(); }, 50);
+                }
+                break;
+              }
+              // Find the tab that just requested attach (active terminal tab with no session)
               if (activeTab && activeTab.type === 'terminal' && !activeTab.sessionId) {
                 activeTab.sessionId = msg.id;
                 const s = sessions.find(s => s.id === msg.id);
@@ -2971,11 +3326,18 @@
             break;
           }
           case 'output': {
-            // Route output to the correct tab
+            // Route output to the correct tab/pane
             const targetTab = findTabBySessionId(msg.id || currentSessionId);
             if (targetTab) {
               const t = tabs.get(targetTab);
-              if (t && t.term) t.term.write(msg.data);
+              if (t && t.panes && t.panes.length > 1) {
+                // Split mode: find the right pane
+                const pane = t.panes.find(p => p.sessionId === msg.id);
+                if (pane) pane.term.write(msg.data);
+                else if (t.term) t.term.write(msg.data);
+              } else if (t && t.term) {
+                t.term.write(msg.data);
+              }
             } else if (term) {
               term.write(msg.data);
             }
@@ -3594,9 +3956,13 @@
       const tfl = document.getElementById('theme-font-size-label');
       if (tfl) tfl.textContent = next + 'px';
       tabs.forEach(t => {
-        if (t.type === 'terminal' && t.term) {
-          t.term.options.fontSize = next;
-          if (t.fitAddon) t.fitAddon.fit();
+        if (t.type === 'terminal') {
+          if (t.panes) {
+            t.panes.forEach(p => { p.term.options.fontSize = next; if (p.fitAddon) p.fitAddon.fit(); });
+          } else if (t.term) {
+            t.term.options.fontSize = next;
+            if (t.fitAddon) t.fitAddon.fit();
+          }
         }
         if (t.type === 'editor' && t.monacoEditor) {
           t.monacoEditor.updateOptions({ fontSize: next });
@@ -4322,10 +4688,14 @@
       if (!t) return;
       currentTheme = id;
       localStorage.setItem('cyberframe-theme', id);
-      // Apply to all terminal tabs
+      // Apply to all terminal tabs (including split panes)
       tabs.forEach(tab => {
-        if (tab.type === 'terminal' && tab.term) {
-          tab.term.options.theme = t.theme;
+        if (tab.type === 'terminal') {
+          if (tab.panes) {
+            tab.panes.forEach(p => { p.term.options.theme = t.theme; });
+          } else if (tab.term) {
+            tab.term.options.theme = t.theme;
+          }
         }
       });
       closeThemeModal();
