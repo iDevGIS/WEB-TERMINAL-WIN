@@ -2243,11 +2243,12 @@
     .chat-session-item.active { background: rgba(108,99,255,.1); color: var(--text); }
     .chat-session-item .cs-icon { opacity: .4; font-size: 11px; }
     .chat-session-item .cs-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .chat-session-item .cs-delete {
+    .chat-session-item .cs-rename, .chat-session-item .cs-delete {
       opacity: 0; font-size: 10px; padding: 2px 4px; border-radius: 4px; cursor: pointer;
       color: var(--text3); transition: opacity .15s;
     }
-    .chat-session-item:hover .cs-delete { opacity: .6; }
+    .chat-session-item:hover .cs-rename, .chat-session-item:hover .cs-delete { opacity: .6; }
+    .chat-session-item .cs-rename:hover { opacity: 1; color: var(--accent); }
     .chat-session-item .cs-delete:hover { opacity: 1; color: var(--red); background: rgba(248,113,113,.1); }
     /* Chat main area */
     .chat-main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
@@ -3648,6 +3649,34 @@
       else { renderChatSessions(tabId); renderChatMessages(tabId); }
     }
 
+    function chatRenameSession(tabId, sessId, titleEl) {
+      const tab = tabs.get(tabId);
+      if (!tab) return;
+      const sess = tab.chatSessions.find(s => s.id === sessId);
+      if (!sess) return;
+      // Inline edit
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.value = sess.title;
+      input.style.cssText = 'background:rgba(0,0,0,.3);border:1px solid var(--accent);border-radius:4px;color:var(--text);font-size:12px;padding:2px 6px;width:100%;outline:none;font-family:inherit;';
+      const finish = () => {
+        const newName = input.value.trim();
+        if (newName && newName !== sess.title) {
+          sess.title = newName;
+        }
+        renderChatSessions(tabId);
+      };
+      input.addEventListener('blur', finish);
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+        if (e.key === 'Escape') { input.value = sess.title; input.blur(); }
+      });
+      titleEl.textContent = '';
+      titleEl.appendChild(input);
+      input.focus();
+      input.select();
+    }
+
     function chatClearCurrent(tabId) {
       const tab = tabs.get(tabId);
       if (!tab) return;
@@ -3664,7 +3693,8 @@
         <div class="chat-session-item ${s.id === tab.activeChatSession ? 'active' : ''}"
              onclick="chatSwitchSession('${tabId}','${s.id}')">
           <span class="cs-icon">💬</span>
-          <span class="cs-title">${escHtml(s.title)}</span>
+          <span class="cs-title" ondblclick="event.stopPropagation();chatRenameSession('${tabId}','${s.id}',this)" title="Double-click to rename">${escHtml(s.title)}</span>
+          <span class="cs-rename" onclick="event.stopPropagation();chatRenameSession('${tabId}','${s.id}',this.previousElementSibling)" title="Rename">✏️</span>
           <span class="cs-delete" onclick="event.stopPropagation();chatDeleteSession('${tabId}','${s.id}')" title="Delete">✕</span>
         </div>
       `).join('');
