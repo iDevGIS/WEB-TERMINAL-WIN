@@ -560,6 +560,9 @@
       border-color: rgba(255,255,255,.06);
       color: var(--text);
     }
+    .tab-item.tab-dragging { opacity: .4; }
+    .tab-item.tab-drop-left { box-shadow: inset 3px 0 0 var(--accent); }
+    .tab-item.tab-drop-right { box-shadow: inset -3px 0 0 var(--accent); }
     .tab-item.active::after {
       content: '';
       position: absolute;
@@ -2856,6 +2859,35 @@
       const label = opts.name || (type === 'terminal' ? 'Shell' : type === 'editor' ? 'Editor' : type === 'preview' ? 'Preview' : type === 'admin' ? 'Admin' : type === 'chat' ? 'AI Chat' : type === 'agent-monitor' ? 'Agent Monitor' : 'Files');
       tabEl.innerHTML = `<span class="tab-icon">${icon}</span><span class="tab-label">${escHtml(label)}</span><span class="tab-close" onclick="event.stopPropagation();closeTab('${tabId}')">✕</span>`;
       tabEl.onclick = () => switchTab(tabId);
+      // Drag to reorder
+      tabEl.draggable = true;
+      tabEl.addEventListener('dragstart', (e) => {
+        e.dataTransfer.setData('text/x-tab-id', tabId);
+        e.dataTransfer.effectAllowed = 'move';
+        tabEl.classList.add('tab-dragging');
+      });
+      tabEl.addEventListener('dragend', () => tabEl.classList.remove('tab-dragging'));
+      tabEl.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        const rect = tabEl.getBoundingClientRect();
+        const mid = rect.left + rect.width / 2;
+        tabEl.classList.toggle('tab-drop-left', e.clientX < mid);
+        tabEl.classList.toggle('tab-drop-right', e.clientX >= mid);
+      });
+      tabEl.addEventListener('dragleave', () => { tabEl.classList.remove('tab-drop-left', 'tab-drop-right'); });
+      tabEl.addEventListener('drop', (e) => {
+        e.preventDefault();
+        tabEl.classList.remove('tab-drop-left', 'tab-drop-right');
+        const fromId = e.dataTransfer.getData('text/x-tab-id');
+        if (!fromId || fromId === tabId) return;
+        const fromEl = document.querySelector(`.tab-item[data-tab-id="${fromId}"]`);
+        if (!fromEl) return;
+        const rect = tabEl.getBoundingClientRect();
+        const mid = rect.left + rect.width / 2;
+        if (e.clientX < mid) tabBar.insertBefore(fromEl, tabEl);
+        else tabBar.insertBefore(fromEl, tabEl.nextSibling);
+      });
       // Insert before the + button
       tabBar.insertBefore(tabEl, tabBar.querySelector('.tab-add'));
 
