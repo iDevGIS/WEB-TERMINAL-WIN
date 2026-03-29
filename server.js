@@ -993,14 +993,16 @@ const SESSIONS_STORE = path.join(process.env.USERPROFILE || process.env.HOME || 
 app.get("/api/agent/sessions", requireAuth, (req, res) => {
   try {
     const store = JSON.parse(fs.readFileSync(SESSIONS_STORE, 'utf8'));
-    const sessions = (store.sessions || []).map(s => ({
-      key: s.key,
-      kind: s.kind || 'direct',
-      updatedAt: s.updatedAt,
-      createdAt: s.createdAt,
-      transcript: s.transcript,
-      isCyberframe: s.key.includes('openai-user:cyberframe'),
-    }));
+    // Store is key→value object, not array
+    const sessions = Object.entries(store)
+      .filter(([k, v]) => v && typeof v === 'object' && v.sessionId)
+      .map(([key, s]) => ({
+        key,
+        kind: s.chatType || 'direct',
+        updatedAt: s.updatedAt,
+        sessionFile: s.sessionFile,
+        isCyberframe: key.includes('openai-user:cyberframe'),
+      }));
     res.json({ count: sessions.length, sessions });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -1012,17 +1014,14 @@ app.post("/api/agent/sessions/delete", requireAuth, (req, res) => {
   if (!key) return res.status(400).json({ error: "key required" });
   try {
     const store = JSON.parse(fs.readFileSync(SESSIONS_STORE, 'utf8'));
-    const idx = store.sessions.findIndex(s => s.key === key);
-    if (idx === -1) return res.status(404).json({ error: "Session not found" });
-    const removed = store.sessions.splice(idx, 1)[0];
-    // Delete transcript file if exists
-    if (removed.transcript) {
-      const transcriptPath = path.resolve(path.dirname(SESSIONS_STORE), removed.transcript);
-      try { fs.unlinkSync(transcriptPath); } catch {}
+    if (!store[key]) return res.status(404).json({ error: "Session not found" });
+    const sess = store[key];
+    // Delete transcript/session file if exists
+    if (sess.sessionFile) {
+      try { fs.unlinkSync(sess.sessionFile); } catch {}
     }
-    store.count = store.sessions.length;
+    delete store[key];
     fs.writeFileSync(SESSIONS_STORE, JSON.stringify(store, null, 2));
-    // Invalidate agent status cache
     _agentStatusCache.ts = 0;
     res.json({ ok: true, deleted: key });
   } catch (e) {
@@ -1035,21 +1034,18 @@ app.get("/api/agent/sessions/preview", requireAuth, (req, res) => {
   if (!key) return res.status(400).json({ error: "key required" });
   try {
     const store = JSON.parse(fs.readFileSync(SESSIONS_STORE, 'utf8'));
-    const sess = store.sessions.find(s => s.key === key);
+    const sess = store[key];
     if (!sess) return res.status(404).json({ error: "Session not found" });
-    // Read transcript if exists
     let messages = [];
-    if (sess.transcript) {
-      const transcriptPath = path.resolve(path.dirname(SESSIONS_STORE), sess.transcript);
+    if (sess.sessionFile) {
       try {
-        const content = fs.readFileSync(transcriptPath, 'utf8');
-        // JSONL format — each line is a message
+        const content = fs.readFileSync(sess.sessionFile, 'utf8');
         messages = content.split('\n').filter(l => l.trim()).map(l => {
           try { return JSON.parse(l); } catch { return null; }
         }).filter(Boolean);
       } catch {}
     }
-    res.json({ key: sess.key, kind: sess.kind, messages, updatedAt: sess.updatedAt });
+    res.json({ key, kind: sess.chatType || 'direct', messages, updatedAt: sess.updatedAt });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
