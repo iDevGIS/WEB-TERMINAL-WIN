@@ -1124,6 +1124,50 @@ app.get("/api/agent/sessions/preview", requireAuth, (req, res) => {
   }
 });
 
+app.get("/api/agent/sessions/info", requireAuth, (req, res) => {
+  const { key } = req.query;
+  if (!key) return res.status(400).json({ error: "key required" });
+  try {
+    const store = JSON.parse(fs.readFileSync(SESSIONS_STORE, 'utf8'));
+    let matchKey = key;
+    let sess = store[key];
+    if (!sess && key.includes('\u2026')) {
+      const prefix = key.split('\u2026')[0];
+      if (prefix.length >= 10) {
+        const found = Object.keys(store).find(k => k.startsWith(prefix) && store[k]?.sessionId);
+        if (found) { matchKey = found; sess = store[found]; }
+      }
+    }
+    if (!sess) return res.status(404).json({ error: "Session not found" });
+    // Get file size
+    let fileSize = 0, msgCount = 0;
+    if (sess.sessionFile) {
+      try {
+        const stat = fs.statSync(sess.sessionFile);
+        fileSize = stat.size;
+        const content = fs.readFileSync(sess.sessionFile, 'utf8');
+        msgCount = content.split('\n').filter(l => l.trim()).length;
+      } catch {}
+    }
+    const displayName = _cyberframeNames[matchKey.match(/cyberframe-?(cs-\d+)?$/)?.[1] || ''] || '';
+    res.json({
+      key: matchKey,
+      sessionId: sess.sessionId,
+      chatType: sess.chatType || 'direct',
+      createdAt: sess.createdAt || sess.updatedAt,
+      updatedAt: sess.updatedAt,
+      sessionFile: sess.sessionFile ? path.basename(sess.sessionFile) : '—',
+      fileSize,
+      msgCount,
+      compactionCount: sess.compactionCount || 0,
+      displayName,
+      origin: sess.origin || {},
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true });
 const vncWss = new WebSocketServer({ noServer: true });

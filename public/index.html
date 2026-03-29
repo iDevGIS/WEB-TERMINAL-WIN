@@ -4403,6 +4403,59 @@
       }
     }
 
+    async function sessionInfo(key) {
+      try {
+        const res = await fetch('/api/agent/sessions/info?key=' + encodeURIComponent(key));
+        const data = await res.json();
+        if (!res.ok) { showToast('Error: ' + (data.error || 'Unknown'), 'error'); return; }
+
+        const overlay = document.createElement('div');
+        overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.7);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;';
+        overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+        const panel = document.createElement('div');
+        panel.style.cssText = 'background:var(--bg);border:1px solid var(--glass-border);border-radius:14px;padding:24px;max-width:500px;width:90%;box-shadow:0 8px 40px rgba(0,0,0,.6);';
+
+        const fmtDate = (ts) => ts ? new Date(ts).toLocaleString('th-TH', {dateStyle:'medium',timeStyle:'short'}) : '—';
+        const fmtSize = (b) => b < 1024 ? b + ' B' : b < 1048576 ? (b/1024).toFixed(1) + ' KB' : (b/1048576).toFixed(1) + ' MB';
+        const isCf = data.key.includes('cyberframe');
+
+        panel.innerHTML = `
+          <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:16px">
+            <div>
+              <div style="font-weight:600;font-size:15px;color:var(--text)">Session Info</div>
+              ${data.displayName ? `<div style="font-size:13px;color:var(--accent);margin-top:2px">${escHtml(data.displayName)}</div>` : ''}
+            </div>
+            <button onclick="this.closest('div[style*=fixed]').remove()" style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:8px;width:32px;height:32px;color:var(--text2);cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center">✕</button>
+          </div>
+          <div style="display:grid;grid-template-columns:auto 1fr;gap:8px 16px;font-size:12px">
+            <span style="color:var(--text3)">Key</span>
+            <span style="color:var(--text2);font-family:'JetBrains Mono',monospace;font-size:10px;word-break:break-all">${escHtml(data.key)}</span>
+            <span style="color:var(--text3)">Session ID</span>
+            <span style="color:var(--text2);font-family:'JetBrains Mono',monospace;font-size:10px">${escHtml(data.sessionId)}</span>
+            <span style="color:var(--text3)">Type</span>
+            <span style="color:var(--text)">${escHtml(data.chatType)} ${isCf ? '<span style="color:#fbbf24">⚡ CYBERFRAME</span>' : ''}</span>
+            <span style="color:var(--text3)">Created</span>
+            <span style="color:var(--text)">${fmtDate(data.createdAt)}</span>
+            <span style="color:var(--text3)">Last Updated</span>
+            <span style="color:var(--text)">${fmtDate(data.updatedAt)}</span>
+            <span style="color:var(--text3)">Transcript</span>
+            <span style="color:var(--text)">${escHtml(data.sessionFile)}</span>
+            <span style="color:var(--text3)">File Size</span>
+            <span style="color:var(--text)">${fmtSize(data.fileSize)}</span>
+            <span style="color:var(--text3)">Messages</span>
+            <span style="color:var(--text)">${data.msgCount} entries</span>
+            <span style="color:var(--text3)">Compactions</span>
+            <span style="color:var(--text)">${data.compactionCount}</span>
+            ${data.origin?.provider ? `<span style="color:var(--text3)">Origin</span><span style="color:var(--text)">${escHtml(data.origin.provider)} / ${escHtml(data.origin.label || '')}</span>` : ''}
+          </div>`;
+
+        overlay.appendChild(panel);
+        document.body.appendChild(overlay);
+      } catch (e) {
+        showToast('Info error: ' + e.message, 'error');
+      }
+    }
+
     async function restoreAgentSession(key) {
       try {
         const res = await fetch('/api/agent/sessions/preview?key=' + encodeURIComponent(key));
@@ -4524,6 +4577,7 @@
                 <span style="color:var(--text2);font-size:11px">${escHtml(s.tokens)}</span>
                 <button class="sess-action-btn" onclick="previewAgentSession('${safeKey}')" title="Preview">👁</button>
                 ${isCyberframe ? `<button class="sess-action-btn" onclick="restoreAgentSession('${safeKey}')" title="Restore to Chat" style="font-size:10px">💬</button>` : ''}
+                <button class="sess-action-btn" onclick="sessionInfo('${safeKey}')" title="More Info">ℹ️</button>
                 <button class="sess-action-btn sess-del" onclick="deleteAgentSession('${safeKey}','${tabId}')" title="Delete">✕</button>
               </div>
             </div>`;
