@@ -2523,6 +2523,20 @@
       0%, 100% { box-shadow: 0 0 4px var(--accent); opacity: .4; transform: scale(.8); }
       50% { box-shadow: 0 0 14px var(--accent), 0 0 24px rgba(108,99,255,.3); opacity: 1; transform: scale(1.2); }
     }
+    .agent-sess-row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 8px 10px; border-bottom: 1px solid rgba(255,255,255,.04);
+      border-radius: 6px; gap: 8px;
+    }
+    .sess-info { min-width: 0; flex: 1; }
+    .sess-meta-row { display: flex; align-items: center; gap: 6px; margin-bottom: 2px; flex-wrap: wrap; }
+    .sess-kind { font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: .3px; }
+    .sess-badge { font-size: 9px; padding: 1px 5px; border-radius: 3px; font-weight: 500; }
+    .sess-name { color: var(--text); font-size: 11px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
+    .sess-key { font-family: 'JetBrains Mono', monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
+    .sess-right { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+    .sess-stats { display: flex; align-items: center; gap: 6px; font-size: 11px; }
+    .sess-actions { display: flex; align-items: center; gap: 4px; }
     .sess-action-btn {
       background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.08);
       border-radius: 4px; padding: 2px 6px; cursor: pointer; font-size: 11px;
@@ -2531,6 +2545,13 @@
     .agent-sess-row:hover .sess-action-btn { opacity: 1; }
     .sess-action-btn:hover { background: rgba(108,99,255,.2); color: var(--text); }
     .sess-action-btn.sess-del:hover { background: rgba(248,113,113,.2); color: var(--red); }
+    @media (max-width: 768px) {
+      .agent-sess-row { flex-direction: column; align-items: stretch; gap: 6px; padding: 10px; }
+      .sess-right { justify-content: space-between; }
+      .sess-actions { gap: 6px; }
+      .sess-action-btn { opacity: 1; padding: 4px 8px; }
+      .sess-name, .sess-key { max-width: 100% !important; }
+    }
     .shimmer-text {
       background: linear-gradient(90deg, var(--text3) 0%, var(--accent) 50%, var(--text3) 100%);
       background-size: 200% 100%;
@@ -4563,21 +4584,21 @@
             const kindColor = s.kind === 'group' ? 'var(--blue)' : 'var(--accent)';
             const rowBg = isCyberframe ? 'rgba(251,191,36,.04)' : 'transparent';
             const safeKey = escAttr(s.key);
-            return `<div class="agent-sess-row" data-key="${safeKey}" style="display:flex;justify-content:space-between;align-items:center;padding:6px 8px;border-bottom:1px solid rgba(255,255,255,.04);border-radius:6px;background:${rowBg}">
-              <div style="min-width:0;flex:1">
-                <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px">
-                  <span style="color:${kindColor};font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.3px">${s.kind}</span>
-                  ${srcBadge ? `<span style="font-size:9px;padding:1px 5px;border-radius:3px;background:${srcColor}18;color:${srcColor};border:1px solid ${srcColor}30;font-weight:500">${srcBadge}</span>` : ''}
+            return `<div class="agent-sess-row" data-key="${safeKey}" style="background:${rowBg}">
+              <div class="sess-info">
+                <div class="sess-meta-row">
+                  <span class="sess-kind" style="color:${kindColor}">${s.kind}</span>
+                  ${srcBadge ? `<span class="sess-badge" style="background:${srcColor}18;color:${srcColor};border:1px solid ${srcColor}30">${srcBadge}</span>` : ''}
+                  <span style="color:var(--text3);font-size:10px">${escHtml(s.age)}</span>
+                  <span style="color:var(--text2);font-size:10px">${escHtml(s.tokens)}</span>
                 </div>
-                ${s.displayName ? `<span style="color:var(--text);font-size:11px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;max-width:280px">${escHtml(s.displayName)}</span>` : ''}
-                <span style="color:var(--text2);font-family:'JetBrains Mono',monospace;font-size:${s.displayName ? '9' : '10'}px;opacity:.${s.displayName ? '4' : '7'};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;max-width:280px">${escHtml(shortKey)}</span>
+                ${s.displayName ? `<span class="sess-name">${escHtml(s.displayName)}</span>` : ''}
+                <span class="sess-key" style="color:var(--text2);font-size:${s.displayName ? '9' : '10'}px;opacity:${s.displayName ? '.4' : '.7'}">${escHtml(shortKey)}</span>
               </div>
-              <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;margin-left:8px">
-                <span style="color:var(--text3);font-size:11px">${escHtml(s.age)}</span>
-                <span style="color:var(--text2);font-size:11px">${escHtml(s.tokens)}</span>
+              <div class="sess-actions">
                 <button class="sess-action-btn" onclick="previewAgentSession('${safeKey}')" title="Preview">👁</button>
-                ${isCyberframe ? `<button class="sess-action-btn" onclick="restoreAgentSession('${safeKey}')" title="Restore to Chat" style="font-size:10px">💬</button>` : ''}
-                <button class="sess-action-btn" onclick="sessionInfo('${safeKey}')" title="More Info">ℹ️</button>
+                ${isCyberframe ? `<button class="sess-action-btn" onclick="restoreAgentSession('${safeKey}')" title="Restore">💬</button>` : ''}
+                <button class="sess-action-btn" onclick="sessionInfo('${safeKey}')" title="Info">ℹ️</button>
                 <button class="sess-action-btn sess-del" onclick="deleteAgentSession('${safeKey}','${tabId}')" title="Delete">✕</button>
               </div>
             </div>`;
