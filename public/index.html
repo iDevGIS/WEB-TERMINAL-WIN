@@ -732,32 +732,43 @@
       z-index: 50;
       pointer-events: none;
       display: none;
+      background: rgba(0,0,0,.3);
     }
-    .drop-zone-overlay.active { display: block; pointer-events: all; }
+    .drop-zone-overlay.active { display: flex; pointer-events: all; flex-wrap: wrap; gap: 3px; padding: 3px; }
 
     .drop-zone {
-      position: absolute;
-      transition: background .15s, opacity .15s;
-      opacity: 0;
+      position: relative;
+      transition: background .15s, border-color .15s, transform .1s;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 11px;
+      flex-direction: column;
+      gap: 6px;
+      border: 2px dashed rgba(255,255,255,.08);
+      border-radius: 8px;
+      color: rgba(255,255,255,.25);
+      font-size: 12px;
       font-weight: 600;
-      color: var(--accent);
       letter-spacing: .5px;
     }
-    .drop-zone.left   { top: 10%; left: 0; width: 35%; bottom: 10%; border-radius: 0 8px 8px 0; }
-    .drop-zone.right  { top: 10%; right: 0; width: 35%; bottom: 10%; border-radius: 8px 0 0 8px; }
-    .drop-zone.top    { top: 0; left: 10%; right: 10%; height: 35%; border-radius: 0 0 8px 8px; }
-    .drop-zone.bottom { bottom: 0; left: 10%; right: 10%; height: 35%; border-radius: 8px 8px 0 0; }
-    .drop-zone.center { top: 25%; left: 25%; right: 25%; bottom: 25%; border-radius: 8px; }
+    .drop-zone .dz-icon {
+      font-size: 24px;
+      opacity: .4;
+      transition: opacity .15s;
+    }
+    .drop-zone.left   { width: calc(50% - 4px); height: calc(100% - 0px); }
+    .drop-zone.right  { width: calc(50% - 4px); height: calc(100% - 0px); }
+    .drop-zone.top    { width: 100%; height: calc(50% - 4px); }
+    .drop-zone.bottom { width: 100%; height: calc(50% - 4px); }
+    .drop-zone.center { width: 100%; height: 100%; }
 
     .drop-zone.hover {
-      opacity: 1;
-      background: rgba(108,99,255,.12);
-      border: 2px dashed var(--accent);
+      background: rgba(108,99,255,.15);
+      border-color: var(--accent);
+      color: var(--accent);
+      transform: scale(.98);
     }
+    .drop-zone.hover .dz-icon { opacity: 1; }
 
     .session-item[draggable="true"] { cursor: grab; }
     .session-item[draggable="true"]:active { cursor: grabbing; }
@@ -2420,11 +2431,12 @@
     <div id="terminal-container" style="position:relative">
       <!-- Drop zone overlay for drag-split -->
       <div id="drop-zone-overlay" class="drop-zone-overlay">
-        <div class="drop-zone left" data-dir="horizontal-left">◀ Split Left</div>
-        <div class="drop-zone right" data-dir="horizontal-right">Split Right ▶</div>
-        <div class="drop-zone top" data-dir="vertical-top">▲ Split Top</div>
-        <div class="drop-zone bottom" data-dir="vertical-bottom">▼ Split Bottom</div>
-        <div class="drop-zone center" data-dir="tab">Open as Tab</div>
+        <div class="drop-zone left" data-dir="horizontal-left">
+          <div class="dz-icon">⫿</div>Split Left
+        </div>
+        <div class="drop-zone right" data-dir="horizontal-right">
+          <div class="dz-icon">⫿</div>Split Right
+        </div>
       </div>
       <div id="welcome" class="fade-in">
         <div class="welcome-card">
