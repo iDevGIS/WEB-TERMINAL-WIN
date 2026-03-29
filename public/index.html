@@ -3083,8 +3083,7 @@
         tabData.chatSessions = []; // array of {id, title, messages[]}
         tabData.activeChatSession = null;
         tabData.chatStreaming = false;
-        // Create first session
-        chatNewSession(tabId);
+        // NOTE: chatNewSession called after tabs.set() below via setTimeout
         // Setup input handlers
         const chatInput = document.getElementById(tabId + '-input');
         chatInput.addEventListener('keydown', (e) => {
@@ -3149,6 +3148,8 @@
 
       tabs.set(tabId, tabData);
       switchTab(tabId);
+      // Init chat first session after tab is registered
+      if (type === 'chat') chatNewSession(tabId);
       return tabId;
     }
 
