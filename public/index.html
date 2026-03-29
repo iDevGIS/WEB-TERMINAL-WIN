@@ -725,6 +725,44 @@
     }
     .split-toolbar button:hover { background: rgba(255,255,255,.06); color: var(--text); }
 
+    /* Drag & Drop Split */
+    .drop-zone-overlay {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      z-index: 50;
+      pointer-events: none;
+      display: none;
+    }
+    .drop-zone-overlay.active { display: block; pointer-events: all; }
+
+    .drop-zone {
+      position: absolute;
+      transition: background .15s, opacity .15s;
+      opacity: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--accent);
+      letter-spacing: .5px;
+    }
+    .drop-zone.left   { top: 10%; left: 0; width: 35%; bottom: 10%; border-radius: 0 8px 8px 0; }
+    .drop-zone.right  { top: 10%; right: 0; width: 35%; bottom: 10%; border-radius: 8px 0 0 8px; }
+    .drop-zone.top    { top: 0; left: 10%; right: 10%; height: 35%; border-radius: 0 0 8px 8px; }
+    .drop-zone.bottom { bottom: 0; left: 10%; right: 10%; height: 35%; border-radius: 8px 8px 0 0; }
+    .drop-zone.center { top: 25%; left: 25%; right: 25%; bottom: 25%; border-radius: 8px; }
+
+    .drop-zone.hover {
+      opacity: 1;
+      background: rgba(108,99,255,.12);
+      border: 2px dashed var(--accent);
+    }
+
+    .session-item[draggable="true"] { cursor: grab; }
+    .session-item[draggable="true"]:active { cursor: grabbing; }
+    .session-item.dragging { opacity: .4; }
+
     .tab-pane .term-wrap {
       border-radius: 0 0 16px 16px;
       overflow: hidden;
@@ -2379,7 +2417,15 @@
     <div id="tab-bar" style="display:none">
       <button class="tab-add" onclick="showWelcomeTab()" title="New tab">+</button>
     </div>
-    <div id="terminal-container">
+    <div id="terminal-container" style="position:relative">
+      <!-- Drop zone overlay for drag-split -->
+      <div id="drop-zone-overlay" class="drop-zone-overlay">
+        <div class="drop-zone left" data-dir="horizontal-left">◀ Split Left</div>
+        <div class="drop-zone right" data-dir="horizontal-right">Split Right ▶</div>
+        <div class="drop-zone top" data-dir="vertical-top">▲ Split Top</div>
+        <div class="drop-zone bottom" data-dir="vertical-bottom">▼ Split Bottom</div>
+        <div class="drop-zone center" data-dir="tab">Open as Tab</div>
+      </div>
       <div id="welcome" class="fade-in">
         <div class="welcome-card">
           <div class="welcome-icon">⚡</div>
@@ -3389,6 +3435,270 @@
       });
     }
 
+    // === Drag & Drop Session → Split ===
+    let _dragSessionId = null;
+
+    function onSessionDragStart(e, sessionId) {
+      _dragSessionId = sessionId;
+      e.dataTransfer.setData('text/plain', sessionId);
+      e.dataTransfer.effectAllowed = 'move';
+      e.target.closest('.session-item')?.classList.add('dragging');
+      // Show drop zones
+      const overlay = document.getElementById('drop-zone-overlay');
+      overlay.classList.add('active');
+      // Add dragover/drop to each zone
+      overlay.querySelectorAll('.drop-zone').forEach(zone => {
+        zone.addEventListener('dragover', onZoneDragOver);
+        zone.addEventListener('dragleave', onZoneDragLeave);
+        zone.addEventListener('drop', onZoneDrop);
+      });
+    }
+
+    function onSessionDragEnd(e) {
+      _dragSessionId = null;
+      e.target.closest('.session-item')?.classList.remove('dragging');
+      const overlay = document.getElementById('drop-zone-overlay');
+      overlay.classList.remove('active');
+      overlay.querySelectorAll('.drop-zone').forEach(zone => {
+        zone.classList.remove('hover');
+        zone.removeEventListener('dragover', onZoneDragOver);
+        zone.removeEventListener('dragleave', onZoneDragLeave);
+        zone.removeEventListener('drop', onZoneDrop);
+      });
+    }
+
+    function onZoneDragOver(e) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      this.classList.add('hover');
+    }
+
+    function onZoneDragLeave(e) {
+      this.classList.remove('hover');
+    }
+
+    function onZoneDrop(e) {
+      e.preventDefault();
+      const sessionId = e.dataTransfer.getData('text/plain') || _dragSessionId;
+      if (!sessionId) return;
+
+      const dir = this.dataset.dir;
+      const overlay = document.getElementById('drop-zone-overlay');
+      overlay.classList.remove('active');
+      overlay.querySelectorAll('.drop-zone').forEach(z => z.classList.remove('hover'));
+
+      if (dir === 'tab') {
+        // Just open as separate tab
+        attachToSession(sessionId);
+        return;
+      }
+
+      // Check if session is already in a split pane of current tab
+      const tab = activeTabId ? tabs.get(activeTabId) : null;
+      if (tab && tab.panes) {
+        const existing = tab.panes.find(p => p.sessionId === sessionId);
+        if (existing) {
+          showToast('Session already in this split', 'warning');
+          return;
+        }
+      }
+
+      // Determine split direction
+      const direction = dir.startsWith('horizontal') ? 'horizontal' : 'vertical';
+
+      if (!tab || tab.type !== 'terminal') {
+        // No terminal tab active — create tab first then split
+        attachToSession(sessionId);
+        return;
+      }
+
+      if (tab.panes && tab.panes.length >= 4) {
+        showToast('Max 4 panes', 'warning');
+        return;
+      }
+
+      if (window.innerWidth < 1024) {
+        showToast('Split not available on mobile', 'warning');
+        return;
+      }
+
+      // Perform the split and attach the dragged session directly
+      dragSplitWithSession(tab, direction, sessionId);
+    }
+
+    function dragSplitWithSession(tab, direction, sessionId) {
+      if (tab.panes && tab.panes.length >= 2) {
+        // Already split — do nested split on active pane
+        dragNestedSplit(tab, direction, sessionId);
+        return;
+      }
+
+      // First split
+      const paneEl = tab.paneEl;
+      tab.splitDirection = direction;
+      paneEl.innerHTML = '';
+
+      const splitContainer = document.createElement('div');
+      splitContainer.className = `split-container ${direction}`;
+
+      // Pane 1 (existing session)
+      const pane1El = document.createElement('div');
+      pane1El.className = 'split-pane split-active';
+      const toolbar1 = document.createElement('div');
+      toolbar1.className = 'split-toolbar';
+      toolbar1.innerHTML = `<span class="split-label">${tab.name || 'Shell 1'}</span>`;
+      pane1El.appendChild(toolbar1);
+      const wrap1 = document.createElement('div');
+      wrap1.className = 'term-wrap';
+      pane1El.appendChild(wrap1);
+
+      // Pane 2 (dragged session)
+      const s = sessions.find(s => s.id === sessionId);
+      const pane2El = document.createElement('div');
+      pane2El.className = 'split-pane';
+      const toolbar2 = document.createElement('div');
+      toolbar2.className = 'split-toolbar';
+      toolbar2.innerHTML = `<span class="split-label">${s ? s.name : 'Shell 2'}</span>
+        <button onclick="closeSplitPane(1)" title="Close pane">✕</button>`;
+      pane2El.appendChild(toolbar2);
+      const wrap2 = document.createElement('div');
+      wrap2.className = 'term-wrap';
+      pane2El.appendChild(wrap2);
+
+      const handle = document.createElement('div');
+      handle.className = 'split-handle';
+      initSplitResize(handle, splitContainer, direction);
+
+      splitContainer.appendChild(pane1El);
+      splitContainer.appendChild(handle);
+      splitContainer.appendChild(pane2El);
+      paneEl.appendChild(splitContainer);
+
+      // Re-create pane 1 (existing)
+      const oldSessionId = tab.sessionId;
+      if (tab.panes && tab.panes[0]) tab.panes[0].term.dispose();
+      else if (tab.term) tab.term.dispose();
+
+      const newPane1 = createTermPane(tab, activeTabId, wrap1);
+      newPane1.sessionId = oldSessionId;
+      tab.panes = [newPane1];
+      tab.term = newPane1.term;
+      tab.fitAddon = newPane1.fitAddon;
+      tab.searchAddon = newPane1.searchAddon;
+      tab.sessionId = oldSessionId;
+      currentSessionId = oldSessionId;
+
+      // Re-attach pane 1 to restore buffer
+      if (oldSessionId && ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'attach', id: oldSessionId }));
+      }
+
+      // Create pane 2 and attach dragged session directly
+      const newPane2 = createTermPane(tab, activeTabId, wrap2);
+      newPane2.sessionId = sessionId;
+      tab.panes.push(newPane2);
+
+      // Attach the dragged session (already exists on server)
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'attach', id: sessionId }));
+      }
+
+      tab.splitContainer = splitContainer;
+
+      setTimeout(() => {
+        newPane1.fitAddon.fit();
+        newPane2.fitAddon.fit();
+        // Focus pane 2 (the dropped one)
+        tab.activePane = 1;
+        tab.sessionId = sessionId;
+        currentSessionId = sessionId;
+        pane2El.classList.add('split-active');
+        pane1El.classList.remove('split-active');
+        newPane2.term.focus();
+        renderSessions();
+      }, 150);
+
+      showToast(`Split ${direction}`, 'success', 1500);
+    }
+
+    function dragNestedSplit(tab, direction, sessionId) {
+      const activePaneIdx = tab.activePane || 0;
+      const pane = tab.panes[activePaneIdx];
+      if (!pane) return;
+
+      const splitPaneEl = pane.wrapEl.closest('.split-pane');
+      if (!splitPaneEl) return;
+
+      const oldSessionId = pane.sessionId;
+      pane.term.dispose();
+
+      const oldWrap = splitPaneEl.querySelector('.term-wrap');
+      splitPaneEl.removeChild(oldWrap);
+
+      const nestedSplit = document.createElement('div');
+      nestedSplit.className = `split-container ${direction}`;
+      nestedSplit.style.flex = '1';
+      nestedSplit.style.minHeight = '0';
+
+      const subA = document.createElement('div');
+      subA.className = 'split-pane';
+      const wrapA = document.createElement('div');
+      wrapA.className = 'term-wrap';
+      subA.appendChild(wrapA);
+
+      const handle = document.createElement('div');
+      handle.className = 'split-handle';
+      initSplitResize(handle, nestedSplit, direction);
+
+      const s = sessions.find(s => s.id === sessionId);
+      const subB = document.createElement('div');
+      subB.className = 'split-pane';
+      const toolbarB = document.createElement('div');
+      toolbarB.className = 'split-toolbar';
+      const newPaneIdx = tab.panes.length;
+      toolbarB.innerHTML = `<span class="split-label">${s ? s.name : 'Shell ' + (newPaneIdx + 1)}</span>
+        <button onclick="closeSplitPane(${newPaneIdx})" title="Close pane">✕</button>`;
+      subB.appendChild(toolbarB);
+      const wrapB = document.createElement('div');
+      wrapB.className = 'term-wrap';
+      subB.appendChild(wrapB);
+
+      nestedSplit.appendChild(subA);
+      nestedSplit.appendChild(handle);
+      nestedSplit.appendChild(subB);
+      splitPaneEl.appendChild(nestedSplit);
+
+      const newPaneA = createTermPane(tab, activeTabId, wrapA);
+      newPaneA.sessionId = oldSessionId;
+      tab.panes[activePaneIdx] = newPaneA;
+
+      if (oldSessionId && ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'attach', id: oldSessionId }));
+      }
+
+      const newPaneB = createTermPane(tab, activeTabId, wrapB);
+      newPaneB.sessionId = sessionId;
+      tab.panes.push(newPaneB);
+
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'attach', id: sessionId }));
+      }
+
+      setTimeout(() => {
+        newPaneA.fitAddon.fit();
+        newPaneB.fitAddon.fit();
+        tab.activePane = newPaneIdx;
+        tab.sessionId = sessionId;
+        currentSessionId = sessionId;
+        newPaneB.term.focus();
+        tab.paneEl?.querySelectorAll('.split-active').forEach(el => el.classList.remove('split-active'));
+        subB.classList.add('split-active');
+        renderSessions();
+      }, 150);
+
+      showToast(`Split ${direction}`, 'success', 1500);
+    }
+
     // Show welcome/feature cards (new tab button)
     function showWelcomeTab() {
       // Deactivate all tabs visually
@@ -3643,7 +3953,8 @@
         const ago = timeAgo(s.lastActivity);
 
         return `
-          <div class="session-item ${isActive ? 'active' : ''}" data-id="${s.id}">
+          <div class="session-item ${isActive ? 'active' : ''}" data-id="${s.id}"
+               draggable="true" ondragstart="onSessionDragStart(event,'${s.id}')" ondragend="onSessionDragEnd(event)">
             <div class="session-dot ${dotClass}"></div>
             <div class="session-info" onclick="attachToSession('${s.id}')">
               <div class="session-name">${s.shell ? s.shell.icon : '⚡'} ${escHtml(s.name)}</div>
