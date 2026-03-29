@@ -2261,10 +2261,13 @@
     .chat-msg {
       max-width: 85%; padding: 10px 14px; border-radius: 14px; font-size: 13px; line-height: 1.55;
       word-break: break-word; position: relative; animation: chatFadeIn .25s ease;
+      display: flex; gap: 8px; align-items: flex-start;
     }
+    .msg-bubble { flex: 1; min-width: 0; }
     @keyframes chatFadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
     .chat-msg.user {
-      align-self: flex-end; background: linear-gradient(135deg, rgba(108,99,255,.35), rgba(108,99,255,.2));
+      flex-direction: row-reverse; align-self: flex-end;
+      background: linear-gradient(135deg, rgba(108,99,255,.35), rgba(108,99,255,.2));
       border: 1px solid rgba(108,99,255,.3); color: #e8e6ff; border-bottom-right-radius: 4px;
     }
     .chat-msg.assistant {
@@ -2346,6 +2349,84 @@
       content: '▊'; animation: blink 1s step-end infinite; opacity: .6;
     }
     @keyframes blink { 50% { opacity: 0; } }
+    /* === Feature: Timestamps === */
+    .msg-time { font-size: 10px; color: var(--text3); margin-top: 2px; opacity: .5; }
+    /* === Feature: Avatar Icons === */
+    .msg-avatar {
+      width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center;
+      justify-content: center; font-size: 14px; flex-shrink: 0; background: rgba(255,255,255,.06);
+      margin-top: 2px;
+    }
+    /* === Feature: Typing Indicator (bouncing dots) === */
+    .typing-dots { display: inline-flex; gap: 4px; padding: 4px 0; }
+    .typing-dots span {
+      width: 7px; height: 7px; border-radius: 50%; background: var(--text3);
+      animation: tdBounce .6s infinite alternate;
+    }
+    .typing-dots span:nth-child(2) { animation-delay: .2s; }
+    .typing-dots span:nth-child(3) { animation-delay: .4s; }
+    @keyframes tdBounce { from { opacity: .3; transform: translateY(0); } to { opacity: 1; transform: translateY(-5px); } }
+    /* === Feature: Search Bar === */
+    .chat-search-bar {
+      display: none; padding: 6px 16px; border-bottom: 1px solid var(--glass-border); background: var(--glass-bg);
+    }
+    .chat-search-bar.visible { display: flex; align-items: center; gap: 8px; }
+    .chat-search-input {
+      flex: 1; padding: 5px 10px; border-radius: 8px; border: 1px solid var(--glass-border);
+      background: var(--glass-bg2); color: var(--text); font-size: 12px; font-family: 'Inter', sans-serif;
+      outline: none;
+    }
+    .chat-search-input:focus { border-color: rgba(108,99,255,.5); }
+    .chat-search-close { background: none; border: none; color: var(--text3); cursor: pointer; font-size: 14px; padding: 2px 6px; }
+    .chat-msg.search-dim { opacity: .15; }
+    .chat-msg mark { background: rgba(108,99,255,.4); color: var(--text); border-radius: 2px; padding: 0 1px; }
+    /* === Feature: Token Counter === */
+    .chat-token-badge {
+      font-size: 10px; color: var(--text3); background: rgba(255,255,255,.05); padding: 2px 8px;
+      border-radius: 10px; border: 1px solid rgba(255,255,255,.06); white-space: nowrap;
+    }
+    /* === Feature: System Prompt Popover === */
+    .sysprompt-wrap { position: relative; }
+    .sysprompt-popover {
+      display: none; position: absolute; top: 100%; right: 0; margin-top: 6px; z-index: 120;
+      background: rgba(22,22,30,.96); border: 1px solid var(--glass-border); border-radius: 12px;
+      padding: 12px; width: 280px; backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+      box-shadow: 0 8px 32px rgba(0,0,0,.5);
+    }
+    .sysprompt-popover.visible { display: block; }
+    .sysprompt-popover label { font-size: 11px; color: var(--text2); margin-bottom: 6px; display: block; font-weight: 600; }
+    .sysprompt-select {
+      width: 100%; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--glass-border);
+      background: var(--glass-bg2); color: var(--text); font-size: 12px; font-family: 'Inter', sans-serif;
+      outline: none; margin-bottom: 8px; cursor: pointer;
+    }
+    .sysprompt-textarea {
+      width: 100%; height: 80px; padding: 8px; border-radius: 8px; border: 1px solid var(--glass-border);
+      background: var(--glass-bg2); color: var(--text); font-size: 12px; font-family: 'Inter', sans-serif;
+      outline: none; resize: vertical;
+    }
+    .sysprompt-textarea:focus { border-color: rgba(108,99,255,.5); }
+    /* === Feature: Mobile Responsive === */
+    .chat-hamburger {
+      display: none; background: none; border: none; color: var(--text2); cursor: pointer;
+      font-size: 18px; padding: 2px 6px; line-height: 1;
+    }
+    @media (max-width: 768px) {
+      .chat-sidebar {
+        position: absolute !important; left: 0; top: 0; bottom: 0; z-index: 100;
+        transform: translateX(-100%); transition: transform .25s ease;
+        width: 260px !important; background: rgba(18,18,24,.98) !important;
+        box-shadow: 4px 0 24px rgba(0,0,0,.5);
+      }
+      .chat-sidebar.mobile-open { transform: translateX(0); }
+      .chat-hamburger { display: inline-flex; }
+      .chat-tab-wrap { position: relative; overflow: hidden; }
+      .chat-input { font-size: 16px !important; }
+    }
+    .chat-sidebar-overlay {
+      display: none; position: absolute; inset: 0; z-index: 99; background: rgba(0,0,0,.4);
+    }
+    .chat-sidebar-overlay.visible { display: block; }
     .chat-input-wrap {
       display: flex; align-items: flex-end; gap: 8px; padding: 12px 16px;
       border-top: 1px solid var(--glass-border); background: var(--glass-bg);
@@ -3095,7 +3176,8 @@
 
       } else if (type === 'chat') {
         paneEl.innerHTML = `<div class="chat-tab-wrap" id="${tabId}-chat">
-          <div class="chat-sidebar">
+          <div class="chat-sidebar-overlay" id="${tabId}-sidebar-overlay" onclick="chatCloseMobileSidebar('${tabId}')"></div>
+          <div class="chat-sidebar" id="${tabId}-sidebar">
             <div class="chat-sidebar-header">
               <button class="chat-new-btn" onclick="chatNewSession('${tabId}')">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
@@ -3106,19 +3188,44 @@
           </div>
           <div class="chat-main">
             <div class="chat-header">
-              <div class="chat-header-title" id="${tabId}-chat-title">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-                New Chat
+              <div style="display:flex;align-items:center;gap:8px">
+                <button class="chat-hamburger" onclick="chatToggleMobileSidebar('${tabId}')" title="Sessions">☰</button>
+                <div class="chat-header-title" id="${tabId}-chat-title">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                  New Chat
+                </div>
               </div>
               <div class="chat-header-actions">
+                <span class="chat-token-badge" id="${tabId}-token-badge" style="display:none"></span>
                 <select class="chat-model-select" id="${tabId}-model-select" onchange="chatModelChange('${tabId}')">
                   <option value="">Default (Auto)</option>
                   <option value="openclaw">openclaw</option>
                   <option value="__custom__">Custom…</option>
                 </select>
                 <input class="chat-model-input" id="${tabId}-model-input" placeholder="model name" onchange="chatModelInputChange('${tabId}')" onkeydown="if(event.key==='Enter'){chatModelInputChange('${tabId}');event.target.blur();}">
+                <div class="sysprompt-wrap">
+                  <button class="chat-new-btn" onclick="chatToggleSysPrompt('${tabId}')" style="width:auto;padding:4px 10px;font-size:11px" title="System Prompt">⚙️</button>
+                  <div class="sysprompt-popover" id="${tabId}-sysprompt">
+                    <label>System Prompt</label>
+                    <select class="sysprompt-select" id="${tabId}-sysprompt-sel" onchange="chatSysPromptPreset('${tabId}')">
+                      <option value="">Default</option>
+                      <option value="code">Code Expert</option>
+                      <option value="thai">Thai Teacher</option>
+                      <option value="creative">Creative Writer</option>
+                      <option value="concise">Concise</option>
+                      <option value="custom">Custom…</option>
+                    </select>
+                    <textarea class="sysprompt-textarea" id="${tabId}-sysprompt-txt" placeholder="Enter custom system prompt…" oninput="chatSysPromptCustom('${tabId}')"></textarea>
+                  </div>
+                </div>
+                <button class="chat-new-btn" onclick="chatToggleSearch('${tabId}')" style="width:auto;padding:4px 10px;font-size:11px" title="Search">🔍</button>
+                <button class="chat-new-btn" onclick="chatExport('${tabId}')" style="width:auto;padding:4px 10px;font-size:11px" title="Export">📤</button>
                 <button class="chat-new-btn" onclick="chatClearCurrent('${tabId}')" style="width:auto;padding:4px 10px;font-size:11px">🗑 Clear</button>
               </div>
+            </div>
+            <div class="chat-search-bar" id="${tabId}-search-bar">
+              <input class="chat-search-input" id="${tabId}-search-input" placeholder="Search messages…" oninput="chatSearchFilter('${tabId}')">
+              <button class="chat-search-close" onclick="chatCloseSearch('${tabId}')">✕</button>
             </div>
             <div class="chat-messages" id="${tabId}-messages">
               <div class="chat-empty">
@@ -3406,7 +3513,7 @@
       const tab = tabs.get(tabId);
       if (!tab) return;
       _chatCounter++;
-      const sess = { id: 'cs-' + Date.now(), title: 'Chat ' + _chatCounter, messages: [] };
+      const sess = { id: 'cs-' + Date.now(), title: 'Chat ' + _chatCounter, messages: [], systemPrompt: '', tokenCount: 0 };
       tab.chatSessions.push(sess);
       tab.activeChatSession = sess.id;
       renderChatSessions(tabId);
@@ -3419,6 +3526,7 @@
       tab.activeChatSession = sessId;
       renderChatSessions(tabId);
       renderChatMessages(tabId);
+      chatCloseMobileSidebar(tabId);
       document.getElementById(tabId + '-input')?.focus();
     }
 
@@ -3437,7 +3545,7 @@
       const tab = tabs.get(tabId);
       if (!tab) return;
       const sess = tab.chatSessions.find(s => s.id === tab.activeChatSession);
-      if (sess) { sess.messages = []; renderChatMessages(tabId); }
+      if (sess) { sess.messages = []; sess.tokenCount = 0; renderChatMessages(tabId); }
     }
 
     function renderChatSessions(tabId) {
@@ -3567,11 +3675,13 @@
         return;
       }
       messagesEl.innerHTML = sess.messages.map(m => {
+        const timeStr = m.ts ? new Date(m.ts).toLocaleTimeString('en-GB', {hour:'2-digit',minute:'2-digit'}) : '';
+        const timeHtml = timeStr ? `<div class="msg-time">${timeStr}</div>` : '';
         if (m.role === 'user') {
-          return `<div class="chat-msg user"><div class="msg-content">${escHtml(m.content).replace(/\n/g, '<br>')}</div></div>`;
+          return `<div class="chat-msg user"><div class="msg-avatar">👤</div><div class="msg-bubble"><div class="msg-content">${escHtml(m.content).replace(/\n/g, '<br>')}</div>${timeHtml}</div></div>`;
         } else {
           const html = typeof marked !== 'undefined' ? marked.parse(m.content) : escHtml(m.content).replace(/\n/g, '<br>');
-          return `<div class="chat-msg assistant"><div class="msg-content">${html}</div></div>`;
+          return `<div class="chat-msg assistant"><div class="msg-avatar">✦</div><div class="msg-bubble"><div class="msg-content">${html}</div>${timeHtml}</div></div>`;
         }
       }).join('');
       // Highlight code
@@ -3581,8 +3691,10 @@
       // Inject copy buttons & regen
       _injectCopyBtns(messagesEl);
       _addRegenBtn(tabId, messagesEl);
-      // Sync model selector
+      // Sync model selector & token badge
       _syncModelSelector(tabId, sess);
+      _updateTokenBadge(tabId, sess);
+      _syncSysPromptUI(tabId, sess);
       messagesEl.scrollTop = messagesEl.scrollHeight;
     }
 
@@ -3641,10 +3753,12 @@
       messagesEl.querySelectorAll('.chat-regen-btn').forEach(b => b.remove());
 
       // Add user message
-      sess.messages.push({ role: 'user', content: text });
+      const userTs = Date.now();
+      sess.messages.push({ role: 'user', content: text, ts: userTs });
       const userBubble = document.createElement('div');
       userBubble.className = 'chat-msg user';
-      userBubble.innerHTML = `<div class="msg-content">${escHtml(text).replace(/\n/g, '<br>')}</div>`;
+      const userTimeStr = new Date(userTs).toLocaleTimeString('en-GB', {hour:'2-digit',minute:'2-digit'});
+      userBubble.innerHTML = `<div class="msg-avatar">👤</div><div class="msg-bubble"><div class="msg-content">${escHtml(text).replace(/\n/g, '<br>')}</div><div class="msg-time">${userTimeStr}</div></div>`;
       messagesEl.appendChild(userBubble);
       _injectCopyBtns(messagesEl);
 
@@ -3669,23 +3783,28 @@
       const messagesEl = document.getElementById(tabId + '-messages');
       if (!messagesEl) return;
 
-      // Add assistant placeholder
+      // Add assistant placeholder with avatar + typing dots
       const aiBubble = document.createElement('div');
       aiBubble.className = 'chat-msg assistant';
-      aiBubble.innerHTML = `<div class="msg-content"><span class="typing-cursor"></span></div>`;
+      aiBubble.innerHTML = `<div class="msg-avatar">✦</div><div class="msg-bubble"><div class="msg-content"><span class="typing-dots"><span></span><span></span><span></span></span></div></div>`;
       messagesEl.appendChild(aiBubble);
-      messagesEl.scrollTop = messagesEl.scrollHeight;
+      _smartScroll(messagesEl);
 
       tab.chatStreaming = true;
       _showStopBtn(tabId, true);
       let fullContent = '';
+      let firstDelta = true;
 
       // AbortController for stop button
       const abortCtrl = new AbortController();
       tab._chatAbort = abortCtrl;
 
       try {
-        const fetchBody = { messages: sess.messages, sessionId: sess.id };
+        // Build messages with system prompt prepended
+        const sendMsgs = sess.systemPrompt
+          ? [{ role: 'system', content: sess.systemPrompt }, ...sess.messages]
+          : [...sess.messages];
+        const fetchBody = { messages: sendMsgs, sessionId: sess.id };
         if (sess.model) fetchBody.model = sess.model;
 
         const res = await fetch('/api/chat', {
@@ -3721,6 +3840,7 @@
               const parsed = JSON.parse(data);
               const delta = parsed.choices?.[0]?.delta?.content;
               if (delta) {
+                if (firstDelta) { firstDelta = false; } // dots replaced by content below
                 fullContent += delta;
                 const contentEl = aiBubble.querySelector('.msg-content');
                 if (typeof marked !== 'undefined') {
@@ -3731,7 +3851,7 @@
                 } else {
                   contentEl.innerHTML = escHtml(fullContent).replace(/\n/g, '<br>') + '<span class="typing-cursor"></span>';
                 }
-                messagesEl.scrollTop = messagesEl.scrollHeight;
+                _smartScroll(messagesEl);
               }
             } catch {}
           }
@@ -3748,7 +3868,21 @@
           contentEl.innerHTML = escHtml(fullContent).replace(/\n/g, '<br>');
         }
 
-        if (fullContent) sess.messages.push({ role: 'assistant', content: fullContent });
+        if (fullContent) {
+          const aiTs = Date.now();
+          sess.messages.push({ role: 'assistant', content: fullContent, ts: aiTs });
+          // Add timestamp to bubble
+          const bubbleWrap = aiBubble.querySelector('.msg-bubble');
+          if (bubbleWrap) {
+            const tsDiv = document.createElement('div');
+            tsDiv.className = 'msg-time';
+            tsDiv.textContent = new Date(aiTs).toLocaleTimeString('en-GB', {hour:'2-digit',minute:'2-digit'});
+            bubbleWrap.appendChild(tsDiv);
+          }
+          // Token estimate: words * 1.3
+          sess.tokenCount = (sess.tokenCount || 0) + Math.round(fullContent.split(/\s+/).length * 1.3);
+          _updateTokenBadge(tabId, sess);
+        }
 
       } catch (e) {
         if (e.name === 'AbortError') {
@@ -3763,7 +3897,9 @@
             } else {
               contentEl.innerHTML = escHtml(fullContent).replace(/\n/g, '<br>');
             }
-            sess.messages.push({ role: 'assistant', content: fullContent });
+            sess.messages.push({ role: 'assistant', content: fullContent, ts: Date.now() });
+            sess.tokenCount = (sess.tokenCount || 0) + Math.round(fullContent.split(/\s+/).length * 1.3);
+            _updateTokenBadge(tabId, sess);
           } else {
             contentEl.innerHTML = `<span style="color:var(--text3)">⏹ Generation stopped</span>`;
           }
@@ -3779,9 +3915,220 @@
       // Inject copy buttons and regen
       _injectCopyBtns(messagesEl);
       _addRegenBtn(tabId, messagesEl);
-      messagesEl.scrollTop = messagesEl.scrollHeight;
+      _smartScroll(messagesEl, true);
       document.getElementById(tabId + '-input')?.focus();
     }
+
+    // === Chat Feature: Smart Scroll ===
+    function _smartScroll(el, force) {
+      const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 150;
+      if (isNearBottom || force) {
+        el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+      }
+    }
+
+    // === Chat Feature: Token Badge ===
+    function _updateTokenBadge(tabId, sess) {
+      const badge = document.getElementById(tabId + '-token-badge');
+      if (!badge) return;
+      if (sess && sess.tokenCount > 0) {
+        badge.textContent = '~' + sess.tokenCount + ' tokens';
+        badge.style.display = '';
+      } else {
+        badge.style.display = 'none';
+      }
+    }
+
+    // === Chat Feature: System Prompt ===
+    const _sysPromptPresets = {
+      '': '',
+      'code': 'You are an expert programmer. Provide clean, well-commented code with explanations.',
+      'thai': 'คุณเป็นครูสอนภาษาไทย ตอบเป็นภาษาไทย อธิบายง่ายๆ',
+      'creative': 'You are a creative writer. Be imaginative, expressive and engaging.',
+      'concise': 'Be extremely concise. Use bullet points. No fluff.',
+    };
+
+    function chatToggleSysPrompt(tabId) {
+      const pop = document.getElementById(tabId + '-sysprompt');
+      if (pop) pop.classList.toggle('visible');
+    }
+
+    function chatSysPromptPreset(tabId) {
+      const tab = tabs.get(tabId);
+      if (!tab) return;
+      const sess = tab.chatSessions.find(s => s.id === tab.activeChatSession);
+      if (!sess) return;
+      const sel = document.getElementById(tabId + '-sysprompt-sel');
+      const txt = document.getElementById(tabId + '-sysprompt-txt');
+      if (!sel) return;
+      if (sel.value === 'custom') {
+        if (txt) txt.style.display = '';
+        sess.systemPrompt = txt?.value || '';
+      } else {
+        if (txt) { txt.style.display = 'none'; txt.value = ''; }
+        sess.systemPrompt = _sysPromptPresets[sel.value] || '';
+      }
+    }
+
+    function chatSysPromptCustom(tabId) {
+      const tab = tabs.get(tabId);
+      if (!tab) return;
+      const sess = tab.chatSessions.find(s => s.id === tab.activeChatSession);
+      if (!sess) return;
+      const txt = document.getElementById(tabId + '-sysprompt-txt');
+      if (txt) sess.systemPrompt = txt.value;
+    }
+
+    function _syncSysPromptUI(tabId, sess) {
+      const sel = document.getElementById(tabId + '-sysprompt-sel');
+      const txt = document.getElementById(tabId + '-sysprompt-txt');
+      if (!sel || !sess) return;
+      const sp = sess.systemPrompt || '';
+      // Check if it matches a preset
+      let found = '';
+      for (const [k, v] of Object.entries(_sysPromptPresets)) {
+        if (v === sp) { found = k; break; }
+      }
+      if (found !== undefined && _sysPromptPresets.hasOwnProperty(found)) {
+        sel.value = found;
+        if (txt) { txt.style.display = 'none'; txt.value = ''; }
+      } else {
+        sel.value = 'custom';
+        if (txt) { txt.style.display = ''; txt.value = sp; }
+      }
+    }
+
+    // === Chat Feature: Export ===
+    function chatExport(tabId) {
+      const tab = tabs.get(tabId);
+      if (!tab) return;
+      const sess = tab.chatSessions.find(s => s.id === tab.activeChatSession);
+      if (!sess || !sess.messages.length) return;
+      let md = '# ' + sess.title + '\n\n';
+      sess.messages.forEach(m => {
+        md += '## ' + (m.role === 'user' ? 'User' : 'Assistant') + '\n\n' + m.content + '\n\n';
+      });
+      const blob = new Blob([md], { type: 'text/markdown' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = (sess.title || 'chat').replace(/[^a-zA-Z0-9_\- ]/g, '') + '.md';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    // === Chat Feature: Search ===
+    function chatToggleSearch(tabId) {
+      const bar = document.getElementById(tabId + '-search-bar');
+      if (!bar) return;
+      bar.classList.toggle('visible');
+      if (bar.classList.contains('visible')) {
+        document.getElementById(tabId + '-search-input')?.focus();
+      } else {
+        chatClearSearch(tabId);
+      }
+    }
+
+    function chatCloseSearch(tabId) {
+      const bar = document.getElementById(tabId + '-search-bar');
+      if (bar) bar.classList.remove('visible');
+      chatClearSearch(tabId);
+    }
+
+    function chatClearSearch(tabId) {
+      const input = document.getElementById(tabId + '-search-input');
+      if (input) input.value = '';
+      const messagesEl = document.getElementById(tabId + '-messages');
+      if (!messagesEl) return;
+      messagesEl.querySelectorAll('.chat-msg').forEach(el => el.classList.remove('search-dim'));
+      // Remove highlight marks
+      messagesEl.querySelectorAll('mark[data-search]').forEach(mk => {
+        mk.replaceWith(mk.textContent);
+      });
+    }
+
+    function chatSearchFilter(tabId) {
+      const input = document.getElementById(tabId + '-search-input');
+      const query = (input?.value || '').trim().toLowerCase();
+      const messagesEl = document.getElementById(tabId + '-messages');
+      if (!messagesEl) return;
+      // First clear previous highlights
+      messagesEl.querySelectorAll('mark[data-search]').forEach(mk => {
+        mk.replaceWith(mk.textContent);
+      });
+      if (!query) {
+        messagesEl.querySelectorAll('.chat-msg').forEach(el => el.classList.remove('search-dim'));
+        return;
+      }
+      messagesEl.querySelectorAll('.chat-msg').forEach(el => {
+        const text = el.querySelector('.msg-content')?.textContent || '';
+        if (text.toLowerCase().includes(query)) {
+          el.classList.remove('search-dim');
+        } else {
+          el.classList.add('search-dim');
+        }
+      });
+    }
+
+    // === Chat Feature: Mobile Sidebar ===
+    function chatToggleMobileSidebar(tabId) {
+      const sidebar = document.getElementById(tabId + '-sidebar');
+      const overlay = document.getElementById(tabId + '-sidebar-overlay');
+      if (!sidebar) return;
+      const isOpen = sidebar.classList.contains('mobile-open');
+      sidebar.classList.toggle('mobile-open', !isOpen);
+      if (overlay) overlay.classList.toggle('visible', !isOpen);
+    }
+
+    function chatCloseMobileSidebar(tabId) {
+      const sidebar = document.getElementById(tabId + '-sidebar');
+      const overlay = document.getElementById(tabId + '-sidebar-overlay');
+      if (sidebar) sidebar.classList.remove('mobile-open');
+      if (overlay) overlay.classList.remove('visible');
+    }
+
+    // === Chat Feature: Keyboard Shortcuts ===
+    document.addEventListener('keydown', (e) => {
+      // Find active chat tab (activeTabId is a global variable)
+      if (!activeTabId) return;
+      const tab = tabs.get(activeTabId);
+      if (!tab || tab.type !== 'chat') return;
+
+      // Ctrl+F → focus search (override browser find)
+      if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+        e.preventDefault();
+        const bar = document.getElementById(activeTabId + '-search-bar');
+        if (bar && !bar.classList.contains('visible')) bar.classList.add('visible');
+        document.getElementById(activeTabId + '-search-input')?.focus();
+        return;
+      }
+      // Ctrl+Shift+N → new chat
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'N') {
+        e.preventDefault();
+        chatNewSession(activeTabId);
+        return;
+      }
+      // Ctrl+/ → focus input
+      if ((e.ctrlKey || e.metaKey) && e.key === '/') {
+        e.preventDefault();
+        document.getElementById(activeTabId + '-input')?.focus();
+        return;
+      }
+      // Escape → close search
+      if (e.key === 'Escape') {
+        const bar = document.getElementById(activeTabId + '-search-bar');
+        if (bar && bar.classList.contains('visible')) {
+          chatCloseSearch(activeTabId);
+        }
+        // Also close sys prompt popover
+        const pop = document.getElementById(activeTabId + '-sysprompt');
+        if (pop && pop.classList.contains('visible')) {
+          pop.classList.remove('visible');
+        }
+      }
+    });
 
     // === Agent Monitor Functions ===
     function openAgentMonitorTab() {
