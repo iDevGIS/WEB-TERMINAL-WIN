@@ -4208,19 +4208,36 @@
     function chatToggleSysPrompt(tabId) {
       const pop = document.getElementById(tabId + '-sysprompt');
       if (!pop) return;
-      const isOpen = pop.classList.toggle('visible');
-      // Mobile backdrop
+      const isMobile = window.innerWidth <= 768;
+      const isOpen = !pop.classList.contains('visible');
+
       let bd = document.getElementById(tabId + '-sysprompt-bd');
-      if (isOpen && window.innerWidth <= 768) {
-        if (!bd) {
-          bd = document.createElement('div');
-          bd.className = 'sysprompt-backdrop';
-          bd.id = tabId + '-sysprompt-bd';
+      if (isOpen) {
+        // Move popover to body on mobile to escape stacking context
+        if (isMobile && pop.parentElement !== document.body) {
+          pop._origParent = pop.parentElement;
+          document.body.appendChild(pop);
+        }
+        pop.classList.add('visible');
+        if (isMobile) {
+          if (!bd) {
+            bd = document.createElement('div');
+            bd.className = 'sysprompt-backdrop';
+            bd.id = tabId + '-sysprompt-bd';
+            bd.onclick = () => chatToggleSysPrompt(tabId);
+            document.body.appendChild(bd);
+          }
           bd.style.display = 'block';
-          bd.onclick = () => { pop.classList.remove('visible'); bd.style.display = 'none'; };
-          document.body.appendChild(bd);
-        } else { bd.style.display = 'block'; }
-      } else if (bd) { bd.style.display = 'none'; }
+        }
+      } else {
+        pop.classList.remove('visible');
+        if (bd) bd.style.display = 'none';
+        // Move back to original parent
+        if (isMobile && pop._origParent) {
+          pop._origParent.appendChild(pop);
+          pop._origParent = null;
+        }
+      }
     }
 
     function chatSysPromptPreset(tabId) {
