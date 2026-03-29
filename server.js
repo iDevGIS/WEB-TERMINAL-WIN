@@ -914,37 +914,75 @@ app.post("/api/chat", requireAuth, async (req, res) => {
 });
 
 // === OpenClaw Agent Status ===
+// Strip ANSI escape codes from text
+function stripAnsi(s) { return s.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '').replace(/\x1b\[?[0-9;]*[a-zA-Z]/g, ''); }
+
+// Cache agent status to prevent hammering openclaw status
+let _agentStatusCache = { data: null, ts: 0 };
+
 app.get("/api/agent/status", requireAuth, async (req, res) => {
+  // Return cached result if fresh (< 8 seconds)
+  if (_agentStatusCache.data && Date.now() - _agentStatusCache.ts < 8000) {
+    return res.json(_agentStatusCache.data);
+  }
+
+  const info = { status: "offline", model: "—", sessions: 0, uptime: "—", heartbeat: "—", channels: [], sessionList: [], raw: "" };
+
+  // 1. Parse openclaw status
   try {
     const { execSync } = require("child_process");
-    const raw = execSync("openclaw status", { encoding: "utf8", timeout: 10000 });
-    // Parse key info from output
-    const lines = raw.split("\n");
-    const info = { raw, status: "unknown", model: "unknown", sessions: 0, details: {} };
+    const rawAnsi = execSync("openclaw status", { encoding: "utf8", timeout: 15000 });
+    const raw = stripAnsi(rawAnsi);
+    info.raw = raw;
 
-    for (const line of lines) {
+    for (const line of raw.split("\n")) {
       const l = line.trim();
-      if (/status|state/i.test(l) && /online|running|active/i.test(l)) info.status = "online";
-      if (/offline|stopped|inactive/i.test(l)) info.status = "offline";
-      const modelMatch = l.match(/model[:\s]+(.+)/i);
-      if (modelMatch) info.model = modelMatch[1].trim();
-      const sessMatch = l.match(/sessions?[:\s]+(\d+)/i);
-      if (sessMatch) info.sessions = parseInt(sessMatch[1]);
-    }
-
-    // Also try gateway health
-    try {
-      const gwRes = await fetch(OPENCLAW_GW + "/health", { signal: AbortSignal.timeout(3000) });
-      if (gwRes.ok) {
-        info.status = "online";
-        try { info.gateway = await gwRes.json(); } catch {}
+      // Gateway reachable = online
+      if (/reachable/i.test(l) && /Gateway/i.test(l)) info.status = "online";
+      // Sessions count from Agents line: "sessions 16"
+      const agentSess = l.match(/sessions\s+(\d+)/i);
+      if (agentSess) info.sessions = parseInt(agentSess[1]);
+      // Heartbeat
+      const hbMatch = l.match(/Heartbeat\s*\|\s*(.+?)(?:\s*\||$)/i);
+      if (hbMatch) info.heartbeat = hbMatch[1].trim();
+      // Sessions table lines: "| agent:main:... | group | 1m ago | claude-opus-4-6 | 134k/200k (67%) |"
+      const sessLine = l.match(/\|\s*(agent:\S+)\s*\|\s*(\w+)\s*\|\s*(.+?)\s*\|\s*(\S+)\s*\|\s*(.+?)\s*\|/);
+      if (sessLine) {
+        info.sessionList.push({
+          key: sessLine[1].replace(/…/g, '…'),
+          kind: sessLine[2],
+          age: sessLine[3].trim(),
+          model: sessLine[4],
+          tokens: sessLine[5].trim(),
+        });
+        // Use first session's model as default
+        if (info.model === '—') info.model = sessLine[4];
       }
-    } catch {}
-
-    res.json(info);
+      // Channel table: "| Discord | ON | OK |"
+      const chanLine = l.match(/\|\s*(\w+)\s*\|\s*(ON|OFF)\s*\|\s*(\w+)\s*\|/);
+      if (chanLine) {
+        info.channels.push({ name: chanLine[1], enabled: chanLine[2] === 'ON', state: chanLine[3] });
+      }
+    }
   } catch (e) {
-    res.json({ status: "offline", model: "unknown", sessions: 0, error: e.message, raw: "" });
+    info.raw = e.message;
   }
+
+  // 2. Fallback: gateway ping if status parse failed
+  if (info.status === "offline") {
+    try {
+      const pingRes = await fetch(OPENCLAW_GW + "/v1/chat/completions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": "Bearer " + OPENCLAW_TOKEN },
+        body: JSON.stringify({ model: "openclaw", messages: [{ role: "user", content: "ping" }], stream: false }),
+        signal: AbortSignal.timeout(5000),
+      });
+      if (pingRes.status < 500) info.status = "online";
+    } catch {}
+  }
+
+  _agentStatusCache = { data: info, ts: Date.now() };
+  res.json(info);
 });
 
 // Protected static files — no cache for HTML

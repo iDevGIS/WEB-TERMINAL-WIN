@@ -3038,7 +3038,22 @@
                 <div class="agent-info-label">Sessions</div>
                 <div class="agent-info-value" id="${tabId}-sessions">—</div>
               </div>
+              <div class="agent-info-item">
+                <div class="agent-info-label">Heartbeat</div>
+                <div class="agent-info-value" id="${tabId}-heartbeat">—</div>
+              </div>
+              <div class="agent-info-item">
+                <div class="agent-info-label">Channels</div>
+                <div class="agent-info-value" id="${tabId}-channels">—</div>
+              </div>
             </div>
+          </div>
+          <div class="agent-card">
+            <div class="agent-card-title">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/></svg>
+              Active Sessions
+            </div>
+            <div id="${tabId}-session-list" style="font-size:12px;color:var(--text2)">Loading…</div>
           </div>
           <div class="agent-card">
             <div class="agent-card-title">
@@ -3384,14 +3399,45 @@
         const textEl = document.getElementById(tabId + '-status-text');
         const modelEl = document.getElementById(tabId + '-model');
         const sessEl = document.getElementById(tabId + '-sessions');
+        const hbEl = document.getElementById(tabId + '-heartbeat');
+        const chanEl = document.getElementById(tabId + '-channels');
+        const sessListEl = document.getElementById(tabId + '-session-list');
         const rawEl = document.getElementById(tabId + '-raw');
 
-        if (dotEl) {
-          dotEl.className = 'agent-status-dot ' + (data.status === 'online' ? 'online' : 'offline');
+        if (dotEl) dotEl.className = 'agent-status-dot ' + (data.status === 'online' ? 'online' : 'offline');
+        if (textEl) {
+          textEl.textContent = data.status === 'online' ? '● Online' : '○ Offline';
+          textEl.style.color = data.status === 'online' ? 'var(--green)' : 'var(--red)';
         }
-        if (textEl) textEl.textContent = data.status === 'online' ? '● Online' : '○ Offline';
         if (modelEl) modelEl.textContent = data.model || '—';
         if (sessEl) sessEl.textContent = data.sessions ?? '—';
+        if (hbEl) hbEl.textContent = data.heartbeat || '—';
+        if (chanEl) {
+          chanEl.innerHTML = (data.channels || []).map(c =>
+            `<span style="color:${c.state === 'OK' ? 'var(--green)' : 'var(--red)'}">${c.name} ${c.enabled ? '●' : '○'}</span>`
+          ).join(' ') || '—';
+        }
+
+        // Session list
+        if (sessListEl && data.sessionList && data.sessionList.length) {
+          sessListEl.innerHTML = data.sessionList.map(s => {
+            const shortKey = s.key.length > 35 ? '…' + s.key.slice(-30) : s.key;
+            const kindColor = s.kind === 'group' ? 'var(--blue)' : 'var(--accent)';
+            return `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.04)">
+              <div>
+                <span style="color:${kindColor};font-size:10px;font-weight:600;text-transform:uppercase">${s.kind}</span>
+                <span style="color:var(--text2);margin-left:6px;font-family:'JetBrains Mono',monospace;font-size:11px">${escHtml(shortKey)}</span>
+              </div>
+              <div style="text-align:right;font-size:11px">
+                <span style="color:var(--text3)">${escHtml(s.age)}</span>
+                <span style="color:var(--text2);margin-left:8px">${escHtml(s.tokens)}</span>
+              </div>
+            </div>`;
+          }).join('');
+        } else if (sessListEl) {
+          sessListEl.textContent = 'No sessions';
+        }
+
         if (rawEl) rawEl.textContent = data.raw || data.error || 'No data';
       } catch (e) {
         const rawEl = document.getElementById(tabId + '-raw');
