@@ -769,6 +769,24 @@
     }
     .drop-zone.hover .dz-icon { opacity: 1; }
 
+    /* Per-pane drop overlay (when already split) */
+    .pane-drop-overlay {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      z-index: 10;
+      background: rgba(0,0,0,.25);
+      border-radius: 4px;
+    }
+    .pane-drop-overlay .drop-zone {
+      font-size: 10px;
+      gap: 2px;
+    }
+    .pane-drop-overlay .drop-zone .dz-icon { font-size: 14px; }
+    .pane-drop-overlay .drop-zone.left   { top: 20%; left: 2px; width: calc(50% - 4px); bottom: 20%; }
+    .pane-drop-overlay .drop-zone.right  { top: 20%; right: 2px; width: calc(50% - 4px); bottom: 20%; }
+    .pane-drop-overlay .drop-zone.top    { top: 2px; left: 20%; right: 20%; height: calc(50% - 4px); }
+    .pane-drop-overlay .drop-zone.bottom { bottom: 2px; left: 20%; right: 20%; height: calc(50% - 4px); }
+
     .session-item[draggable="true"] { cursor: grab; }
     .session-item[draggable="true"]:active { cursor: grabbing; }
     .session-item.dragging { opacity: .4; }
@@ -3460,20 +3478,27 @@
       e.dataTransfer.setData('text/plain', sessionId);
       e.dataTransfer.effectAllowed = 'move';
       e.target.closest('.session-item')?.classList.add('dragging');
-      // Show drop zones
-      const overlay = document.getElementById('drop-zone-overlay');
-      overlay.classList.add('active');
-      // Add dragover/drop to each zone
-      overlay.querySelectorAll('.drop-zone').forEach(zone => {
-        zone.addEventListener('dragover', onZoneDragOver);
-        zone.addEventListener('dragleave', onZoneDragLeave);
-        zone.addEventListener('drop', onZoneDrop);
-      });
+
+      const tab = activeTabId ? tabs.get(activeTabId) : null;
+      if (tab && tab.panes && tab.panes.length >= 2) {
+        // Already split → show per-pane drop zones
+        showPerPaneDropZones(tab);
+      } else {
+        // No split → show tab-level overlay
+        const overlay = document.getElementById('drop-zone-overlay');
+        overlay.classList.add('active');
+        overlay.querySelectorAll('.drop-zone').forEach(zone => {
+          zone.addEventListener('dragover', onZoneDragOver);
+          zone.addEventListener('dragleave', onZoneDragLeave);
+          zone.addEventListener('drop', onZoneDrop);
+        });
+      }
     }
 
     function onSessionDragEnd(e) {
       _dragSessionId = null;
       e.target.closest('.session-item')?.classList.remove('dragging');
+      // Clean tab-level overlay
       const overlay = document.getElementById('drop-zone-overlay');
       overlay.classList.remove('active');
       overlay.querySelectorAll('.drop-zone').forEach(zone => {
@@ -3482,6 +3507,61 @@
         zone.removeEventListener('dragleave', onZoneDragLeave);
         zone.removeEventListener('drop', onZoneDrop);
       });
+      // Clean per-pane overlays
+      document.querySelectorAll('.pane-drop-overlay').forEach(el => el.remove());
+    }
+
+    function showPerPaneDropZones(tab) {
+      tab.panes.forEach((pane, idx) => {
+        const parentEl = pane.wrapEl.parentElement;
+        if (!parentEl) return;
+        parentEl.style.position = 'relative';
+
+        const overlay = document.createElement('div');
+        overlay.className = 'pane-drop-overlay';
+        overlay.dataset.paneIdx = idx;
+        overlay.innerHTML = `
+          <div class="drop-zone top" data-dir="vertical-top" data-pane="${idx}"><div class="dz-icon">⫻</div>Top</div>
+          <div class="drop-zone bottom" data-dir="vertical-bottom" data-pane="${idx}"><div class="dz-icon">⫻</div>Bottom</div>
+          <div class="drop-zone left" data-dir="horizontal-left" data-pane="${idx}"><div class="dz-icon">⫿</div>Left</div>
+          <div class="drop-zone right" data-dir="horizontal-right" data-pane="${idx}"><div class="dz-icon">⫿</div>Right</div>
+        `;
+        parentEl.appendChild(overlay);
+
+        overlay.querySelectorAll('.drop-zone').forEach(zone => {
+          zone.addEventListener('dragover', onZoneDragOver);
+          zone.addEventListener('dragleave', onZoneDragLeave);
+          zone.addEventListener('drop', onPaneZoneDrop);
+        });
+      });
+    }
+
+    function onPaneZoneDrop(e) {
+      e.preventDefault();
+      const sessionId = e.dataTransfer.getData('text/plain') || _dragSessionId;
+      if (!sessionId) return;
+
+      const dir = this.dataset.dir;
+      const paneIdx = parseInt(this.dataset.pane);
+      const tab = activeTabId ? tabs.get(activeTabId) : null;
+      if (!tab) return;
+
+      // Clean up overlays
+      document.querySelectorAll('.pane-drop-overlay').forEach(el => el.remove());
+
+      // Check duplicate
+      if (tab.panes) {
+        const existing = tab.panes.find(p => p.sessionId === sessionId);
+        if (existing) { showToast('Session already in this split', 'warning'); return; }
+      }
+
+      if (tab.panes.length >= 4) { showToast('Max 4 panes', 'warning'); return; }
+
+      // Set active pane to the target pane, then nested split
+      tab.activePane = paneIdx;
+      const direction = dir.startsWith('horizontal') ? 'horizontal' : 'vertical';
+      const draggedFirst = dir.endsWith('-left') || dir.endsWith('-top');
+      dragNestedSplit(tab, direction, sessionId, draggedFirst);
     }
 
     function onZoneDragOver(e) {
