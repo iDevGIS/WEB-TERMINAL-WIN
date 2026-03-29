@@ -4258,13 +4258,28 @@
         if (sessListEl && data.sessionList && data.sessionList.length) {
           sessListEl.innerHTML = data.sessionList.map(s => {
             const shortKey = s.key.length > 35 ? '…' + s.key.slice(-30) : s.key;
+            const isCyberframe = s.key.includes('openai-user:cyberframe') || s.key.includes('openai-user:cyberfra');
+            const isSubagent = s.key.includes(':subagent:');
+            const isDiscord = s.key.includes(':discord:') || s.key.includes(':channel:');
+            const isMain = s.key === 'agent:main:main' || s.key.endsWith(':main');
+            // Source badge
+            let srcBadge = '';
+            let srcColor = '';
+            if (isCyberframe) { srcBadge = '⚡ CYBERFRAME'; srcColor = '#fbbf24'; }
+            else if (isSubagent) { srcBadge = '🤖 Sub-Agent'; srcColor = '#a78bfa'; }
+            else if (isDiscord) { srcBadge = '💬 Discord'; srcColor = '#5865f2'; }
+            else if (isMain) { srcBadge = '🏠 Main'; srcColor = '#34d399'; }
             const kindColor = s.kind === 'group' ? 'var(--blue)' : 'var(--accent)';
-            return `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.04)">
-              <div>
-                <span style="color:${kindColor};font-size:10px;font-weight:600;text-transform:uppercase">${s.kind}</span>
-                <span style="color:var(--text2);margin-left:6px;font-family:'JetBrains Mono',monospace;font-size:11px">${escHtml(shortKey)}</span>
+            const rowBg = isCyberframe ? 'rgba(251,191,36,.04)' : 'transparent';
+            return `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 8px;border-bottom:1px solid rgba(255,255,255,.04);border-radius:6px;background:${rowBg}">
+              <div style="min-width:0">
+                <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px">
+                  <span style="color:${kindColor};font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.3px">${s.kind}</span>
+                  ${srcBadge ? `<span style="font-size:9px;padding:1px 5px;border-radius:3px;background:${srcColor}18;color:${srcColor};border:1px solid ${srcColor}30;font-weight:500">${srcBadge}</span>` : ''}
+                </div>
+                <span style="color:var(--text2);font-family:'JetBrains Mono',monospace;font-size:10px;opacity:.7;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;max-width:280px">${escHtml(shortKey)}</span>
               </div>
-              <div style="text-align:right;font-size:11px">
+              <div style="text-align:right;font-size:11px;flex-shrink:0;margin-left:8px">
                 <span style="color:var(--text3)">${escHtml(s.age)}</span>
                 <span style="color:var(--text2);margin-left:8px">${escHtml(s.tokens)}</span>
               </div>
