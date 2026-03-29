@@ -3960,7 +3960,7 @@
         const sendMsgs = sess.systemPrompt
           ? [{ role: 'system', content: sess.systemPrompt }, ...sess.messages]
           : [...sess.messages];
-        const fetchBody = { messages: sendMsgs, sessionId: sess.id };
+        const fetchBody = { messages: sendMsgs, sessionId: sess.id, sessionName: sess.title };
         if (sess.model) fetchBody.model = sess.model;
 
         const res = await fetch('/api/chat', {
@@ -4516,7 +4516,8 @@
                   <span style="color:${kindColor};font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.3px">${s.kind}</span>
                   ${srcBadge ? `<span style="font-size:9px;padding:1px 5px;border-radius:3px;background:${srcColor}18;color:${srcColor};border:1px solid ${srcColor}30;font-weight:500">${srcBadge}</span>` : ''}
                 </div>
-                <span style="color:var(--text2);font-family:'JetBrains Mono',monospace;font-size:10px;opacity:.7;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;max-width:280px">${escHtml(shortKey)}</span>
+                ${s.displayName ? `<span style="color:var(--text);font-size:11px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;max-width:280px">${escHtml(s.displayName)}</span>` : ''}
+                <span style="color:var(--text2);font-family:'JetBrains Mono',monospace;font-size:${s.displayName ? '9' : '10'}px;opacity:.${s.displayName ? '4' : '7'};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;max-width:280px">${escHtml(shortKey)}</span>
               </div>
               <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;margin-left:8px">
                 <span style="color:var(--text3);font-size:11px">${escHtml(s.age)}</span>

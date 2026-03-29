@@ -855,13 +855,18 @@ app.get("/api/admin/server", requireAuth, (req, res) => {
 // === OpenClaw Chat Proxy (SSE streaming) ===
 const OPENCLAW_GW = process.env.OPENCLAW_GATEWAY || "http://127.0.0.1:18789";
 const OPENCLAW_TOKEN = process.env.OPENCLAW_TOKEN || "";
+const _cyberframeNames = {}; // sessionId → display name
 
 app.post("/api/chat", requireAuth, async (req, res) => {
   const { messages, model } = req.body;
   if (!messages || !Array.isArray(messages)) return res.status(400).json({ error: "messages required" });
   if (!OPENCLAW_TOKEN) return res.status(500).json({ error: "OPENCLAW_TOKEN not configured" });
 
-  const { sessionId } = req.body;
+  const { sessionId, sessionName } = req.body;
+  // Store session name mapping for Agent Monitor display
+  if (sessionId && sessionName) {
+    _cyberframeNames[sessionId] = sessionName;
+  }
   const payload = {
     model: model || undefined,
     messages,
@@ -972,6 +977,15 @@ function _mergeStoreSessions(info) {
       });
     }
     info.sessions = info.sessionList.length;
+    // Inject display names for CYBERFRAME sessions
+    for (const s of info.sessionList) {
+      if (s.key.includes('cyberframe')) {
+        // Extract sessionId from key: agent:main:openai-user:cyberframe-cs-xxx → cs-xxx
+        const match = s.key.match(/cyberframe-?(cs-\d+)?$/);
+        const sid = match?.[1] || '';
+        if (sid && _cyberframeNames[sid]) s.displayName = _cyberframeNames[sid];
+      }
+    }
   } catch {}
 }
 
