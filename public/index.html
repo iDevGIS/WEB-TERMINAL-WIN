@@ -4360,7 +4360,9 @@
         const data = await res.json();
         if (!res.ok) { showToast('Error: ' + (data.error || 'Unknown'), 'error'); return; }
         showToast('Session deleted ✓', 'success');
-        if (tabId) refreshAgentMonitor(tabId);
+        // Remove from DOM immediately
+        const row = document.querySelector(`.agent-sess-row[data-key="${CSS.escape(key)}"]`);
+        if (row) { row.style.transition = 'opacity .3s, transform .3s'; row.style.opacity = '0'; row.style.transform = 'translateX(20px)'; setTimeout(() => row.remove(), 300); }
       } catch (e) {
         showToast('Delete error: ' + e.message, 'error');
       }
@@ -4416,7 +4418,7 @@
             const kindColor = s.kind === 'group' ? 'var(--blue)' : 'var(--accent)';
             const rowBg = isCyberframe ? 'rgba(251,191,36,.04)' : 'transparent';
             const safeKey = escAttr(s.key);
-            return `<div class="agent-sess-row" style="display:flex;justify-content:space-between;align-items:center;padding:6px 8px;border-bottom:1px solid rgba(255,255,255,.04);border-radius:6px;background:${rowBg}">
+            return `<div class="agent-sess-row" data-key="${safeKey}" style="display:flex;justify-content:space-between;align-items:center;padding:6px 8px;border-bottom:1px solid rgba(255,255,255,.04);border-radius:6px;background:${rowBg}">
               <div style="min-width:0;flex:1">
                 <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px">
                   <span style="color:${kindColor};font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.3px">${s.kind}</span>
