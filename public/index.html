@@ -4282,7 +4282,7 @@
       try {
         const res = await fetch('/api/agent/sessions/preview?key=' + encodeURIComponent(key));
         const data = await res.json();
-        if (!res.ok) { cyberToast('Error: ' + (data.error || 'Unknown'), 'error'); return; }
+        if (!res.ok) { showToast('Error: ' + (data.error || 'Unknown'), 'error'); return; }
 
         const overlay = document.createElement('div');
         overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.7);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;';
@@ -4334,7 +4334,7 @@
         overlay.appendChild(panel);
         document.body.appendChild(overlay);
       } catch (e) {
-        cyberToast('Preview error: ' + e.message, 'error');
+        showToast('Preview error: ' + e.message, 'error');
       }
     }
 
@@ -4358,11 +4358,11 @@
           body: JSON.stringify({ key }),
         });
         const data = await res.json();
-        if (!res.ok) { cyberToast('Error: ' + (data.error || 'Unknown'), 'error'); return; }
-        cyberToast('Session deleted ✓', 'success');
+        if (!res.ok) { showToast('Error: ' + (data.error || 'Unknown'), 'error'); return; }
+        showToast('Session deleted ✓', 'success');
         if (tabId) refreshAgentMonitor(tabId);
       } catch (e) {
-        cyberToast('Delete error: ' + e.message, 'error');
+        showToast('Delete error: ' + e.message, 'error');
       }
     }
 
