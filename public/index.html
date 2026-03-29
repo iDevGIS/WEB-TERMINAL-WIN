@@ -3339,6 +3339,9 @@
         // Start polling
         tabData._monitorInterval = setInterval(() => refreshAgentMonitor(tabId), 30000);
         refreshAgentMonitor(tabId);
+        // Quick retry after 3s if first fetch returns unknown/loading
+        setTimeout(() => refreshAgentMonitor(tabId), 3000);
+        setTimeout(() => refreshAgentMonitor(tabId), 8000);
       }
 
       tabs.set(tabId, tabData);
@@ -4240,10 +4243,12 @@
         const sessListEl = document.getElementById(tabId + '-session-list');
         const rawEl = document.getElementById(tabId + '-raw');
 
-        if (dotEl) dotEl.className = 'agent-status-dot ' + (data.status === 'online' ? 'online' : 'offline');
+        const isOnline = data.status === 'online';
+        const isLoading = data.status === 'unknown';
+        if (dotEl) dotEl.className = 'agent-status-dot ' + (isOnline ? 'online' : isLoading ? '' : 'offline');
         if (textEl) {
-          textEl.textContent = data.status === 'online' ? '● Online' : '○ Offline';
-          textEl.style.color = data.status === 'online' ? 'var(--green)' : 'var(--red)';
+          textEl.textContent = isOnline ? '● Online' : isLoading ? '◌ Connecting...' : '○ Offline';
+          textEl.style.color = isOnline ? 'var(--green)' : isLoading ? 'var(--text3)' : 'var(--red)';
         }
         if (modelEl) modelEl.textContent = data.model || '—';
         if (sessEl) sessEl.textContent = data.sessions ?? '—';

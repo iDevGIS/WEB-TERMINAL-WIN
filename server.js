@@ -969,11 +969,7 @@ async function _refreshAgentStatusBg() {
   _agentRefreshing = false;
 }
 
-app.get("/api/agent/status", requireAuth, async (req, res) => {
-  // If never fetched, do first fetch inline (wait for it)
-  if (_agentStatusCache.ts === 0) {
-    await _refreshAgentStatusBg();
-  }
+app.get("/api/agent/status", requireAuth, (req, res) => {
   res.json(_agentStatusCache.data);
   // Trigger background refresh if stale
   if (Date.now() - _agentStatusCache.ts > AGENT_CACHE_TTL) {
