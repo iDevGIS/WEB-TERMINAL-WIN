@@ -3232,6 +3232,11 @@
       // Sub-pane A (existing session)
       const subA = document.createElement('div');
       subA.className = 'split-pane';
+      const toolbarA = document.createElement('div');
+      toolbarA.className = 'split-toolbar';
+      const existingName = pane.wrapEl?.closest('.split-pane')?.querySelector('.split-label')?.textContent || 'Shell';
+      toolbarA.innerHTML = `<span class="split-label">${existingName}</span>`;
+      subA.appendChild(toolbarA);
       const wrapA = document.createElement('div');
       wrapA.className = 'term-wrap';
       subA.appendChild(wrapA);
@@ -3900,8 +3905,15 @@
       const s = sessions.find(s => s.id === sessionId);
       const newPaneIdx = tab.panes.length;
 
+      const existingLabel = pane.wrapEl?.closest('.split-pane')?.querySelector('.split-label')?.textContent || 'Shell';
+      const firstLabel = draggedFirst ? (s ? s.name : 'Shell') : existingLabel;
+
       const subA = document.createElement('div');
       subA.className = 'split-pane';
+      const toolbarA = document.createElement('div');
+      toolbarA.className = 'split-toolbar';
+      toolbarA.innerHTML = `<span class="split-label">${firstLabel}</span>`;
+      subA.appendChild(toolbarA);
       const wrapA = document.createElement('div');
       wrapA.className = 'term-wrap';
       subA.appendChild(wrapA);
