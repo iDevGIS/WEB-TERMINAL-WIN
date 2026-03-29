@@ -3540,17 +3540,17 @@
       }
 
       // Perform the split and attach the dragged session directly
-      dragSplitWithSession(tab, direction, sessionId);
+      // "left"/"top" = dragged session goes first (left/top), "right"/"bottom" = dragged goes second
+      const draggedFirst = dir.endsWith('-left') || dir.endsWith('-top');
+      dragSplitWithSession(tab, direction, sessionId, draggedFirst);
     }
 
-    function dragSplitWithSession(tab, direction, sessionId) {
+    function dragSplitWithSession(tab, direction, sessionId, draggedFirst) {
       if (tab.panes && tab.panes.length >= 2) {
-        // Already split — do nested split on active pane
-        dragNestedSplit(tab, direction, sessionId);
+        dragNestedSplit(tab, direction, sessionId, draggedFirst);
         return;
       }
 
-      // First split
       const paneEl = tab.paneEl;
       tab.splitDirection = direction;
       paneEl.innerHTML = '';
@@ -3558,24 +3558,32 @@
       const splitContainer = document.createElement('div');
       splitContainer.className = `split-container ${direction}`;
 
-      // Pane 1 (existing session)
+      const oldSessionId = tab.sessionId;
+      const s = sessions.find(s => s.id === sessionId);
+
+      // Determine order: which session goes first (left/top) vs second (right/bottom)
+      const firstSid = draggedFirst ? sessionId : oldSessionId;
+      const secondSid = draggedFirst ? oldSessionId : sessionId;
+      const firstName = draggedFirst ? (s ? s.name : 'Shell') : (tab.name || 'Shell 1');
+      const secondName = draggedFirst ? (tab.name || 'Shell 1') : (s ? s.name : 'Shell 2');
+
+      // Pane 1 (first/left/top)
       const pane1El = document.createElement('div');
-      pane1El.className = 'split-pane split-active';
+      pane1El.className = 'split-pane';
       const toolbar1 = document.createElement('div');
       toolbar1.className = 'split-toolbar';
-      toolbar1.innerHTML = `<span class="split-label">${tab.name || 'Shell 1'}</span>`;
+      toolbar1.innerHTML = `<span class="split-label">${firstName}</span>`;
       pane1El.appendChild(toolbar1);
       const wrap1 = document.createElement('div');
       wrap1.className = 'term-wrap';
       pane1El.appendChild(wrap1);
 
-      // Pane 2 (dragged session)
-      const s = sessions.find(s => s.id === sessionId);
+      // Pane 2 (second/right/bottom)
       const pane2El = document.createElement('div');
       pane2El.className = 'split-pane';
       const toolbar2 = document.createElement('div');
       toolbar2.className = 'split-toolbar';
-      toolbar2.innerHTML = `<span class="split-label">${s ? s.name : 'Shell 2'}</span>
+      toolbar2.innerHTML = `<span class="split-label">${secondName}</span>
         <button onclick="closeSplitPane(1)" title="Close pane">✕</button>`;
       pane2El.appendChild(toolbar2);
       const wrap2 = document.createElement('div');
@@ -3591,54 +3599,47 @@
       splitContainer.appendChild(pane2El);
       paneEl.appendChild(splitContainer);
 
-      // Re-create pane 1 (existing)
-      const oldSessionId = tab.sessionId;
+      // Dispose old terminal
       if (tab.panes && tab.panes[0]) tab.panes[0].term.dispose();
       else if (tab.term) tab.term.dispose();
 
+      // Create both panes
       const newPane1 = createTermPane(tab, activeTabId, wrap1);
-      newPane1.sessionId = oldSessionId;
-      tab.panes = [newPane1];
+      newPane1.sessionId = firstSid;
+      const newPane2 = createTermPane(tab, activeTabId, wrap2);
+      newPane2.sessionId = secondSid;
+
+      tab.panes = [newPane1, newPane2];
       tab.term = newPane1.term;
       tab.fitAddon = newPane1.fitAddon;
       tab.searchAddon = newPane1.searchAddon;
-      tab.sessionId = oldSessionId;
-      currentSessionId = oldSessionId;
 
-      // Re-attach pane 1 to restore buffer
-      if (oldSessionId && ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'attach', id: oldSessionId }));
-      }
-
-      // Create pane 2 and attach dragged session directly
-      const newPane2 = createTermPane(tab, activeTabId, wrap2);
-      newPane2.sessionId = sessionId;
-      tab.panes.push(newPane2);
-
-      // Attach the dragged session (already exists on server)
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'attach', id: sessionId }));
-      }
+      // Attach both to restore buffers
+      if (firstSid && ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'attach', id: firstSid }));
+      if (secondSid && ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'attach', id: secondSid }));
 
       tab.splitContainer = splitContainer;
+
+      // Focus the dragged pane
+      const dragIdx = draggedFirst ? 0 : 1;
+      const dragPane = tab.panes[dragIdx];
+      const dragEl = dragIdx === 0 ? pane1El : pane2El;
 
       setTimeout(() => {
         newPane1.fitAddon.fit();
         newPane2.fitAddon.fit();
-        // Focus pane 2 (the dropped one)
-        tab.activePane = 1;
-        tab.sessionId = sessionId;
-        currentSessionId = sessionId;
-        pane2El.classList.add('split-active');
-        pane1El.classList.remove('split-active');
-        newPane2.term.focus();
+        tab.activePane = dragIdx;
+        tab.sessionId = dragPane.sessionId;
+        currentSessionId = dragPane.sessionId;
+        dragEl.classList.add('split-active');
+        dragPane.term.focus();
         renderSessions();
       }, 150);
 
       showToast(`Split ${direction}`, 'success', 1500);
     }
 
-    function dragNestedSplit(tab, direction, sessionId) {
+    function dragNestedSplit(tab, direction, sessionId, draggedFirst) {
       const activePaneIdx = tab.activePane || 0;
       const pane = tab.panes[activePaneIdx];
       if (!pane) return;
@@ -3657,6 +3658,12 @@
       nestedSplit.style.flex = '1';
       nestedSplit.style.minHeight = '0';
 
+      // Determine order based on draggedFirst
+      const firstSid = draggedFirst ? sessionId : oldSessionId;
+      const secondSid = draggedFirst ? oldSessionId : sessionId;
+      const s = sessions.find(s => s.id === sessionId);
+      const newPaneIdx = tab.panes.length;
+
       const subA = document.createElement('div');
       subA.className = 'split-pane';
       const wrapA = document.createElement('div');
@@ -3667,14 +3674,13 @@
       handle.className = 'split-handle';
       initSplitResize(handle, nestedSplit, direction);
 
-      const s = sessions.find(s => s.id === sessionId);
       const subB = document.createElement('div');
       subB.className = 'split-pane';
       const toolbarB = document.createElement('div');
       toolbarB.className = 'split-toolbar';
-      const newPaneIdx = tab.panes.length;
-      toolbarB.innerHTML = `<span class="split-label">${s ? s.name : 'Shell ' + (newPaneIdx + 1)}</span>
-        <button onclick="closeSplitPane(${newPaneIdx})" title="Close pane">✕</button>`;
+      const secondLabel = draggedFirst ? (tab.name || 'Shell') : (s ? s.name : 'Shell ' + (newPaneIdx + 1));
+      toolbarB.innerHTML = `<span class="split-label">${secondLabel}</span>
+        <button onclick="closeSplitPane(${draggedFirst ? activePaneIdx : newPaneIdx})" title="Close pane">✕</button>`;
       subB.appendChild(toolbarB);
       const wrapB = document.createElement('div');
       wrapB.className = 'term-wrap';
@@ -3686,30 +3692,30 @@
       splitPaneEl.appendChild(nestedSplit);
 
       const newPaneA = createTermPane(tab, activeTabId, wrapA);
-      newPaneA.sessionId = oldSessionId;
+      newPaneA.sessionId = firstSid;
       tab.panes[activePaneIdx] = newPaneA;
 
-      if (oldSessionId && ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'attach', id: oldSessionId }));
-      }
-
       const newPaneB = createTermPane(tab, activeTabId, wrapB);
-      newPaneB.sessionId = sessionId;
+      newPaneB.sessionId = secondSid;
       tab.panes.push(newPaneB);
 
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'attach', id: sessionId }));
-      }
+      // Attach both to restore buffers
+      if (firstSid && ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'attach', id: firstSid }));
+      if (secondSid && ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'attach', id: secondSid }));
+
+      // Focus the dragged session's pane
+      const dragIdx = draggedFirst ? activePaneIdx : newPaneIdx;
+      const dragPaneEl = draggedFirst ? subA : subB;
 
       setTimeout(() => {
         newPaneA.fitAddon.fit();
         newPaneB.fitAddon.fit();
-        tab.activePane = newPaneIdx;
+        tab.activePane = dragIdx;
         tab.sessionId = sessionId;
         currentSessionId = sessionId;
-        newPaneB.term.focus();
         tab.paneEl?.querySelectorAll('.split-active').forEach(el => el.classList.remove('split-active'));
-        subB.classList.add('split-active');
+        dragPaneEl.classList.add('split-active');
+        (draggedFirst ? newPaneA : newPaneB).term.focus();
         renderSessions();
       }, 150);
 
