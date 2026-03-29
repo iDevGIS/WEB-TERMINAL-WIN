@@ -3336,6 +3336,14 @@
     let _chatCounter = 0;
 
     function openChatTab() {
+      // Reuse existing chat tab, just add new session
+      for (const [tabId, tab] of tabs) {
+        if (tab.type === 'chat') {
+          switchTab(tabId);
+          chatNewSession(tabId);
+          return;
+        }
+      }
       createTab('chat', { name: 'AI Chat', icon: '💬' });
     }
 
