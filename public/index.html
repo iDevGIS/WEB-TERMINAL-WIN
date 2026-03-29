@@ -6790,7 +6790,7 @@
       document.getElementById('font-size-label').textContent = next;
       const tfl = document.getElementById('theme-font-size-label');
       if (tfl) tfl.textContent = next + 'px';
-      tabs.forEach(t => {
+      tabs.forEach((t, tabId) => {
         if (t.type === 'terminal') {
           if (t.panes) {
             t.panes.forEach(p => { p.term.options.fontSize = next; if (p.fitAddon) p.fitAddon.fit(); });
@@ -6803,11 +6803,11 @@
           t.monacoEditor.updateOptions({ fontSize: next });
         }
         if (t.type === 'chat') {
-          const wrap = document.getElementById(t.id + '-chat');
+          const wrap = document.getElementById(tabId + '-chat');
           if (wrap) { wrap.style.setProperty('--chat-fs', next + 'px'); wrap.style.fontSize = next + 'px'; }
         }
         if (t.type === 'agent-monitor') {
-          const wrap = document.querySelector('#' + CSS.escape(t.id) + ' .agent-monitor-wrap');
+          const wrap = document.getElementById(tabId + '-monitor');
           if (wrap) wrap.style.fontSize = next + 'px';
         }
       });
