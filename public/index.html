@@ -4373,6 +4373,51 @@
       }
     }
 
+    async function restoreAgentSession(key) {
+      try {
+        const res = await fetch('/api/agent/sessions/preview?key=' + encodeURIComponent(key));
+        const data = await res.json();
+        if (!res.ok) { showToast('Error: ' + (data.error || 'Unknown'), 'error'); return; }
+
+        // Parse transcript messages
+        const parsed = (data.messages || []).map(_parseTranscriptMsg);
+        const chatMsgs = parsed.filter(m => (m.role === 'user' || m.role === 'assistant') && m.text);
+        if (!chatMsgs.length) { showToast('No messages to restore', 'warning'); return; }
+
+        // Find or create chat tab
+        let chatTabId = null;
+        for (const [tid, tab] of tabs) {
+          if (tab.type === 'chat') { chatTabId = tid; break; }
+        }
+        if (!chatTabId) {
+          chatTabId = createTab('chat', { name: 'AI Chat', icon: '💬' });
+        } else {
+          switchTab(chatTabId);
+        }
+
+        const tab = tabs.get(chatTabId);
+        if (!tab) return;
+
+        // Create new session with restored messages
+        _chatCounter++;
+        const firstMsg = chatMsgs[0]?.text || '';
+        const title = '🔄 ' + (firstMsg.length > 25 ? firstMsg.substring(0, 25) + '…' : firstMsg || 'Restored');
+        const sess = {
+          id: key.split(':').pop() || ('rs-' + Date.now()),
+          title,
+          messages: chatMsgs.map(m => ({ role: m.role, content: m.text, ts: m.ts ? new Date(m.ts).getTime() : Date.now() })),
+        };
+        tab.chatSessions.push(sess);
+        tab.activeChatSession = sess.id;
+        renderChatSessions(chatTabId);
+        renderChatMessages(chatTabId);
+
+        showToast(`Restored ${chatMsgs.length} messages ✓`, 'success');
+      } catch (e) {
+        showToast('Restore error: ' + e.message, 'error');
+      }
+    }
+
     async function forceRefreshAgent(tabId) {
       const btn = document.getElementById(tabId + '-refresh-btn');
       if (btn) { btn.disabled = true; btn.querySelector('svg').style.animation = 'spin .6s linear infinite'; }
@@ -4447,6 +4492,7 @@
                 <span style="color:var(--text3);font-size:11px">${escHtml(s.age)}</span>
                 <span style="color:var(--text2);font-size:11px">${escHtml(s.tokens)}</span>
                 <button class="sess-action-btn" onclick="previewAgentSession('${safeKey}')" title="Preview">👁</button>
+                ${isCyberframe ? `<button class="sess-action-btn" onclick="restoreAgentSession('${safeKey}')" title="Restore to Chat" style="font-size:10px">💬</button>` : ''}
                 <button class="sess-action-btn sess-del" onclick="deleteAgentSession('${safeKey}','${tabId}')" title="Delete">✕</button>
               </div>
             </div>`;
