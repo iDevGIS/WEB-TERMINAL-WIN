@@ -736,6 +736,12 @@
       transition: opacity .15s, background .15s;
     }
     .split-toolbar button:hover { background: rgba(255,255,255,.08); color: var(--text); opacity: 1; }
+    .split-toolbar[draggable="true"] { cursor: grab; }
+    .split-toolbar[draggable="true"]:active { cursor: grabbing; }
+    .split-toolbar.drag-over {
+      background: rgba(108,99,255,.2) !important;
+      border-bottom-color: var(--accent) !important;
+    }
 
     /* Drag & Drop Split */
     .drop-zone-overlay {
@@ -3196,6 +3202,7 @@
       tab.splitContainer = splitContainer;
 
       showToast(`Split ${direction}`, 'success', 1500);
+      setTimeout(setupAllPaneHeaderDrags, 200);
     }
 
     function splitActivePane(tab, direction) {
@@ -3276,6 +3283,7 @@
       // Spawn shell for new pane
       openShellModalForSplit(tab, newPaneIdx);
       showToast(`Split ${direction}`, 'success', 1500);
+      setTimeout(setupAllPaneHeaderDrags, 200);
     }
 
     function openShellModalForSplit(tab, paneIdx) {
@@ -3484,6 +3492,131 @@
 
     // === Drag & Drop Session → Split ===
     let _dragSessionId = null;
+
+    // === Pane Header Drag to Swap ===
+    function setupPaneHeaderDrag(toolbar, paneIdx) {
+      toolbar.draggable = true;
+      toolbar.dataset.paneIdx = paneIdx;
+
+      toolbar.addEventListener('dragstart', (e) => {
+        e.dataTransfer.setData('text/x-pane-idx', String(paneIdx));
+        e.dataTransfer.effectAllowed = 'move';
+        toolbar.style.opacity = '.5';
+        // Mark all sibling toolbars as drop targets
+        const tab = activeTabId ? tabs.get(activeTabId) : null;
+        if (tab && tab.panes) {
+          tab.panes.forEach((p, i) => {
+            if (i === paneIdx) return;
+            const el = p.wrapEl?.closest('.split-pane')?.querySelector('.split-toolbar');
+            if (el) {
+              el.addEventListener('dragover', onPaneHeaderDragOver);
+              el.addEventListener('dragleave', onPaneHeaderDragLeave);
+              el.addEventListener('drop', onPaneHeaderDrop);
+            }
+          });
+        }
+      });
+
+      toolbar.addEventListener('dragend', (e) => {
+        toolbar.style.opacity = '';
+        document.querySelectorAll('.split-toolbar.drag-over').forEach(el => el.classList.remove('drag-over'));
+        // Clean up listeners
+        document.querySelectorAll('.split-toolbar').forEach(el => {
+          el.removeEventListener('dragover', onPaneHeaderDragOver);
+          el.removeEventListener('dragleave', onPaneHeaderDragLeave);
+          el.removeEventListener('drop', onPaneHeaderDrop);
+        });
+      });
+    }
+
+    function onPaneHeaderDragOver(e) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      this.classList.add('drag-over');
+    }
+
+    function onPaneHeaderDragLeave(e) {
+      this.classList.remove('drag-over');
+    }
+
+    function onPaneHeaderDrop(e) {
+      e.preventDefault();
+      this.classList.remove('drag-over');
+      const fromIdx = parseInt(e.dataTransfer.getData('text/x-pane-idx'));
+      const toIdx = parseInt(this.dataset.paneIdx);
+      if (isNaN(fromIdx) || isNaN(toIdx) || fromIdx === toIdx) return;
+      swapPanes(fromIdx, toIdx);
+    }
+
+    function swapPanes(idxA, idxB) {
+      const tab = activeTabId ? tabs.get(activeTabId) : null;
+      if (!tab || !tab.panes) return;
+
+      const paneA = tab.panes[idxA];
+      const paneB = tab.panes[idxB];
+      if (!paneA || !paneB) return;
+
+      // Swap session IDs
+      const sidA = paneA.sessionId;
+      const sidB = paneB.sessionId;
+      paneA.sessionId = sidB;
+      paneB.sessionId = sidA;
+
+      // Dispose both terminals
+      paneA.term.dispose();
+      paneB.term.dispose();
+
+      // Re-create terminals
+      const newTermA = createTermPane(tab, activeTabId, paneA.wrapEl);
+      const newTermB = createTermPane(tab, activeTabId, paneB.wrapEl);
+      newTermA.sessionId = sidB;
+      newTermB.sessionId = sidA;
+      tab.panes[idxA] = newTermA;
+      tab.panes[idxB] = newTermB;
+
+      // Re-attach to get buffers
+      if (sidB && ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'attach', id: sidB }));
+      if (sidA && ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'attach', id: sidA }));
+
+      // Update labels
+      const labelA = paneA.wrapEl.closest('.split-pane')?.querySelector('.split-label');
+      const labelB = paneB.wrapEl.closest('.split-pane')?.querySelector('.split-label');
+      if (labelA && labelB) {
+        const tmpText = labelA.textContent;
+        labelA.textContent = labelB.textContent;
+        labelB.textContent = tmpText;
+      }
+
+      // Update active
+      if (tab.activePane === idxA || tab.activePane === idxB) {
+        const activePane = tab.panes[tab.activePane];
+        tab.sessionId = activePane.sessionId;
+        currentSessionId = activePane.sessionId;
+      }
+
+      setTimeout(() => {
+        newTermA.fitAddon.fit();
+        newTermB.fitAddon.fit();
+        tab.panes[tab.activePane].term.focus();
+        renderSessions();
+      }, 150);
+
+      showToast('Panes swapped', 'success', 1200);
+    }
+
+    function setupAllPaneHeaderDrags() {
+      const tab = activeTabId ? tabs.get(activeTabId) : null;
+      if (!tab || !tab.panes) return;
+      tab.panes.forEach((pane, idx) => {
+        const toolbar = pane.wrapEl?.closest('.split-pane')?.querySelector('.split-toolbar');
+        if (toolbar && !toolbar._dragSetup) {
+          setupPaneHeaderDrag(toolbar, idx);
+          toolbar._dragSetup = true;
+        }
+        // Update paneIdx in case it changed
+        if (toolbar) toolbar.dataset.paneIdx = idx;
+      });
+    }
 
     function isSessionUsedInAnyTab(sessionId) {
       for (const [tabId, t] of tabs) {
@@ -3738,6 +3871,7 @@
       }, 150);
 
       showToast(`Split ${direction}`, 'success', 1500);
+      setTimeout(setupAllPaneHeaderDrags, 200);
     }
 
     function dragNestedSplit(tab, direction, sessionId, draggedFirst) {
@@ -3821,6 +3955,7 @@
       }, 150);
 
       showToast(`Split ${direction}`, 'success', 1500);
+      setTimeout(setupAllPaneHeaderDrags, 200);
     }
 
     // Show welcome/feature cards (new tab button)
