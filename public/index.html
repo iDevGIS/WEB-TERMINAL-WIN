@@ -2216,6 +2216,7 @@
     /* === AI Chat Tab === */
     .chat-tab-wrap {
       display: flex; height: 100%; background: transparent;
+      --chat-fs: 14px;
     }
     /* Chat sidebar */
     .chat-sidebar {
@@ -2357,7 +2358,7 @@
       word-break: break-word; position: relative; animation: chatFadeIn .25s ease;
       display: flex; gap: 8px; align-items: flex-start;
     }
-    .msg-bubble { flex: 1; min-width: 0; }
+    .msg-bubble { flex: 1; min-width: 0; font-size: var(--chat-fs, 14px); }
     @keyframes chatFadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
     .chat-msg.user {
       flex-direction: row-reverse; align-self: flex-end;
@@ -2610,7 +2611,7 @@
     .chat-input-row:focus-within { border-color: rgba(108,99,255,.4); }
     .chat-input {
       flex: 1; padding: 8px 12px; border: none; border-radius: 20px;
-      background: transparent; color: var(--text); font-size: 13px; font-family: 'Inter', sans-serif;
+      background: transparent; color: var(--text); font-size: var(--chat-fs, 14px); font-family: 'Inter', sans-serif;
       resize: none; outline: none; min-height: 36px; max-height: 150px; line-height: 1.4;
     }
     .chat-input::placeholder { color: var(--text3); }
@@ -3422,7 +3423,7 @@
 
       } else if (type === 'chat') {
         const savedFS = localStorage.getItem('cyberframe-fontsize') || 14;
-        paneEl.innerHTML = `<div class="chat-tab-wrap" id="${tabId}-chat" style="font-size:${savedFS}px">
+        paneEl.innerHTML = `<div class="chat-tab-wrap" id="${tabId}-chat" style="font-size:${savedFS}px;--chat-fs:${savedFS}px">
           <div class="chat-sidebar-overlay" id="${tabId}-sidebar-overlay" onclick="chatCloseMobileSidebar('${tabId}')"></div>
           <div class="chat-sidebar" id="${tabId}-sidebar">
             <div class="chat-sidebar-header">
@@ -6803,7 +6804,7 @@
         }
         if (t.type === 'chat') {
           const wrap = document.getElementById(t.id + '-chat');
-          if (wrap) wrap.style.fontSize = next + 'px';
+          if (wrap) { wrap.style.setProperty('--chat-fs', next + 'px'); wrap.style.fontSize = next + 'px'; }
         }
         if (t.type === 'agent-monitor') {
           const wrap = document.querySelector('#' + CSS.escape(t.id) + ' .agent-monitor-wrap');
