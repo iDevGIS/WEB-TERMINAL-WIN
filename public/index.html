@@ -1850,6 +1850,12 @@
       border-color: rgba(108,99,255,.3);
     }
     .confirm-btn-primary:hover { background: rgba(108,99,255,.25); }
+    .confirm-btn-danger {
+      background: rgba(248,113,113,.15);
+      color: #f87171;
+      border-color: rgba(248,113,113,.3);
+    }
+    .confirm-btn-danger:hover { background: rgba(248,113,113,.25); }
 
     /* === File toolbar row === */
     .file-toolbar-row {
@@ -4333,7 +4339,18 @@
     }
 
     async function deleteAgentSession(key, tabId) {
-      if (!confirm('Delete session?\\n' + key)) return;
+      const shortKey = key.length > 55 ? '…' + key.slice(-50) : key;
+      const isCyberframe = key.includes('cyberframe');
+      const ok = await cyberConfirm({
+        icon: '🗑️',
+        iconClass: 'danger',
+        title: 'Delete Session?',
+        message: `${isCyberframe ? '⚡ CYBERFRAME session' : 'Session'}<br><code style="font-size:10px;color:var(--text3);word-break:break-all">${escHtml(shortKey)}</code><br><br>This will permanently delete the session and its transcript file.`,
+        confirmText: '🗑️ Delete',
+        confirmClass: 'confirm-btn-danger',
+        cancelText: 'Cancel',
+      });
+      if (!ok) return;
       try {
         const res = await fetch('/api/agent/sessions/delete', {
           method: 'POST',
@@ -4342,9 +4359,7 @@
         });
         const data = await res.json();
         if (!res.ok) { cyberToast('Error: ' + (data.error || 'Unknown'), 'error'); return; }
-        cyberToast('Session deleted', 'success');
-        // Force refresh
-        _agentStatusCache_ts = 0;
+        cyberToast('Session deleted ✓', 'success');
         if (tabId) refreshAgentMonitor(tabId);
       } catch (e) {
         cyberToast('Delete error: ' + e.message, 'error');
