@@ -2241,7 +2241,7 @@
     }
     .chat-session-item:hover { background: rgba(255,255,255,.04); }
     .chat-session-item.active { background: rgba(108,99,255,.1); color: var(--text); }
-    .chat-session-item .cs-icon { opacity: .4; font-size: 11px; }
+    .chat-session-item .cs-icon { opacity: .5; display: flex; align-items: center; }
     .chat-session-item .cs-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .chat-session-item .cs-rename, .chat-session-item .cs-delete {
       opacity: 0; font-size: 10px; padding: 2px 4px; border-radius: 4px; cursor: pointer;
@@ -2615,7 +2615,7 @@
       flex: 1; display: flex; align-items: center; justify-content: center;
       flex-direction: column; gap: 10px; opacity: .3;
     }
-    .chat-empty-icon { font-size: 40px; }
+    .chat-empty-icon { color: var(--text3); opacity: .4; }
     .chat-empty-text { font-size: 13px; }
 
     /* === Agent Monitor Tab === */
@@ -3457,7 +3457,7 @@
             </div>
             <div class="chat-messages" id="${tabId}-messages">
               <div class="chat-empty">
-                <div class="chat-empty-icon">💬</div>
+                <div class="chat-empty-icon"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
                 <div class="chat-empty-text">Start a conversation with OpenClaw AI</div>
               </div>
             </div>
@@ -3780,7 +3780,7 @@
           return;
         }
       }
-      createTab('chat', { name: 'AI Chat', icon: '💬' });
+      createTab('chat', { name: 'AI Chat', icon: '✦' });
     }
 
     function chatNewSession(tabId) {
@@ -3858,7 +3858,7 @@
       listEl.innerHTML = tab.chatSessions.map(s => `
         <div class="chat-session-item ${s.id === tab.activeChatSession ? 'active' : ''}"
              onclick="chatSwitchSession('${tabId}','${s.id}')">
-          <span class="cs-icon">💬</span>
+          <span class="cs-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
           <span class="cs-title" ondblclick="event.stopPropagation();chatRenameSession('${tabId}','${s.id}',this)" title="Double-click to rename">${escHtml(s.title)}</span>
           <span class="cs-rename" onclick="event.stopPropagation();chatRenameSession('${tabId}','${s.id}',this.previousElementSibling)" title="Rename">✏️</span>
           <span class="cs-delete" onclick="event.stopPropagation();chatDeleteSession('${tabId}','${s.id}')" title="Delete">✕</span>
@@ -3993,7 +3993,7 @@
       if (!messagesEl) return;
       const sess = tab.chatSessions.find(s => s.id === tab.activeChatSession);
       if (!sess || !sess.messages.length) {
-        messagesEl.innerHTML = `<div class="chat-empty"><div class="chat-empty-icon">💬</div><div class="chat-empty-text">Start a conversation</div></div>`;
+        messagesEl.innerHTML = `<div class="chat-empty"><div class="chat-empty-icon"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div><div class="chat-empty-text">Start a conversation</div></div>`;
         return;
       }
       messagesEl.innerHTML = sess.messages.map(m => {
