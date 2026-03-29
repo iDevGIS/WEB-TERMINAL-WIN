@@ -2537,6 +2537,7 @@
       -webkit-text-fill-color: transparent;
       animation: shimmer 1.5s ease-in-out infinite;
     }
+    @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
     @keyframes shimmer {
       0% { background-position: 200% 0; }
       100% { background-position: -200% 0; }
@@ -3328,9 +3329,13 @@
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2"/></svg>
               Agent Status
             </div>
-            <div class="agent-status-row">
-              <div class="agent-status-dot offline" id="${tabId}-status-dot"></div>
-              <span id="${tabId}-status-text" style="font-size:14px;font-weight:600">Checking…</span>
+            <div class="agent-status-row" style="display:flex;align-items:center;gap:10px">
+              <div class="agent-status-dot loading" id="${tabId}-status-dot"></div>
+              <span id="${tabId}-status-text" style="font-size:14px;font-weight:600"><span class="shimmer-text">Connecting...</span></span>
+              <button onclick="forceRefreshAgent('${tabId}')" id="${tabId}-refresh-btn" style="margin-left:auto;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:6px;padding:4px 10px;cursor:pointer;color:var(--text2);font-size:11px;font-family:inherit;display:flex;align-items:center;gap:4px;transition:all .15s" onmouseover="this.style.background='rgba(108,99,255,.15)';this.style.color='var(--text)'" onmouseout="this.style.background='rgba(255,255,255,.06)';this.style.color='var(--text2)'">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>
+                Refresh
+              </button>
             </div>
             <div class="agent-info-grid">
               <div class="agent-info-item">
@@ -4366,6 +4371,18 @@
       } catch (e) {
         showToast('Delete error: ' + e.message, 'error');
       }
+    }
+
+    async function forceRefreshAgent(tabId) {
+      const btn = document.getElementById(tabId + '-refresh-btn');
+      if (btn) { btn.disabled = true; btn.querySelector('svg').style.animation = 'spin .6s linear infinite'; }
+      try {
+        const res = await fetch('/api/agent/status?force=1');
+        const data = await res.json();
+        // Manually update UI
+        refreshAgentMonitor(tabId);
+      } catch {}
+      if (btn) { btn.disabled = false; btn.querySelector('svg').style.animation = ''; }
     }
 
     async function refreshAgentMonitor(tabId) {

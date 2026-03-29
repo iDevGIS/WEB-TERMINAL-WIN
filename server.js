@@ -1009,12 +1009,15 @@ async function _refreshAgentStatusBg() {
   _agentRefreshing = false;
 }
 
-app.get("/api/agent/status", requireAuth, (req, res) => {
-  res.json(_agentStatusCache.data);
-  // Trigger background refresh if stale
-  if (Date.now() - _agentStatusCache.ts > AGENT_CACHE_TTL) {
-    _refreshAgentStatusBg();
+app.get("/api/agent/status", requireAuth, async (req, res) => {
+  if (req.query.force === '1') {
+    // Force refresh: invalidate cache + wait for result
+    _agentStatusCache.ts = 0;
+    await _refreshAgentStatusBg();
+  } else if (Date.now() - _agentStatusCache.ts > AGENT_CACHE_TTL) {
+    _refreshAgentStatusBg(); // background, non-blocking
   }
+  res.json(_agentStatusCache.data);
 });
 
 // Protected static files — no cache for HTML
