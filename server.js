@@ -945,6 +945,44 @@ function _parseAgentStatus(raw) {
   return info;
 }
 
+function _mergeStoreSessions(info) {
+  try {
+    const store = JSON.parse(fs.readFileSync(SESSIONS_STORE, 'utf8'));
+    const storeKeys = Object.keys(store).filter(k => store[k] && store[k].sessionId);
+
+    // First: fix truncated CLI keys → full keys from store
+    for (const s of info.sessionList) {
+      if (!s.key.includes('…')) continue;
+      const suffix = s.key.replace(/^…/, '');
+      const match = storeKeys.find(k => k.endsWith(suffix));
+      if (match) s.key = match;
+    }
+
+    // Then: add store sessions not already in list
+    const existingKeys = new Set(info.sessionList.map(s => s.key));
+    for (const key of storeKeys) {
+      if (existingKeys.has(key)) continue;
+      const sess = store[key];
+      info.sessionList.push({
+        key,
+        kind: sess.chatType || 'direct',
+        age: sess.updatedAt ? _timeAgo(sess.updatedAt) : '—',
+        model: '—',
+        tokens: '—',
+      });
+    }
+    info.sessions = info.sessionList.length;
+  } catch {}
+}
+
+function _timeAgo(ts) {
+  const diff = Date.now() - ts;
+  if (diff < 60000) return Math.floor(diff / 1000) + 's ago';
+  if (diff < 3600000) return Math.floor(diff / 60000) + 'm ago';
+  if (diff < 86400000) return Math.floor(diff / 3600000) + 'h ago';
+  return Math.floor(diff / 86400000) + 'd ago';
+}
+
 async function _refreshAgentStatusBg() {
   if (_agentRefreshing) return;
   _agentRefreshing = true;
@@ -956,6 +994,8 @@ async function _refreshAgentStatusBg() {
       });
     });
     const info = _parseAgentStatus(stripAnsi(raw));
+    // Merge sessions from store file (CLI truncates keys + misses some)
+    _mergeStoreSessions(info);
     _agentStatusCache = { data: info, ts: Date.now() };
   } catch (e) {
     // Fallback: lightweight gateway ping
