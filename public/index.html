@@ -739,8 +739,9 @@
     .split-toolbar[draggable="true"] { cursor: grab; }
     .split-toolbar[draggable="true"]:active { cursor: grabbing; }
     .split-toolbar.drag-over {
-      background: rgba(108,99,255,.2) !important;
-      border-bottom-color: var(--accent) !important;
+      background: rgba(108,99,255,.12) !important;
+      border-bottom: 2px solid var(--accent) !important;
+      box-shadow: 0 1px 8px rgba(108,99,255,.15);
     }
 
     /* Drag & Drop Split */
