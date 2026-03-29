@@ -1054,13 +1054,20 @@ app.post("/api/agent/sessions/delete", requireAuth, (req, res) => {
   if (!key) return res.status(400).json({ error: "key required" });
   try {
     const store = JSON.parse(fs.readFileSync(SESSIONS_STORE, 'utf8'));
-    if (!store[key]) return res.status(404).json({ error: "Session not found" });
-    const sess = store[key];
-    // Delete transcript/session file if exists
+    let matchKey = key;
+    if (!store[key] && key.includes('…')) {
+      const prefix = key.split('…')[0];
+      if (prefix.length >= 10) {
+        const found = Object.keys(store).find(k => k.startsWith(prefix) && store[k]?.sessionId);
+        if (found) matchKey = found;
+      }
+    }
+    if (!store[matchKey]) return res.status(404).json({ error: "Session not found" });
+    const sess = store[matchKey];
     if (sess.sessionFile) {
       try { fs.unlinkSync(sess.sessionFile); } catch {}
     }
-    delete store[key];
+    delete store[matchKey];
     fs.writeFileSync(SESSIONS_STORE, JSON.stringify(store, null, 2));
     _agentStatusCache.ts = 0;
     res.json({ ok: true, deleted: key });
@@ -1074,7 +1081,16 @@ app.get("/api/agent/sessions/preview", requireAuth, (req, res) => {
   if (!key) return res.status(400).json({ error: "key required" });
   try {
     const store = JSON.parse(fs.readFileSync(SESSIONS_STORE, 'utf8'));
-    const sess = store[key];
+    // Exact match first, then fuzzy match for truncated keys
+    let matchKey = key;
+    let sess = store[key];
+    if (!sess && key.includes('…')) {
+      const prefix = key.split('…')[0];
+      if (prefix.length >= 10) {
+        const found = Object.keys(store).find(k => k.startsWith(prefix) && store[k]?.sessionId);
+        if (found) { matchKey = found; sess = store[found]; }
+      }
+    }
     if (!sess) return res.status(404).json({ error: "Session not found" });
     let messages = [];
     if (sess.sessionFile) {
