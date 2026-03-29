@@ -2472,12 +2472,27 @@
     /* === Feature: System Prompt Popover === */
     .sysprompt-wrap { position: relative; }
     .sysprompt-popover {
-      display: none; position: absolute; top: 100%; right: 0; margin-top: 6px; z-index: 120;
-      background: rgba(22,22,30,.96); border: 1px solid var(--glass-border); border-radius: 12px;
+      display: none; position: absolute; top: 100%; right: 0; margin-top: 6px; z-index: 9990;
+      background: rgba(22,22,30,.98); border: 1px solid var(--glass-border); border-radius: 12px;
       padding: 12px; width: 280px; backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
       box-shadow: 0 8px 32px rgba(0,0,0,.5);
     }
     .sysprompt-popover.visible { display: block; }
+    @media (max-width: 768px) {
+      .sysprompt-popover {
+        position: fixed; top: auto; bottom: 0; left: 0; right: 0;
+        width: 100%; margin-top: 0;
+        border-radius: 16px 16px 0 0; padding: 16px 16px calc(16px + env(safe-area-inset-bottom));
+        max-height: 60vh; overflow-y: auto;
+        animation: slideUp .25s ease;
+      }
+      .sysprompt-popover.visible ~ .sysprompt-backdrop { display: block; }
+    }
+    @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+    .sysprompt-backdrop {
+      display: none; position: fixed; inset: 0; z-index: 9989;
+      background: rgba(0,0,0,.5); backdrop-filter: blur(2px);
+    }
     .sysprompt-popover label { font-size: 11px; color: var(--text2); margin-bottom: 6px; display: block; font-weight: 600; }
     .sysprompt-select {
       width: 100%; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--glass-border);
@@ -4187,7 +4202,20 @@
 
     function chatToggleSysPrompt(tabId) {
       const pop = document.getElementById(tabId + '-sysprompt');
-      if (pop) pop.classList.toggle('visible');
+      if (!pop) return;
+      const isOpen = pop.classList.toggle('visible');
+      // Mobile backdrop
+      let bd = document.getElementById(tabId + '-sysprompt-bd');
+      if (isOpen && window.innerWidth <= 768) {
+        if (!bd) {
+          bd = document.createElement('div');
+          bd.className = 'sysprompt-backdrop';
+          bd.id = tabId + '-sysprompt-bd';
+          bd.style.display = 'block';
+          bd.onclick = () => { pop.classList.remove('visible'); bd.style.display = 'none'; };
+          document.body.appendChild(bd);
+        } else { bd.style.display = 'block'; }
+      } else if (bd) { bd.style.display = 'none'; }
     }
 
     function chatSysPromptPreset(tabId) {
