@@ -2265,6 +2265,28 @@
     }
     .chat-header-title svg { opacity: .6; flex-shrink: 0; }
     .chat-header-actions { display: flex; gap: 4px; flex-shrink: 0; align-items: center; }
+    .chat-attach-preview {
+      display: flex; gap: 8px; padding: 8px 12px; flex-wrap: wrap;
+      border-bottom: 1px solid var(--glass-border); background: rgba(0,0,0,.15);
+    }
+    .chat-attach-thumb {
+      position: relative; width: 64px; height: 64px; border-radius: 8px;
+      overflow: hidden; border: 1px solid rgba(255,255,255,.1);
+    }
+    .chat-attach-thumb img { width: 100%; height: 100%; object-fit: cover; }
+    .chat-attach-thumb .remove-attach {
+      position: absolute; top: 2px; right: 2px; width: 18px; height: 18px;
+      background: rgba(248,113,113,.9); border: none; border-radius: 50%;
+      color: #fff; font-size: 10px; cursor: pointer; display: flex;
+      align-items: center; justify-content: center; line-height: 1;
+    }
+    .chat-attach-btn { flex-shrink: 0; }
+    .chat-msg-images { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+    .chat-msg-images img {
+      max-width: 240px; max-height: 180px; border-radius: 8px;
+      border: 1px solid rgba(255,255,255,.1); cursor: pointer; transition: transform .15s;
+    }
+    .chat-msg-images img:hover { transform: scale(1.02); }
     .chat-icon-btn {
       width: 32px; height: 32px; border-radius: 8px; border: 1px solid rgba(255,255,255,.08);
       background: rgba(255,255,255,.04); color: var(--text2); cursor: pointer;
@@ -3422,7 +3444,12 @@
                 <div class="chat-empty-text">Start a conversation with OpenClaw AI</div>
               </div>
             </div>
+            <div class="chat-attach-preview" id="${tabId}-attach-preview" style="display:none"></div>
             <div class="chat-input-wrap">
+              <input type="file" id="${tabId}-file-input" accept="image/*" multiple style="display:none" onchange="chatHandleFiles('${tabId}',this.files)">
+              <button class="chat-icon-btn chat-attach-btn" onclick="document.getElementById('${tabId}-file-input').click()" title="Attach image">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+              </button>
               <textarea class="chat-input" id="${tabId}-input" placeholder="Ask anything…" rows="1"></textarea>
               <button class="chat-send-btn" id="${tabId}-send" onclick="chatSend('${tabId}')">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
@@ -3956,9 +3983,19 @@
         const timeStr = m.ts ? new Date(m.ts).toLocaleTimeString('en-GB', {hour:'2-digit',minute:'2-digit'}) : '';
         const timeHtml = timeStr ? `<div class="msg-time">${timeStr}</div>` : '';
         if (m.role === 'user') {
-          return `<div class="chat-msg user"><div class="msg-avatar">👤</div><div class="msg-bubble"><div class="msg-content">${escHtml(m.content).replace(/\n/g, '<br>')}</div>${timeHtml}</div></div>`;
+          let textPart = '', imgsPart = '';
+          if (Array.isArray(m.content)) {
+            const texts = m.content.filter(c => c.type === 'text').map(c => c.text).join('\n');
+            const imgs = m.content.filter(c => c.type === 'image_url');
+            textPart = texts ? escHtml(texts).replace(/\n/g, '<br>') : '';
+            if (imgs.length) imgsPart = '<div class="chat-msg-images">' + imgs.map(c => `<img src="${c.image_url.url}" onclick="window.open(this.src,'_blank')">`).join('') + '</div>';
+          } else {
+            textPart = escHtml(m.content).replace(/\n/g, '<br>');
+          }
+          return `<div class="chat-msg user"><div class="msg-avatar">👤</div><div class="msg-bubble"><div class="msg-content">${textPart}${imgsPart}</div>${timeHtml}</div></div>`;
         } else {
-          const html = typeof marked !== 'undefined' ? marked.parse(m.content) : escHtml(m.content).replace(/\n/g, '<br>');
+          const raw = typeof m.content === 'string' ? m.content : JSON.stringify(m.content);
+          const html = typeof marked !== 'undefined' ? marked.parse(raw) : escHtml(raw).replace(/\n/g, '<br>');
           return `<div class="chat-msg assistant"><div class="msg-avatar">✦</div><div class="msg-bubble"><div class="msg-content">${html}</div>${timeHtml}</div></div>`;
         }
       }).join('');
@@ -4012,6 +4049,83 @@
       }
     }
 
+    // === Image attach state per tab ===
+    const _chatAttachments = {}; // tabId → [{dataUrl, name}]
+
+    function chatHandleFiles(tabId, files) {
+      if (!_chatAttachments[tabId]) _chatAttachments[tabId] = [];
+      Array.from(files).forEach(f => {
+        if (!f.type.startsWith('image/')) return;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          _chatAttachments[tabId].push({ dataUrl: e.target.result, name: f.name });
+          _renderAttachPreview(tabId);
+        };
+        reader.readAsDataURL(f);
+      });
+      // Reset input so same file can be re-selected
+      document.getElementById(tabId + '-file-input').value = '';
+    }
+
+    function _renderAttachPreview(tabId) {
+      const el = document.getElementById(tabId + '-attach-preview');
+      if (!el) return;
+      const items = _chatAttachments[tabId] || [];
+      if (!items.length) { el.style.display = 'none'; return; }
+      el.style.display = 'flex';
+      el.innerHTML = items.map((a, i) => `
+        <div class="chat-attach-thumb">
+          <img src="${a.dataUrl}" alt="${escAttr(a.name)}">
+          <button class="remove-attach" onclick="chatRemoveAttach('${tabId}',${i})">✕</button>
+        </div>
+      `).join('');
+    }
+
+    function chatRemoveAttach(tabId, idx) {
+      if (_chatAttachments[tabId]) {
+        _chatAttachments[tabId].splice(idx, 1);
+        _renderAttachPreview(tabId);
+      }
+    }
+
+    // Drag & drop images onto chat
+    document.addEventListener('dragover', (e) => {
+      if (!activeTabId) return;
+      const tab = tabs.get(activeTabId);
+      if (!tab || tab.type !== 'chat') return;
+      if (e.dataTransfer?.types?.includes('Files')) e.preventDefault();
+    });
+    document.addEventListener('drop', (e) => {
+      if (!activeTabId) return;
+      const tab = tabs.get(activeTabId);
+      if (!tab || tab.type !== 'chat') return;
+      const files = Array.from(e.dataTransfer?.files || []).filter(f => f.type.startsWith('image/'));
+      if (files.length) {
+        e.preventDefault();
+        chatHandleFiles(activeTabId, files);
+      }
+    });
+
+    // Paste image from clipboard
+    document.addEventListener('paste', (e) => {
+      if (!activeTabId) return;
+      const tab = tabs.get(activeTabId);
+      if (!tab || tab.type !== 'chat') return;
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      const files = [];
+      for (const item of items) {
+        if (item.type.startsWith('image/')) {
+          const f = item.getAsFile();
+          if (f) files.push(f);
+        }
+      }
+      if (files.length) {
+        e.preventDefault();
+        chatHandleFiles(activeTabId, files);
+      }
+    });
+
     async function chatSend(tabId) {
       const tab = tabs.get(tabId);
       if (!tab || tab.chatStreaming) return;
@@ -4019,7 +4133,8 @@
       if (!sess) return;
       const input = document.getElementById(tabId + '-input');
       const text = input.value.trim();
-      if (!text) return;
+      const images = (_chatAttachments[tabId] || []).slice();
+      if (!text && !images.length) return;
 
       const messagesEl = document.getElementById(tabId + '-messages');
 
@@ -4030,24 +4145,46 @@
       // Remove regen button
       messagesEl.querySelectorAll('.chat-regen-btn').forEach(b => b.remove());
 
-      // Add user message
+      // Build content (multimodal if images)
       const userTs = Date.now();
-      sess.messages.push({ role: 'user', content: text, ts: userTs });
+      let content;
+      if (images.length) {
+        content = [];
+        if (text) content.push({ type: 'text', text });
+        images.forEach(img => {
+          content.push({ type: 'image_url', image_url: { url: img.dataUrl } });
+        });
+      } else {
+        content = text;
+      }
+      sess.messages.push({ role: 'user', content, ts: userTs });
+
+      // Render user bubble with images
       const userBubble = document.createElement('div');
       userBubble.className = 'chat-msg user';
       const userTimeStr = new Date(userTs).toLocaleTimeString('en-GB', {hour:'2-digit',minute:'2-digit'});
-      userBubble.innerHTML = `<div class="msg-avatar">👤</div><div class="msg-bubble"><div class="msg-content">${escHtml(text).replace(/\n/g, '<br>')}</div><div class="msg-time">${userTimeStr}</div></div>`;
+      let imagesHtml = '';
+      if (images.length) {
+        imagesHtml = '<div class="chat-msg-images">' + images.map(img =>
+          `<img src="${img.dataUrl}" alt="${escAttr(img.name)}" onclick="window.open(this.src,'_blank')">`
+        ).join('') + '</div>';
+      }
+      userBubble.innerHTML = `<div class="msg-avatar">👤</div><div class="msg-bubble"><div class="msg-content">${text ? escHtml(text).replace(/\n/g, '<br>') : ''}${imagesHtml}</div><div class="msg-time">${userTimeStr}</div></div>`;
       messagesEl.appendChild(userBubble);
       _injectCopyBtns(messagesEl);
 
       // Auto-title from first message
       if (sess.messages.length === 1) {
-        sess.title = text.length > 30 ? text.substring(0, 30) + '…' : text;
+        const titleText = text || (images.length + ' image(s)');
+        sess.title = titleText.length > 30 ? titleText.substring(0, 30) + '…' : titleText;
         renderChatSessions(tabId);
       }
 
       input.value = '';
       input.style.height = 'auto';
+      // Clear attachments
+      _chatAttachments[tabId] = [];
+      _renderAttachPreview(tabId);
       messagesEl.scrollTop = messagesEl.scrollHeight;
 
       _chatSendStream(tabId);
