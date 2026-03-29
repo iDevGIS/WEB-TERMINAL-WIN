@@ -920,12 +920,12 @@ app.post("/api/chat", requireAuth, async (req, res) => {
 // Strip ANSI escape codes from text
 function stripAnsi(s) { return s.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '').replace(/\x1b\[?[0-9;]*[a-zA-Z]/g, ''); }
 
-// Cache agent status to prevent hammering openclaw status
+// Cache agent status — 30s to prevent hammering
 let _agentStatusCache = { data: null, ts: 0 };
+const AGENT_CACHE_TTL = 30000;
 
 app.get("/api/agent/status", requireAuth, async (req, res) => {
-  // Return cached result if fresh (< 8 seconds)
-  if (_agentStatusCache.data && Date.now() - _agentStatusCache.ts < 8000) {
+  if (_agentStatusCache.data && Date.now() - _agentStatusCache.ts < AGENT_CACHE_TTL) {
     return res.json(_agentStatusCache.data);
   }
 
@@ -934,7 +934,7 @@ app.get("/api/agent/status", requireAuth, async (req, res) => {
   // 1. Parse openclaw status
   try {
     const { execSync } = require("child_process");
-    const rawAnsi = execSync("openclaw status", { encoding: "utf8", timeout: 15000 });
+    const rawAnsi = execSync("openclaw status", { encoding: "utf8", timeout: 5000 });
     const raw = stripAnsi(rawAnsi);
     info.raw = raw;
 
@@ -971,16 +971,14 @@ app.get("/api/agent/status", requireAuth, async (req, res) => {
     info.raw = e.message;
   }
 
-  // 2. Fallback: gateway ping if status parse failed
+  // 2. Fallback: lightweight gateway ping (HEAD request, no chat)
   if (info.status === "offline") {
     try {
-      const pingRes = await fetch(OPENCLAW_GW + "/v1/chat/completions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "Authorization": "Bearer " + OPENCLAW_TOKEN },
-        body: JSON.stringify({ model: "openclaw", messages: [{ role: "user", content: "ping" }], stream: false }),
-        signal: AbortSignal.timeout(5000),
+      const pingRes = await fetch(OPENCLAW_GW + "/", {
+        method: "HEAD",
+        signal: AbortSignal.timeout(3000),
       });
-      if (pingRes.status < 500) info.status = "online";
+      if (pingRes.ok || pingRes.status < 500) info.status = "online";
     } catch {}
   }
 

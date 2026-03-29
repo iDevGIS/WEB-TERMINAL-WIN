@@ -3337,7 +3337,7 @@
         </div>`;
         container.appendChild(paneEl);
         // Start polling
-        tabData._monitorInterval = setInterval(() => refreshAgentMonitor(tabId), 10000);
+        tabData._monitorInterval = setInterval(() => refreshAgentMonitor(tabId), 30000);
         refreshAgentMonitor(tabId);
       }
 
