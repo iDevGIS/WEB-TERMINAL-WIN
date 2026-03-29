@@ -2561,11 +2561,27 @@
     .sess-action-btn:hover { background: rgba(108,99,255,.2); color: var(--text); }
     .sess-action-btn.sess-del:hover { background: rgba(248,113,113,.2); color: var(--red); }
     @media (max-width: 768px) {
-      .agent-sess-row { flex-direction: column; align-items: stretch; gap: 6px; padding: 10px; }
-      .sess-right { justify-content: space-between; }
-      .sess-actions { gap: 6px; }
-      .sess-action-btn { opacity: 1; padding: 4px 8px; }
+      .agent-sess-row {
+        flex-direction: column; align-items: stretch; gap: 4px;
+        padding: 10px 12px; margin-bottom: 4px;
+      }
+      .sess-meta-row { gap: 4px; }
+      .sess-kind { font-size: 8px; }
+      .sess-badge { font-size: 8px; padding: 1px 4px; }
+      .sess-stats-inline { font-size: 9px !important; }
+      .sess-name { font-size: 12px; }
+      .sess-key { font-size: 9px !important; }
+      .sess-actions {
+        display: flex; gap: 6px; padding-top: 4px;
+        border-top: 1px solid rgba(255,255,255,.04);
+        justify-content: flex-end;
+      }
+      .sess-action-btn { opacity: 1; padding: 4px 10px; font-size: 12px; min-height: 28px; }
       .sess-name, .sess-key { max-width: 100% !important; }
+      .agent-info-grid { grid-template-columns: 1fr 1fr; gap: 6px; }
+      .agent-info-item { padding: 8px 10px; }
+      .agent-info-value { font-size: 12px; word-break: break-all; }
+      .agent-monitor-wrap { padding: 12px !important; }
     }
     .shimmer-text {
       background: linear-gradient(90deg, var(--text3) 0%, var(--accent) 50%, var(--text3) 100%);
@@ -4604,8 +4620,10 @@
                 <div class="sess-meta-row">
                   <span class="sess-kind" style="color:${kindColor}">${s.kind}</span>
                   ${srcBadge ? `<span class="sess-badge" style="background:${srcColor}18;color:${srcColor};border:1px solid ${srcColor}30">${srcBadge}</span>` : ''}
-                  <span style="color:var(--text3);font-size:10px">${escHtml(s.age)}</span>
-                  <span style="color:var(--text2);font-size:10px">${escHtml(s.tokens)}</span>
+                  <span style="margin-left:auto;display:flex;gap:6px;align-items:center">
+                    <span class="sess-stats-inline" style="color:var(--text3);font-size:10px">${escHtml(s.age)}</span>
+                    <span class="sess-stats-inline" style="color:var(--text2);font-size:10px">${escHtml(s.tokens)}</span>
+                  </span>
                 </div>
                 ${s.displayName ? `<span class="sess-name">${escHtml(s.displayName)}</span>` : ''}
                 <span class="sess-key" style="color:var(--text2);font-size:${s.displayName ? '9' : '10'}px;opacity:${s.displayName ? '.4' : '.7'}">${escHtml(shortKey)}</span>
