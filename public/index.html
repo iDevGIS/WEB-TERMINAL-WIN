@@ -2292,8 +2292,9 @@
       .chat-icon-btn { width: 30px; height: 30px; border-radius: 50%; }
       .chat-icon-btn svg { width: 14px; height: 14px; }
       .chat-header-actions .chat-model-select {
-        max-width: 80px; font-size: 10px; padding: 2px 3px;
-        height: 28px; border-radius: 6px;
+        max-width: 90px; font-size: 10px;
+        height: 30px; line-height: 30px; border-radius: 50vh;
+        padding: 0 20px 0 8px; background-position: right 6px center;
       }
       .chat-header-actions .chat-model-input { max-width: 70px; font-size: 10px; height: 28px; }
       .chat-header-actions .chat-token-badge { font-size: 8px !important; padding: 1px 4px !important; }
@@ -2420,11 +2421,20 @@
     .chat-stop-btn:hover { transform: scale(1.05); box-shadow: 0 4px 16px rgba(248,113,113,.4); }
     /* Model selector */
     .chat-model-select {
-      background: var(--glass-bg2); border: 1px solid var(--glass-border); border-radius: 6px;
-      color: var(--text2); font-size: 11px; padding: 2px 6px; outline: none; cursor: pointer;
-      font-family: 'Inter', sans-serif; max-width: 160px;
+      background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08);
+      border-radius: 8px; color: var(--text2); font-size: 11px; padding: 0 8px;
+      outline: none; cursor: pointer; font-family: 'Inter', sans-serif;
+      max-width: 160px; height: 32px; line-height: 32px;
+      -webkit-appearance: none; -moz-appearance: none; appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23888'/%3E%3C/svg%3E");
+      background-repeat: no-repeat; background-position: right 8px center;
+      padding-right: 22px; transition: all .15s;
     }
+    .chat-model-select:hover { background: rgba(108,99,255,.1); border-color: rgba(108,99,255,.3); }
     .chat-model-select:focus { border-color: rgba(108,99,255,.5); }
+    .chat-model-select option {
+      background: #1a1a2e; color: var(--text); padding: 8px 12px;
+    }
     .chat-model-input {
       background: var(--glass-bg2); border: 1px solid var(--glass-border); border-radius: 6px;
       color: var(--text2); font-size: 11px; padding: 3px 8px; outline: none; width: 140px;
