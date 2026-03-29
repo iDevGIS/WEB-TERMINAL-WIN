@@ -3473,6 +3473,19 @@
     // === Drag & Drop Session → Split ===
     let _dragSessionId = null;
 
+    function isSessionUsedInAnyTab(sessionId) {
+      for (const [tabId, t] of tabs) {
+        if (t.type !== 'terminal') continue;
+        if (t.sessionId === sessionId) return tabId;
+        if (t.panes) {
+          for (const p of t.panes) {
+            if (p.sessionId === sessionId) return tabId;
+          }
+        }
+      }
+      return null;
+    }
+
     function onSessionDragStart(e, sessionId) {
       _dragSessionId = sessionId;
       e.dataTransfer.setData('text/plain', sessionId);
@@ -3549,11 +3562,9 @@
       // Clean up overlays
       document.querySelectorAll('.pane-drop-overlay').forEach(el => el.remove());
 
-      // Check duplicate
-      if (tab.panes) {
-        const existing = tab.panes.find(p => p.sessionId === sessionId);
-        if (existing) { showToast('Session already in this split', 'warning'); return; }
-      }
+      // Check if session is already used in ANY tab
+      const usedInTab = isSessionUsedInAnyTab(sessionId);
+      if (usedInTab) { showToast('Session already open in a tab', 'warning'); return; }
 
       if (tab.panes.length >= 4) { showToast('Max 4 panes', 'warning'); return; }
 
@@ -3584,21 +3595,19 @@
       overlay.classList.remove('active');
       overlay.querySelectorAll('.drop-zone').forEach(z => z.classList.remove('hover'));
 
+      // Check if session is already used in ANY tab
+      const usedInTab = isSessionUsedInAnyTab(sessionId);
+      if (usedInTab) {
+        showToast('Session already open in a tab', 'warning');
+        return;
+      }
+
       if (dir === 'tab') {
-        // Just open as separate tab
         attachToSession(sessionId);
         return;
       }
 
-      // Check if session is already in a split pane of current tab
       const tab = activeTabId ? tabs.get(activeTabId) : null;
-      if (tab && tab.panes) {
-        const existing = tab.panes.find(p => p.sessionId === sessionId);
-        if (existing) {
-          showToast('Session already in this split', 'warning');
-          return;
-        }
-      }
 
       // Determine split direction
       const direction = dir.startsWith('horizontal') ? 'horizontal' : 'vertical';
