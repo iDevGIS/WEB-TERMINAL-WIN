@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.min.css" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.10.0/styles/tokyo-night-dark.min.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.10.0/highlight.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <link rel="stylesheet" data-name="vs/editor/editor.main" href="https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs/editor/editor.main.css">
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
@@ -2276,22 +2277,56 @@
     }
     .chat-msg.assistant .msg-content { font-family: 'Inter', sans-serif; }
     .chat-msg.assistant .msg-content pre {
-      background: rgba(0,0,0,.3); border-radius: 8px; padding: 10px 12px; overflow-x: auto;
-      margin: 8px 0; border: 1px solid rgba(255,255,255,.06);
+      background: #0d1117; border-radius: 10px; padding: 0; overflow: hidden;
+      margin: 10px 0; border: 1px solid rgba(255,255,255,.08);
+      box-shadow: 0 2px 12px rgba(0,0,0,.4);
     }
-    .chat-msg.assistant .msg-content code {
+    .chat-msg.assistant .msg-content pre code {
+      display: block; padding: 14px 16px; overflow-x: auto; font-size: 12.5px; line-height: 1.6;
+      -webkit-overflow-scrolling: touch;
+    }
+    .chat-msg.assistant .msg-content pre code::-webkit-scrollbar { height: 6px; }
+    .chat-msg.assistant .msg-content pre code::-webkit-scrollbar-thumb { background: rgba(255,255,255,.12); border-radius: 3px; }
+    /* Language badge */
+    .code-lang-badge {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 6px 14px; background: rgba(255,255,255,.04);
+      border-bottom: 1px solid rgba(255,255,255,.06);
+      font-size: 11px; font-family: 'JetBrains Mono', monospace; color: var(--text3);
+      text-transform: uppercase; letter-spacing: .5px;
+    }
+    /* Inline code */
+    .chat-msg.assistant .msg-content code:not(pre code) {
       font-family: 'JetBrains Mono', monospace; font-size: 12px;
+      background: rgba(108,99,255,.12); color: #c9b1ff; padding: 1px 6px;
+      border-radius: 4px; border: 1px solid rgba(108,99,255,.15);
     }
-    .chat-msg.assistant .msg-content p { margin: 4px 0; }
-    .chat-msg.assistant .msg-content ul, .chat-msg.assistant .msg-content ol { padding-left: 18px; margin: 4px 0; }
-    .chat-msg.assistant .msg-content h1, .chat-msg.assistant .msg-content h2, .chat-msg.assistant .msg-content h3 {
-      margin: 8px 0 4px; font-size: 14px; font-weight: 600;
+    .chat-msg.assistant .msg-content p { margin: 6px 0; line-height: 1.6; }
+    .chat-msg.assistant .msg-content ul, .chat-msg.assistant .msg-content ol { padding-left: 20px; margin: 6px 0; }
+    .chat-msg.assistant .msg-content li { margin: 3px 0; line-height: 1.5; }
+    .chat-msg.assistant .msg-content h1 { margin: 14px 0 6px; font-size: 16px; font-weight: 700; color: var(--text); }
+    .chat-msg.assistant .msg-content h2 { margin: 12px 0 5px; font-size: 15px; font-weight: 600; color: var(--text); }
+    .chat-msg.assistant .msg-content h3 { margin: 10px 0 4px; font-size: 14px; font-weight: 600; color: var(--text); }
+    .chat-msg.assistant .msg-content a { color: #7b8aff; text-decoration: underline; text-decoration-color: rgba(123,138,255,.3); }
+    .chat-msg.assistant .msg-content a:hover { text-decoration-color: rgba(123,138,255,.8); }
+    .chat-msg.assistant .msg-content blockquote {
+      border-left: 3px solid var(--accent); padding: 4px 12px; margin: 6px 0;
+      background: rgba(108,99,255,.05); border-radius: 0 6px 6px 0; color: var(--text2);
     }
-    .chat-msg.assistant .msg-content a { color: var(--blue); text-decoration: underline; }
-    .chat-msg.assistant .msg-content table { border-collapse: collapse; margin: 6px 0; font-size: 12px; }
-    .chat-msg.assistant .msg-content th, .chat-msg.assistant .msg-content td {
-      padding: 4px 8px; border: 1px solid var(--glass-border);
+    .chat-msg.assistant .msg-content table { border-collapse: collapse; margin: 8px 0; font-size: 12px; width: 100%; }
+    .chat-msg.assistant .msg-content th {
+      padding: 6px 10px; border: 1px solid rgba(255,255,255,.08); background: rgba(108,99,255,.08);
+      text-align: left; font-weight: 600;
     }
+    .chat-msg.assistant .msg-content td {
+      padding: 5px 10px; border: 1px solid rgba(255,255,255,.06);
+    }
+    .chat-msg.assistant .msg-content tr:hover td { background: rgba(255,255,255,.02); }
+    .chat-msg.assistant .msg-content hr {
+      border: none; border-top: 1px solid rgba(255,255,255,.06); margin: 10px 0;
+    }
+    .chat-msg.assistant .msg-content strong { color: var(--text); font-weight: 600; }
+    .chat-msg.assistant .msg-content em { color: var(--text2); font-style: italic; }
     .chat-msg .msg-role {
       font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .5px;
       margin-bottom: 4px; opacity: .5;
@@ -2308,13 +2343,11 @@
     /* Copy button on code blocks */
     .chat-msg.assistant .msg-content pre { position: relative; }
     .code-copy-btn {
-      position: absolute; top: 6px; right: 6px; opacity: 0; background: rgba(0,0,0,.5);
-      border: 1px solid var(--glass-border); border-radius: 6px; padding: 3px 8px;
-      cursor: pointer; font-size: 11px; color: var(--text2); transition: opacity .15s, background .15s;
-      z-index: 2; font-family: 'Inter', sans-serif;
+      background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.08);
+      border-radius: 4px; padding: 2px 8px; cursor: pointer; font-size: 11px;
+      color: var(--text3); transition: all .15s; font-family: 'Inter', sans-serif;
     }
-    .chat-msg.assistant .msg-content pre:hover .code-copy-btn { opacity: 1; }
-    .code-copy-btn:hover { background: rgba(108,99,255,.3); color: #fff; }
+    .code-copy-btn:hover { background: rgba(108,99,255,.2); color: var(--text); }
     /* Regenerate button */
     .chat-regen-btn {
       align-self: flex-start; background: transparent; border: 1px solid var(--glass-border);
@@ -3497,6 +3530,40 @@
     // === AI Chat Functions ===
     let _chatCounter = 0;
 
+    // Configure marked for syntax highlighting
+    if (typeof marked !== 'undefined') {
+      marked.setOptions({
+        highlight: function(code, lang) {
+          if (lang && hljs.getLanguage(lang)) {
+            return hljs.highlight(code, { language: lang }).value;
+          }
+          return hljs.highlightAuto(code).value;
+        },
+        breaks: true,
+        gfm: true,
+      });
+      // Custom renderer for code blocks with language badge
+      const renderer = new marked.Renderer();
+      renderer.code = function(obj) {
+        const code = typeof obj === 'object' ? obj.text : obj;
+        const lang = typeof obj === 'object' ? obj.lang : arguments[1];
+        let highlighted;
+        if (lang && hljs.getLanguage(lang)) {
+          highlighted = hljs.highlight(code, { language: lang }).value;
+        } else {
+          const auto = hljs.highlightAuto(code);
+          highlighted = auto.value;
+        }
+        const displayLang = lang || 'code';
+        return `<pre><div class="code-lang-badge"><span>${escHtml(displayLang)}</span></div><code class="hljs language-${escAttr(displayLang)}">${highlighted}</code></pre>`;
+      };
+      renderer.codespan = function(obj) {
+        const code = typeof obj === 'object' ? obj.text : obj;
+        return `<code>${escHtml(code)}</code>`;
+      };
+      marked.setOptions({ renderer });
+    }
+
     function openChatTab() {
       // Reuse existing chat tab, just add new session
       for (const [tabId, tab] of tabs) {
@@ -3587,9 +3654,28 @@
         };
         msgEl.appendChild(btn);
       });
-      // Copy button on each code block
+      // Copy button on each code block — integrated into language badge bar
       container.querySelectorAll('.chat-msg.assistant .msg-content pre').forEach(preEl => {
-        if (preEl.querySelector('.code-copy-btn')) return;
+        const badge = preEl.querySelector('.code-lang-badge');
+        if (!badge || badge.querySelector('.code-copy-btn')) return;
+        const btn = document.createElement('button');
+        btn.className = 'code-copy-btn';
+        btn.innerHTML = '📋 Copy';
+        btn.style.cssText = 'position:static;opacity:1;background:rgba(255,255,255,.06);font-size:11px;padding:2px 8px;border-radius:4px;border:1px solid rgba(255,255,255,.08);cursor:pointer;color:var(--text3);font-family:Inter,sans-serif;transition:all .15s;';
+        btn.onclick = (e) => {
+          e.stopPropagation();
+          const code = preEl.querySelector('code')?.innerText || preEl.innerText;
+          navigator.clipboard.writeText(code).then(() => {
+            btn.innerHTML = '✓ Copied!';
+            btn.style.color = 'var(--green)';
+            setTimeout(() => { btn.innerHTML = '📋 Copy'; btn.style.color = 'var(--text3)'; }, 1200);
+          });
+        };
+        badge.appendChild(btn);
+      });
+      // Fallback copy for pre without badge (raw code blocks)
+      container.querySelectorAll('.chat-msg.assistant .msg-content pre').forEach(preEl => {
+        if (preEl.querySelector('.code-copy-btn') || preEl.querySelector('.code-lang-badge')) return;
         const btn = document.createElement('button');
         btn.className = 'code-copy-btn';
         btn.textContent = 'Copy';
