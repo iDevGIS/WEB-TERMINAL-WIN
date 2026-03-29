@@ -2505,10 +2505,28 @@
       display: flex; align-items: center; gap: 12px; margin-bottom: 10px;
     }
     .agent-status-dot {
-      width: 10px; height: 10px; border-radius: 50%;
+      width: 10px; height: 10px; border-radius: 50%; transition: all .3s;
     }
     .agent-status-dot.online { background: var(--green); box-shadow: 0 0 8px var(--green); }
     .agent-status-dot.offline { background: var(--red); box-shadow: 0 0 8px var(--red); }
+    .agent-status-dot.loading {
+      background: var(--accent); animation: dotPulse 1.2s ease-in-out infinite;
+    }
+    @keyframes dotPulse {
+      0%, 100% { box-shadow: 0 0 4px var(--accent); opacity: .4; transform: scale(.8); }
+      50% { box-shadow: 0 0 14px var(--accent), 0 0 24px rgba(108,99,255,.3); opacity: 1; transform: scale(1.2); }
+    }
+    .shimmer-text {
+      background: linear-gradient(90deg, var(--text3) 0%, var(--accent) 50%, var(--text3) 100%);
+      background-size: 200% 100%;
+      -webkit-background-clip: text; background-clip: text;
+      -webkit-text-fill-color: transparent;
+      animation: shimmer 1.5s ease-in-out infinite;
+    }
+    @keyframes shimmer {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
     .agent-info-grid {
       display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px;
     }
@@ -4245,10 +4263,10 @@
 
         const isOnline = data.status === 'online';
         const isLoading = data.status === 'unknown';
-        if (dotEl) dotEl.className = 'agent-status-dot ' + (isOnline ? 'online' : isLoading ? '' : 'offline');
+        if (dotEl) dotEl.className = 'agent-status-dot ' + (isOnline ? 'online' : isLoading ? 'loading' : 'offline');
         if (textEl) {
-          textEl.textContent = isOnline ? '● Online' : isLoading ? '◌ Connecting...' : '○ Offline';
-          textEl.style.color = isOnline ? 'var(--green)' : isLoading ? 'var(--text3)' : 'var(--red)';
+          textEl.innerHTML = isOnline ? '● Online' : isLoading ? '<span class="shimmer-text">Connecting...</span>' : '○ Offline';
+          textEl.style.color = isOnline ? 'var(--green)' : isLoading ? '' : 'var(--red)';
         }
         if (modelEl) modelEl.textContent = data.model || '—';
         if (sessEl) sessEl.textContent = data.sessions ?? '—';
