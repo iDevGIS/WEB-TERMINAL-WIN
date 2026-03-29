@@ -2208,21 +2208,50 @@
     }
     /* === AI Chat Tab === */
     .chat-tab-wrap {
-      display: flex; flex-direction: column; height: 100%; background: transparent;
+      display: flex; height: 100%; background: transparent;
     }
+    /* Chat sidebar */
+    .chat-sidebar {
+      width: 220px; border-right: 1px solid var(--glass-border); background: rgba(0,0,0,.15);
+      display: flex; flex-direction: column; flex-shrink: 0;
+    }
+    .chat-sidebar-header {
+      padding: 12px; border-bottom: 1px solid rgba(255,255,255,.04);
+    }
+    .chat-new-btn {
+      width: 100%; padding: 8px 12px; border-radius: 10px; border: 1px solid rgba(108,99,255,.3);
+      background: rgba(108,99,255,.08); color: var(--accent); font-size: 12px; cursor: pointer;
+      transition: all .2s; font-family: inherit; font-weight: 500; display: flex; align-items: center; gap: 6px; justify-content: center;
+    }
+    .chat-new-btn:hover { background: rgba(108,99,255,.15); border-color: rgba(108,99,255,.5); }
+    .chat-session-list { flex: 1; overflow-y: auto; padding: 6px; }
+    .chat-session-list::-webkit-scrollbar { width: 4px; }
+    .chat-session-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,.08); border-radius: 2px; }
+    .chat-session-item {
+      padding: 8px 10px; border-radius: 8px; cursor: pointer; margin-bottom: 2px;
+      font-size: 12px; color: var(--text2); display: flex; align-items: center; gap: 8px;
+      transition: background .15s; position: relative;
+    }
+    .chat-session-item:hover { background: rgba(255,255,255,.04); }
+    .chat-session-item.active { background: rgba(108,99,255,.1); color: var(--text); }
+    .chat-session-item .cs-icon { opacity: .4; font-size: 11px; }
+    .chat-session-item .cs-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .chat-session-item .cs-delete {
+      opacity: 0; font-size: 10px; padding: 2px 4px; border-radius: 4px; cursor: pointer;
+      color: var(--text3); transition: opacity .15s;
+    }
+    .chat-session-item:hover .cs-delete { opacity: .6; }
+    .chat-session-item .cs-delete:hover { opacity: 1; color: var(--red); background: rgba(248,113,113,.1); }
+    /* Chat main area */
+    .chat-main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
     .chat-header {
       display: flex; align-items: center; justify-content: space-between;
       padding: 10px 16px; border-bottom: 1px solid var(--glass-border);
-      background: var(--glass-bg);
+      background: var(--glass-bg); height: 42px;
     }
     .chat-header-title { font-size: 13px; font-weight: 600; color: var(--text); display: flex; align-items: center; gap: 8px; }
     .chat-header-title svg { opacity: .6; }
-    .chat-new-btn {
-      padding: 5px 12px; border-radius: 8px; border: 1px solid var(--glass-border);
-      background: var(--glass-bg2); color: var(--text2); font-size: 11px; cursor: pointer;
-      transition: all .2s; font-family: inherit;
-    }
-    .chat-new-btn:hover { background: var(--glass-bg3); color: var(--text); }
+    .chat-header-actions { display: flex; gap: 6px; }
     .chat-messages {
       flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px;
       scroll-behavior: smooth;
@@ -3017,29 +3046,45 @@
 
       } else if (type === 'chat') {
         paneEl.innerHTML = `<div class="chat-tab-wrap" id="${tabId}-chat">
-          <div class="chat-header">
-            <div class="chat-header-title">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-              OpenClaw AI Chat
+          <div class="chat-sidebar">
+            <div class="chat-sidebar-header">
+              <button class="chat-new-btn" onclick="chatNewSession('${tabId}')">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+                New Chat
+              </button>
             </div>
-            <button class="chat-new-btn" onclick="chatNewConversation('${tabId}')">✦ New Chat</button>
+            <div class="chat-session-list" id="${tabId}-sessions"></div>
           </div>
-          <div class="chat-messages" id="${tabId}-messages">
-            <div class="chat-empty">
-              <div class="chat-empty-icon">💬</div>
-              <div class="chat-empty-text">Start a conversation with OpenClaw AI</div>
+          <div class="chat-main">
+            <div class="chat-header">
+              <div class="chat-header-title" id="${tabId}-chat-title">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                New Chat
+              </div>
+              <div class="chat-header-actions">
+                <button class="chat-new-btn" onclick="chatClearCurrent('${tabId}')" style="width:auto;padding:4px 10px;font-size:11px">🗑 Clear</button>
+              </div>
             </div>
-          </div>
-          <div class="chat-input-wrap">
-            <textarea class="chat-input" id="${tabId}-input" placeholder="Ask anything… (Enter to send, Shift+Enter for newline)" rows="1"></textarea>
-            <button class="chat-send-btn" id="${tabId}-send" onclick="chatSend('${tabId}')">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-            </button>
+            <div class="chat-messages" id="${tabId}-messages">
+              <div class="chat-empty">
+                <div class="chat-empty-icon">💬</div>
+                <div class="chat-empty-text">Start a conversation with OpenClaw AI</div>
+              </div>
+            </div>
+            <div class="chat-input-wrap">
+              <textarea class="chat-input" id="${tabId}-input" placeholder="Ask anything… (Enter to send, Shift+Enter for newline)" rows="1"></textarea>
+              <button class="chat-send-btn" id="${tabId}-send" onclick="chatSend('${tabId}')">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+              </button>
+            </div>
           </div>
         </div>`;
         container.appendChild(paneEl);
-        tabData.chatHistory = [];
+        tabData.chatSessions = []; // array of {id, title, messages[]}
+        tabData.activeChatSession = null;
         tabData.chatStreaming = false;
+        // Create first session
+        chatNewSession(tabId);
         // Setup input handlers
         const chatInput = document.getElementById(tabId + '-input');
         chatInput.addEventListener('keydown', (e) => {
@@ -3287,23 +3332,101 @@
     }
 
     // === AI Chat Functions ===
+    let _chatCounter = 0;
+
     function openChatTab() {
       createTab('chat', { name: 'AI Chat', icon: '💬' });
     }
 
-    function chatNewConversation(tabId) {
+    function chatNewSession(tabId) {
       const tab = tabs.get(tabId);
       if (!tab) return;
-      tab.chatHistory = [];
-      const messagesEl = document.getElementById(tabId + '-messages');
-      if (messagesEl) {
-        messagesEl.innerHTML = `<div class="chat-empty"><div class="chat-empty-icon">💬</div><div class="chat-empty-text">Start a conversation with OpenClaw AI</div></div>`;
+      _chatCounter++;
+      const sess = { id: 'cs-' + Date.now(), title: 'Chat ' + _chatCounter, messages: [] };
+      tab.chatSessions.push(sess);
+      tab.activeChatSession = sess.id;
+      renderChatSessions(tabId);
+      renderChatMessages(tabId);
+    }
+
+    function chatSwitchSession(tabId, sessId) {
+      const tab = tabs.get(tabId);
+      if (!tab || tab.chatStreaming) return;
+      tab.activeChatSession = sessId;
+      renderChatSessions(tabId);
+      renderChatMessages(tabId);
+      document.getElementById(tabId + '-input')?.focus();
+    }
+
+    function chatDeleteSession(tabId, sessId) {
+      const tab = tabs.get(tabId);
+      if (!tab) return;
+      tab.chatSessions = tab.chatSessions.filter(s => s.id !== sessId);
+      if (tab.activeChatSession === sessId) {
+        tab.activeChatSession = tab.chatSessions.length ? tab.chatSessions[tab.chatSessions.length - 1].id : null;
       }
+      if (!tab.chatSessions.length) chatNewSession(tabId);
+      else { renderChatSessions(tabId); renderChatMessages(tabId); }
+    }
+
+    function chatClearCurrent(tabId) {
+      const tab = tabs.get(tabId);
+      if (!tab) return;
+      const sess = tab.chatSessions.find(s => s.id === tab.activeChatSession);
+      if (sess) { sess.messages = []; renderChatMessages(tabId); }
+    }
+
+    function renderChatSessions(tabId) {
+      const tab = tabs.get(tabId);
+      if (!tab) return;
+      const listEl = document.getElementById(tabId + '-sessions');
+      if (!listEl) return;
+      listEl.innerHTML = tab.chatSessions.map(s => `
+        <div class="chat-session-item ${s.id === tab.activeChatSession ? 'active' : ''}"
+             onclick="chatSwitchSession('${tabId}','${s.id}')">
+          <span class="cs-icon">💬</span>
+          <span class="cs-title">${escHtml(s.title)}</span>
+          <span class="cs-delete" onclick="event.stopPropagation();chatDeleteSession('${tabId}','${s.id}')" title="Delete">✕</span>
+        </div>
+      `).join('');
+      // Update header title
+      const titleEl = document.getElementById(tabId + '-chat-title');
+      const sess = tab.chatSessions.find(s => s.id === tab.activeChatSession);
+      if (titleEl && sess) {
+        titleEl.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> ${escHtml(sess.title)}`;
+      }
+    }
+
+    function renderChatMessages(tabId) {
+      const tab = tabs.get(tabId);
+      if (!tab) return;
+      const messagesEl = document.getElementById(tabId + '-messages');
+      if (!messagesEl) return;
+      const sess = tab.chatSessions.find(s => s.id === tab.activeChatSession);
+      if (!sess || !sess.messages.length) {
+        messagesEl.innerHTML = `<div class="chat-empty"><div class="chat-empty-icon">💬</div><div class="chat-empty-text">Start a conversation</div></div>`;
+        return;
+      }
+      messagesEl.innerHTML = sess.messages.map(m => {
+        if (m.role === 'user') {
+          return `<div class="chat-msg user"><div class="msg-content">${escHtml(m.content).replace(/\n/g, '<br>')}</div></div>`;
+        } else {
+          const html = typeof marked !== 'undefined' ? marked.parse(m.content) : escHtml(m.content).replace(/\n/g, '<br>');
+          return `<div class="chat-msg assistant"><div class="msg-content">${html}</div></div>`;
+        }
+      }).join('');
+      // Highlight code
+      messagesEl.querySelectorAll('pre code').forEach(el => {
+        if (!el.dataset.highlighted) { hljs.highlightElement(el); el.dataset.highlighted = '1'; }
+      });
+      messagesEl.scrollTop = messagesEl.scrollHeight;
     }
 
     async function chatSend(tabId) {
       const tab = tabs.get(tabId);
       if (!tab || tab.chatStreaming) return;
+      const sess = tab.chatSessions.find(s => s.id === tab.activeChatSession);
+      if (!sess) return;
       const input = document.getElementById(tabId + '-input');
       const text = input.value.trim();
       if (!text) return;
@@ -3316,11 +3439,17 @@
       if (emptyEl) emptyEl.remove();
 
       // Add user message
-      tab.chatHistory.push({ role: 'user', content: text });
+      sess.messages.push({ role: 'user', content: text });
       const userBubble = document.createElement('div');
       userBubble.className = 'chat-msg user';
       userBubble.innerHTML = `<div class="msg-content">${escHtml(text).replace(/\n/g, '<br>')}</div>`;
       messagesEl.appendChild(userBubble);
+
+      // Auto-title from first message
+      if (sess.messages.length === 1) {
+        sess.title = text.length > 30 ? text.substring(0, 30) + '…' : text;
+        renderChatSessions(tabId);
+      }
 
       input.value = '';
       input.style.height = 'auto';
@@ -3341,7 +3470,7 @@
         const res = await fetch('/api/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ messages: tab.chatHistory }),
+          body: JSON.stringify({ messages: sess.messages }),
         });
 
         if (!res.ok) {
@@ -3359,7 +3488,7 @@
 
           buffer += decoder.decode(value, { stream: true });
           const lines = buffer.split('\n');
-          buffer = lines.pop(); // keep incomplete line
+          buffer = lines.pop();
 
           for (const line of lines) {
             if (!line.startsWith('data: ')) continue;
@@ -3372,10 +3501,8 @@
               if (delta) {
                 fullContent += delta;
                 const contentEl = aiBubble.querySelector('.msg-content');
-                // Render markdown
                 if (typeof marked !== 'undefined') {
                   contentEl.innerHTML = marked.parse(fullContent) + '<span class="typing-cursor"></span>';
-                  // Highlight code blocks
                   contentEl.querySelectorAll('pre code').forEach(el => {
                     if (!el.dataset.highlighted) { hljs.highlightElement(el); el.dataset.highlighted = '1'; }
                   });
@@ -3399,7 +3526,7 @@
           contentEl.innerHTML = escHtml(fullContent).replace(/\n/g, '<br>');
         }
 
-        tab.chatHistory.push({ role: 'assistant', content: fullContent });
+        sess.messages.push({ role: 'assistant', content: fullContent });
 
       } catch (e) {
         const contentEl = aiBubble.querySelector('.msg-content');
