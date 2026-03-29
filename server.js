@@ -969,8 +969,11 @@ async function _refreshAgentStatusBg() {
   _agentRefreshing = false;
 }
 
-app.get("/api/agent/status", requireAuth, (req, res) => {
-  // Always return immediately from cache
+app.get("/api/agent/status", requireAuth, async (req, res) => {
+  // If never fetched, do first fetch inline (wait for it)
+  if (_agentStatusCache.ts === 0) {
+    await _refreshAgentStatusBg();
+  }
   res.json(_agentStatusCache.data);
   // Trigger background refresh if stale
   if (Date.now() - _agentStatusCache.ts > AGENT_CACHE_TTL) {
@@ -1131,4 +1134,6 @@ server.listen(PORT, "0.0.0.0", () => {
   console.log(`🔐 Login: ${USERNAME} / ${"*".repeat(PASSWORD.length)}`);
   console.log(`🖥️  VNC proxy: ws://127.0.0.1:${PORT}/vnc-ws → localhost:${VNC_PORT}`);
   console.log(`⏰ Session timeout: ${SESSION_TIMEOUT_MS / 1000}s`);
+  // Pre-warm agent status cache on startup
+  _refreshAgentStatusBg().then(() => console.log("🤖 Agent status cache warmed"));
 });
