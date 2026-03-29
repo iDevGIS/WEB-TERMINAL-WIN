@@ -920,70 +920,62 @@ app.post("/api/chat", requireAuth, async (req, res) => {
 // Strip ANSI escape codes from text
 function stripAnsi(s) { return s.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '').replace(/\x1b\[?[0-9;]*[a-zA-Z]/g, ''); }
 
-// Cache agent status — 30s to prevent hammering
-let _agentStatusCache = { data: null, ts: 0 };
+// Agent status — async background refresh, never blocks event loop
+let _agentStatusCache = { data: { status: "unknown", model: "—", sessions: 0, uptime: "—", heartbeat: "—", channels: [], sessionList: [], raw: "Loading..." }, ts: 0 };
 const AGENT_CACHE_TTL = 30000;
+let _agentRefreshing = false;
 
-app.get("/api/agent/status", requireAuth, async (req, res) => {
-  if (_agentStatusCache.data && Date.now() - _agentStatusCache.ts < AGENT_CACHE_TTL) {
-    return res.json(_agentStatusCache.data);
-  }
-
-  const info = { status: "offline", model: "—", sessions: 0, uptime: "—", heartbeat: "—", channels: [], sessionList: [], raw: "" };
-
-  // 1. Parse openclaw status
-  try {
-    const { execSync } = require("child_process");
-    const rawAnsi = execSync("openclaw status", { encoding: "utf8", timeout: 5000 });
-    const raw = stripAnsi(rawAnsi);
-    info.raw = raw;
-
-    for (const line of raw.split("\n")) {
-      const l = line.trim();
-      // Gateway reachable = online
-      if (/reachable/i.test(l) && /Gateway/i.test(l)) info.status = "online";
-      // Sessions count from Agents line: "sessions 16"
-      const agentSess = l.match(/sessions\s+(\d+)/i);
-      if (agentSess) info.sessions = parseInt(agentSess[1]);
-      // Heartbeat
-      const hbMatch = l.match(/Heartbeat\s*\|\s*(.+?)(?:\s*\||$)/i);
-      if (hbMatch) info.heartbeat = hbMatch[1].trim();
-      // Sessions table lines: "| agent:main:... | group | 1m ago | claude-opus-4-6 | 134k/200k (67%) |"
-      const sessLine = l.match(/\|\s*(agent:\S+)\s*\|\s*(\w+)\s*\|\s*(.+?)\s*\|\s*(\S+)\s*\|\s*(.+?)\s*\|/);
-      if (sessLine) {
-        info.sessionList.push({
-          key: sessLine[1].replace(/…/g, '…'),
-          kind: sessLine[2],
-          age: sessLine[3].trim(),
-          model: sessLine[4],
-          tokens: sessLine[5].trim(),
-        });
-        // Use first session's model as default
-        if (info.model === '—') info.model = sessLine[4];
-      }
-      // Channel table: "| Discord | ON | OK |"
-      const chanLine = l.match(/\|\s*(\w+)\s*\|\s*(ON|OFF)\s*\|\s*(\w+)\s*\|/);
-      if (chanLine) {
-        info.channels.push({ name: chanLine[1], enabled: chanLine[2] === 'ON', state: chanLine[3] });
-      }
+function _parseAgentStatus(raw) {
+  const info = { status: "offline", model: "—", sessions: 0, uptime: "—", heartbeat: "—", channels: [], sessionList: [], raw };
+  for (const line of raw.split("\n")) {
+    const l = line.trim();
+    if (/reachable/i.test(l) && /Gateway/i.test(l)) info.status = "online";
+    const agentSess = l.match(/sessions\s+(\d+)/i);
+    if (agentSess) info.sessions = parseInt(agentSess[1]);
+    const hbMatch = l.match(/Heartbeat\s*\|\s*(.+?)(?:\s*\||$)/i);
+    if (hbMatch) info.heartbeat = hbMatch[1].trim();
+    const sessLine = l.match(/\|\s*(agent:\S+)\s*\|\s*(\w+)\s*\|\s*(.+?)\s*\|\s*(\S+)\s*\|\s*(.+?)\s*\|/);
+    if (sessLine) {
+      info.sessionList.push({ key: sessLine[1], kind: sessLine[2], age: sessLine[3].trim(), model: sessLine[4], tokens: sessLine[5].trim() });
+      if (info.model === '—') info.model = sessLine[4];
     }
-  } catch (e) {
-    info.raw = e.message;
+    const chanLine = l.match(/\|\s*(\w+)\s*\|\s*(ON|OFF)\s*\|\s*(\w+)\s*\|/);
+    if (chanLine) info.channels.push({ name: chanLine[1], enabled: chanLine[2] === 'ON', state: chanLine[3] });
   }
+  return info;
+}
 
-  // 2. Fallback: lightweight gateway ping (HEAD request, no chat)
-  if (info.status === "offline") {
-    try {
-      const pingRes = await fetch(OPENCLAW_GW + "/", {
-        method: "HEAD",
-        signal: AbortSignal.timeout(3000),
+async function _refreshAgentStatusBg() {
+  if (_agentRefreshing) return;
+  _agentRefreshing = true;
+  try {
+    const { exec } = require("child_process");
+    const raw = await new Promise((resolve, reject) => {
+      exec("openclaw status", { encoding: "utf8", timeout: 8000 }, (err, stdout) => {
+        if (err) reject(err); else resolve(stdout);
       });
+    });
+    const info = _parseAgentStatus(stripAnsi(raw));
+    _agentStatusCache = { data: info, ts: Date.now() };
+  } catch (e) {
+    // Fallback: lightweight gateway ping
+    const info = { status: "offline", model: "—", sessions: 0, uptime: "—", heartbeat: "—", channels: [], sessionList: [], raw: e.message };
+    try {
+      const pingRes = await fetch(OPENCLAW_GW + "/", { method: "HEAD", signal: AbortSignal.timeout(3000) });
       if (pingRes.ok || pingRes.status < 500) info.status = "online";
     } catch {}
+    _agentStatusCache = { data: info, ts: Date.now() };
   }
+  _agentRefreshing = false;
+}
 
-  _agentStatusCache = { data: info, ts: Date.now() };
-  res.json(info);
+app.get("/api/agent/status", requireAuth, (req, res) => {
+  // Always return immediately from cache
+  res.json(_agentStatusCache.data);
+  // Trigger background refresh if stale
+  if (Date.now() - _agentStatusCache.ts > AGENT_CACHE_TTL) {
+    _refreshAgentStatusBg();
+  }
 });
 
 // Protected static files — no cache for HTML
