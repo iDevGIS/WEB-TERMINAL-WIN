@@ -892,19 +892,21 @@ app.post("/api/chat", requireAuth, async (req, res) => {
     res.setHeader("X-Accel-Buffering", "no");
     res.flushHeaders();
 
-    const reader = upstream.body;
-    reader.on("data", (chunk) => {
+    // Convert Web ReadableStream to Node stream and pipe
+    const { Readable } = require("stream");
+    const nodeStream = Readable.fromWeb(upstream.body);
+    nodeStream.on("data", (chunk) => {
       res.write(chunk);
     });
-    reader.on("end", () => {
+    nodeStream.on("end", () => {
       res.end();
     });
-    reader.on("error", (err) => {
+    nodeStream.on("error", (err) => {
       console.error("[Chat proxy] stream error:", err.message);
       res.end();
     });
     req.on("close", () => {
-      reader.destroy();
+      nodeStream.destroy();
     });
   } catch (e) {
     console.error("[Chat proxy] error:", e.message);
