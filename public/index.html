@@ -2280,6 +2280,16 @@
       color: #fff; font-size: 10px; cursor: pointer; display: flex;
       align-items: center; justify-content: center; line-height: 1;
     }
+    .chat-attach-file {
+      display: flex; align-items: center; gap: 8px; padding: 6px 10px;
+      background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08);
+      border-radius: 8px; position: relative; max-width: 200px;
+    }
+    .attach-file-icon { font-size: 20px; flex-shrink: 0; }
+    .attach-file-info { min-width: 0; }
+    .attach-file-name { font-size: 11px; color: var(--text); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .attach-file-meta { font-size: 9px; color: var(--text3); }
+    .chat-attach-file .remove-attach { position: absolute; top: -4px; right: -4px; }
     .chat-attach-btn { flex-shrink: 0; }
     .chat-msg-images { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
     .chat-msg-images img {
@@ -2287,6 +2297,13 @@
       border: 1px solid rgba(255,255,255,.1); cursor: pointer; transition: transform .15s;
     }
     .chat-msg-images img:hover { transform: scale(1.02); }
+    .chat-msg-files { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 6px; }
+    .msg-file-badge {
+      display: inline-flex; align-items: center; gap: 4px;
+      font-size: 10px; padding: 3px 8px; border-radius: 6px;
+      background: rgba(108,99,255,.1); color: var(--accent);
+      border: 1px solid rgba(108,99,255,.2);
+    }
     .chat-icon-btn {
       width: 32px; height: 32px; border-radius: 8px; border: 1px solid rgba(255,255,255,.08);
       background: rgba(255,255,255,.04); color: var(--text2); cursor: pointer;
@@ -3446,7 +3463,7 @@
             </div>
             <div class="chat-attach-preview" id="${tabId}-attach-preview" style="display:none"></div>
             <div class="chat-input-wrap">
-              <input type="file" id="${tabId}-file-input" accept="image/*" multiple style="display:none" onchange="chatHandleFiles('${tabId}',this.files)">
+              <input type="file" id="${tabId}-file-input" accept="image/*,.txt,.md,.json,.log,.csv,.xml,.yaml,.yml,.toml,.js,.ts,.jsx,.tsx,.py,.rb,.go,.rs,.java,.c,.cpp,.h,.cs,.php,.sh,.ps1,.html,.css,.scss,.sql,.lua,.dart,.swift,.kt,.r,.vue,.svelte" multiple style="display:none" onchange="chatHandleFiles('${tabId}',this.files)">
               <button class="chat-icon-btn chat-attach-btn" onclick="document.getElementById('${tabId}-file-input').click()" title="Attach image">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
               </button>
@@ -4049,19 +4066,53 @@
       }
     }
 
-    // === Image attach state per tab ===
-    const _chatAttachments = {}; // tabId → [{dataUrl, name}]
+    // === File attach state per tab ===
+    const _chatAttachments = {}; // tabId → [{dataUrl, name, kind:'image'|'text', textContent?}]
+
+    const _textExts = new Set([
+      'txt','md','json','log','csv','xml','yaml','yml','toml','ini','cfg','conf','env',
+      'js','ts','jsx','tsx','mjs','cjs','vue','svelte',
+      'py','rb','go','rs','java','kt','swift','c','h','cpp','hpp','cs','php',
+      'sh','bash','zsh','fish','ps1','psm1','bat','cmd',
+      'html','htm','css','scss','sass','less',
+      'sql','graphql','gql','prisma',
+      'dockerfile','makefile','gitignore','gitattributes','editorconfig',
+      'r','lua','pl','pm','ex','exs','erl','hrl','hs','ml','mli','fs','fsx',
+      'tf','hcl','nix','zig','v','nim','dart','scala','clj','cljs',
+    ]);
+    function _isTextFile(name) {
+      const ext = (name || '').split('.').pop().toLowerCase();
+      return _textExts.has(ext) || name.toLowerCase() === 'makefile' || name.toLowerCase() === 'dockerfile';
+    }
+    function _getFileLang(name) {
+      const ext = (name || '').split('.').pop().toLowerCase();
+      const map = {js:'javascript',ts:'typescript',py:'python',rb:'ruby',rs:'rust',go:'go',
+        java:'java',kt:'kotlin',cs:'csharp',cpp:'cpp',c:'c',php:'php',sh:'bash',ps1:'powershell',
+        html:'html',css:'css',scss:'scss',sql:'sql',json:'json',md:'markdown',yaml:'yaml',
+        yml:'yaml',toml:'toml',xml:'xml',swift:'swift',dart:'dart',scala:'scala',lua:'lua',
+        tsx:'tsx',jsx:'jsx',vue:'vue',svelte:'svelte',graphql:'graphql',prisma:'prisma',
+        tf:'hcl',dockerfile:'dockerfile',bat:'batch',cmd:'batch',r:'r'};
+      return map[ext] || ext;
+    }
 
     function chatHandleFiles(tabId, files) {
       if (!_chatAttachments[tabId]) _chatAttachments[tabId] = [];
       Array.from(files).forEach(f => {
-        if (!f.type.startsWith('image/')) return;
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          _chatAttachments[tabId].push({ dataUrl: e.target.result, name: f.name });
-          _renderAttachPreview(tabId);
-        };
-        reader.readAsDataURL(f);
+        if (f.type.startsWith('image/')) {
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            _chatAttachments[tabId].push({ dataUrl: e.target.result, name: f.name, kind: 'image' });
+            _renderAttachPreview(tabId);
+          };
+          reader.readAsDataURL(f);
+        } else if (_isTextFile(f.name) || f.type.startsWith('text/')) {
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            _chatAttachments[tabId].push({ name: f.name, kind: 'text', textContent: e.target.result, lang: _getFileLang(f.name) });
+            _renderAttachPreview(tabId);
+          };
+          reader.readAsText(f);
+        }
       });
       // Reset input so same file can be re-selected
       document.getElementById(tabId + '-file-input').value = '';
@@ -4073,12 +4124,26 @@
       const items = _chatAttachments[tabId] || [];
       if (!items.length) { el.style.display = 'none'; return; }
       el.style.display = 'flex';
-      el.innerHTML = items.map((a, i) => `
-        <div class="chat-attach-thumb">
-          <img src="${a.dataUrl}" alt="${escAttr(a.name)}">
-          <button class="remove-attach" onclick="chatRemoveAttach('${tabId}',${i})">✕</button>
-        </div>
-      `).join('');
+      el.innerHTML = items.map((a, i) => {
+        if (a.kind === 'image') {
+          return `<div class="chat-attach-thumb">
+            <img src="${a.dataUrl}" alt="${escAttr(a.name)}">
+            <button class="remove-attach" onclick="chatRemoveAttach('${tabId}',${i})">✕</button>
+          </div>`;
+        } else {
+          const lines = (a.textContent || '').split('\n').length;
+          const size = (a.textContent || '').length;
+          const sizeStr = size < 1024 ? size + 'B' : (size/1024).toFixed(1) + 'KB';
+          return `<div class="chat-attach-file">
+            <div class="attach-file-icon">📄</div>
+            <div class="attach-file-info">
+              <div class="attach-file-name">${escHtml(a.name)}</div>
+              <div class="attach-file-meta">${lines} lines · ${sizeStr}</div>
+            </div>
+            <button class="remove-attach" onclick="chatRemoveAttach('${tabId}',${i})">✕</button>
+          </div>`;
+        }
+      }).join('');
     }
 
     function chatRemoveAttach(tabId, idx) {
@@ -4099,7 +4164,9 @@
       if (!activeTabId) return;
       const tab = tabs.get(activeTabId);
       if (!tab || tab.type !== 'chat') return;
-      const files = Array.from(e.dataTransfer?.files || []).filter(f => f.type.startsWith('image/'));
+      const files = Array.from(e.dataTransfer?.files || []).filter(f =>
+        f.type.startsWith('image/') || f.type.startsWith('text/') || _isTextFile(f.name)
+      );
       if (files.length) {
         e.preventDefault();
         chatHandleFiles(activeTabId, files);
@@ -4133,8 +4200,10 @@
       if (!sess) return;
       const input = document.getElementById(tabId + '-input');
       const text = input.value.trim();
-      const images = (_chatAttachments[tabId] || []).slice();
-      if (!text && !images.length) return;
+      const attachments = (_chatAttachments[tabId] || []).slice();
+      const images = attachments.filter(a => a.kind === 'image');
+      const textFiles = attachments.filter(a => a.kind === 'text');
+      if (!text && !attachments.length) return;
 
       const messagesEl = document.getElementById(tabId + '-messages');
 
@@ -4145,21 +4214,30 @@
       // Remove regen button
       messagesEl.querySelectorAll('.chat-regen-btn').forEach(b => b.remove());
 
-      // Build content (multimodal if images)
+      // Build content (multimodal if images, append text files as code blocks)
       const userTs = Date.now();
+      // Build full text: user text + text file contents
+      let fullText = text;
+      if (textFiles.length) {
+        const fileBlocks = textFiles.map(f =>
+          `\n\n📄 **${f.name}**\n\`\`\`${f.lang || ''}\n${f.textContent}\n\`\`\``
+        ).join('');
+        fullText = (text ? text : '') + fileBlocks;
+      }
+
       let content;
       if (images.length) {
         content = [];
-        if (text) content.push({ type: 'text', text });
+        if (fullText) content.push({ type: 'text', text: fullText });
         images.forEach(img => {
           content.push({ type: 'image_url', image_url: { url: img.dataUrl } });
         });
       } else {
-        content = text;
+        content = fullText;
       }
-      sess.messages.push({ role: 'user', content, ts: userTs });
+      sess.messages.push({ role: 'user', content, ts: userTs, _files: textFiles.map(f=>f.name) });
 
-      // Render user bubble with images
+      // Render user bubble
       const userBubble = document.createElement('div');
       userBubble.className = 'chat-msg user';
       const userTimeStr = new Date(userTs).toLocaleTimeString('en-GB', {hour:'2-digit',minute:'2-digit'});
@@ -4169,13 +4247,19 @@
           `<img src="${img.dataUrl}" alt="${escAttr(img.name)}" onclick="window.open(this.src,'_blank')">`
         ).join('') + '</div>';
       }
-      userBubble.innerHTML = `<div class="msg-avatar">👤</div><div class="msg-bubble"><div class="msg-content">${text ? escHtml(text).replace(/\n/g, '<br>') : ''}${imagesHtml}</div><div class="msg-time">${userTimeStr}</div></div>`;
+      let filesHtml = '';
+      if (textFiles.length) {
+        filesHtml = '<div class="chat-msg-files">' + textFiles.map(f =>
+          `<span class="msg-file-badge">📄 ${escHtml(f.name)}</span>`
+        ).join('') + '</div>';
+      }
+      userBubble.innerHTML = `<div class="msg-avatar">👤</div><div class="msg-bubble"><div class="msg-content">${text ? escHtml(text).replace(/\n/g, '<br>') : ''}${filesHtml}${imagesHtml}</div><div class="msg-time">${userTimeStr}</div></div>`;
       messagesEl.appendChild(userBubble);
       _injectCopyBtns(messagesEl);
 
       // Auto-title from first message
       if (sess.messages.length === 1) {
-        const titleText = text || (images.length + ' image(s)');
+        const titleText = text || (images.length ? images.length + ' image(s)' : textFiles.map(f=>f.name).join(', '));
         sess.title = titleText.length > 30 ? titleText.substring(0, 30) + '…' : titleText;
         renderChatSessions(tabId);
       }
