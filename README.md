@@ -1,10 +1,10 @@
 # ⚡ CYBERFRAME
 
-**Neural Shell Interface** — Web-based terminal with remote desktop, file manager, and cyberpunk UI.
+**Neural Shell Interface** — Web-based terminal with AI chat, agent monitoring, remote desktop, file manager, and cyberpunk UI.
 
 ![Node.js](https://img.shields.io/badge/Node.js-18+-339933?logo=nodedotjs&logoColor=white)
 ![Platform](https://img.shields.io/badge/Platform-Windows-0078D6?logo=windows&logoColor=white)
-![Version](https://img.shields.io/badge/Version-1.5.0-6c63ff)
+![Version](https://img.shields.io/badge/Version-1.7.0-6c63ff)
 ![License](https://img.shields.io/badge/License-MIT-blue)
 
 ## ✨ Features
@@ -136,6 +136,51 @@
 - **Activity Log** — real-time server activity viewer
 - **REST API** — `GET /api/admin/status`, `GET /api/admin/processes`, `POST /api/admin/kill-process`, `GET /api/admin/server`
 
+### 💬 AI Chat (OpenClaw)
+- **SSE streaming** — real-time token-by-token response via Server-Sent Events
+- **Multi-session** — sidebar with session list, create/rename/delete/switch sessions
+- **Auto-title** — session automatically titled from first message
+- **Markdown rendering** — full GitHub-style markdown via [marked.js](https://marked.js.org/)
+- **Syntax highlighting** — code blocks with language badge, copy button, [highlight.js](https://highlightjs.org/) Tokyo Night Dark theme
+- **Model selector** — switch between models (Default/OpenClaw/Custom) per session
+- **System prompt presets** — Default, Code Expert, Thai Teacher, Creative Writer, Concise, or Custom
+- **Stop generating** — abort streaming mid-response with AbortController
+- **Regenerate** — re-send last message for a new response
+- **Copy buttons** — per-message copy to clipboard
+- **Chat search** — `Ctrl+F` to search messages with highlight
+- **Export** — download conversation as `.md` file
+- **Token counter** — live estimate of tokens used
+- **Timestamps** — HH:MM on each message
+- **Avatars** — 👤 User (purple) / ✦ Assistant (accent)
+- **Typing indicator** — bouncing dots animation during streaming
+- **Smart scroll** — auto-scroll only when near bottom
+- **Keyboard shortcuts** — `Ctrl+F` search, `Ctrl+Shift+N` new session, `Ctrl+/` toggle sidebar, `Escape` close
+- **Mobile bottom sheet** — system prompt opens as iOS-style bottom sheet with handle bar and backdrop
+- **SVG icon buttons** — gear, search, export, clear with hover/active effects
+
+### 🤖 Agent Monitor
+- **Real-time status** — online/offline indicator with pulsing dot animation
+- **Status cards** — Model, Sessions count, Heartbeat interval, Channel status
+- **Active Sessions list** — all OpenClaw sessions with source badges:
+  - ⚡ **CYBERFRAME** (yellow) — sessions from this app
+  - 💬 **Discord** (blue) — Discord channel sessions
+  - 🤖 **Sub-Agent** (purple) — spawned sub-agents
+  - 🏠 **Main** (green) — main agent session
+- **Session management** — hover actions on each session:
+  - 👁 **Preview** — modal showing transcript with avatars, timestamps, role colors
+  - 💬 **Restore** — load CYBERFRAME transcript back into chat tab (CYBERFRAME sessions only)
+  - ℹ️ **Info** — session metadata: key, ID, type, dates, file size, message count, compactions, origin
+  - ✕ **Delete** — danger confirmation dialog, slide-out animation on remove
+- **Display names** — chat session names shown above session keys
+- **Refresh button** — force cache invalidate with spinning icon
+- **Async & non-blocking** — `openclaw status` runs asynchronously (~4.4s), never blocks event loop
+- **Smart caching** — 30-second cache TTL, pre-warmed on server start, instant API response
+- **Loading animation** — pulsing dot + shimmer "Connecting..." text
+
+### 📑 Tab Drag & Reorder
+- **Drag tabs** to reorder — purple indicator line shows drop position
+- **Tab types** — terminal, editor, preview, admin, chat, agent-monitor
+
 ### 💓 Heartbeat Monitor
 - **Neon blue ECG** — 3D waveform with 4-layer glow, grid overlay, gradient mask fade edges
 - **Animated heart** — pulses with each successful ping, neon blue glow
@@ -241,6 +286,10 @@ Open `http://localhost:3000` in your browser.
 | Theme Switcher | Admin Panel |
 |---------------|-------------|
 | ![Themes](docs/images/themes.png) | ![Admin](docs/images/admin.png) |
+
+| AI Chat | Agent Monitor |
+|---------|--------------|
+| ![AI Chat](docs/images/ai-chat.png) | ![Agent Monitor](docs/images/agent-monitor.png) |
 
 ### 📱 Mobile (iOS Safari)
 
@@ -400,6 +449,12 @@ CYBERFRAME
 | POST | `/api/snippets` | Add new snippet |
 | DELETE | `/api/snippets/:id` | Delete a snippet |
 | GET | `/api/activity` | Activity log (`?limit=50`, max 500) |
+| POST | `/api/chat` | AI Chat — SSE streaming to OpenClaw gateway |
+| GET | `/api/agent/status` | Agent status (cached, `?force=1` to refresh) |
+| GET | `/api/agent/sessions` | List all agent sessions from store |
+| GET | `/api/agent/sessions/preview` | Preview session transcript (`?key=`) |
+| GET | `/api/agent/sessions/info` | Session metadata & file stats (`?key=`) |
+| POST | `/api/agent/sessions/delete` | Delete session + transcript file |
 
 ### WebSocket Messages
 
@@ -475,12 +530,15 @@ Server-intercepted commands (type directly in terminal):
 - `!ports` — listening ports
 
 ### 🔮 Future Ideas
-- **Split Pane / Multi-tab** — side-by-side terminals
 - **2FA / TOTP** — two-factor authentication
 - **Session Timeout Warning** — countdown before auto-disconnect
 - **Terminal Sharing** — read-only link for collaboration
 - **Session Recording** — asciinema-style playback
 - **Custom Keybindings** — user-configurable shortcuts
+- **Multi-user support** — currently single user
+- **HTTPS built-in** — currently relies on Tailscale
+- **Docker image** — one-click deploy
+- **Linux support** — currently Windows-only
 
 ---
 
