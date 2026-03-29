@@ -30,10 +30,14 @@
 - **Horizontal split** — side-by-side terminals (⫿ button)
 - **Vertical split** — top/bottom terminals (⫻ button)
 - **Nested splits** — split the active pane again for 3–4 pane layouts
+- **Drag & drop split** — drag a session card from sidebar onto the terminal area; drop on Left/Right/Top/Bottom zones to create a split with that session
+- **Per-pane drop zones** — when already split, each pane shows its own drop zones for targeted nested splits
+- **Drag header to swap** — drag a pane's header bar onto another pane's header to swap their positions
 - **Draggable resize handle** — smooth `requestAnimationFrame` animation
-- **Active pane highlight** — purple border + toolbar tint shows focus
+- **Active pane highlight** — purple border + centered title with accent color
 - **Sidebar sync** — click a session in sidebar to focus its pane
-- **Buffer preservation** — text content survives split operations
+- **Buffer preservation** — text content survives split and swap operations
+- **Session guard** — prevents the same session from being opened in multiple tabs
 - **Desktop only** — hidden on mobile (< 1024px)
 
 ### 🔍 Terminal Search

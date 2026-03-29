@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## 2026-03-29
+
+### Added
+- **Drag & drop session → split pane** — drag a session card from sidebar onto terminal area to split
+- **4-direction drop zones** — Left, Right, Top, Bottom with purple highlight on hover
+- **Per-pane drop zones** — when already split, each pane shows its own drop zones for targeted nested splits
+- **Drag header to swap** — drag a pane header onto another to swap positions (works across nested/main panes)
+- **Session guard** — prevents same session from being opened in multiple tabs simultaneously
+- **Pane header redesign** — centered title, accent border on active, subtle close button
+
+### Fixed
+- **Split direction** — "Split Left" now correctly places dragged session on the left (was reversed)
+- **Nested toolbar stacking** — parent toolbar removed on nested split (was showing double headers)
+- **Nested pane toolbars** — all sub-panes now get toolbar headers for drag-swap support
+
+### Changed
+- Desktop screenshots refreshed (PNG format, 8 total including split pane + admin panel)
+- README updated with drag-split, swap, and session guard features
+
 ## [Unreleased]
 
 ### Added
