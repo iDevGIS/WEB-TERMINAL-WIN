@@ -2265,6 +2265,14 @@
     }
     .chat-header-title svg { opacity: .6; flex-shrink: 0; }
     .chat-header-actions { display: flex; gap: 4px; flex-shrink: 0; align-items: center; }
+    .chat-icon-btn {
+      width: 32px; height: 32px; border-radius: 8px; border: 1px solid rgba(255,255,255,.08);
+      background: rgba(255,255,255,.04); color: var(--text2); cursor: pointer;
+      display: flex; align-items: center; justify-content: center; transition: all .15s;
+      flex-shrink: 0;
+    }
+    .chat-icon-btn:hover { background: rgba(108,99,255,.15); color: var(--text); border-color: rgba(108,99,255,.3); }
+    .chat-icon-btn:active { transform: scale(.92); }
     @media (max-width: 768px) {
       .chat-header {
         flex-wrap: nowrap; height: 36px; padding: 4px 8px; gap: 6px;
@@ -2281,13 +2289,8 @@
         scrollbar-width: none;
       }
       .chat-header-actions::-webkit-scrollbar { display: none; }
-      .chat-header-actions .chat-new-btn {
-        padding: 2px 6px !important; font-size: 11px !important;
-        min-width: 28px; min-height: 28px;
-        display: flex; align-items: center; justify-content: center;
-      }
-      /* Hide text labels on mobile — emoji only */
-      .chat-header-actions .chat-new-btn .mobile-hide { display: none; }
+      .chat-icon-btn { width: 30px; height: 30px; border-radius: 50%; }
+      .chat-icon-btn svg { width: 14px; height: 14px; }
       .chat-header-actions .chat-model-select {
         max-width: 80px; font-size: 10px; padding: 2px 3px;
         height: 28px; border-radius: 6px;
@@ -3372,7 +3375,7 @@
                 </select>
                 <input class="chat-model-input" id="${tabId}-model-input" placeholder="model name" onchange="chatModelInputChange('${tabId}')" onkeydown="if(event.key==='Enter'){chatModelInputChange('${tabId}');event.target.blur();}">
                 <div class="sysprompt-wrap">
-                  <button class="chat-new-btn" onclick="chatToggleSysPrompt('${tabId}')" style="width:auto;padding:4px 10px;font-size:11px" title="System Prompt">⚙️</button>
+                  <button class="chat-icon-btn" onclick="chatToggleSysPrompt('${tabId}')" title="System Prompt"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
                   <div class="sysprompt-popover" id="${tabId}-sysprompt">
                     <label>System Prompt</label>
                     <select class="sysprompt-select" id="${tabId}-sysprompt-sel" onchange="chatSysPromptPreset('${tabId}')">
@@ -3386,9 +3389,9 @@
                     <textarea class="sysprompt-textarea" id="${tabId}-sysprompt-txt" placeholder="Enter custom system prompt…" oninput="chatSysPromptCustom('${tabId}')"></textarea>
                   </div>
                 </div>
-                <button class="chat-new-btn" onclick="chatToggleSearch('${tabId}')" style="width:auto;padding:4px 10px;font-size:11px" title="Search">🔍</button>
-                <button class="chat-new-btn" onclick="chatExport('${tabId}')" style="width:auto;padding:4px 10px;font-size:11px" title="Export">📤</button>
-                <button class="chat-new-btn" onclick="chatClearCurrent('${tabId}')" style="width:auto;padding:4px 10px;font-size:11px" title="Clear">🗑<span class="mobile-hide"> Clear</span></button>
+                <button class="chat-icon-btn" onclick="chatToggleSearch('${tabId}')" title="Search"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button>
+                <button class="chat-icon-btn" onclick="chatExport('${tabId}')" title="Export"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></button>
+                <button class="chat-icon-btn" onclick="chatClearCurrent('${tabId}')" title="Clear"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
               </div>
             </div>
             <div class="chat-search-bar" id="${tabId}-search-bar">
