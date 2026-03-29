@@ -2203,6 +2203,134 @@
       .session-item { padding: 14px; gap: 14px; }
       input { padding: 14px 16px; font-size: 16px; } /* prevent iOS zoom */
     }
+    /* === AI Chat Tab === */
+    .chat-tab-wrap {
+      display: flex; flex-direction: column; height: 100%; background: transparent;
+    }
+    .chat-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 16px; border-bottom: 1px solid var(--glass-border);
+      background: var(--glass-bg);
+    }
+    .chat-header-title { font-size: 13px; font-weight: 600; color: var(--text); display: flex; align-items: center; gap: 8px; }
+    .chat-header-title svg { opacity: .6; }
+    .chat-new-btn {
+      padding: 5px 12px; border-radius: 8px; border: 1px solid var(--glass-border);
+      background: var(--glass-bg2); color: var(--text2); font-size: 11px; cursor: pointer;
+      transition: all .2s; font-family: inherit;
+    }
+    .chat-new-btn:hover { background: var(--glass-bg3); color: var(--text); }
+    .chat-messages {
+      flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px;
+      scroll-behavior: smooth;
+    }
+    .chat-messages::-webkit-scrollbar { width: 6px; }
+    .chat-messages::-webkit-scrollbar-thumb { background: rgba(255,255,255,.1); border-radius: 3px; }
+    .chat-msg {
+      max-width: 85%; padding: 10px 14px; border-radius: 14px; font-size: 13px; line-height: 1.55;
+      word-break: break-word; position: relative; animation: chatFadeIn .25s ease;
+    }
+    @keyframes chatFadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    .chat-msg.user {
+      align-self: flex-end; background: linear-gradient(135deg, rgba(108,99,255,.35), rgba(108,99,255,.2));
+      border: 1px solid rgba(108,99,255,.3); color: #e8e6ff; border-bottom-right-radius: 4px;
+    }
+    .chat-msg.assistant {
+      align-self: flex-start; background: var(--glass-bg2); border: 1px solid var(--glass-border);
+      color: var(--text); border-bottom-left-radius: 4px;
+    }
+    .chat-msg.assistant .msg-content { font-family: 'Inter', sans-serif; }
+    .chat-msg.assistant .msg-content pre {
+      background: rgba(0,0,0,.3); border-radius: 8px; padding: 10px 12px; overflow-x: auto;
+      margin: 8px 0; border: 1px solid rgba(255,255,255,.06);
+    }
+    .chat-msg.assistant .msg-content code {
+      font-family: 'JetBrains Mono', monospace; font-size: 12px;
+    }
+    .chat-msg.assistant .msg-content p { margin: 4px 0; }
+    .chat-msg.assistant .msg-content ul, .chat-msg.assistant .msg-content ol { padding-left: 18px; margin: 4px 0; }
+    .chat-msg.assistant .msg-content h1, .chat-msg.assistant .msg-content h2, .chat-msg.assistant .msg-content h3 {
+      margin: 8px 0 4px; font-size: 14px; font-weight: 600;
+    }
+    .chat-msg.assistant .msg-content a { color: var(--blue); text-decoration: underline; }
+    .chat-msg.assistant .msg-content table { border-collapse: collapse; margin: 6px 0; font-size: 12px; }
+    .chat-msg.assistant .msg-content th, .chat-msg.assistant .msg-content td {
+      padding: 4px 8px; border: 1px solid var(--glass-border);
+    }
+    .chat-msg .msg-role {
+      font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .5px;
+      margin-bottom: 4px; opacity: .5;
+    }
+    .chat-msg.assistant .typing-cursor::after {
+      content: '▊'; animation: blink 1s step-end infinite; opacity: .6;
+    }
+    @keyframes blink { 50% { opacity: 0; } }
+    .chat-input-wrap {
+      display: flex; align-items: flex-end; gap: 8px; padding: 12px 16px;
+      border-top: 1px solid var(--glass-border); background: var(--glass-bg);
+    }
+    .chat-input {
+      flex: 1; padding: 10px 14px; border-radius: 12px; border: 1px solid var(--glass-border);
+      background: var(--glass-bg2); color: var(--text); font-size: 13px; font-family: 'Inter', sans-serif;
+      resize: none; outline: none; min-height: 40px; max-height: 150px; line-height: 1.4;
+      transition: border-color .2s;
+    }
+    .chat-input:focus { border-color: rgba(108,99,255,.5); }
+    .chat-input::placeholder { color: var(--text3); }
+    .chat-send-btn {
+      width: 40px; height: 40px; border-radius: 10px; border: none; cursor: pointer;
+      background: linear-gradient(135deg, #6c63ff, #5a52e0); color: #fff;
+      display: flex; align-items: center; justify-content: center; transition: all .2s;
+      flex-shrink: 0;
+    }
+    .chat-send-btn:hover { transform: scale(1.05); box-shadow: 0 4px 16px rgba(108,99,255,.4); }
+    .chat-send-btn:disabled { opacity: .4; cursor: not-allowed; transform: none; box-shadow: none; }
+    .chat-empty {
+      flex: 1; display: flex; align-items: center; justify-content: center;
+      flex-direction: column; gap: 10px; opacity: .3;
+    }
+    .chat-empty-icon { font-size: 40px; }
+    .chat-empty-text { font-size: 13px; }
+
+    /* === Agent Monitor Tab === */
+    .agent-monitor-wrap {
+      display: flex; flex-direction: column; height: 100%; overflow-y: auto; padding: 20px; gap: 16px;
+    }
+    .agent-monitor-wrap::-webkit-scrollbar { width: 6px; }
+    .agent-monitor-wrap::-webkit-scrollbar-thumb { background: rgba(255,255,255,.1); border-radius: 3px; }
+    .agent-card {
+      background: var(--glass-bg); border: 1px solid var(--glass-border); border-radius: 16px;
+      padding: 20px; backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+    }
+    .agent-card-title {
+      font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px;
+      color: var(--text2); margin-bottom: 14px; display: flex; align-items: center; gap: 8px;
+    }
+    .agent-status-row {
+      display: flex; align-items: center; gap: 12px; margin-bottom: 10px;
+    }
+    .agent-status-dot {
+      width: 10px; height: 10px; border-radius: 50%;
+    }
+    .agent-status-dot.online { background: var(--green); box-shadow: 0 0 8px var(--green); }
+    .agent-status-dot.offline { background: var(--red); box-shadow: 0 0 8px var(--red); }
+    .agent-info-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px;
+    }
+    .agent-info-item {
+      padding: 10px 12px; border-radius: 10px; background: rgba(255,255,255,.02);
+      border: 1px solid rgba(255,255,255,.05);
+    }
+    .agent-info-label { font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 4px; }
+    .agent-info-value { font-size: 14px; font-weight: 600; color: var(--text); font-family: 'JetBrains Mono', monospace; }
+    .agent-raw-output {
+      background: rgba(0,0,0,.3); border-radius: 10px; padding: 12px; margin-top: 12px;
+      font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text2);
+      white-space: pre-wrap; word-break: break-all; max-height: 300px; overflow-y: auto;
+      border: 1px solid rgba(255,255,255,.05);
+    }
+    .agent-refresh-note { font-size: 10px; color: var(--text3); text-align: center; margin-top: 8px; }
+
   </style>
 </head>
 <body>
@@ -2426,6 +2554,9 @@
       <button class="toolbar-icon" id="btn-font-up" title="Increase font size" onclick="changeFontSize(2)">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
       </button>
+      <button class="toolbar-icon" id="btn-chat" title="AI Chat" onclick="openChatTab()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      </button>
       <button class="toolbar-icon" id="btn-theme" title="Switch theme" onclick="openThemeModal()">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
       </button>
@@ -2528,6 +2659,16 @@
               <span class="fi"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r="2.5"/><path d="M17 2s3 1.5 3 5-3 5-3 5"/><circle cx="6" cy="12" r="2"/><path d="M2 16s2-2 4-2 4 2 4 2"/><circle cx="17" cy="17" r="2"/><path d="M21 21s-2-2-4-2-4 2-4 2"/></svg></span>
               <span class="feat-label">Themes</span>
               <span class="feat-sub">8 color schemes</span>
+            </div>
+            <div class="feature" onclick="openChatTab()" title="AI Chat">
+              <span class="fi"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#818cf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
+              <span class="feat-label">AI Chat</span>
+              <span class="feat-sub">OpenClaw AI</span>
+            </div>
+            <div class="feature" onclick="openAgentMonitorTab()" title="Agent Monitor">
+              <span class="fi"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg></span>
+              <span class="feat-label">Agent</span>
+              <span class="feat-sub">Monitor status</span>
             </div>
           </div>
         </div>
@@ -2711,8 +2852,8 @@
       const tabEl = document.createElement('div');
       tabEl.className = 'tab-item';
       tabEl.dataset.tabId = tabId;
-      const icon = opts.icon || (type === 'terminal' ? '⚡' : type === 'editor' ? '📝' : type === 'preview' ? '👁' : type === 'admin' ? '🛡️' : '📂');
-      const label = opts.name || (type === 'terminal' ? 'Shell' : type === 'editor' ? 'Editor' : type === 'preview' ? 'Preview' : type === 'admin' ? 'Admin' : 'Files');
+      const icon = opts.icon || (type === 'terminal' ? '⚡' : type === 'editor' ? '📝' : type === 'preview' ? '👁' : type === 'admin' ? '🛡️' : type === 'chat' ? '💬' : type === 'agent-monitor' ? '🤖' : '📂');
+      const label = opts.name || (type === 'terminal' ? 'Shell' : type === 'editor' ? 'Editor' : type === 'preview' ? 'Preview' : type === 'admin' ? 'Admin' : type === 'chat' ? 'AI Chat' : type === 'agent-monitor' ? 'Agent Monitor' : 'Files');
       tabEl.innerHTML = `<span class="tab-icon">${icon}</span><span class="tab-label">${escHtml(label)}</span><span class="tab-close" onclick="event.stopPropagation();closeTab('${tabId}')">✕</span>`;
       tabEl.onclick = () => switchTab(tabId);
       // Insert before the + button
@@ -2841,6 +2982,77 @@
         container.appendChild(paneEl);
         // Load files
         setTimeout(() => { if (typeof loadDrives === 'function') loadDrives(); if (typeof renderFavorites === 'function') renderFavorites(); }, 100);
+
+      } else if (type === 'chat') {
+        paneEl.innerHTML = `<div class="chat-tab-wrap" id="${tabId}-chat">
+          <div class="chat-header">
+            <div class="chat-header-title">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+              OpenClaw AI Chat
+            </div>
+            <button class="chat-new-btn" onclick="chatNewConversation('${tabId}')">✦ New Chat</button>
+          </div>
+          <div class="chat-messages" id="${tabId}-messages">
+            <div class="chat-empty">
+              <div class="chat-empty-icon">💬</div>
+              <div class="chat-empty-text">Start a conversation with OpenClaw AI</div>
+            </div>
+          </div>
+          <div class="chat-input-wrap">
+            <textarea class="chat-input" id="${tabId}-input" placeholder="Ask anything… (Enter to send, Shift+Enter for newline)" rows="1"></textarea>
+            <button class="chat-send-btn" id="${tabId}-send" onclick="chatSend('${tabId}')">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+            </button>
+          </div>
+        </div>`;
+        container.appendChild(paneEl);
+        tabData.chatHistory = [];
+        tabData.chatStreaming = false;
+        // Setup input handlers
+        const chatInput = document.getElementById(tabId + '-input');
+        chatInput.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); chatSend(tabId); }
+        });
+        chatInput.addEventListener('input', () => {
+          chatInput.style.height = 'auto';
+          chatInput.style.height = Math.min(chatInput.scrollHeight, 150) + 'px';
+        });
+
+      } else if (type === 'agent-monitor') {
+        paneEl.innerHTML = `<div class="agent-monitor-wrap" id="${tabId}-monitor">
+          <div class="agent-card">
+            <div class="agent-card-title">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2"/></svg>
+              Agent Status
+            </div>
+            <div class="agent-status-row">
+              <div class="agent-status-dot offline" id="${tabId}-status-dot"></div>
+              <span id="${tabId}-status-text" style="font-size:14px;font-weight:600">Checking…</span>
+            </div>
+            <div class="agent-info-grid">
+              <div class="agent-info-item">
+                <div class="agent-info-label">Model</div>
+                <div class="agent-info-value" id="${tabId}-model">—</div>
+              </div>
+              <div class="agent-info-item">
+                <div class="agent-info-label">Sessions</div>
+                <div class="agent-info-value" id="${tabId}-sessions">—</div>
+              </div>
+            </div>
+          </div>
+          <div class="agent-card">
+            <div class="agent-card-title">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+              Raw Output
+            </div>
+            <div class="agent-raw-output" id="${tabId}-raw">Loading…</div>
+          </div>
+          <div class="agent-refresh-note">Auto-refreshes every 10 seconds</div>
+        </div>`;
+        container.appendChild(paneEl);
+        // Start polling
+        tabData._monitorInterval = setInterval(() => refreshAgentMonitor(tabId), 10000);
+        refreshAgentMonitor(tabId);
       }
 
       tabs.set(tabId, tabData);
@@ -2921,6 +3133,11 @@
           if (!confirm('Unsaved changes. Close anyway?')) return;
         }
         tab.monacoEditor.dispose();
+      }
+
+      // Clean up agent monitor interval
+      if (tab.type === 'agent-monitor' && tab._monitorInterval) {
+        clearInterval(tab._monitorInterval);
       }
 
       // Restore file drawer to body when closing files tab
@@ -3020,6 +3237,166 @@
         if (tab.type === 'admin') { switchTab(tabId); return; }
       }
       createTab('admin', { name: 'Admin', icon: '🛡️' });
+    }
+
+    // === AI Chat Functions ===
+    function openChatTab() {
+      createTab('chat', { name: 'AI Chat', icon: '💬' });
+    }
+
+    function chatNewConversation(tabId) {
+      const tab = tabs.get(tabId);
+      if (!tab) return;
+      tab.chatHistory = [];
+      const messagesEl = document.getElementById(tabId + '-messages');
+      if (messagesEl) {
+        messagesEl.innerHTML = `<div class="chat-empty"><div class="chat-empty-icon">💬</div><div class="chat-empty-text">Start a conversation with OpenClaw AI</div></div>`;
+      }
+    }
+
+    async function chatSend(tabId) {
+      const tab = tabs.get(tabId);
+      if (!tab || tab.chatStreaming) return;
+      const input = document.getElementById(tabId + '-input');
+      const text = input.value.trim();
+      if (!text) return;
+
+      const messagesEl = document.getElementById(tabId + '-messages');
+      const sendBtn = document.getElementById(tabId + '-send');
+
+      // Clear empty state
+      const emptyEl = messagesEl.querySelector('.chat-empty');
+      if (emptyEl) emptyEl.remove();
+
+      // Add user message
+      tab.chatHistory.push({ role: 'user', content: text });
+      const userBubble = document.createElement('div');
+      userBubble.className = 'chat-msg user';
+      userBubble.innerHTML = `<div class="msg-content">${escHtml(text).replace(/\n/g, '<br>')}</div>`;
+      messagesEl.appendChild(userBubble);
+
+      input.value = '';
+      input.style.height = 'auto';
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+
+      // Add assistant placeholder
+      const aiBubble = document.createElement('div');
+      aiBubble.className = 'chat-msg assistant';
+      aiBubble.innerHTML = `<div class="msg-content"><span class="typing-cursor"></span></div>`;
+      messagesEl.appendChild(aiBubble);
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+
+      tab.chatStreaming = true;
+      sendBtn.disabled = true;
+      let fullContent = '';
+
+      try {
+        const res = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ messages: tab.chatHistory }),
+        });
+
+        if (!res.ok) {
+          const err = await res.text();
+          throw new Error(err || 'Chat request failed');
+        }
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop(); // keep incomplete line
+
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue;
+            const data = line.slice(6).trim();
+            if (data === '[DONE]') continue;
+
+            try {
+              const parsed = JSON.parse(data);
+              const delta = parsed.choices?.[0]?.delta?.content;
+              if (delta) {
+                fullContent += delta;
+                const contentEl = aiBubble.querySelector('.msg-content');
+                // Render markdown
+                if (typeof marked !== 'undefined') {
+                  contentEl.innerHTML = marked.parse(fullContent) + '<span class="typing-cursor"></span>';
+                  // Highlight code blocks
+                  contentEl.querySelectorAll('pre code').forEach(el => {
+                    if (!el.dataset.highlighted) { hljs.highlightElement(el); el.dataset.highlighted = '1'; }
+                  });
+                } else {
+                  contentEl.innerHTML = escHtml(fullContent).replace(/\n/g, '<br>') + '<span class="typing-cursor"></span>';
+                }
+                messagesEl.scrollTop = messagesEl.scrollHeight;
+              }
+            } catch {}
+          }
+        }
+
+        // Finalize
+        const contentEl = aiBubble.querySelector('.msg-content');
+        if (typeof marked !== 'undefined') {
+          contentEl.innerHTML = marked.parse(fullContent);
+          contentEl.querySelectorAll('pre code').forEach(el => {
+            if (!el.dataset.highlighted) { hljs.highlightElement(el); el.dataset.highlighted = '1'; }
+          });
+        } else {
+          contentEl.innerHTML = escHtml(fullContent).replace(/\n/g, '<br>');
+        }
+
+        tab.chatHistory.push({ role: 'assistant', content: fullContent });
+
+      } catch (e) {
+        const contentEl = aiBubble.querySelector('.msg-content');
+        contentEl.innerHTML = `<span style="color:var(--red)">⚠ Error: ${escHtml(e.message)}</span>`;
+      }
+
+      tab.chatStreaming = false;
+      sendBtn.disabled = false;
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+      input.focus();
+    }
+
+    // === Agent Monitor Functions ===
+    function openAgentMonitorTab() {
+      for (const [tabId, tab] of tabs) {
+        if (tab.type === 'agent-monitor') { switchTab(tabId); return; }
+      }
+      createTab('agent-monitor', { name: 'Agent Monitor', icon: '🤖' });
+    }
+
+    async function refreshAgentMonitor(tabId) {
+      const tab = tabs.get(tabId);
+      if (!tab) return;
+      try {
+        const res = await fetch('/api/agent/status');
+        const data = await res.json();
+
+        const dotEl = document.getElementById(tabId + '-status-dot');
+        const textEl = document.getElementById(tabId + '-status-text');
+        const modelEl = document.getElementById(tabId + '-model');
+        const sessEl = document.getElementById(tabId + '-sessions');
+        const rawEl = document.getElementById(tabId + '-raw');
+
+        if (dotEl) {
+          dotEl.className = 'agent-status-dot ' + (data.status === 'online' ? 'online' : 'offline');
+        }
+        if (textEl) textEl.textContent = data.status === 'online' ? '● Online' : '○ Offline';
+        if (modelEl) modelEl.textContent = data.model || '—';
+        if (sessEl) sessEl.textContent = data.sessions ?? '—';
+        if (rawEl) rawEl.textContent = data.raw || data.error || 'No data';
+      } catch (e) {
+        const rawEl = document.getElementById(tabId + '-raw');
+        if (rawEl) rawEl.textContent = 'Error: ' + e.message;
+      }
     }
 
     // === Terminal Pane Factory ===

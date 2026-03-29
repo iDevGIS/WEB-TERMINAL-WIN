@@ -852,6 +852,101 @@ app.get("/api/admin/server", requireAuth, (req, res) => {
   });
 });
 
+// === OpenClaw Chat Proxy (SSE streaming) ===
+const OPENCLAW_GW = process.env.OPENCLAW_GATEWAY || "http://127.0.0.1:18789";
+const OPENCLAW_TOKEN = process.env.OPENCLAW_TOKEN || "";
+
+app.post("/api/chat", requireAuth, async (req, res) => {
+  const { messages, model } = req.body;
+  if (!messages || !Array.isArray(messages)) return res.status(400).json({ error: "messages required" });
+  if (!OPENCLAW_TOKEN) return res.status(500).json({ error: "OPENCLAW_TOKEN not configured" });
+
+  const payload = {
+    model: model || undefined,
+    messages,
+    stream: true,
+    user: "cyberframe",
+  };
+
+  try {
+    const url = OPENCLAW_GW + "/v1/chat/completions";
+    const upstream = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer " + OPENCLAW_TOKEN,
+        "x-openclaw-agent-id": "main",
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!upstream.ok) {
+      const errText = await upstream.text();
+      return res.status(upstream.status).json({ error: errText });
+    }
+
+    // SSE passthrough
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+    res.setHeader("X-Accel-Buffering", "no");
+    res.flushHeaders();
+
+    const reader = upstream.body;
+    reader.on("data", (chunk) => {
+      res.write(chunk);
+    });
+    reader.on("end", () => {
+      res.end();
+    });
+    reader.on("error", (err) => {
+      console.error("[Chat proxy] stream error:", err.message);
+      res.end();
+    });
+    req.on("close", () => {
+      reader.destroy();
+    });
+  } catch (e) {
+    console.error("[Chat proxy] error:", e.message);
+    if (!res.headersSent) res.status(502).json({ error: e.message });
+    else res.end();
+  }
+});
+
+// === OpenClaw Agent Status ===
+app.get("/api/agent/status", requireAuth, async (req, res) => {
+  try {
+    const { execSync } = require("child_process");
+    const raw = execSync("openclaw status", { encoding: "utf8", timeout: 10000 });
+    // Parse key info from output
+    const lines = raw.split("\n");
+    const info = { raw, status: "unknown", model: "unknown", sessions: 0, details: {} };
+
+    for (const line of lines) {
+      const l = line.trim();
+      if (/status|state/i.test(l) && /online|running|active/i.test(l)) info.status = "online";
+      if (/offline|stopped|inactive/i.test(l)) info.status = "offline";
+      const modelMatch = l.match(/model[:\s]+(.+)/i);
+      if (modelMatch) info.model = modelMatch[1].trim();
+      const sessMatch = l.match(/sessions?[:\s]+(\d+)/i);
+      if (sessMatch) info.sessions = parseInt(sessMatch[1]);
+    }
+
+    // Also try gateway health
+    try {
+      const gwRes = await fetch(OPENCLAW_GW + "/health", { signal: AbortSignal.timeout(3000) });
+      if (gwRes.ok) {
+        info.status = "online";
+        try { info.gateway = await gwRes.json(); } catch {}
+      }
+    } catch {}
+
+    res.json(info);
+  } catch (e) {
+    res.json({ status: "offline", model: "unknown", sessions: 0, error: e.message, raw: "" });
+  }
+});
+
 // Protected static files — no cache for HTML
 app.use(requireAuth, (req, res, next) => {
   if (req.path === '/' || req.path.endsWith('.html')) {
