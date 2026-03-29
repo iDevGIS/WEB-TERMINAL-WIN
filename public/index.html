@@ -3220,7 +3220,10 @@
       pane.term.dispose();
 
       // Create nested split container inside this pane
-      // Keep the toolbar, replace the term-wrap with a nested split
+      // Remove parent toolbar + term-wrap, replace with nested split
+      const existingName = splitPaneEl.querySelector('.split-label')?.textContent || 'Shell';
+      const oldToolbar = splitPaneEl.querySelector(':scope > .split-toolbar');
+      if (oldToolbar) splitPaneEl.removeChild(oldToolbar);
       const oldWrap = splitPaneEl.querySelector('.term-wrap');
       splitPaneEl.removeChild(oldWrap);
 
@@ -3234,7 +3237,6 @@
       subA.className = 'split-pane';
       const toolbarA = document.createElement('div');
       toolbarA.className = 'split-toolbar';
-      const existingName = pane.wrapEl?.closest('.split-pane')?.querySelector('.split-label')?.textContent || 'Shell';
       toolbarA.innerHTML = `<span class="split-label">${existingName}</span>`;
       subA.appendChild(toolbarA);
       const wrapA = document.createElement('div');
@@ -3891,6 +3893,10 @@
       const oldSessionId = pane.sessionId;
       pane.term.dispose();
 
+      // Remove parent toolbar + term-wrap
+      const existingLabel = splitPaneEl.querySelector('.split-label')?.textContent || 'Shell';
+      const oldToolbar = splitPaneEl.querySelector(':scope > .split-toolbar');
+      if (oldToolbar) splitPaneEl.removeChild(oldToolbar);
       const oldWrap = splitPaneEl.querySelector('.term-wrap');
       splitPaneEl.removeChild(oldWrap);
 
@@ -3904,8 +3910,6 @@
       const secondSid = draggedFirst ? oldSessionId : sessionId;
       const s = sessions.find(s => s.id === sessionId);
       const newPaneIdx = tab.panes.length;
-
-      const existingLabel = pane.wrapEl?.closest('.split-pane')?.querySelector('.split-label')?.textContent || 'Shell';
       const firstLabel = draggedFirst ? (s ? s.name : 'Shell') : existingLabel;
 
       const subA = document.createElement('div');
