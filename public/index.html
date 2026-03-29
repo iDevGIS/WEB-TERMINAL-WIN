@@ -3479,7 +3479,7 @@
         const res = await fetch('/api/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ messages: sess.messages }),
+          body: JSON.stringify({ messages: sess.messages, sessionId: sess.id }),
         });
 
         if (!res.ok) {

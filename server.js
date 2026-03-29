@@ -861,11 +861,12 @@ app.post("/api/chat", requireAuth, async (req, res) => {
   if (!messages || !Array.isArray(messages)) return res.status(400).json({ error: "messages required" });
   if (!OPENCLAW_TOKEN) return res.status(500).json({ error: "OPENCLAW_TOKEN not configured" });
 
+  const { sessionId } = req.body;
   const payload = {
     model: model || undefined,
     messages,
     stream: true,
-    user: "cyberframe",
+    user: sessionId ? "cyberframe-" + sessionId : "cyberframe-" + Date.now(),
   };
 
   try {
