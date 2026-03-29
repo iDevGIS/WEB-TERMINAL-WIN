@@ -4,6 +4,7 @@
 
 ![Node.js](https://img.shields.io/badge/Node.js-18+-339933?logo=nodedotjs&logoColor=white)
 ![Platform](https://img.shields.io/badge/Platform-Windows-0078D6?logo=windows&logoColor=white)
+![Version](https://img.shields.io/badge/Version-1.5.0-6c63ff)
 ![License](https://img.shields.io/badge/License-MIT-blue)
 
 ## ✨ Features

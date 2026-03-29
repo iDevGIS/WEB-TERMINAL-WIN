@@ -1,10 +1,11 @@
 # Changelog — CYBERFRAME
 
 All notable changes to this project will be documented in this file.
+Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
-## 2026-03-29
+## [1.5.0] — 2026-03-29
 
 ### Added
 - **Drag & drop session → split pane** — drag a session card from sidebar onto terminal area to split
@@ -23,7 +24,9 @@ All notable changes to this project will be documented in this file.
 - Desktop screenshots refreshed (PNG format, 8 total including split pane + admin panel)
 - README updated with drag-split, swap, and session guard features
 
-## [Unreleased]
+---
+
+## [1.4.0] — 2026-03-28
 
 ### Added
 - **Multi-Tab System** — each terminal session opens in its own tab with dedicated xterm instance
@@ -56,65 +59,49 @@ All notable changes to this project will be documented in this file.
 - **Neon Blue Heartbeat Monitor** — 3D ECG waveform
   - Deep black background, grid overlay with gradient mask fade
   - 4-layer glow, sharp 1.2px stroke, geometricPrecision rendering
-- **TODO.md** — full roadmap with High/Medium/Low priorities + completed checklist
 - **Multi-Session WebSocket** — server tracks multiple attached sessions per WS client
   - `sess.clients` Set replaces single `sess.ws` reference
   - All messages (input, resize, detach) include session `id`
   - Multiple tabs show correct Linked/Idle status simultaneously
 - **File Manager Tab** — opens as tab instead of drawer overlay
-  - File drawer moves into tab pane with `.in-tab` class
-  - Close tab restores drawer to original DOM position
 - **Editor Status Bar** — VS Code-style footer in editor tabs
   - Language, cursor position (Ln/Col), line count, file size
   - ● Modified indicator, Undo/Redo/Save buttons with SVG icons
   - Preview button for `.md`/`.html`/`.htm` files
 - **Welcome Feature Cards Clickable** — each card triggers its action
-  - Immortal/Multi-link/Raw PTY → shell picker, Admin → admin tab, Files → file tab
-  - Remote → VNC, Monitor → admin tab, Themes → theme picker
-- **Tab `+` Button → Welcome Screen** — Chrome-style new tab page with feature cards
+- **Tab `+` Button → Welcome Screen** — Chrome-style new tab page
 - **Font Size in Theme Drawer** — A-/A+ buttons with current size display
 - **Font Size Sync** — changes apply to both terminal and Monaco editor tabs
-- **Kill Session → Close Tab** — `destroySession()` broadcasts `session-died` via WS to all clients
-- **8 Mobile Screenshots** in README — login, welcome, terminal, sidebar, admin, files, editor, sessions
-- **CHANGELOG.md** — full project history from initial release
+- **Kill Session → Close Tab** — `destroySession()` broadcasts `session-died` via WS
 - **Split Pane** — divide terminal tab into multiple panes
   - Horizontal split (side by side) + Vertical split (top/bottom)
   - Nested splits: split active pane again for 3-4 pane layouts
   - Each pane has own xterm instance + session
-  - Shell picker when creating new split pane
   - Draggable resize handle with smooth RAF animation
   - Active pane highlight (purple border + toolbar tint)
-  - Focus sync: click pane ↔ sidebar session card ↔ toolbar title
-  - Close pane: 3→2 and 2→1 transitions with layout rebuild
   - Buffer restore on split (re-attach fetches server buffer)
   - Hidden on mobile (< 1024px) — desktop only
 - **Theme/File drawer scrollable on mobile** — `overflow-y: auto`
 
 ### Changed
-- Editor default font size: 14px from localStorage (was hardcoded 13px)
-- Split resize: uses `requestAnimationFrame` + server PTY resize on mouseup only
-- Disk usage: replaced deprecated `wmic` with `Get-CimInstance Win32_LogicalDisk`
+- Editor default font size: 14px from localStorage
+- Disk usage: `Get-CimInstance Win32_LogicalDisk` replaces deprecated `wmic`
 - Quick Actions: emoji → color-coded SVG icons
 - Admin button: opens as tab instead of navigating to separate page
 
 ### Fixed
-- iOS autofill bar: added autocomplete/autocorrect/spellcheck off on xterm textarea
+- iOS autofill bar: autocomplete/autocorrect/spellcheck off on xterm textarea
 - Admin iframe navigation: back button no longer causes nested terminal view
-- Activity log "Invalid Date": field name was `time` not `timestamp`
-- Admin sessions "NaN" age: field name was `createdAt` not `created`
-- Admin sessions "[object Object]": display `shell.name` not shell object
-- Admin process table: mobile responsive, CPU column hidden, names truncated
-- Favorites: consistent forward slash paths, `updateFavIcon()` path mismatch
+- Activity log "Invalid Date" / Admin sessions "NaN" age / "[object Object]"
+- Favorites: consistent forward slash paths
 - Tab focus: removed outline ring and text selection
 - Theme/snippets drawer z-index: no longer blocked by file manager tab
-- Login panel: centered vertically (`min-height` instead of `-webkit-fill-available`)
-- Sidebar header + toolbar: pixel-perfect height alignment (fixed 42px)
-- Empty state sidebar: no longer flickers on refresh (skip re-render if unchanged)
-- `.md`/`.html` files: double-click opens code view, Preview button in status bar
+- Login panel: centered vertically
+- Sidebar header + toolbar: pixel-perfect 42px height alignment
 
 ---
 
-## [2026-03-24]
+## [1.3.0] — 2026-03-24
 
 ### Added
 - **GitHub-style Markdown Preview** — marked.js + highlight.js + github-markdown-css dark theme
@@ -127,25 +114,21 @@ All notable changes to this project will be documented in this file.
 - **Refresh Button** — reload current directory without navigating away
 
 ### Fixed
-- **iOS Safari Mobile** (marathon fix session)
-  - Root cause: `Notification` API doesn't exist on iOS → JS error killed all buttons
-  - `typeof Notification !== 'undefined'` guard
-  - Inline `onclick` attributes instead of JS bindings (prevents script error cascading)
-  - `window.onerror` handler shows red debug banner on mobile
-  - CSS `display: none !important` for sidebar mobile + `display: flex !important` when open
+- **iOS Safari Mobile** — comprehensive fix session
+  - `Notification` API guard (`typeof` check)
+  - Inline `onclick` attributes instead of JS bindings
+  - `window.onerror` handler shows red debug banner
   - `100dvh` + `-webkit-fill-available` + `viewport-fit=cover` + `env(safe-area-inset-*)`
   - `touch-action: manipulation` on all buttons
-  - Removed `margin-left: -260px` at 480px breakpoint (was hiding sidebar)
-- Favorites/file paths: forward slash `/` instead of backslash `\` to avoid HTML escape issues
-- `escHtml()` / `escAttr()`: wrapped with `String(s||'')` to prevent `.replace()` type errors
+- Favorites/file paths: forward slash consistency
+- `escHtml()` / `escAttr()`: `String(s||'')` wrapper
 
 ---
 
-## [2026-03-23]
+## [1.2.0] — 2026-03-23
 
 ### Added
-- **Monaco Editor** (VS Code in browser) — replaces textarea for file editing
-  - 25+ language support, bracket pair colorization, minimap
+- **Monaco Editor** (VS Code in browser) — 25+ languages, bracket pairs, minimap
 - **Activity Log** — in-memory (last 500 entries) with timeline drawer UI
 - **Custom Confirm Dialog** — glassmorphism replaces `confirm()`
 - **Export Terminal** — download as .txt or .html
@@ -159,11 +142,11 @@ All notable changes to this project will be documented in this file.
 ### Changed
 - File toolbar: compact drives + actions in one row, icon-only buttons
 - File icons: SVG line icons replace emoji
-- Single click = select, double click = preview/navigate (250ms timer)
+- Single click = select, double click = preview/navigate
 
 ---
 
-## [2026-03-22]
+## [1.1.0] — 2026-03-22
 
 ### Added
 - **Full-Screen File Preview** — overlay with syntax highlighting (highlight.js Tokyo Night Dark)
@@ -174,7 +157,7 @@ All notable changes to this project will be documented in this file.
 
 ---
 
-## [2026-03-21]
+## [1.0.0] — 2026-03-21
 
 ### Added
 - **Initial Release** — CYBERFRAME Web Terminal
