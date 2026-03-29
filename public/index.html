@@ -2516,6 +2516,14 @@
       0%, 100% { box-shadow: 0 0 4px var(--accent); opacity: .4; transform: scale(.8); }
       50% { box-shadow: 0 0 14px var(--accent), 0 0 24px rgba(108,99,255,.3); opacity: 1; transform: scale(1.2); }
     }
+    .sess-action-btn {
+      background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.08);
+      border-radius: 4px; padding: 2px 6px; cursor: pointer; font-size: 11px;
+      color: var(--text3); transition: all .15s; opacity: 0; line-height: 1;
+    }
+    .agent-sess-row:hover .sess-action-btn { opacity: 1; }
+    .sess-action-btn:hover { background: rgba(108,99,255,.2); color: var(--text); }
+    .sess-action-btn.sess-del:hover { background: rgba(248,113,113,.2); color: var(--red); }
     .shimmer-text {
       background: linear-gradient(90deg, var(--text3) 0%, var(--accent) 50%, var(--text3) 100%);
       background-size: 200% 100%;
@@ -4245,6 +4253,64 @@
       createTab('agent-monitor', { name: 'Agent Monitor', icon: '🤖' });
     }
 
+    async function previewAgentSession(key) {
+      try {
+        const res = await fetch('/api/agent/sessions/preview?key=' + encodeURIComponent(key));
+        const data = await res.json();
+        if (!res.ok) { cyberToast('Error: ' + (data.error || 'Unknown'), 'error'); return; }
+        // Open in a modal-like overlay
+        const overlay = document.createElement('div');
+        overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.7);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;';
+        overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+        const panel = document.createElement('div');
+        panel.style.cssText = 'background:var(--bg);border:1px solid var(--glass-border);border-radius:14px;padding:20px;max-width:700px;width:90%;max-height:80vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,.5);';
+        const shortKey = key.length > 50 ? '…' + key.slice(-45) : key;
+        let html = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+          <div><span style="font-weight:600;font-size:14px;color:var(--text)">Session Preview</span><br>
+          <span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text3)">${escHtml(shortKey)}</span></div>
+          <button onclick="this.closest('div[style*=fixed]').remove()" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:18px">✕</button>
+        </div>`;
+        if (data.messages && data.messages.length) {
+          html += data.messages.slice(-30).map(m => {
+            const role = m.role || 'unknown';
+            const content = String(m.content || m.text || JSON.stringify(m)).substring(0, 500);
+            const color = role === 'user' ? 'var(--accent)' : role === 'assistant' ? 'var(--green)' : 'var(--text3)';
+            return `<div style="margin:6px 0;padding:8px 10px;background:rgba(255,255,255,.03);border-radius:8px;border-left:3px solid ${color}">
+              <span style="font-size:10px;font-weight:600;text-transform:uppercase;color:${color}">${escHtml(role)}</span>
+              <div style="font-size:12px;color:var(--text2);margin-top:4px;white-space:pre-wrap;word-break:break-word">${escHtml(content)}${content.length >= 500 ? '…' : ''}</div>
+            </div>`;
+          }).join('');
+          html += `<div style="font-size:10px;color:var(--text3);margin-top:8px">Showing last ${Math.min(30, data.messages.length)} of ${data.messages.length} messages</div>`;
+        } else {
+          html += '<div style="color:var(--text3);font-size:12px;text-align:center;padding:20px">No messages found</div>';
+        }
+        panel.innerHTML = html;
+        overlay.appendChild(panel);
+        document.body.appendChild(overlay);
+      } catch (e) {
+        cyberToast('Preview error: ' + e.message, 'error');
+      }
+    }
+
+    async function deleteAgentSession(key, tabId) {
+      if (!confirm('Delete session?\\n' + key)) return;
+      try {
+        const res = await fetch('/api/agent/sessions/delete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key }),
+        });
+        const data = await res.json();
+        if (!res.ok) { cyberToast('Error: ' + (data.error || 'Unknown'), 'error'); return; }
+        cyberToast('Session deleted', 'success');
+        // Force refresh
+        _agentStatusCache_ts = 0;
+        if (tabId) refreshAgentMonitor(tabId);
+      } catch (e) {
+        cyberToast('Delete error: ' + e.message, 'error');
+      }
+    }
+
     async function refreshAgentMonitor(tabId) {
       const tab = tabs.get(tabId);
       if (!tab) return;
@@ -4294,17 +4360,20 @@
             else if (isMain) { srcBadge = '🏠 Main'; srcColor = '#34d399'; }
             const kindColor = s.kind === 'group' ? 'var(--blue)' : 'var(--accent)';
             const rowBg = isCyberframe ? 'rgba(251,191,36,.04)' : 'transparent';
-            return `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 8px;border-bottom:1px solid rgba(255,255,255,.04);border-radius:6px;background:${rowBg}">
-              <div style="min-width:0">
+            const safeKey = escAttr(s.key);
+            return `<div class="agent-sess-row" style="display:flex;justify-content:space-between;align-items:center;padding:6px 8px;border-bottom:1px solid rgba(255,255,255,.04);border-radius:6px;background:${rowBg}">
+              <div style="min-width:0;flex:1">
                 <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px">
                   <span style="color:${kindColor};font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.3px">${s.kind}</span>
                   ${srcBadge ? `<span style="font-size:9px;padding:1px 5px;border-radius:3px;background:${srcColor}18;color:${srcColor};border:1px solid ${srcColor}30;font-weight:500">${srcBadge}</span>` : ''}
                 </div>
                 <span style="color:var(--text2);font-family:'JetBrains Mono',monospace;font-size:10px;opacity:.7;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;max-width:280px">${escHtml(shortKey)}</span>
               </div>
-              <div style="text-align:right;font-size:11px;flex-shrink:0;margin-left:8px">
-                <span style="color:var(--text3)">${escHtml(s.age)}</span>
-                <span style="color:var(--text2);margin-left:8px">${escHtml(s.tokens)}</span>
+              <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;margin-left:8px">
+                <span style="color:var(--text3);font-size:11px">${escHtml(s.age)}</span>
+                <span style="color:var(--text2);font-size:11px">${escHtml(s.tokens)}</span>
+                <button class="sess-action-btn" onclick="previewAgentSession('${safeKey}')" title="Preview">👁</button>
+                <button class="sess-action-btn sess-del" onclick="deleteAgentSession('${safeKey}','${tabId}')" title="Delete">✕</button>
               </div>
             </div>`;
           }).join('');

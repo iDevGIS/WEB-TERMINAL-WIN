@@ -987,6 +987,74 @@ app.use(requireAuth, (req, res, next) => {
   next();
 }, express.static(path.join(__dirname, "public")));
 
+// === OpenClaw Session Management ===
+const SESSIONS_STORE = path.join(process.env.USERPROFILE || process.env.HOME || '', '.openclaw', 'agents', 'main', 'sessions', 'sessions.json');
+
+app.get("/api/agent/sessions", requireAuth, (req, res) => {
+  try {
+    const store = JSON.parse(fs.readFileSync(SESSIONS_STORE, 'utf8'));
+    const sessions = (store.sessions || []).map(s => ({
+      key: s.key,
+      kind: s.kind || 'direct',
+      updatedAt: s.updatedAt,
+      createdAt: s.createdAt,
+      transcript: s.transcript,
+      isCyberframe: s.key.includes('openai-user:cyberframe'),
+    }));
+    res.json({ count: sessions.length, sessions });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post("/api/agent/sessions/delete", requireAuth, (req, res) => {
+  const { key } = req.body;
+  if (!key) return res.status(400).json({ error: "key required" });
+  try {
+    const store = JSON.parse(fs.readFileSync(SESSIONS_STORE, 'utf8'));
+    const idx = store.sessions.findIndex(s => s.key === key);
+    if (idx === -1) return res.status(404).json({ error: "Session not found" });
+    const removed = store.sessions.splice(idx, 1)[0];
+    // Delete transcript file if exists
+    if (removed.transcript) {
+      const transcriptPath = path.resolve(path.dirname(SESSIONS_STORE), removed.transcript);
+      try { fs.unlinkSync(transcriptPath); } catch {}
+    }
+    store.count = store.sessions.length;
+    fs.writeFileSync(SESSIONS_STORE, JSON.stringify(store, null, 2));
+    // Invalidate agent status cache
+    _agentStatusCache.ts = 0;
+    res.json({ ok: true, deleted: key });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get("/api/agent/sessions/preview", requireAuth, (req, res) => {
+  const { key } = req.query;
+  if (!key) return res.status(400).json({ error: "key required" });
+  try {
+    const store = JSON.parse(fs.readFileSync(SESSIONS_STORE, 'utf8'));
+    const sess = store.sessions.find(s => s.key === key);
+    if (!sess) return res.status(404).json({ error: "Session not found" });
+    // Read transcript if exists
+    let messages = [];
+    if (sess.transcript) {
+      const transcriptPath = path.resolve(path.dirname(SESSIONS_STORE), sess.transcript);
+      try {
+        const content = fs.readFileSync(transcriptPath, 'utf8');
+        // JSONL format — each line is a message
+        messages = content.split('\n').filter(l => l.trim()).map(l => {
+          try { return JSON.parse(l); } catch { return null; }
+        }).filter(Boolean);
+      } catch {}
+    }
+    res.json({ key: sess.key, kind: sess.kind, messages, updatedAt: sess.updatedAt });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true });
 const vncWss = new WebSocketServer({ noServer: true });
