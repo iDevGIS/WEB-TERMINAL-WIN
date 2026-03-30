@@ -3575,14 +3575,14 @@
               // Fix xterm + any element with inline bg via JS
               const fixBg = () => {
                 const dark = '#0a0a1a';
-                doc.querySelectorAll('.xterm, .xterm-viewport, .xterm-screen, .terminal-wrapper, .terminal-outer-container, [class*="terminal"]').forEach(el => {
-                  const bg = getComputedStyle(el).backgroundColor;
-                  if (bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent' && bg !== 'rgb(10, 10, 26)') {
+                // Target everything with inline bg style in terminal area
+                doc.querySelectorAll('.xterm, .xterm-viewport, .xterm-screen, .xterm-scrollable-element, [class*="xterm"], .terminal-wrapper, .terminal-outer-container, [class*="terminal"], .pane-body, .panel-body, .split-view-view').forEach(el => {
+                  if (el.style.backgroundColor || el.getAttribute('style')?.includes('background')) {
                     el.style.setProperty('background-color', dark, 'important');
                   }
                 });
-                // Also fix panel body
-                doc.querySelectorAll('.pane-body, .panel-body, .split-view-view').forEach(el => {
+                // Brute force: any element inside .integrated-terminal with inline bg
+                doc.querySelectorAll('.integrated-terminal [style*="background"], .terminal [style*="background"]').forEach(el => {
                   el.style.setProperty('background-color', dark, 'important');
                 });
               };
