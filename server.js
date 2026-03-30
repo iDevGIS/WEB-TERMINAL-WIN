@@ -1048,7 +1048,7 @@ app.use(requireAuth, (req, res, next) => {
 // === VS Code serve-web ===
 app.get("/api/vscode-url", (req, res) => {
   const { exec: execCb } = require("child_process");
-  execCb('wmic process where "commandline like \'%serve-web%\'" get commandline /format:list', { timeout: 5000 }, (err, stdout) => {
+  execCb('pwsh -NoProfile -File "' + path.join(__dirname, 'get-vscode-token.ps1') + '"', { timeout: 5000 }, (err, stdout) => {
     if (err || !stdout || !stdout.includes('serve-web')) return res.json({ error: "VS Code server not running" });
     const tokenMatch = stdout.match(/--connection-token\s+(\S+)/);
     const portMatch = stdout.match(/--port\s+(\d+)/);
