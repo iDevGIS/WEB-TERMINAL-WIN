@@ -1101,19 +1101,17 @@
     }
 
     /* Scrollbar */
-    ::-webkit-scrollbar { width: 4px; height: 4px; }
+    ::-webkit-scrollbar { width: 3px; height: 3px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb {
-      border-radius: 4px;
-      background: linear-gradient(180deg, #ff2d95, #ff6b2b, #ffd62b, #2bffa8, #2bd4ff, #a855f7, #ff2d95);
+      border-radius: 3px;
+      background: linear-gradient(180deg, #00f0ff, #0080ff, #a855f7, #ff2d95, #ff0060, #a855f7, #0080ff, #00f0ff);
       background-size: 100% 400%;
       animation: rgbScroll 3s ease-in-out infinite;
-      box-shadow: 0 0 6px rgba(168,85,247,.5), 0 0 12px rgba(168,85,247,.2);
-      transition: width .2s, box-shadow .2s;
+      box-shadow: 0 0 4px rgba(0,240,255,.4), 0 0 8px rgba(0,128,255,.2);
     }
     ::-webkit-scrollbar-thumb:hover {
-      width: 6px;
-      box-shadow: 0 0 10px rgba(168,85,247,.8), 0 0 20px rgba(255,45,149,.4), 0 0 30px rgba(43,212,255,.3);
+      box-shadow: 0 0 8px rgba(0,240,255,.7), 0 0 16px rgba(168,85,247,.4);
       animation: rgbScroll 1.5s ease-in-out infinite;
     }
     @keyframes rgbScroll {
