@@ -2737,6 +2737,51 @@
       flex-shrink: 0;
     }
     .voice-cancel-btn:hover { background: rgba(248,113,113,.2); color: var(--red); }
+
+    .voice-transcribing-bar {
+      display: flex; align-items: center; gap: 10px; justify-content: center;
+      background: linear-gradient(135deg, rgba(108,99,255,.12), rgba(139,92,246,.12));
+      border: 1px solid rgba(108,99,255,.25);
+      border-radius: 24px; padding: 10px 20px; flex: 1;
+      animation: transcribeBarIn .3s ease;
+    }
+    @keyframes transcribeBarIn { from { opacity: 0; transform: scale(.95); } to { opacity: 1; transform: scale(1); } }
+
+    .transcribe-wave {
+      display: flex; align-items: center; gap: 3px; height: 20px;
+    }
+    .transcribe-wave .tw-bar {
+      width: 3px; border-radius: 2px;
+      background: linear-gradient(to top, var(--accent), #a78bfa);
+      animation: twBounce .8s ease-in-out infinite;
+    }
+    .transcribe-wave .tw-bar:nth-child(1) { height: 8px; animation-delay: 0s; }
+    .transcribe-wave .tw-bar:nth-child(2) { height: 14px; animation-delay: .1s; }
+    .transcribe-wave .tw-bar:nth-child(3) { height: 20px; animation-delay: .2s; }
+    .transcribe-wave .tw-bar:nth-child(4) { height: 14px; animation-delay: .3s; }
+    .transcribe-wave .tw-bar:nth-child(5) { height: 8px; animation-delay: .4s; }
+    @keyframes twBounce {
+      0%, 100% { transform: scaleY(.4); opacity: .5; }
+      50% { transform: scaleY(1); opacity: 1; }
+    }
+
+    .transcribe-text {
+      font-size: 13px; font-weight: 600; letter-spacing: .5px;
+      background: linear-gradient(90deg, var(--accent), #a78bfa, #c084fc);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .transcribe-dots { display: inline-flex; gap: 1px; }
+    .transcribe-dots span {
+      font-size: 16px; font-weight: 700;
+      color: var(--accent); animation: dotFade 1.2s ease infinite;
+    }
+    .transcribe-dots span:nth-child(2) { animation-delay: .2s; }
+    .transcribe-dots span:nth-child(3) { animation-delay: .4s; }
+    @keyframes dotFade {
+      0%, 100% { opacity: .2; }
+      50% { opacity: 1; }
+    }
     .chat-empty {
       flex: 1; display: flex; align-items: center; justify-content: center;
       flex-direction: column; gap: 10px; opacity: .3;
@@ -4666,24 +4711,45 @@
         const micBtn = document.getElementById(tabId + '-mic');
         if (micBtn) micBtn.classList.remove('recording');
 
-        // Show transcribing state
+        // Show transcribing state with animated overlay
+        const inputRow = document.querySelector('.chat-input-row') || document.getElementById(tabId + '-input')?.closest('.chat-input-row');
+        if (inputRow) {
+          inputRow.innerHTML = `
+            <div class="voice-transcribing-bar">
+              <div class="transcribe-wave">
+                ${Array.from({length:5}, () => '<div class="tw-bar"></div>').join('')}
+              </div>
+              <span class="transcribe-text">Transcribing</span>
+              <span class="transcribe-dots"><span>.</span><span>.</span><span>.</span></span>
+            </div>`;
+          if (!window._voiceVisualizers) window._voiceVisualizers = new Map();
+          const vis = window._voiceVisualizers || new Map();
+          // Save originalHtml if not already saved
+          if (!inputRow.dataset.transcribeHtml) inputRow.dataset.transcribeHtml = vis.get?.(tabId)?.originalHtml || '';
+        }
         const input = document.getElementById(tabId + '-input');
-        if (input) { input.value = '🎤 Transcribing...'; input.disabled = true; }
 
         try {
           const resp = await fetch('/api/stt', { method: 'POST', body: formData });
           const data = await resp.json();
-          if (data.text && input) {
-            input.value = data.text;
-            input.disabled = false;
-            // Auto-send
+          // Restore input row from saved HTML
+          const row2 = document.querySelector('.voice-transcribing-bar')?.closest('.chat-input-row');
+          const savedHtml = _voiceVisualizers.get(tabId)?.originalHtml;
+          if (row2 && savedHtml) row2.innerHTML = savedHtml;
+          const restoredInput = document.getElementById(tabId + '-input');
+          if (data.text && restoredInput) {
+            restoredInput.value = data.text;
             chatSend(tabId);
           } else {
-            if (input) { input.value = ''; input.disabled = false; }
+            if (restoredInput) restoredInput.value = '';
             showToast('🎤 No speech detected', 'info');
           }
         } catch (e) {
-          if (input) { input.value = ''; input.disabled = false; }
+          const row2 = document.querySelector('.voice-transcribing-bar')?.closest('.chat-input-row');
+          const savedHtml = _voiceVisualizers.get(tabId)?.originalHtml;
+          if (row2 && savedHtml) row2.innerHTML = savedHtml;
+          const restoredInput = document.getElementById(tabId + '-input');
+          if (restoredInput) restoredInput.value = '';
           showToast('🎤 Transcription failed: ' + e.message, 'error');
         }
 
