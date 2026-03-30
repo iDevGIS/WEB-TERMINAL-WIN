@@ -867,7 +867,7 @@ const OPENCLAW_TOKEN = process.env.OPENCLAW_TOKEN || "";
 const _cyberframeNames = {}; // sessionId → display name
 
 // === TTS (Edge Neural Voices) ===
-const { MsEdgeTTS } = require("msedge-tts");
+const { MsEdgeTTS, OUTPUT_FORMAT } = require("msedge-tts");
 
 app.post("/api/tts", requireAuth, async (req, res) => {
   const { text, voice } = req.body;
@@ -881,17 +881,14 @@ app.post("/api/tts", requireAuth, async (req, res) => {
       ? "th-TH-PremwadeeNeural"
       : "en-US-JennyNeural";
     
-    await tts.setMetadata(voice || defaultVoice, MsEdgeTTS.OUTPUT_FORMAT.AUDIO_24KHZ_96KBITRATE_MONO_MP3);
-    const readable = tts.toStream(text.substring(0, 5000)); // Limit 5000 chars
+    await tts.setMetadata(voice || defaultVoice, OUTPUT_FORMAT.AUDIO_24KHZ_96KBITRATE_MONO_MP3);
+    const { audioStream } = tts.toStream(text.substring(0, 5000)); // Limit 5000 chars
 
     res.setHeader("Content-Type", "audio/mpeg");
     res.setHeader("Cache-Control", "no-cache");
     
-    readable.on("data", (chunk) => {
-      if (chunk.type === "audio") res.write(chunk.data);
-    });
-    readable.on("end", () => res.end());
-    readable.on("error", (err) => {
+    audioStream.pipe(res);
+    audioStream.on("error", (err) => {
       console.error("[TTS Error]", err.message);
       if (!res.headersSent) res.status(500).json({ error: "TTS failed" });
     });
