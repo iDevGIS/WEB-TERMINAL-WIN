@@ -912,6 +912,16 @@
       border: none;
     }
 
+    .tab-pane .vnc-tab-wrap {
+      flex: 1;
+      min-height: 0;
+      overflow: hidden;
+    }
+    .tab-pane .vnc-tab-wrap iframe {
+      width: 100%;
+      height: 100%;
+      border: none;
+    }
     .tab-pane .vscode-tab-wrap {
       flex: 1;
       min-height: 0;
@@ -3128,9 +3138,11 @@
     }
 
     function openVNC() {
-      const h = location.hostname;
-      const p = location.protocol === 'https:' ? 'wss' : 'ws';
-      window.open('/novnc/index.html?host=' + h + '&port=' + location.port + '&path=vnc-ws&resize=remote&autoconnect=true&reconnect=true&reconnect_delay=3000', '_blank');
+      // Reuse existing VNC tab
+      for (const [tabId, tab] of tabs) {
+        if (tab.type === 'vnc') { switchTab(tabId); return; }
+      }
+      createTab('vnc', { name: 'Remote Desktop', icon: '🖥️' });
     }
 
     // === Terminal Themes ===
@@ -3268,8 +3280,8 @@
       const tabEl = document.createElement('div');
       tabEl.className = 'tab-item';
       tabEl.dataset.tabId = tabId;
-      const icon = opts.icon || (type === 'terminal' ? '⚡' : type === 'editor' ? '📝' : type === 'preview' ? '👁' : type === 'admin' ? '🛡️' : type === 'chat' ? '💬' : type === 'agent-monitor' ? '🤖' : type === 'vscode' ? '💻' : '📂');
-      const label = opts.name || (type === 'terminal' ? 'Shell' : type === 'editor' ? 'Editor' : type === 'preview' ? 'Preview' : type === 'admin' ? 'Admin' : type === 'chat' ? 'AI Chat' : type === 'agent-monitor' ? 'Agent Monitor' : type === 'vscode' ? 'VS Code' : 'Files');
+      const icon = opts.icon || (type === 'terminal' ? '⚡' : type === 'editor' ? '📝' : type === 'preview' ? '👁' : type === 'admin' ? '🛡️' : type === 'chat' ? '💬' : type === 'agent-monitor' ? '🤖' : type === 'vscode' ? '💻' : type === 'vnc' ? '🖥️' : '📂');
+      const label = opts.name || (type === 'terminal' ? 'Shell' : type === 'editor' ? 'Editor' : type === 'preview' ? 'Preview' : type === 'admin' ? 'Admin' : type === 'chat' ? 'AI Chat' : type === 'agent-monitor' ? 'Agent Monitor' : type === 'vscode' ? 'VS Code' : type === 'vnc' ? 'Remote Desktop' : 'Files');
       tabEl.innerHTML = `<span class="tab-icon">${icon}</span><span class="tab-label">${escHtml(label)}</span><span class="tab-close" onclick="event.stopPropagation();closeTab('${tabId}')">✕</span>`;
       tabEl.onclick = () => switchTab(tabId);
       // Drag to reorder
@@ -3416,6 +3428,12 @@
 
       } else if (type === 'vscode') {
         paneEl.innerHTML = '<div class="vscode-tab-wrap"><iframe src="/vscode/" allow="clipboard-read; clipboard-write"></iframe></div>';
+        container.appendChild(paneEl);
+
+      } else if (type === 'vnc') {
+        const h = location.hostname;
+        const vncUrl = '/novnc/index.html?host=' + h + '&port=' + location.port + '&path=vnc-ws&resize=remote&autoconnect=true&reconnect=true&reconnect_delay=3000';
+        paneEl.innerHTML = '<div class="vnc-tab-wrap"><iframe src="' + vncUrl + '" allow="clipboard-read; clipboard-write"></iframe></div>';
         container.appendChild(paneEl);
 
       } else if (type === 'admin') {
