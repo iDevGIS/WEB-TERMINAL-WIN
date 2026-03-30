@@ -3555,9 +3555,9 @@
                 .monaco-workbench .part.panel .pane-body,
                 .terminal-outer-container,
                 .terminal-wrapper { background-color: #0a0a1a !important; }
-                .xterm .xterm-viewport,
-                .xterm .xterm-screen,
-                .xterm { background-color: #0a0a1a !important; }
+                .xterm, .xterm-viewport, .xterm-screen,
+                .xterm[style], .xterm-viewport[style], .xterm-screen[style] { background-color: #0a0a1a !important; }
+                .terminal-wrapper .xterm .xterm-screen canvas { background-color: transparent !important; }
                 .monaco-workbench .part.panel .panel-header,
                 .monaco-workbench .part.panel .composite.title,
                 .monaco-workbench .part.panel .title { background-color: #0d0d22 !important; }
@@ -3567,6 +3567,16 @@
                 .monaco-workbench .part.titlebar .window-title { color: rgba(255,255,255,.6) !important; }
               `;
               doc.head.appendChild(s);
+              // Also fix xterm inline styles via JS
+              const fixXterm = () => {
+                doc.querySelectorAll('.xterm, .xterm-viewport, .xterm-screen').forEach(el => {
+                  el.style.setProperty('background-color', '#0a0a1a', 'important');
+                });
+              };
+              fixXterm();
+              // Re-apply after VS Code terminal opens (MutationObserver)
+              const obs = new MutationObserver(fixXterm);
+              obs.observe(doc.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['style'] });
               return true;
             } catch(e) { return false; }
           };
