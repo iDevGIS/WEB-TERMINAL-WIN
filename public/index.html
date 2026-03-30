@@ -2495,7 +2495,15 @@
     .msg-avatar {
       width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center;
       justify-content: center; font-size: 14px; flex-shrink: 0; background: rgba(255,255,255,.06);
-      margin-top: 2px;
+      margin-top: 2px; cursor: pointer; transition: background .15s;
+    }
+    .msg-avatar:hover { background: rgba(108,99,255,.15); }
+    .chat-msg.collapsed .msg-bubble { display: none; }
+    .chat-msg.collapsed .msg-avatar { opacity: .4; }
+    .chat-msg.collapsed::after {
+      content: attr(data-preview); color: var(--text3); font-size: 11px; opacity: .5;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 300px;
+      align-self: center;
     }
     /* === Feature: Typing Indicator (bouncing dots) === */
     .typing-dots { display: inline-flex; gap: 4px; padding: 4px 0; }
@@ -3892,7 +3900,23 @@
       }
     }
 
+    function _injectCollapse(container) {
+      container.querySelectorAll('.chat-msg').forEach(msgEl => {
+        const avatar = msgEl.querySelector('.msg-avatar');
+        if (!avatar || avatar.dataset.collapseReady) return;
+        avatar.dataset.collapseReady = '1';
+        avatar.onclick = () => {
+          const isCollapsed = msgEl.classList.toggle('collapsed');
+          if (isCollapsed) {
+            const text = msgEl.querySelector('.msg-content')?.textContent || '';
+            msgEl.dataset.preview = text.substring(0, 60) + (text.length > 60 ? '…' : '');
+          }
+        };
+      });
+    }
+
     function _injectCopyBtns(container) {
+      _injectCollapse(container);
       // Copy button on each message bubble
       container.querySelectorAll('.chat-msg').forEach(msgEl => {
         const timeEl = msgEl.querySelector('.msg-time');
