@@ -898,6 +898,42 @@ app.post("/api/tts", requireAuth, async (req, res) => {
   }
 });
 
+// === STT (faster-whisper) ===
+const multer = require("multer");
+const _sttUpload = multer({ dest: os.tmpdir(), limits: { fileSize: 10 * 1024 * 1024 } }); // 10MB max
+
+app.post("/api/stt", requireAuth, _sttUpload.single("audio"), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: "audio file required" });
+  
+  const wavPath = req.file.path + ".wav";
+  const { exec } = require("child_process");
+  
+  try {
+    // Convert to WAV for whisper
+    await new Promise((resolve, reject) => {
+      exec(`ffmpeg -y -i "${req.file.path}" -ar 16000 -ac 1 "${wavPath}"`, { timeout: 10000 }, (err) => err ? reject(err) : resolve());
+    });
+    
+    // Run whisper
+    const result = await new Promise((resolve, reject) => {
+      exec(`python "${path.join(__dirname, 'stt-worker.py')}" "${wavPath}"`, { timeout: 30000 }, (err, stdout) => {
+        if (err) return reject(err);
+        try { resolve(JSON.parse(stdout.trim())); }
+        catch(e) { reject(new Error("Parse error: " + stdout)); }
+      });
+    });
+    
+    res.json(result);
+  } catch (err) {
+    console.error("[STT Error]", err.message);
+    res.status(500).json({ error: "STT failed: " + err.message });
+  } finally {
+    // Cleanup temp files
+    try { fs.unlinkSync(req.file.path); } catch(e) {}
+    try { fs.unlinkSync(wavPath); } catch(e) {}
+  }
+});
+
 app.post("/api/chat", requireAuth, async (req, res) => {
   const { messages, model } = req.body;
   if (!messages || !Array.isArray(messages)) return res.status(400).json({ error: "messages required" });

@@ -4623,50 +4623,83 @@
     }
 
     function chatVoiceCancel(tabId) {
-      // Stop recording and discard text
       if (_voiceRecognitions.has(tabId)) {
-        _voiceRecognitions.get(tabId).stop();
+        try { _voiceRecognitions.get(tabId).stop(); } catch(e) {}
         _voiceRecognitions.delete(tabId);
       }
       _hideVoiceBar(tabId);
       const micBtn = document.getElementById(tabId + '-mic');
       if (micBtn) micBtn.classList.remove('recording');
-      // Clear any recognized text
+      if (window._voiceTranscript) delete window._voiceTranscript[tabId];
+      if (window._voiceAudioChunks) delete window._voiceAudioChunks[tabId];
       setTimeout(() => {
         const input = document.getElementById(tabId + '-input');
         if (input) input.value = '';
       }, 50);
     }
 
-    function chatVoiceSend(tabId) {
-      // Stop recording and send the recognized text
-      if (_voiceRecognitions.has(tabId)) {
-        _voiceRecognitions.get(tabId).stop();
-        _voiceRecognitions.delete(tabId);
+    async function chatVoiceSend(tabId) {
+      const recorder = _voiceRecognitions.get(tabId);
+      if (!recorder) return;
+
+      // Stop recorder and wait for final data
+      const sendBtn = document.querySelector('.voice-recording-bar .chat-send-btn');
+      if (sendBtn) {
+        sendBtn.disabled = true;
+        sendBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="animation:spin 1s linear infinite"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>';
       }
-      _hideVoiceBar(tabId);
-      const micBtn = document.getElementById(tabId + '-mic');
-      if (micBtn) micBtn.classList.remove('recording');
-      // Send after UI restores
-      setTimeout(() => chatSend(tabId), 100);
+
+      recorder.onstop = async () => {
+        const chunks = window._voiceAudioChunks?.[tabId] || [];
+        if (!chunks.length) {
+          chatVoiceCancel(tabId);
+          return;
+        }
+
+        const blob = new Blob(chunks, { type: 'audio/webm' });
+        const formData = new FormData();
+        formData.append('audio', blob, 'voice.webm');
+
+        _voiceRecognitions.delete(tabId);
+        _hideVoiceBar(tabId);
+        const micBtn = document.getElementById(tabId + '-mic');
+        if (micBtn) micBtn.classList.remove('recording');
+
+        // Show transcribing state
+        const input = document.getElementById(tabId + '-input');
+        if (input) { input.value = '🎤 Transcribing...'; input.disabled = true; }
+
+        try {
+          const resp = await fetch('/api/stt', { method: 'POST', body: formData });
+          const data = await resp.json();
+          if (data.text && input) {
+            input.value = data.text;
+            input.disabled = false;
+            // Auto-send
+            chatSend(tabId);
+          } else {
+            if (input) { input.value = ''; input.disabled = false; }
+            showToast('🎤 No speech detected', 'info');
+          }
+        } catch (e) {
+          if (input) { input.value = ''; input.disabled = false; }
+          showToast('🎤 Transcription failed: ' + e.message, 'error');
+        }
+
+        delete window._voiceAudioChunks?.[tabId];
+        delete window._voiceTranscript?.[tabId];
+      };
+
+      try { recorder.stop(); } catch(e) { chatVoiceCancel(tabId); }
     }
 
     async function chatToggleVoice(tabId) {
-      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-      if (!SpeechRecognition) {
-        showToast('Voice input not supported in this browser', 'error');
-        return;
-      }
-
       const micBtn = document.getElementById(tabId + '-mic');
       const input = document.getElementById(tabId + '-input');
 
-      // Already recording — stop and keep text
+      // Already recording — stop and transcribe (same as send)
       if (_voiceRecognitions.has(tabId)) {
-        _voiceRecognitions.get(tabId).stop();
-        _voiceRecognitions.delete(tabId);
-        if (micBtn) micBtn.classList.remove('recording');
-        _hideVoiceBar(tabId);
+        chatVoiceSend(tabId);
         return;
       }
 
@@ -4687,83 +4720,23 @@
         return;
       }
 
-      // Start recording
-      const recognition = new SpeechRecognition();
-      recognition.lang = 'th-TH';
-      recognition.continuous = true;
-      recognition.interimResults = true;
-      recognition.maxAlternatives = 1;
+      // Start recording with MediaRecorder (server-side STT via Whisper)
+      const mediaRecorder = new MediaRecorder(micStream, { mimeType: 'audio/webm;codecs=opus' });
+      const audioChunks = [];
+      
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunks.push(e.data);
+      };
 
-      let finalTranscript = input.value;
-      // Store transcript on window so it survives DOM changes
       window._voiceTranscript = window._voiceTranscript || {};
-      window._voiceTranscript[tabId] = finalTranscript;
+      window._voiceTranscript[tabId] = input.value;
+      window._voiceAudioChunks = window._voiceAudioChunks || {};
+      window._voiceAudioChunks[tabId] = audioChunks;
 
-      recognition.onresult = (event) => {
-        let interim = '';
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-          const transcript = event.results[i][0].transcript;
-          if (event.results[i].isFinal) {
-            finalTranscript += (finalTranscript ? ' ' : '') + transcript;
-          } else {
-            interim += transcript;
-          }
-        }
-        window._voiceTranscript[tabId] = finalTranscript + (interim ? ' ' + interim : '');
-      };
-
-      let _voiceRetries = 0;
-      const MAX_RETRIES = 3;
-
-      recognition.onerror = (event) => {
-        console.error('[Voice] Recognition error:', event.error);
-        // Auto-retry on network error (Chrome sends audio to Google)
-        if (event.error === 'network' && _voiceRetries < MAX_RETRIES) {
-          _voiceRetries++;
-          console.log('[Voice] Retrying...', _voiceRetries);
-          setTimeout(() => { try { recognition.start(); } catch(e) {} }, 500);
-          return;
-        }
-        if (event.error === 'no-speech') {
-          // Silent restart — user might just be pausing
-          setTimeout(() => { try { recognition.start(); } catch(e) {} }, 200);
-          return;
-        }
-        const msgs = {
-          'not-allowed': '🎤 Microphone blocked — click 🔒 in address bar',
-          'audio-capture': '🎤 No microphone found',
-          'network': '🎤 Network error — Chrome needs internet for speech recognition. Try Edge (works offline)',
-          'aborted': null, // silent
-          'service-not-allowed': '🎤 Speech service not available — try Edge',
-        };
-        const msg = msgs[event.error];
-        if (msg) showToast(msg, 'error');
-        _voiceRecognitions.delete(tabId);
-        if (micBtn) micBtn.classList.remove('recording');
-        _hideVoiceBar(tabId);
-      };
-
-      recognition.onend = () => {
-        // If still supposed to be recording, restart (continuous mode workaround)
-        if (_voiceRecognitions.has(tabId)) {
-          try { recognition.start(); } catch(e) {
-            _voiceRecognitions.delete(tabId);
-            if (micBtn) micBtn.classList.remove('recording');
-          }
-          return;
-        }
-        if (micBtn) micBtn.classList.remove('recording');
-      };
-
-      try {
-        recognition.start();
-        _voiceRecognitions.set(tabId, recognition);
-        if (micBtn) micBtn.classList.add('recording');
-        _showVoiceBar(tabId, micStream);
-      } catch (e) {
-        console.error('[Voice] Start error:', e);
-        showToast('🎤 Failed to start: ' + e.message, 'error');
-      }
+      mediaRecorder.start(250); // Collect chunks every 250ms
+      _voiceRecognitions.set(tabId, mediaRecorder);
+      if (micBtn) micBtn.classList.add('recording');
+      _showVoiceBar(tabId, micStream);
     }
 
     // === Text-to-Speech (Edge Neural Voices via server) ===
