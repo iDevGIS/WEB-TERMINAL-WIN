@@ -4566,23 +4566,45 @@
         input.style.height = Math.min(input.scrollHeight, 150) + 'px';
       };
 
+      let _voiceRetries = 0;
+      const MAX_RETRIES = 3;
+
       recognition.onerror = (event) => {
         console.error('[Voice] Recognition error:', event.error);
+        // Auto-retry on network error (Chrome sends audio to Google)
+        if (event.error === 'network' && _voiceRetries < MAX_RETRIES) {
+          _voiceRetries++;
+          console.log('[Voice] Retrying...', _voiceRetries);
+          setTimeout(() => { try { recognition.start(); } catch(e) {} }, 500);
+          return;
+        }
+        if (event.error === 'no-speech') {
+          // Silent restart — user might just be pausing
+          setTimeout(() => { try { recognition.start(); } catch(e) {} }, 200);
+          return;
+        }
         const msgs = {
-          'not-allowed': '🎤 Microphone blocked — allow in browser settings',
-          'no-speech': '🎤 No speech detected — try again',
+          'not-allowed': '🎤 Microphone blocked — click 🔒 in address bar',
           'audio-capture': '🎤 No microphone found',
-          'network': '🎤 Network error — speech recognition needs internet (Chrome sends audio to Google)',
-          'aborted': '🎤 Cancelled',
-          'service-not-allowed': '🎤 Speech service not available — try Chrome or Edge',
+          'network': '🎤 Network error — Chrome needs internet for speech recognition. Try Edge (works offline)',
+          'aborted': null, // silent
+          'service-not-allowed': '🎤 Speech service not available — try Edge',
         };
-        showToast(msgs[event.error] || '🎤 Error: ' + event.error, 'error');
+        const msg = msgs[event.error];
+        if (msg) showToast(msg, 'error');
         _voiceRecognitions.delete(tabId);
         if (micBtn) micBtn.classList.remove('recording');
       };
 
       recognition.onend = () => {
-        _voiceRecognitions.delete(tabId);
+        // If still supposed to be recording, restart (continuous mode workaround)
+        if (_voiceRecognitions.has(tabId)) {
+          try { recognition.start(); } catch(e) {
+            _voiceRecognitions.delete(tabId);
+            if (micBtn) micBtn.classList.remove('recording');
+          }
+          return;
+        }
         if (micBtn) micBtn.classList.remove('recording');
       };
 
