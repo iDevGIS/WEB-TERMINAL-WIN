@@ -4672,9 +4672,10 @@
     function _restoreInputRow(tabId) {
       const bar = document.querySelector('.voice-transcribing-bar') || document.querySelector('.voice-recording-bar');
       const row = bar?.closest('.chat-input-row');
-      const vis = _voiceVisualizers.get(tabId);
-      if (row && vis?.originalHtml) {
-        row.innerHTML = vis.originalHtml;
+      const saved = window._savedInputHtml?.[tabId];
+      if (row && saved) {
+        row.innerHTML = saved;
+        delete window._savedInputHtml[tabId];
       }
     }
 
@@ -4717,6 +4718,11 @@
         formData.append('audio', blob, 'voice.webm');
         formData.append('lang', 'th'); // Default Thai — Whisper auto-detects English too
 
+        // Save originalHtml BEFORE hideVoiceBar destroys it
+        if (!window._savedInputHtml) window._savedInputHtml = {};
+        const vis = _voiceVisualizers.get(tabId);
+        if (vis?.originalHtml) window._savedInputHtml[tabId] = vis.originalHtml;
+
         _voiceRecognitions.delete(tabId);
         _hideVoiceBar(tabId);
         const micBtn = document.getElementById(tabId + '-mic');
@@ -4725,6 +4731,8 @@
         // Show transcribing state with animated overlay
         const inputRow = document.querySelector('.chat-input-row') || document.getElementById(tabId + '-input')?.closest('.chat-input-row');
         if (inputRow) {
+          // If originalHtml wasn't saved from visualizer, save current state
+          if (!window._savedInputHtml[tabId]) window._savedInputHtml[tabId] = inputRow.innerHTML;
           inputRow.innerHTML = `
             <div class="voice-transcribing-bar">
               <div class="transcribe-wave">
@@ -4733,12 +4741,7 @@
               <span class="transcribe-text">Transcribing</span>
               <span class="transcribe-dots"><span>.</span><span>.</span><span>.</span></span>
             </div>`;
-          if (!window._voiceVisualizers) window._voiceVisualizers = new Map();
-          const vis = window._voiceVisualizers || new Map();
-          // Save originalHtml if not already saved
-          if (!inputRow.dataset.transcribeHtml) inputRow.dataset.transcribeHtml = vis.get?.(tabId)?.originalHtml || '';
         }
-        const input = document.getElementById(tabId + '-input');
 
         try {
           const resp = await fetch('/api/stt', { method: 'POST', body: formData });
