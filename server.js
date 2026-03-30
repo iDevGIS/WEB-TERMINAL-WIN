@@ -1045,6 +1045,20 @@ app.use(requireAuth, (req, res, next) => {
   next();
 }, express.static(path.join(__dirname, "public")));
 
+// === VS Code serve-web ===
+app.get("/api/vscode-url", (req, res) => {
+  const { exec: execCb } = require("child_process");
+  execCb('powershell -NoProfile -Command "(Get-Process | Where-Object { $_.CommandLine -match \'code-tunnel.*serve-web\' } | Select-Object -First 1).CommandLine"', { timeout: 5000 }, (err, stdout) => {
+    if (err || !stdout) return res.json({ error: "VS Code server not running" });
+    const tokenMatch = stdout.match(/--connection-token\s+(\S+)/);
+    const portMatch = stdout.match(/--port\s+(\d+)/);
+    const port = portMatch ? portMatch[1] : "8080";
+    const token = tokenMatch ? tokenMatch[1] : "";
+    const url = `/vscode/?tkn=${token}`;
+    res.json({ url, port, hasToken: !!token });
+  });
+});
+
 // === VS Code serve-web Proxy ===
 const VSCODE_PORT = parseInt(process.env.VSCODE_PORT) || 8080;
 app.use("/vscode", createProxyMiddleware({

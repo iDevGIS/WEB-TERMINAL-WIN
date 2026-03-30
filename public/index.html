@@ -3058,7 +3058,7 @@
               <span class="feat-label">Remote</span>
               <span class="feat-sub">VNC desktop</span>
             </div>
-            <div class="feature" onclick="window.open(location.origin+'/vscode/','_blank')" title="VS Code in Browser">
+            <div class="feature" onclick="openVSCode()" title="VS Code in Browser">
               <span class="fi"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg></span>
               <span class="feat-label">VS Code</span>
               <span class="feat-sub">Code editor</span>
@@ -3109,6 +3109,15 @@
     };
 
     // === VNC function (declared early) ===
+    async function openVSCode() {
+      try {
+        const r = await fetch('/api/vscode-url');
+        const d = await r.json();
+        if (d.url) window.open(d.url, '_blank');
+        else alert(d.error || 'VS Code server not running');
+      } catch { alert('Failed to get VS Code URL'); }
+    }
+
     function openVNC() {
       const h = location.hostname;
       const p = location.protocol === 'https:' ? 'wss' : 'ws';
