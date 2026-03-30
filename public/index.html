@@ -3551,8 +3551,17 @@
 
                 /* Terminal panel */
                 .monaco-workbench .part.panel .terminal-wrapper,
-                .monaco-workbench .pane-body.integrated-terminal { background-color: #0a0a1a !important; }
-                .xterm .xterm-viewport { background-color: #0a0a1a !important; }
+                .monaco-workbench .pane-body.integrated-terminal,
+                .monaco-workbench .part.panel .pane-body,
+                .terminal-outer-container,
+                .terminal-wrapper { background-color: #0a0a1a !important; }
+                .xterm .xterm-viewport,
+                .xterm .xterm-screen,
+                .xterm { background-color: #0a0a1a !important; }
+                .monaco-workbench .part.panel .panel-header,
+                .monaco-workbench .part.panel .composite.title,
+                .monaco-workbench .part.panel .title { background-color: #0d0d22 !important; }
+                .monaco-workbench .part.panel { border-top: 1px solid rgba(108,99,255,.1) !important; }
 
                 /* Title text */
                 .monaco-workbench .part.titlebar .window-title { color: rgba(255,255,255,.6) !important; }
