@@ -3572,21 +3572,30 @@
                 .monaco-workbench .part.titlebar .window-title { color: rgba(255,255,255,.6) !important; }
               `;
               doc.head.appendChild(s);
-              // Fix xterm + any element with inline bg via JS
+              // Override VS Code terminal theme via localStorage colorThemeData
+              try {
+                const keys = Object.keys(doc.defaultView.localStorage || {});
+                const themeKey = keys.find(k => k.includes('colorThemeData'));
+                if (themeKey) {
+                  const theme = JSON.parse(doc.defaultView.localStorage.getItem(themeKey));
+                  if (theme && theme.colorMap) {
+                    theme.colorMap['terminal.background'] = '#0a0a1a';
+                    theme.colorMap['terminal.foreground'] = '#e4e4e7';
+                    theme.colorMap['panel.background'] = '#0a0a1a';
+                    doc.defaultView.localStorage.setItem(themeKey, JSON.stringify(theme));
+                  }
+                }
+              } catch(e) {}
+              // CSS + JS fallback for non-canvas elements
               const fixBg = () => {
                 const dark = '#0a0a1a';
-                // Target everything with inline bg style in terminal area
-                doc.querySelectorAll('.xterm, .xterm-viewport, .xterm-screen, .xterm-scrollable-element, [class*="xterm"], .terminal-wrapper, .terminal-outer-container, [class*="terminal"], .pane-body, .panel-body, .split-view-view').forEach(el => {
-                  if (el.style.backgroundColor || el.getAttribute('style')?.includes('background')) {
+                doc.querySelectorAll('[style*="background"]').forEach(el => {
+                  const bg = el.style.backgroundColor;
+                  if (bg && (bg === 'rgb(25, 26, 27)' || bg === 'rgb(30, 30, 30)' || bg === 'rgb(37, 37, 38)' || bg === 'rgb(51, 51, 51)' || bg === '#1e1e1e' || bg === '#191a1b' || bg === '#252526' || bg === '#333333')) {
                     el.style.setProperty('background-color', dark, 'important');
                   }
                 });
-                // Brute force: any element inside .integrated-terminal with inline bg
-                doc.querySelectorAll('.integrated-terminal [style*="background"], .terminal [style*="background"]').forEach(el => {
-                  el.style.setProperty('background-color', dark, 'important');
-                });
               };
-              // Run periodically for 30s to catch terminal init
               let fixCount = 0;
               const fixTimer = setInterval(() => { fixBg(); if (++fixCount > 60) clearInterval(fixTimer); }, 500);
               return true;
