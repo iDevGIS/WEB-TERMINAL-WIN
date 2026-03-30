@@ -2498,12 +2498,11 @@
       margin-top: 2px; cursor: pointer; transition: background .15s;
     }
     .msg-avatar:hover { background: rgba(108,99,255,.15); }
-    .chat-msg.collapsed .msg-bubble { display: none; }
+    .chat-msg.collapsed .msg-content { display: none; }
     .chat-msg.collapsed .msg-avatar { opacity: .4; }
-    .chat-msg.collapsed::after {
+    .chat-msg.collapsed .msg-bubble::before {
       content: attr(data-preview); color: var(--text3); font-size: 11px; opacity: .5;
-      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 300px;
-      align-self: center;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; max-width: 400px;
     }
     /* === Feature: Typing Indicator (bouncing dots) === */
     .typing-dots { display: inline-flex; gap: 4px; padding: 4px 0; }
@@ -3909,7 +3908,8 @@
           const isCollapsed = msgEl.classList.toggle('collapsed');
           if (isCollapsed) {
             const text = msgEl.querySelector('.msg-content')?.textContent || '';
-            msgEl.dataset.preview = text.substring(0, 60) + (text.length > 60 ? '…' : '');
+            const bubble = msgEl.querySelector('.msg-bubble');
+            if (bubble) bubble.dataset.preview = text.substring(0, 80) + (text.length > 80 ? '…' : '');
           }
         };
       });
