@@ -2688,6 +2688,18 @@
     }
     .chat-send-btn:hover { transform: scale(1.05); box-shadow: 0 4px 16px rgba(108,99,255,.4); }
     .chat-send-btn:disabled { opacity: .4; cursor: not-allowed; transform: none; box-shadow: none; }
+    .chat-mic-btn {
+      width: 36px; height: 36px; border-radius: 50%; border: none;
+      background: rgba(255,255,255,.06); color: var(--text2); cursor: pointer;
+      display: flex; align-items: center; justify-content: center; transition: all .15s;
+      flex-shrink: 0;
+    }
+    .chat-mic-btn:hover { background: rgba(108,99,255,.15); color: var(--text); }
+    .chat-mic-btn.recording {
+      background: rgba(248,113,113,.2); color: var(--red);
+      animation: micPulse 1s ease infinite;
+    }
+    @keyframes micPulse { 0%,100% { box-shadow: 0 0 0 0 rgba(248,113,113,.4); } 50% { box-shadow: 0 0 0 8px rgba(248,113,113,0); } }
     .chat-empty {
       flex: 1; display: flex; align-items: center; justify-content: center;
       flex-direction: column; gap: 10px; opacity: .3;
@@ -3710,6 +3722,9 @@
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
                 </button>
                 <textarea class="chat-input" id="${tabId}-input" placeholder="Ask anything…" rows="1"></textarea>
+                <button class="chat-mic-btn" id="${tabId}-mic" onclick="chatToggleVoice('${tabId}')" title="Voice input">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+                </button>
                 <button class="chat-send-btn" id="${tabId}-send" onclick="chatSend('${tabId}')">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
                 </button>
@@ -4465,9 +4480,82 @@
       }
     });
 
+    // === Voice Input (Web Speech API) ===
+    const _voiceRecognitions = new Map(); // tabId → SpeechRecognition
+
+    function chatToggleVoice(tabId) {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SpeechRecognition) {
+        showToast('Voice input not supported in this browser', 'error');
+        return;
+      }
+
+      const micBtn = document.getElementById(tabId + '-mic');
+      const input = document.getElementById(tabId + '-input');
+
+      // Already recording — stop
+      if (_voiceRecognitions.has(tabId)) {
+        const rec = _voiceRecognitions.get(tabId);
+        rec.stop();
+        _voiceRecognitions.delete(tabId);
+        if (micBtn) micBtn.classList.remove('recording');
+        return;
+      }
+
+      // Start recording
+      const recognition = new SpeechRecognition();
+      recognition.lang = 'th-TH'; // Thai default, auto-detects mixed languages
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.maxAlternatives = 1;
+
+      let finalTranscript = input.value;
+
+      recognition.onresult = (event) => {
+        let interim = '';
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const transcript = event.results[i][0].transcript;
+          if (event.results[i].isFinal) {
+            finalTranscript += (finalTranscript ? ' ' : '') + transcript;
+          } else {
+            interim += transcript;
+          }
+        }
+        input.value = finalTranscript + (interim ? ' ' + interim : '');
+        input.style.height = 'auto';
+        input.style.height = Math.min(input.scrollHeight, 150) + 'px';
+      };
+
+      recognition.onerror = (event) => {
+        console.error('[Voice]', event.error);
+        if (event.error === 'not-allowed') {
+          showToast('Microphone access denied', 'error');
+        }
+        _voiceRecognitions.delete(tabId);
+        if (micBtn) micBtn.classList.remove('recording');
+      };
+
+      recognition.onend = () => {
+        _voiceRecognitions.delete(tabId);
+        if (micBtn) micBtn.classList.remove('recording');
+      };
+
+      recognition.start();
+      _voiceRecognitions.set(tabId, recognition);
+      if (micBtn) micBtn.classList.add('recording');
+      showToast('🎤 Listening... click mic again to stop', 'info');
+    }
+
     async function chatSend(tabId) {
       const tab = tabs.get(tabId);
       if (!tab || tab.chatStreaming) return;
+      // Stop voice recording if active
+      if (_voiceRecognitions.has(tabId)) {
+        _voiceRecognitions.get(tabId).stop();
+        _voiceRecognitions.delete(tabId);
+        const micBtn = document.getElementById(tabId + '-mic');
+        if (micBtn) micBtn.classList.remove('recording');
+      }
       const sess = tab.chatSessions.find(s => s.id === tab.activeChatSession);
       if (!sess) return;
       const input = document.getElementById(tabId + '-input');
