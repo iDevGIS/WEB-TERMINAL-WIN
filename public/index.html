@@ -1101,10 +1101,19 @@
     }
 
     /* Scrollbar */
-    ::-webkit-scrollbar { width: 5px; }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,.1); border-radius: 3px; }
-    ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,.2); }
+    ::-webkit-scrollbar-thumb {
+      border-radius: 3px;
+      background: linear-gradient(180deg, #ff0040, #ff8000, #ffe000, #00ff88, #00c8ff, #8040ff, #ff0040);
+      background-size: 100% 300%;
+      animation: rgbScroll 4s linear infinite;
+    }
+    ::-webkit-scrollbar-thumb:hover { background: linear-gradient(180deg, #ff3366, #ffaa33, #ffee44, #33ffaa, #33ddff, #9966ff, #ff3366); background-size: 100% 300%; animation: rgbScroll 2s linear infinite; }
+    @keyframes rgbScroll {
+      0% { background-position: 0% 0%; }
+      100% { background-position: 0% 300%; }
+    }
 
     /* Animations */
     @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
