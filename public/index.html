@@ -3480,8 +3480,10 @@
                   --vscode-tab-activeBackground: #0a0a1a !important;
                   --vscode-tab-inactiveBackground: #0d0d22 !important;
                   --vscode-editorGroupHeader-tabsBackground: #08081a !important;
-                  --vscode-statusBar-background: #6c63ff !important;
-                  --vscode-statusBar-foreground: #fff !important;
+                  --vscode-statusBar-background: #0d0d22 !important;
+                  --vscode-statusBar-foreground: rgba(255,255,255,.6) !important;
+                  --vscode-statusBarItem-hoverBackground: rgba(108,99,255,.2) !important;
+                  --vscode-statusBar-border: rgba(108,99,255,.15) !important;
                   --vscode-list-activeSelectionBackground: rgba(108,99,255,.2) !important;
                   --vscode-list-hoverBackground: rgba(108,99,255,.1) !important;
                   --vscode-focusBorder: rgba(108,99,255,.5) !important;
@@ -3516,7 +3518,10 @@
                 .monaco-workbench .part.activitybar { background-color: #08081a !important; }
                 .monaco-workbench .part.titlebar { background-color: #08081a !important; }
                 .monaco-workbench .part.panel { background-color: #0a0a1a !important; }
-                .monaco-workbench .part.statusbar { background-color: #6c63ff !important; }
+                .monaco-workbench .part.statusbar { background-color: #0d0d22 !important; border-top: 1px solid rgba(108,99,255,.15) !important; }
+                .monaco-workbench .part.panel .panel-header { background-color: #0a0a1a !important; }
+                .monaco-workbench .part.panel .pane-header { background-color: #0a0a1a !important; }
+                .monaco-workbench .composite.title { background-color: #0d0d22 !important; }
                 .monaco-editor, .monaco-editor .margin { background-color: #0a0a1a !important; }
 
                 /* Welcome page */
