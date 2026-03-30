@@ -3467,7 +3467,50 @@
             try {
               const doc = vsIframe.contentDocument || vsIframe.contentWindow.document;
               const s = doc.createElement('style');
-              s.textContent = '.home-bar-icon-badge, .monaco-workbench .part.activitybar .actions-container > .action-item:first-child { display: none !important; }';
+              s.textContent = `
+                /* Hide VS Code logo */
+                .home-bar-icon-badge,
+                .monaco-workbench .part.activitybar .actions-container > .action-item:first-child { display: none !important; }
+
+                /* Match CYBERFRAME theme */
+                .monaco-workbench { --vscode-editor-background: #0a0a1a !important; }
+                .monaco-workbench .part.sidebar { background: #0d0d22 !important; }
+                .monaco-workbench .part.activitybar { background: #08081a !important; }
+                .monaco-workbench .part.panel { background: #0a0a1a !important; }
+                .monaco-workbench .part.titlebar { background: #08081a !important; }
+                .monaco-workbench .part.statusbar { background: #6c63ff !important; }
+                .monaco-editor { background-color: #0a0a1a !important; }
+                .monaco-editor .margin { background-color: #0a0a1a !important; }
+                .monaco-editor .minimap-slider { background: rgba(108,99,255,.15) !important; }
+
+                /* Accent color */
+                .monaco-workbench .part.activitybar .action-item.checked .active-item-indicator { border-color: #6c63ff !important; }
+                .monaco-workbench .part.activitybar .action-item.checked { color: #6c63ff !important; }
+                .monaco-list .monaco-list-row.selected { background: rgba(108,99,255,.15) !important; }
+                .monaco-list .monaco-list-row.focused { background: rgba(108,99,255,.1) !important; }
+
+                /* Tab bar */
+                .monaco-workbench .part.editor .editor-group-container > .title .tabs-container { background: #08081a !important; }
+                .monaco-workbench .part.editor .editor-group-container > .title .tab { background: #0d0d22 !important; }
+                .monaco-workbench .part.editor .editor-group-container > .title .tab.active { background: #0a0a1a !important; border-top: 2px solid #6c63ff !important; }
+
+                /* Scrollbar */
+                .monaco-scrollable-element > .scrollbar > .slider { background: rgba(108,99,255,.3) !important; }
+                .monaco-scrollable-element > .scrollbar > .slider:hover { background: rgba(108,99,255,.5) !important; }
+
+                /* Buttons */
+                .monaco-button { background-color: #6c63ff !important; }
+                .monaco-button:hover { background-color: #7c73ff !important; }
+
+                /* Title bar text */
+                .monaco-workbench .part.titlebar .window-title { color: rgba(255,255,255,.6) !important; }
+
+                /* Breadcrumb */
+                .monaco-workbench .part.editor .editor-group-container > .title .breadcrumbs-control { background: #0a0a1a !important; }
+
+                /* Command center / search */
+                .monaco-workbench .part.titlebar .command-center-center { background: rgba(108,99,255,.08) !important; border-color: rgba(108,99,255,.2) !important; }
+              `;
               doc.head.appendChild(s);
             } catch(e) {}
           }, 2000);
