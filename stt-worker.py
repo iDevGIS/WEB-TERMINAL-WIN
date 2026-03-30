@@ -9,11 +9,15 @@ sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 from faster_whisper import WhisperModel
 
 # Load model once (small = good balance of speed/accuracy)
-model = WhisperModel("small", device="cpu", compute_type="int8")
+model = WhisperModel("medium", device="cpu", compute_type="int8")
+
+# Thai prompt hint — helps Whisper bias toward Thai script output
+THAI_PROMPT = "สวัสดีครับ นี่คือการถอดเสียงภาษาไทย"
 
 def transcribe(audio_path, lang=None):
     # First pass: use hint language or auto-detect
-    segments, info = model.transcribe(audio_path, language=lang, beam_size=5)
+    prompt = THAI_PROMPT if lang == "th" else None
+    segments, info = model.transcribe(audio_path, language=lang, beam_size=5, initial_prompt=prompt)
     text = " ".join([seg.text for seg in segments]).strip()
     detected = info.language
     
