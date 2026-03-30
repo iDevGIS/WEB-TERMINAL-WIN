@@ -4506,7 +4506,7 @@
     // === Voice Input (Web Speech API) ===
     const _voiceRecognitions = new Map(); // tabId → SpeechRecognition
 
-    function chatToggleVoice(tabId) {
+    async function chatToggleVoice(tabId) {
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
       if (!SpeechRecognition) {
         showToast('Voice input not supported in this browser', 'error');
@@ -4522,12 +4522,29 @@
         rec.stop();
         _voiceRecognitions.delete(tabId);
         if (micBtn) micBtn.classList.remove('recording');
+        showToast('🎤 Stopped', 'info');
+        return;
+      }
+
+      // Check microphone permission first
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        stream.getTracks().forEach(t => t.stop()); // Release immediately
+      } catch (err) {
+        console.error('[Voice] Mic permission error:', err);
+        if (err.name === 'NotAllowedError') {
+          showToast('🎤 Microphone blocked — click the 🔒 icon in the address bar to allow', 'error');
+        } else if (err.name === 'NotFoundError') {
+          showToast('🎤 No microphone found', 'error');
+        } else {
+          showToast('🎤 Microphone error: ' + err.message, 'error');
+        }
         return;
       }
 
       // Start recording
       const recognition = new SpeechRecognition();
-      recognition.lang = 'th-TH'; // Thai default, auto-detects mixed languages
+      recognition.lang = 'th-TH';
       recognition.continuous = true;
       recognition.interimResults = true;
       recognition.maxAlternatives = 1;
@@ -4550,10 +4567,16 @@
       };
 
       recognition.onerror = (event) => {
-        console.error('[Voice]', event.error);
-        if (event.error === 'not-allowed') {
-          showToast('Microphone access denied', 'error');
-        }
+        console.error('[Voice] Recognition error:', event.error);
+        const msgs = {
+          'not-allowed': '🎤 Microphone blocked — allow in browser settings',
+          'no-speech': '🎤 No speech detected — try again',
+          'audio-capture': '🎤 No microphone found',
+          'network': '🎤 Network error — speech recognition needs internet (Chrome sends audio to Google)',
+          'aborted': '🎤 Cancelled',
+          'service-not-allowed': '🎤 Speech service not available — try Chrome or Edge',
+        };
+        showToast(msgs[event.error] || '🎤 Error: ' + event.error, 'error');
         _voiceRecognitions.delete(tabId);
         if (micBtn) micBtn.classList.remove('recording');
       };
@@ -4563,10 +4586,15 @@
         if (micBtn) micBtn.classList.remove('recording');
       };
 
-      recognition.start();
-      _voiceRecognitions.set(tabId, recognition);
-      if (micBtn) micBtn.classList.add('recording');
-      showToast('🎤 Listening... click mic again to stop', 'info');
+      try {
+        recognition.start();
+        _voiceRecognitions.set(tabId, recognition);
+        if (micBtn) micBtn.classList.add('recording');
+        showToast('🎤 Listening... click mic again to stop', 'info');
+      } catch (e) {
+        console.error('[Voice] Start error:', e);
+        showToast('🎤 Failed to start: ' + e.message, 'error');
+      }
     }
 
     // === Text-to-Speech (Edge Neural Voices via server) ===
