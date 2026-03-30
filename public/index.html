@@ -3512,6 +3512,11 @@
                   --vscode-commandCenter-border: rgba(108,99,255,.2) !important;
                   --vscode-menu-background: #0d0d22 !important;
                   --vscode-menu-selectionBackground: rgba(108,99,255,.2) !important;
+                  --vscode-terminal-background: #0a0a1a !important;
+                  --vscode-terminal-foreground: #e4e4e7 !important;
+                  --vscode-terminal-border: rgba(108,99,255,.1) !important;
+                  --vscode-terminalCursor-foreground: #6c63ff !important;
+                  --vscode-panel-border: rgba(108,99,255,.1) !important;
                 }
 
                 /* Hard overrides for stubborn elements */
@@ -3567,16 +3572,23 @@
                 .monaco-workbench .part.titlebar .window-title { color: rgba(255,255,255,.6) !important; }
               `;
               doc.head.appendChild(s);
-              // Also fix xterm inline styles via JS
-              const fixXterm = () => {
-                doc.querySelectorAll('.xterm, .xterm-viewport, .xterm-screen').forEach(el => {
-                  el.style.setProperty('background-color', '#0a0a1a', 'important');
+              // Fix xterm + any element with inline bg via JS
+              const fixBg = () => {
+                const dark = '#0a0a1a';
+                doc.querySelectorAll('.xterm, .xterm-viewport, .xterm-screen, .terminal-wrapper, .terminal-outer-container, [class*="terminal"]').forEach(el => {
+                  const bg = getComputedStyle(el).backgroundColor;
+                  if (bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent' && bg !== 'rgb(10, 10, 26)') {
+                    el.style.setProperty('background-color', dark, 'important');
+                  }
+                });
+                // Also fix panel body
+                doc.querySelectorAll('.pane-body, .panel-body, .split-view-view').forEach(el => {
+                  el.style.setProperty('background-color', dark, 'important');
                 });
               };
-              fixXterm();
-              // Re-apply after VS Code terminal opens (MutationObserver)
-              const obs = new MutationObserver(fixXterm);
-              obs.observe(doc.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['style'] });
+              // Run periodically for 30s to catch terminal init
+              let fixCount = 0;
+              const fixTimer = setInterval(() => { fixBg(); if (++fixCount > 60) clearInterval(fixTimer); }, 500);
               return true;
             } catch(e) { return false; }
           };
