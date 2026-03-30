@@ -3168,28 +3168,7 @@
       createTab('vscode', { name: 'VS Code', icon: '💻' });
     }
 
-    function _hideVSCodeLogo(iframe) {
-      // Same-origin proxy — inject CSS to hide VS Code logo/branding
-      setTimeout(() => {
-        try {
-          const doc = iframe.contentDocument || iframe.contentWindow.document;
-          const style = doc.createElement('style');
-          style.textContent = `
-            .menubar-menu-button[aria-label="Visual Studio Code"],
-            .home-bar-icon-badge,
-            .monaco-workbench .part.activitybar .action-item .home-bar-icon-badge,
-            .menubar .menubar-menu-button:first-child .codicon-menu,
-            .product-home-bar,
-            .home-bar,
-            a.home-bar-icon-badge,
-            .monaco-workbench .activitybar .action-item[id*="workbench.action.showHomePage"],
-            .monaco-workbench .part.activitybar .actions-container > .action-item:first-child,
-            .home-bar-icon-badge { display: none !important; }
-          `;
-          doc.head.appendChild(style);
-        } catch (e) { /* cross-origin fallback — can't inject */ }
-      }, 2000);
-    }
+
 
     function openVNC() {
       // Reuse existing VNC tab
@@ -3481,7 +3460,18 @@
         if (opts.url) iframe.src = opts.url;
 
       } else if (type === 'vscode') {
-        paneEl.innerHTML = '<div class="vscode-tab-wrap"><iframe src="/vscode/" allow="clipboard-read; clipboard-write" onload="_hideVSCodeLogo(this)"></iframe></div>';
+        paneEl.innerHTML = '<div class="vscode-tab-wrap"><iframe src="/vscode/" allow="clipboard-read; clipboard-write"></iframe></div>';
+        const vsIframe = paneEl.querySelector('iframe');
+        vsIframe.addEventListener('load', function() {
+          setTimeout(() => {
+            try {
+              const doc = vsIframe.contentDocument || vsIframe.contentWindow.document;
+              const s = doc.createElement('style');
+              s.textContent = '.home-bar-icon-badge, .monaco-workbench .part.activitybar .actions-container > .action-item:first-child { display: none !important; }';
+              doc.head.appendChild(s);
+            } catch(e) {}
+          }, 2000);
+        });
         container.appendChild(paneEl);
 
       } else if (type === 'vnc') {
