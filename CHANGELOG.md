@@ -37,6 +37,15 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
   - Logo hidden, retry inject loop (500ms × 40), xterm bg smart replace
 - **Multiple VS Code tabs** — removed single-tab restriction
 - **VS Code terminal bg** — `--vscode-terminal-background` CSS var + localStorage `colorThemeData` hack + JS periodic fix
+- **Voice Input (STT)** — microphone button in AI Chat using Web Speech API
+  - Thai language default, continuous mode, interim results
+  - Recording pulse animation, auto-stop on send
+- **Text-to-Speech (TTS)** — read aloud button on assistant messages using Edge Neural Voices (`msedge-tts`)
+  - Server-side rendering → MP3 audio playback (works on all browsers)
+  - Thai voice: `PremwadeeNeural`, English: `JennyNeural`, auto-detect by content
+  - Loading spinner, pause/stop, emoji/icon stripping
+  - `POST /api/tts` endpoint (max 5000 chars)
+- **All disk drives in Admin** — shows C:, D:, etc. (not just C:)
 
 ### Fixed
 - VS Code proxy `ws: true` breaking terminal WebSocket ("Invalid frame header")

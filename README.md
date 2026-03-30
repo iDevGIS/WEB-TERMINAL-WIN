@@ -168,6 +168,8 @@
 - **Keyboard shortcuts** — `Ctrl+F` search, `Ctrl+Shift+N` new session, `Ctrl+/` toggle sidebar, `Escape` close
 - **Mobile bottom sheet** — system prompt opens as iOS-style bottom sheet with handle bar and backdrop
 - **SVG icon buttons** — gear, search, export, clear with hover/active effects
+- **🎤 Voice Input (STT)** — microphone button using Web Speech API, Thai default, continuous mode, real-time interim text
+- **🔊 Read Aloud (TTS)** — Edge Neural Voices via server-side `msedge-tts`, Thai (`PremwadeeNeural`) + English (`JennyNeural`) auto-detect, works on all browsers
 
 ### 🤖 Agent Monitor
 - **Real-time status** — online/offline indicator with pulsing dot animation
