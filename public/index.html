@@ -912,6 +912,16 @@
       border: none;
     }
 
+    .tab-pane .vscode-tab-wrap {
+      flex: 1;
+      min-height: 0;
+      overflow: hidden;
+    }
+    .tab-pane .vscode-tab-wrap iframe {
+      width: 100%;
+      height: 100%;
+      border: none;
+    }
     .tab-pane .admin-tab-wrap {
       flex: 1;
       min-height: 0;
@@ -3110,7 +3120,11 @@
 
     // === VNC function (declared early) ===
     function openVSCode() {
-      window.open('/vscode/', '_blank');
+      // Reuse existing VS Code tab
+      for (const [tabId, tab] of tabs) {
+        if (tab.type === 'vscode') { switchTab(tabId); return; }
+      }
+      createTab('vscode', { name: 'VS Code', icon: '💻' });
     }
 
     function openVNC() {
@@ -3254,8 +3268,8 @@
       const tabEl = document.createElement('div');
       tabEl.className = 'tab-item';
       tabEl.dataset.tabId = tabId;
-      const icon = opts.icon || (type === 'terminal' ? '⚡' : type === 'editor' ? '📝' : type === 'preview' ? '👁' : type === 'admin' ? '🛡️' : type === 'chat' ? '💬' : type === 'agent-monitor' ? '🤖' : '📂');
-      const label = opts.name || (type === 'terminal' ? 'Shell' : type === 'editor' ? 'Editor' : type === 'preview' ? 'Preview' : type === 'admin' ? 'Admin' : type === 'chat' ? 'AI Chat' : type === 'agent-monitor' ? 'Agent Monitor' : 'Files');
+      const icon = opts.icon || (type === 'terminal' ? '⚡' : type === 'editor' ? '📝' : type === 'preview' ? '👁' : type === 'admin' ? '🛡️' : type === 'chat' ? '💬' : type === 'agent-monitor' ? '🤖' : type === 'vscode' ? '💻' : '📂');
+      const label = opts.name || (type === 'terminal' ? 'Shell' : type === 'editor' ? 'Editor' : type === 'preview' ? 'Preview' : type === 'admin' ? 'Admin' : type === 'chat' ? 'AI Chat' : type === 'agent-monitor' ? 'Agent Monitor' : type === 'vscode' ? 'VS Code' : 'Files');
       tabEl.innerHTML = `<span class="tab-icon">${icon}</span><span class="tab-label">${escHtml(label)}</span><span class="tab-close" onclick="event.stopPropagation();closeTab('${tabId}')">✕</span>`;
       tabEl.onclick = () => switchTab(tabId);
       // Drag to reorder
@@ -3399,6 +3413,10 @@
         tabData.filePath = opts.filePath;
         const iframe = paneEl.querySelector('iframe');
         if (opts.url) iframe.src = opts.url;
+
+      } else if (type === 'vscode') {
+        paneEl.innerHTML = '<div class="vscode-tab-wrap"><iframe src="/vscode/" allow="clipboard-read; clipboard-write"></iframe></div>';
+        container.appendChild(paneEl);
 
       } else if (type === 'admin') {
         paneEl.innerHTML = '<div class="admin-tab-wrap"><iframe src="/admin.html"></iframe></div>';

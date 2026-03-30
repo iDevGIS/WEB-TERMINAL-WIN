@@ -1046,10 +1046,14 @@ const vscodeProxy = createProxyMiddleware({
   selfHandleResponse: false,
   on: {
     proxyRes: (proxyRes) => {
+      // Rewrite redirects to add /vscode prefix
       const loc = proxyRes.headers['location'];
       if (loc && loc.startsWith('/') && !loc.startsWith('/vscode')) {
         proxyRes.headers['location'] = '/vscode' + loc;
       }
+      // Allow iframe embedding
+      delete proxyRes.headers['x-frame-options'];
+      delete proxyRes.headers['content-security-policy'];
     },
     error: (err, req, res) => {
       console.error("[VSCode proxy] error:", err.message);
@@ -1063,7 +1067,10 @@ app.use("/vscode", requireAuth, vscodeProxy);
 const vscodeAssetsProxy = createProxyMiddleware({
   target: `http://127.0.0.1:${VSCODE_PORT}`,
   changeOrigin: true,
-  on: { error: (err, _req, _res) => { if (_res.writeHead) _res.writeHead(502).end("VS Code not running"); } }
+  on: {
+    proxyRes: (proxyRes) => { delete proxyRes.headers['x-frame-options']; delete proxyRes.headers['content-security-policy']; },
+    error: (err, _req, _res) => { if (_res.writeHead) _res.writeHead(502).end("VS Code not running"); }
+  }
 });
 app.use((req, res, next) => {
   if (req.path.startsWith('/stable-') || req.path.startsWith('/oss-dev')) {
