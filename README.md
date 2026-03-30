@@ -315,6 +315,10 @@ Open `http://localhost:3000` in your browser.
 |---------|--------------|
 | ![AI Chat](docs/images/ai-chat.png) | ![Agent Monitor](docs/images/agent-monitor.png) |
 
+| VS Code (in-tab) | Multi-Tab |
+|-------------------|-----------|
+| ![VS Code](docs/images/vscode.png) | ![Multi-Tab](docs/images/multi-tab.png) |
+
 ### 📱 Mobile (iOS Safari)
 
 <table>
