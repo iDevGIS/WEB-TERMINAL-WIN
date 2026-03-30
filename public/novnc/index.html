@@ -47,19 +47,19 @@
     <script type="module" crossorigin="anonymous" src="app/error-handler.js"></script>
     <script type="module" crossorigin="anonymous" src="app/ui.js"></script>
     <style>
-      /* Slim neon scrollbar */
+      /* Gradient scrollbar */
       ::-webkit-scrollbar { width: 3px; height: 3px; }
       ::-webkit-scrollbar-track { background: transparent; }
       ::-webkit-scrollbar-thumb {
         border-radius: 3px;
-        background: linear-gradient(180deg, #00f0ff, #0080ff, #a855f7, #ff2d95, #ff0060, #a855f7, #0080ff, #00f0ff);
-        background-size: 100% 400%;
-        animation: rgbScroll 3s ease-in-out infinite;
-        box-shadow: 0 0 4px rgba(0,240,255,.4), 0 0 8px rgba(0,128,255,.2);
+        background: linear-gradient(180deg, #4f46e5, #6366f1, #8b5cf6, #a855f7, #ec4899, #f97316, #ec4899, #a855f7, #6366f1, #4f46e5);
+        background-size: 100% 500%;
+        animation: scrollGradient 4s ease infinite;
+        box-shadow: 0 0 6px rgba(99,102,241,.4), 0 0 12px rgba(168,85,247,.2);
       }
-      ::-webkit-scrollbar-thumb:hover { box-shadow: 0 0 8px rgba(0,240,255,.7), 0 0 16px rgba(168,85,247,.4); animation: rgbScroll 1.5s ease-in-out infinite; }
-      @keyframes rgbScroll { 0% { background-position: 0% 0%; } 50% { background-position: 0% 400%; } 100% { background-position: 0% 0%; } }
-      * { scrollbar-width: thin; scrollbar-color: #00f0ff transparent; }
+      ::-webkit-scrollbar-thumb:hover { box-shadow: 0 0 10px rgba(99,102,241,.7), 0 0 20px rgba(168,85,247,.4); animation: scrollGradient 2s ease infinite; }
+      @keyframes scrollGradient { 0% { background-position: 0% 0%; } 50% { background-position: 0% 500%; } 100% { background-position: 0% 0%; } }
+      * { scrollbar-width: thin; scrollbar-color: #6366f1 transparent; }
     </style>
 </head>
 
