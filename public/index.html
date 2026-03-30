@@ -4556,8 +4556,11 @@
           <div class="voice-rec-dot"></div>
           <div class="voice-rec-timer">0:00</div>
           <div class="voice-waveform">${bars}</div>
-          <button class="voice-cancel-btn" onclick="chatToggleVoice('${tabId}')" title="Cancel">
+          <button class="voice-cancel-btn" onclick="chatVoiceCancel('${tabId}')" title="Cancel">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+          <button class="chat-send-btn" onclick="chatVoiceSend('${tabId}')" title="Send" style="flex-shrink:0">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
           </button>
         </div>`;
 
@@ -4606,14 +4609,46 @@
       const inputRow = recBar ? recBar.closest('.chat-input-row') : null;
       if (inputRow && vis.originalHtml) {
         inputRow.innerHTML = vis.originalHtml;
-        // Re-bind textarea events
+        // Restore recognized text
         const input = inputRow.querySelector('.chat-input');
-        if (input) {
+        if (input && window._voiceTranscript && window._voiceTranscript[tabId]) {
+          input.value = window._voiceTranscript[tabId];
           input.style.height = 'auto';
+          input.style.height = Math.min(input.scrollHeight, 150) + 'px';
+          delete window._voiceTranscript[tabId];
         }
       }
 
       _voiceVisualizers.delete(tabId);
+    }
+
+    function chatVoiceCancel(tabId) {
+      // Stop recording and discard text
+      if (_voiceRecognitions.has(tabId)) {
+        _voiceRecognitions.get(tabId).stop();
+        _voiceRecognitions.delete(tabId);
+      }
+      _hideVoiceBar(tabId);
+      const micBtn = document.getElementById(tabId + '-mic');
+      if (micBtn) micBtn.classList.remove('recording');
+      // Clear any recognized text
+      setTimeout(() => {
+        const input = document.getElementById(tabId + '-input');
+        if (input) input.value = '';
+      }, 50);
+    }
+
+    function chatVoiceSend(tabId) {
+      // Stop recording and send the recognized text
+      if (_voiceRecognitions.has(tabId)) {
+        _voiceRecognitions.get(tabId).stop();
+        _voiceRecognitions.delete(tabId);
+      }
+      _hideVoiceBar(tabId);
+      const micBtn = document.getElementById(tabId + '-mic');
+      if (micBtn) micBtn.classList.remove('recording');
+      // Send after UI restores
+      setTimeout(() => chatSend(tabId), 100);
     }
 
     async function chatToggleVoice(tabId) {
@@ -4626,10 +4661,9 @@
       const micBtn = document.getElementById(tabId + '-mic');
       const input = document.getElementById(tabId + '-input');
 
-      // Already recording — stop
+      // Already recording — stop and keep text
       if (_voiceRecognitions.has(tabId)) {
-        const rec = _voiceRecognitions.get(tabId);
-        rec.stop();
+        _voiceRecognitions.get(tabId).stop();
         _voiceRecognitions.delete(tabId);
         if (micBtn) micBtn.classList.remove('recording');
         _hideVoiceBar(tabId);
@@ -4661,6 +4695,9 @@
       recognition.maxAlternatives = 1;
 
       let finalTranscript = input.value;
+      // Store transcript on window so it survives DOM changes
+      window._voiceTranscript = window._voiceTranscript || {};
+      window._voiceTranscript[tabId] = finalTranscript;
 
       recognition.onresult = (event) => {
         let interim = '';
@@ -4672,9 +4709,7 @@
             interim += transcript;
           }
         }
-        input.value = finalTranscript + (interim ? ' ' + interim : '');
-        input.style.height = 'auto';
-        input.style.height = Math.min(input.scrollHeight, 150) + 'px';
+        window._voiceTranscript[tabId] = finalTranscript + (interim ? ' ' + interim : '');
       };
 
       let _voiceRetries = 0;
