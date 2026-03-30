@@ -1048,8 +1048,8 @@ app.use(requireAuth, (req, res, next) => {
 // === VS Code serve-web ===
 app.get("/api/vscode-url", (req, res) => {
   const { exec: execCb } = require("child_process");
-  execCb('powershell -NoProfile -Command "(Get-Process | Where-Object { $_.CommandLine -match \'code-tunnel.*serve-web\' } | Select-Object -First 1).CommandLine"', { timeout: 5000 }, (err, stdout) => {
-    if (err || !stdout) return res.json({ error: "VS Code server not running" });
+  execCb('wmic process where "commandline like \'%serve-web%\'" get commandline /format:list', { timeout: 5000 }, (err, stdout) => {
+    if (err || !stdout || !stdout.includes('serve-web')) return res.json({ error: "VS Code server not running" });
     const tokenMatch = stdout.match(/--connection-token\s+(\S+)/);
     const portMatch = stdout.match(/--port\s+(\d+)/);
     const port = portMatch ? portMatch[1] : "8080";
