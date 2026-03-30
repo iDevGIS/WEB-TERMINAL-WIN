@@ -1061,18 +1061,19 @@ app.get("/api/vscode-url", (req, res) => {
 
 // === VS Code serve-web Proxy ===
 const VSCODE_PORT = parseInt(process.env.VSCODE_PORT) || 8080;
-app.use("/vscode", createProxyMiddleware({
+const vscodeProxy = createProxyMiddleware({
   target: `http://127.0.0.1:${VSCODE_PORT}`,
   changeOrigin: true,
   pathRewrite: { "^/vscode": "" },
-  ws: true,
+  ws: false,
   on: {
     error: (err, req, res) => {
       console.error("[VSCode proxy] error:", err.message);
       if (res.writeHead) res.writeHead(502).end("VS Code server not running on port " + VSCODE_PORT);
     }
   }
-}));
+});
+app.use("/vscode", vscodeProxy);
 
 // === OpenClaw Session Management ===
 const SESSIONS_STORE = path.join(process.env.USERPROFILE || process.env.HOME || '', '.openclaw', 'agents', 'main', 'sessions', 'sessions.json');
@@ -1212,7 +1213,19 @@ server.on("upgrade", (req, socket, head) => {
       return;
     }
     if (req.url.startsWith("/vscode")) {
-      // Let http-proxy-middleware handle VS Code WS upgrade
+      // Proxy VS Code WS manually
+      const target = `ws://127.0.0.1:${VSCODE_PORT}${req.url.replace(/^\/vscode/, '') || '/'}`;
+      const ws2 = require("ws");
+      const upstream = new ws2(target, { headers: { host: '127.0.0.1:' + VSCODE_PORT } });
+      upstream.on("open", () => {
+        wss.handleUpgrade(req, socket, head, (client) => {
+          client.on("message", (d) => { try { upstream.send(d); } catch {} });
+          upstream.on("message", (d) => { try { client.send(d); } catch {} });
+          client.on("close", () => upstream.close());
+          upstream.on("close", () => client.close());
+        });
+      });
+      upstream.on("error", () => { socket.destroy(); });
       return;
     }
     if (req.url === "/vnc-ws") {
