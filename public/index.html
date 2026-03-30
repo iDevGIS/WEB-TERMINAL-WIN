@@ -2708,6 +2708,35 @@
       animation: micPulse 1s ease infinite;
     }
     @keyframes micPulse { 0%,100% { box-shadow: 0 0 0 0 rgba(248,113,113,.4); } 50% { box-shadow: 0 0 0 8px rgba(248,113,113,0); } }
+    .voice-recording-bar {
+      display: flex; align-items: center; gap: 10px;
+      background: rgba(108,99,255,.15); border: 1px solid rgba(108,99,255,.3);
+      border-radius: 24px; padding: 8px 16px; flex: 1;
+      animation: voiceBarIn .2s ease;
+    }
+    @keyframes voiceBarIn { from { opacity: 0; transform: scaleX(.9); } to { opacity: 1; transform: scaleX(1); } }
+    .voice-rec-dot {
+      width: 8px; height: 8px; border-radius: 50%; background: var(--red);
+      animation: recDotBlink 1s ease infinite;
+      flex-shrink: 0;
+    }
+    @keyframes recDotBlink { 0%,100% { opacity: 1; } 50% { opacity: .3; } }
+    .voice-rec-timer { color: var(--red); font-size: 13px; font-weight: 600; font-family: 'JetBrains Mono', monospace; flex-shrink: 0; min-width: 32px; }
+    .voice-waveform {
+      flex: 1; display: flex; align-items: center; gap: 2px; height: 28px;
+      justify-content: center; overflow: hidden;
+    }
+    .voice-waveform .bar {
+      width: 2px; min-height: 2px; border-radius: 1px;
+      background: rgba(255,255,255,.5); transition: height .05s ease;
+    }
+    .voice-cancel-btn {
+      background: rgba(255,255,255,.1); border: none; border-radius: 50%;
+      width: 28px; height: 28px; cursor: pointer; color: var(--text2);
+      display: flex; align-items: center; justify-content: center; transition: all .15s;
+      flex-shrink: 0;
+    }
+    .voice-cancel-btn:hover { background: rgba(248,113,113,.2); color: var(--red); }
     .chat-empty {
       flex: 1; display: flex; align-items: center; justify-content: center;
       flex-direction: column; gap: 10px; opacity: .3;
@@ -4505,6 +4534,87 @@
 
     // === Voice Input (Web Speech API) ===
     const _voiceRecognitions = new Map(); // tabId → SpeechRecognition
+    const _voiceVisualizers = new Map(); // tabId → { stream, analyser, animFrame, timerInterval }
+
+    function _showVoiceBar(tabId, stream) {
+      const inputRow = document.getElementById(tabId + '-input')?.closest('.chat-input-row');
+      if (!inputRow) return;
+
+      // Create audio analyser
+      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const source = audioCtx.createMediaStreamSource(stream);
+      const analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 64;
+      source.connect(analyser);
+
+      // Hide input row children, show recording bar
+      inputRow.dataset.originalHtml = inputRow.innerHTML;
+      const barCount = 35;
+      const bars = Array.from({ length: barCount }, () => '<div class="bar" style="height:2px"></div>').join('');
+      inputRow.innerHTML = `
+        <div class="voice-recording-bar">
+          <div class="voice-rec-dot"></div>
+          <div class="voice-rec-timer">0:00</div>
+          <div class="voice-waveform">${bars}</div>
+          <button class="voice-cancel-btn" onclick="chatToggleVoice('${tabId}')" title="Cancel">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>`;
+
+      const barEls = inputRow.querySelectorAll('.voice-waveform .bar');
+      const timerEl = inputRow.querySelector('.voice-rec-timer');
+      const dataArray = new Uint8Array(analyser.frequencyBinCount);
+      let startTime = Date.now();
+
+      // Timer
+      const timerInterval = setInterval(() => {
+        const elapsed = Math.floor((Date.now() - startTime) / 1000);
+        const m = Math.floor(elapsed / 60);
+        const s = elapsed % 60;
+        if (timerEl) timerEl.textContent = m + ':' + String(s).padStart(2, '0');
+      }, 1000);
+
+      // Waveform animation
+      function animate() {
+        analyser.getByteFrequencyData(dataArray);
+        for (let i = 0; i < barEls.length; i++) {
+          const dataIdx = Math.floor(i * dataArray.length / barEls.length);
+          const val = dataArray[dataIdx] || 0;
+          const h = Math.max(2, (val / 255) * 28);
+          barEls[i].style.height = h + 'px';
+          barEls[i].style.opacity = 0.4 + (val / 255) * 0.6;
+        }
+        const frame = requestAnimationFrame(animate);
+        _voiceVisualizers.get(tabId).animFrame = frame;
+      }
+      const animFrame = requestAnimationFrame(animate);
+
+      _voiceVisualizers.set(tabId, { stream, audioCtx, analyser, animFrame, timerInterval, originalHtml: inputRow.dataset.originalHtml });
+    }
+
+    function _hideVoiceBar(tabId) {
+      const vis = _voiceVisualizers.get(tabId);
+      if (!vis) return;
+
+      clearInterval(vis.timerInterval);
+      cancelAnimationFrame(vis.animFrame);
+      try { vis.audioCtx.close(); } catch(e) {}
+      vis.stream.getTracks().forEach(t => t.stop());
+
+      // Find the recording bar and restore original input row
+      const recBar = document.querySelector('.voice-recording-bar');
+      const inputRow = recBar ? recBar.closest('.chat-input-row') : null;
+      if (inputRow && vis.originalHtml) {
+        inputRow.innerHTML = vis.originalHtml;
+        // Re-bind textarea events
+        const input = inputRow.querySelector('.chat-input');
+        if (input) {
+          input.style.height = 'auto';
+        }
+      }
+
+      _voiceVisualizers.delete(tabId);
+    }
 
     async function chatToggleVoice(tabId) {
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -4522,14 +4632,15 @@
         rec.stop();
         _voiceRecognitions.delete(tabId);
         if (micBtn) micBtn.classList.remove('recording');
-        // Silent stop — button animation already provides feedback
+        _hideVoiceBar(tabId);
         return;
       }
 
       // Check microphone permission first
+      let micStream;
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        stream.getTracks().forEach(t => t.stop()); // Release immediately
+        micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        // Stream kept alive for waveform visualization
       } catch (err) {
         console.error('[Voice] Mic permission error:', err);
         if (err.name === 'NotAllowedError') {
@@ -4594,6 +4705,7 @@
         if (msg) showToast(msg, 'error');
         _voiceRecognitions.delete(tabId);
         if (micBtn) micBtn.classList.remove('recording');
+        _hideVoiceBar(tabId);
       };
 
       recognition.onend = () => {
@@ -4612,7 +4724,7 @@
         recognition.start();
         _voiceRecognitions.set(tabId, recognition);
         if (micBtn) micBtn.classList.add('recording');
-        // No toast — mic button pulse animation is enough feedback
+        _showVoiceBar(tabId, micStream);
       } catch (e) {
         console.error('[Voice] Start error:', e);
         showToast('🎤 Failed to start: ' + e.message, 'error');
