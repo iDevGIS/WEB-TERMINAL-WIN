@@ -914,9 +914,11 @@ app.post("/api/stt", requireAuth, _sttUpload.single("audio"), async (req, res) =
       exec(`ffmpeg -y -i "${req.file.path}" -ar 16000 -ac 1 "${wavPath}"`, { timeout: 10000 }, (err) => err ? reject(err) : resolve());
     });
     
-    // Run whisper
+    // Run whisper (optional lang hint from client, default "th")
+    const lang = req.body?.lang || "th";
+    const langArg = lang && lang !== "auto" ? ` "${lang}"` : "";
     const result = await new Promise((resolve, reject) => {
-      exec(`python "${path.join(__dirname, 'stt-worker.py')}" "${wavPath}"`, { timeout: 30000 }, (err, stdout) => {
+      exec(`python "${path.join(__dirname, 'stt-worker.py')}" "${wavPath}"${langArg}`, { timeout: 30000 }, (err, stdout) => {
         if (err) return reject(err);
         try { resolve(JSON.parse(stdout.trim())); }
         catch(e) { reject(new Error("Parse error: " + stdout)); }

@@ -4659,6 +4659,7 @@
         const blob = new Blob(chunks, { type: 'audio/webm' });
         const formData = new FormData();
         formData.append('audio', blob, 'voice.webm');
+        formData.append('lang', 'th'); // Default Thai — Whisper auto-detects English too
 
         _voiceRecognitions.delete(tabId);
         _hideVoiceBar(tabId);
