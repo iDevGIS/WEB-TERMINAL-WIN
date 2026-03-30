@@ -1036,7 +1036,27 @@ app.get("/api/agent/status", requireAuth, async (req, res) => {
 });
 
 // Protected static files — no cache for HTML
-// VS Code proxy - before requireAuth (uses its own token auth)
+// === VS Code serve-web Proxy ===
+const VSCODE_PORT = parseInt(process.env.VSCODE_PORT) || 8080;
+const vscodeProxy = createProxyMiddleware({
+  target: `http://127.0.0.1:${VSCODE_PORT}`,
+  changeOrigin: true,
+  pathRewrite: { "^/vscode": "" },
+  ws: false,
+  selfHandleResponse: false,
+  on: {
+    proxyRes: (proxyRes) => {
+      const loc = proxyRes.headers['location'];
+      if (loc && loc.startsWith('/') && !loc.startsWith('/vscode')) {
+        proxyRes.headers['location'] = '/vscode' + loc;
+      }
+    },
+    error: (err, req, res) => {
+      console.error("[VSCode proxy] error:", err.message);
+      if (res.writeHead) res.writeHead(502).end("VS Code server not running on port " + VSCODE_PORT);
+    }
+  }
+});
 app.use("/vscode", requireAuth, vscodeProxy);
 
 app.use(requireAuth, (req, res, next) => {
@@ -1061,28 +1081,7 @@ app.get("/api/vscode-url", (req, res) => {
   });
 });
 
-// === VS Code serve-web Proxy ===
-const VSCODE_PORT = parseInt(process.env.VSCODE_PORT) || 8080;
-const vscodeProxy = createProxyMiddleware({
-  target: `http://127.0.0.1:${VSCODE_PORT}`,
-  changeOrigin: true,
-  pathRewrite: { "^/vscode": "" },
-  ws: false,
-  selfHandleResponse: false,
-  on: {
-    proxyRes: (proxyRes) => {
-      // Rewrite Location header to add /vscode prefix
-      const loc = proxyRes.headers['location'];
-      if (loc && loc.startsWith('/') && !loc.startsWith('/vscode')) {
-        proxyRes.headers['location'] = '/vscode' + loc;
-      }
-    },
-    error: (err, req, res) => {
-      console.error("[VSCode proxy] error:", err.message);
-      if (res.writeHead) res.writeHead(502).end("VS Code server not running on port " + VSCODE_PORT);
-    }
-  }
-});
+// (VS Code proxy moved above requireAuth)
 
 // === OpenClaw Session Management ===
 const SESSIONS_STORE = path.join(process.env.USERPROFILE || process.env.HOME || '', '.openclaw', 'agents', 'main', 'sessions', 'sessions.json');
