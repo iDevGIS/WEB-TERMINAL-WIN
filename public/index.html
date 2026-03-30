@@ -2429,10 +2429,9 @@
     .chat-copy-btn {
       background: none; border: none; padding: 0; cursor: pointer;
       color: var(--text3); transition: all .15s; display: inline-flex; align-items: center;
-      opacity: 0; line-height: 1; font-size: 10px;
+      opacity: .5; line-height: 1; font-size: 10px;
     }
-    .chat-msg:hover .chat-copy-btn { opacity: .6; }
-    .chat-copy-btn:hover { color: var(--accent); opacity: 1 !important; }
+    .chat-copy-btn:hover { color: var(--accent); opacity: 1; }
     /* Copy button on code blocks */
     .chat-msg.assistant .msg-content pre { position: relative; }
     .code-copy-btn {
@@ -3910,7 +3909,9 @@
             setTimeout(() => { btn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>'; }, 1200);
           });
         };
-        timeEl.appendChild(btn);
+        const regenBtn = timeEl.querySelector('.chat-regen-btn');
+        if (regenBtn) timeEl.insertBefore(btn, regenBtn);
+        else timeEl.appendChild(btn);
       });
       // Copy button on each code block — integrated into language badge bar
       container.querySelectorAll('.chat-msg.assistant .msg-content pre').forEach(preEl => {
