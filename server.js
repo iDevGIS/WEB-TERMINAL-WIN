@@ -1059,6 +1059,18 @@ const vscodeProxy = createProxyMiddleware({
 });
 app.use("/vscode", requireAuth, vscodeProxy);
 
+// VS Code loads assets from /stable-xxx/ and /oss-dev/ absolute paths
+const vscodeAssetsProxy = createProxyMiddleware({
+  target: `http://127.0.0.1:${VSCODE_PORT}`,
+  changeOrigin: true,
+  on: {
+    error: (err, req, res) => {
+      if (res.writeHead) res.writeHead(502).end("VS Code not running");
+    }
+  }
+});
+app.use(["/stable-", "/oss-dev"], requireAuth, vscodeAssetsProxy);
+
 app.use(requireAuth, (req, res, next) => {
   if (req.path === '/' || req.path.endsWith('.html')) {
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
@@ -1220,9 +1232,10 @@ server.on("upgrade", (req, socket, head) => {
       socket.destroy();
       return;
     }
-    if (req.url.startsWith("/vscode")) {
+    if (req.url.startsWith("/vscode") || req.url.startsWith("/stable-") || req.url.startsWith("/oss-dev")) {
       // Proxy VS Code WS manually
-      const target = `ws://127.0.0.1:${VSCODE_PORT}${req.url.replace(/^\/vscode/, '') || '/'}`;
+      const wsPath = req.url.startsWith("/vscode") ? (req.url.replace(/^\/vscode/, '') || '/') : req.url;
+      const target = `ws://127.0.0.1:${VSCODE_PORT}${wsPath}`;
       const ws2 = require("ws");
       const upstream = new ws2(target, { headers: { host: '127.0.0.1:' + VSCODE_PORT } });
       upstream.on("open", () => {
