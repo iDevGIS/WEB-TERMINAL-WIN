@@ -191,6 +191,7 @@
     #session-list {
       flex: 1;
       overflow-y: auto;
+      overflow-x: hidden;
       padding: 10px;
     }
 
@@ -202,8 +203,9 @@
       transition: all .2s;
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 8px;
       border: 1px solid transparent;
+      overflow: hidden;
     }
 
     .session-item:hover {
@@ -267,6 +269,7 @@
       display: flex;
       gap: 2px;
       transition: opacity .2s;
+      flex-shrink: 0;
     }
 
     .session-item:hover .session-actions { opacity: 1; }
