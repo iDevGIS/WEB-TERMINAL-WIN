@@ -3109,13 +3109,8 @@
     };
 
     // === VNC function (declared early) ===
-    async function openVSCode() {
-      try {
-        const r = await fetch('/api/vscode-url');
-        const d = await r.json();
-        if (d.error) { alert(d.error); return; }
-        window.open('/vscode/?tkn=' + (d.token || ''), '_blank');
-      } catch { alert('Failed to get VS Code URL'); }
+    function openVSCode() {
+      window.open('/vscode/', '_blank');
     }
 
     function openVNC() {
