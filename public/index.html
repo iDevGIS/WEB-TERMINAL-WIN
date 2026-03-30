@@ -2493,6 +2493,7 @@
     }
     .chat-tts-btn:hover { color: var(--accent); opacity: 1; }
     .chat-tts-btn.speaking { color: var(--accent); opacity: 1; animation: micPulse 1s ease infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
     /* Copy button on code blocks */
     .chat-msg.assistant .msg-content pre { position: relative; }
     .code-copy-btn {
@@ -4567,66 +4568,73 @@
       showToast('🎤 Listening... click mic again to stop', 'info');
     }
 
-    // === Text-to-Speech ===
-    function chatTTS(msgEl, btn) {
-      // If already speaking this message, stop
+    // === Text-to-Speech (Edge Neural Voices via server) ===
+    let _ttsAudio = null;
+    const _ttsSpeakerIcon = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>';
+    const _ttsPauseIcon = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>';
+    const _ttsLoadIcon = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="animation:spin 1s linear infinite"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>';
+
+    function _ttsResetAll() {
+      document.querySelectorAll('.chat-tts-btn.speaking').forEach(b => {
+        b.classList.remove('speaking');
+        b.innerHTML = _ttsSpeakerIcon;
+      });
+    }
+
+    async function chatTTS(msgEl, btn) {
+      // If already playing — stop
       if (btn.classList.contains('speaking')) {
-        speechSynthesis.cancel();
+        if (_ttsAudio) { _ttsAudio.pause(); _ttsAudio = null; }
         btn.classList.remove('speaking');
-        btn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>';
+        btn.innerHTML = _ttsSpeakerIcon;
         return;
       }
 
-      // Stop any other speaking
-      speechSynthesis.cancel();
-      document.querySelectorAll('.chat-tts-btn.speaking').forEach(b => {
-        b.classList.remove('speaking');
-        b.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>';
-      });
+      // Stop any other
+      if (_ttsAudio) { _ttsAudio.pause(); _ttsAudio = null; }
+      _ttsResetAll();
 
       const text = msgEl.querySelector('.msg-content')?.innerText || '';
       if (!text.trim()) return;
 
-      // Split long text into chunks (speechSynthesis has ~200 char limit on some browsers)
-      const chunks = [];
-      const sentences = text.match(/[^.!?\n]+[.!?\n]*/g) || [text];
-      let current = '';
-      for (const s of sentences) {
-        if ((current + s).length > 180) {
-          if (current) chunks.push(current.trim());
-          current = s;
-        } else {
-          current += s;
-        }
-      }
-      if (current.trim()) chunks.push(current.trim());
-
-      // Detect language — if mostly Thai characters, use Thai voice
-      const thaiChars = (text.match(/[\u0E00-\u0E7F]/g) || []).length;
-      const lang = thaiChars > text.length * 0.2 ? 'th-TH' : 'en-US';
-
       btn.classList.add('speaking');
-      btn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>';
+      btn.innerHTML = _ttsLoadIcon;
 
-      let chunkIdx = 0;
-      function speakNext() {
-        if (chunkIdx >= chunks.length) {
+      try {
+        const resp = await fetch('/api/tts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: text.substring(0, 5000) })
+        });
+
+        if (!resp.ok) throw new Error('TTS failed');
+
+        const blob = await resp.blob();
+        const url = URL.createObjectURL(blob);
+        _ttsAudio = new Audio(url);
+        
+        btn.innerHTML = _ttsPauseIcon;
+        
+        _ttsAudio.onended = () => {
           btn.classList.remove('speaking');
-          btn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>';
-          return;
-        }
-        const utterance = new SpeechSynthesisUtterance(chunks[chunkIdx]);
-        utterance.lang = lang;
-        utterance.rate = 1;
-        utterance.pitch = 1;
-        utterance.onend = () => { chunkIdx++; speakNext(); };
-        utterance.onerror = () => {
-          btn.classList.remove('speaking');
-          btn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>';
+          btn.innerHTML = _ttsSpeakerIcon;
+          URL.revokeObjectURL(url);
+          _ttsAudio = null;
         };
-        speechSynthesis.speak(utterance);
+        _ttsAudio.onerror = () => {
+          btn.classList.remove('speaking');
+          btn.innerHTML = _ttsSpeakerIcon;
+          URL.revokeObjectURL(url);
+          _ttsAudio = null;
+          showToast('Audio playback failed', 'error');
+        };
+        
+        _ttsAudio.play();
+      } catch (e) {
+        btn.classList.remove('speaking');
+        btn.innerHTML = _ttsSpeakerIcon;
+        showToast('TTS error: ' + e.message, 'error');
       }
-      speakNext();
     }
 
     async function chatSend(tabId) {

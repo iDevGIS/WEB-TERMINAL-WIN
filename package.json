@@ -13,6 +13,7 @@
     "express": "^4.21.0",
     "express-session": "^1.19.0",
     "http-proxy-middleware": "^3.0.5",
+    "msedge-tts": "^2.0.4",
     "node-pty": "^1.1.0",
     "ws": "^8.18.0"
   }

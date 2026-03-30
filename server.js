@@ -866,6 +866,41 @@ const OPENCLAW_GW = process.env.OPENCLAW_GATEWAY || "http://127.0.0.1:18789";
 const OPENCLAW_TOKEN = process.env.OPENCLAW_TOKEN || "";
 const _cyberframeNames = {}; // sessionId → display name
 
+// === TTS (Edge Neural Voices) ===
+const { MsEdgeTTS } = require("msedge-tts");
+
+app.post("/api/tts", requireAuth, async (req, res) => {
+  const { text, voice } = req.body;
+  if (!text || !text.trim()) return res.status(400).json({ error: "text required" });
+
+  try {
+    const tts = new MsEdgeTTS();
+    // Auto-detect language: Thai chars > 20% → Thai voice
+    const thaiChars = (text.match(/[\u0E00-\u0E7F]/g) || []).length;
+    const defaultVoice = thaiChars > text.length * 0.2
+      ? "th-TH-PremwadeeNeural"
+      : "en-US-JennyNeural";
+    
+    await tts.setMetadata(voice || defaultVoice, MsEdgeTTS.OUTPUT_FORMAT.AUDIO_24KHZ_96KBITRATE_MONO_MP3);
+    const readable = tts.toStream(text.substring(0, 5000)); // Limit 5000 chars
+
+    res.setHeader("Content-Type", "audio/mpeg");
+    res.setHeader("Cache-Control", "no-cache");
+    
+    readable.on("data", (chunk) => {
+      if (chunk.type === "audio") res.write(chunk.data);
+    });
+    readable.on("end", () => res.end());
+    readable.on("error", (err) => {
+      console.error("[TTS Error]", err.message);
+      if (!res.headersSent) res.status(500).json({ error: "TTS failed" });
+    });
+  } catch (err) {
+    console.error("[TTS Error]", err.message);
+    if (!res.headersSent) res.status(500).json({ error: "TTS failed: " + err.message });
+  }
+});
+
 app.post("/api/chat", requireAuth, async (req, res) => {
   const { messages, model } = req.body;
   if (!messages || !Array.isArray(messages)) return res.status(400).json({ error: "messages required" });
