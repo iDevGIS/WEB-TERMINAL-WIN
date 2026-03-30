@@ -4677,6 +4677,10 @@
         row.innerHTML = saved;
         delete window._savedInputHtml[tabId];
       }
+      // Always reset mic button state
+      const micBtn = document.getElementById(tabId + '-mic');
+      if (micBtn) micBtn.classList.remove('recording');
+      _voiceRecognitions.delete(tabId);
     }
 
     function chatVoiceCancel(tabId) {
