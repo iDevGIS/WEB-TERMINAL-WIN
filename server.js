@@ -900,7 +900,7 @@ app.post("/api/tts", requireAuth, async (req, res) => {
 
 // === STT (faster-whisper) ===
 const multer = require("multer");
-const _sttUpload = multer({ dest: os.tmpdir(), limits: { fileSize: 10 * 1024 * 1024 } }); // 10MB max
+const _sttUpload = multer({ dest: require("os").tmpdir(), limits: { fileSize: 10 * 1024 * 1024 } }); // 10MB max
 
 app.post("/api/stt", requireAuth, _sttUpload.single("audio"), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: "audio file required" });
