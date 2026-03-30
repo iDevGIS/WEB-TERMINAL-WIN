@@ -4,7 +4,7 @@
 
 ![Node.js](https://img.shields.io/badge/Node.js-18+-339933?logo=nodedotjs&logoColor=white)
 ![Platform](https://img.shields.io/badge/Platform-Windows-0078D6?logo=windows&logoColor=white)
-![Version](https://img.shields.io/badge/Version-1.7.0-6c63ff)
+![Version](https://img.shields.io/badge/Version-1.9.0-6c63ff)
 ![License](https://img.shields.io/badge/License-MIT-blue)
 
 ## ✨ Features
@@ -62,9 +62,20 @@
 
 ### 🖼️ Remote Desktop
 - **TightVNC + noVNC** integration — full remote desktop in your browser
+- **In-tab VNC** — opens as a CYBERFRAME tab (iframe), not a separate window
 - **WebSocket proxy** — no extra ports needed, VNC traffic tunneled through the same server on `/vnc-ws`
 - **View & control** your desktop from any device — mouse, keyboard, clipboard sharing
-- **One-click connect** — toolbar button opens VNC viewer instantly
+- **One-click connect** — toolbar button or welcome card opens VNC tab instantly
+- **Reuse tab** — clicking again switches to existing VNC tab
+
+### 💻 VS Code Integration
+- **VS Code serve-web** — full VS Code editor running as a CYBERFRAME tab
+- **Reverse proxy** — proxied through `/vscode/` on same port, no extra port needed
+- **Asset proxying** — `/stable-*` paths transparently proxied to VS Code server
+- **WebSocket support** — VS Code's WS connections proxied for full functionality
+- **Auto-detect** — connection token detected from running process
+- **CYBERFRAME auth** — protected by same login session, no separate VS Code auth needed
+- **In-tab iframe** — opens as a tab like terminal, chat, admin, etc.
 
 ### 📁 File Manager
 - **Browse, upload, download** files from any drive on the system
@@ -179,7 +190,12 @@
 
 ### 📑 Tab Drag & Reorder
 - **Drag tabs** to reorder — purple indicator line shows drop position
-- **Tab types** — terminal, editor, preview, admin, chat, agent-monitor
+- **Tab types** — terminal, editor, preview, admin, chat, agent-monitor, VS Code, VNC
+
+### 🎨 Visual Effects
+- **Animated gradient top bar** — indigo → violet → purple → pink → orange gradient line at top of page with smooth animation
+- **Neon scrollbar** — 3px ultra-slim scrollbar with animated gradient (indigo → violet → purple → pink → orange), glow effect on hover
+- **Consistent across iframes** — scrollbar style applied to main UI, admin panel, and noVNC
 
 ### 💓 Heartbeat Monitor
 - **Neon blue ECG** — 3D waveform with 4-layer glow, grid overlay, gradient mask fade edges
@@ -455,6 +471,7 @@ CYBERFRAME
 | GET | `/api/agent/sessions/preview` | Preview session transcript (`?key=`) |
 | GET | `/api/agent/sessions/info` | Session metadata & file stats (`?key=`) |
 | POST | `/api/agent/sessions/delete` | Delete session + transcript file |
+| GET | `/api/vscode-url` | Get VS Code connection info (token, port) |
 
 ### WebSocket Messages
 

@@ -5,6 +5,34 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [1.9.0] — 2026-03-30
+
+### Added
+- **VS Code Integration** — VS Code serve-web proxied through `/vscode/` as CYBERFRAME tab (iframe)
+  - Reverse proxy with `http-proxy-middleware`, asset path `/stable-*` proxying
+  - WebSocket upgrade support for VS Code connections
+  - Auto-detect connection token from running process via PowerShell script
+  - `GET /api/vscode-url` endpoint
+  - `--without-connection-token` mode (CYBERFRAME auth protects access)
+  - `X-Frame-Options` and `CSP` headers stripped for iframe embedding
+- **VNC as tab** — Remote Desktop opens as CYBERFRAME tab (iframe) instead of new browser window
+  - Reuse existing VNC tab on repeated clicks
+- **Animated gradient top bar** — `body::before` fixed gradient line (indigo → violet → purple → pink → orange)
+  - `background-size: 200%` with `gradientBar` 3s ease animation
+- **Neon scrollbar** — 3px ultra-slim with animated gradient + glow `box-shadow`
+  - Applied across main UI, admin.html, noVNC iframe
+  - Hover: intensified glow + faster animation
+- **Welcome cards** — deduplicated from 10 → 7 (Terminal, Files, AI Chat, Admin, Remote, VS Code, Agent)
+
+### Fixed
+- VS Code proxy `ws: true` breaking terminal WebSocket ("Invalid frame header")
+- `const vscodeProxy` used before declaration → server crash on startup
+- PowerShell `$_` escape issues in Node `exec()` → use `.ps1` script file
+- `wmic` not available on Windows 11 → PowerShell cmdlets instead
+- noVNC entry point `vnc.html` → `index.html` (v1.5.0 change)
+
+---
+
 ## [1.8.0] — 2026-03-30
 
 ### Added
