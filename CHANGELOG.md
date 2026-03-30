@@ -23,6 +23,17 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
   - Applied across main UI, admin.html, noVNC iframe
   - Hover: intensified glow + faster animation
 - **Welcome cards** — deduplicated from 10 → 7 (Terminal, Files, AI Chat, Admin, Remote, VS Code, Agent)
+- **Workspace State Persistence** — all open tabs saved to `localStorage` every 10s + `beforeunload`
+  - Terminal tabs reattach to same PTY session after refresh
+  - Chat tabs restore messages (last 100/session), model, system prompt
+  - VS Code tabs restore opened folder/project via saved iframe URL
+  - Tab order and active tab remembered
+  - Works for all tab types (terminal, chat, vscode, vnc, admin, agent-monitor)
+- **VS Code CYBERFRAME theme** — comprehensive CSS variable injection (35+ vars)
+  - Background, sidebar, activity bar, tabs, status bar, scrollbar, buttons, welcome page
+  - Logo hidden, retry inject loop (500ms × 40), xterm bg smart replace
+- **Multiple VS Code tabs** — removed single-tab restriction
+- **VS Code terminal bg** — `--vscode-terminal-background` CSS var + localStorage `colorThemeData` hack + JS periodic fix
 
 ### Fixed
 - VS Code proxy `ws: true` breaking terminal WebSocket ("Invalid frame header")
