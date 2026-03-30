@@ -192,6 +192,14 @@
 - **Drag tabs** to reorder — purple indicator line shows drop position
 - **Tab types** — terminal, editor, preview, admin, chat, agent-monitor, VS Code, VNC
 
+### 💾 Workspace State Persistence
+- **Tabs survive refresh** — all open tabs saved to `localStorage` every 10 seconds + on page close
+- **Terminal reattach** — terminal sessions reconnect to the same PTY process after browser refresh (sessions are kept alive on server)
+- **Chat history preserved** — AI Chat messages (last 100 per session), model selection, and system prompts restored
+- **VS Code workspace** — opened folder/project restored automatically via saved iframe URL
+- **Tab order & active tab** — exact tab layout and which tab was active is remembered
+- **Works for all tab types** — terminal, chat, VS Code, VNC, admin, agent monitor, editor
+
 ### 🎨 Visual Effects
 - **Animated gradient top bar** — indigo → violet → purple → pink → orange gradient line at top of page with smooth animation
 - **Neon scrollbar** — 3px ultra-slim scrollbar with animated gradient (indigo → violet → purple → pink → orange), glow effect on hover
