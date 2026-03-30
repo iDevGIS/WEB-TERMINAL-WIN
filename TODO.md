@@ -24,9 +24,9 @@
 - [ ] `/top` — top processes by resource usage
 
 ### 🔌 Admin REST API
-- [ ] `GET /api/admin/status` — system metrics (JSON)
-- [ ] `GET /api/admin/processes` — running process list
-- [ ] `POST /api/admin/kill-session/:id` — kill session
+- [x] `GET /api/admin/status` — system metrics (JSON) ✅
+- [x] `GET /api/admin/processes` — running process list ✅
+- [x] `POST /api/admin/kill-process` — kill process by PID ✅
 - [ ] `POST /api/admin/restart` — graceful restart
 - [ ] `GET /api/admin/logs` — server log tail
 
@@ -41,11 +41,6 @@
 ---
 
 ## 🟡 Priority: Medium
-
-### 🔲 Split Pane / Multi-tab
-- [ ] Side-by-side terminal split (horizontal/vertical)
-- [ ] Tab bar for switching between sessions
-- [ ] Drag to resize panes
 
 ### 🔐 2FA / TOTP
 - [ ] TOTP setup (QR code + secret key)
@@ -129,3 +124,20 @@
 - [x] Welcome feature cards (SVG icons, grid layout, hover glow)
 - [x] Custom confirm dialog (glassmorphism)
 - [x] No-cache headers for HTML
+- [x] Multi-tab system (terminal, editor, preview, admin, chat, agent, vscode, vnc, files)
+- [x] Split Pane (horizontal/vertical, nested, drag resize, drag swap, max 4)
+- [x] Drag & drop session → split pane (4-direction drop zones)
+- [x] Tab drag reorder
+- [x] AI Chat (OpenClaw Gateway SSE, multi-session, markdown+syntax, model selector)
+- [x] Agent Monitor (status, sessions, preview, delete, source badges)
+- [x] VS Code as tab (iframe, theme injection, multi-tab, state persist)
+- [x] VNC as tab (iframe noVNC)
+- [x] Animated gradient top bar + neon scrollbar
+- [x] Workspace state persistence (all tab types, localStorage)
+- [x] Image & file attach in chat (60+ types, paste/drag-drop, multimodal)
+- [x] Per-message token count + model name display
+- [x] Message collapse/expand (click avatar)
+- [x] Voice Input STT (faster-whisper server-side, MediaRecorder, waveform UI)
+- [x] Text-to-Speech TTS (Edge Neural Voices, Thai+English auto-detect)
+- [x] Enter to send, Shift+Enter new line
+- [x] All disk drives in admin panel

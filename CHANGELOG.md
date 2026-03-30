@@ -5,6 +5,41 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [1.9.1] — 2026-03-31
+
+### Added
+- **Server-side STT (faster-whisper)** — replaced Chrome Web Speech API with local Whisper model
+  - MediaRecorder captures audio → sends to server → FFmpeg convert → Whisper transcribe
+  - `POST /api/stt` endpoint with `multer` file upload (10MB max)
+  - Model: `medium` (1.5GB, CPU int8) — accurate Thai + English
+  - Thai `initial_prompt` hint for better script output (not romanized)
+  - `stt-worker.py` standalone Python worker with UTF-8 output
+  - Works on ALL browsers (Chrome, Edge, Firefox, Safari)
+- **Voice Recording Waveform UI** — replaces plain mic button
+  - Recording bar: 🔴 dot blink + timer (JetBrains Mono) + 35 waveform bars
+  - Real-time audio visualization (Web Audio API `AudioContext` + `AnalyserNode`)
+  - Send button (transcribe + auto-send) + Cancel button (discard)
+  - Mic toggle = Send (stop + transcribe)
+  - "🎤 Transcribing..." loading state on input
+- **Enter to send** in AI Chat (`Shift+Enter` for new line)
+
+### Fixed
+- TTS strip emoji/icons before reading — text only
+- Action button icons 12→14px (Copy, TTS, Regenerate) for clarity
+- "Regenerate" text removed → icon-only with tooltip
+- "Ask anything..." placeholder removed from chat input
+- Voice "Listening/Stopped" toast popups removed — mic pulse animation is enough
+- Server crash on start: `os.tmpdir()` not in scope → `require("os").tmpdir()`
+- STT Thai output: "Sawat dey" → "สวัสดีครับ" (lang hint + medium model + initial_prompt)
+- Windows `charmap` codec error → `sys.stdout` UTF-8 wrapper
+
+### Dependencies
+- `msedge-tts` — Edge Neural TTS (server-side MP3)
+- `multer` — multipart file upload for STT
+- `faster-whisper` (Python) — local Whisper STT model
+
+---
+
 ## [1.9.0] — 2026-03-30
 
 ### Added
