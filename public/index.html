@@ -4595,8 +4595,16 @@
       if (_ttsAudio) { _ttsAudio.pause(); _ttsAudio = null; }
       _ttsResetAll();
 
-      const text = msgEl.querySelector('.msg-content')?.innerText || '';
-      if (!text.trim()) return;
+      let text = msgEl.querySelector('.msg-content')?.innerText || '';
+      // Strip emoji, icons, special symbols — read text only
+      text = text.replace(/[\u{1F000}-\u{1FFFF}]/gu, '')  // emoji
+                 .replace(/[\u{2600}-\u{27BF}]/gu, '')     // misc symbols
+                 .replace(/[\u{FE00}-\u{FE0F}]/gu, '')     // variation selectors
+                 .replace(/[\u{200D}]/gu, '')               // zero-width joiner
+                 .replace(/[★☆●○◆◇▶▼►✦✕✓✗⚡⏏⏸⏹▲▼◀▶⫿⫻☰]/g, '')
+                 .replace(/\s{2,}/g, ' ')
+                 .trim();
+      if (!text) return;
 
       btn.classList.add('speaking');
       btn.innerHTML = _ttsLoadIcon;
