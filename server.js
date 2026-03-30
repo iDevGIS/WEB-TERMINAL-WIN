@@ -13,6 +13,7 @@ try { pty = require("@lydell/node-pty"); } catch(e) { pty = require("node-pty");
 const path = require("path");
 const http = require("http");
 const crypto = require("crypto");
+const { createProxyMiddleware } = require("http-proxy-middleware");
 const { execSync } = require("child_process");
 const cookie = require("cookie");
 
@@ -1044,6 +1045,21 @@ app.use(requireAuth, (req, res, next) => {
   next();
 }, express.static(path.join(__dirname, "public")));
 
+// === VS Code serve-web Proxy ===
+const VSCODE_PORT = parseInt(process.env.VSCODE_PORT) || 8080;
+app.use("/vscode", createProxyMiddleware({
+  target: `http://127.0.0.1:${VSCODE_PORT}`,
+  changeOrigin: true,
+  pathRewrite: { "^/vscode": "" },
+  ws: true,
+  on: {
+    error: (err, req, res) => {
+      console.error("[VSCode proxy] error:", err.message);
+      if (res.writeHead) res.writeHead(502).end("VS Code server not running on port " + VSCODE_PORT);
+    }
+  }
+}));
+
 // === OpenClaw Session Management ===
 const SESSIONS_STORE = path.join(process.env.USERPROFILE || process.env.HOME || '', '.openclaw', 'agents', 'main', 'sessions', 'sessions.json');
 
@@ -1179,6 +1195,10 @@ server.on("upgrade", (req, socket, head) => {
     if (!req.session || !req.session.authenticated) {
       socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
       socket.destroy();
+      return;
+    }
+    if (req.url.startsWith("/vscode")) {
+      // Let http-proxy-middleware handle VS Code WS upgrade
       return;
     }
     if (req.url === "/vnc-ws") {
