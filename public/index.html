@@ -3161,10 +3161,6 @@
 
     // === VNC function (declared early) ===
     function openVSCode() {
-      // Reuse existing VS Code tab
-      for (const [tabId, tab] of tabs) {
-        if (tab.type === 'vscode') { switchTab(tabId); return; }
-      }
       createTab('vscode', { name: 'VS Code', icon: '💻' });
     }
 
