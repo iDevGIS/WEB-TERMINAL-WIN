@@ -63,6 +63,16 @@
 - [ ] Optional password protection
 - [ ] Auto-expire after time limit
 
+### 🖥️ Custom Remote Desktop (No VNC)
+- [ ] Replace TightVNC + noVNC with built-in solution
+- [ ] **Screen Capture:** FFmpeg `gdigrab` → MJPEG stream (NVENC GPU encode)
+- [ ] **Transport:** MJPEG frames over WebSocket → `<canvas>` in browser
+- [ ] **Input Injection:** `@nut-tree/nut-js` for mouse/keyboard
+- [ ] **UI:** Integrated as CYBERFRAME tab (not separate window)
+- [ ] **Benefits:** No external service, no extra port, built-in to server
+- [ ] **Limitation:** Lid closed = black screen (same as VNC, needs HDMI dummy plug)
+- [ ] Optional: Multi-monitor select, annotation, recording
+
 ---
 
 ## 🟢 Priority: Low (Future Ideas)
