@@ -474,11 +474,13 @@
     <div class="stat-sub" id="ram-sub">Loading...</div>
     <div class="progress-bar"><div class="progress-fill ram" id="ram-bar" style="width:0%"></div></div>
   </div>
-  <div class="stat-card disk">
-    <div class="stat-label">Disk (C:)</div>
-    <div class="stat-value disk" id="disk-val">--</div>
-    <div class="stat-sub" id="disk-sub">Loading...</div>
-    <div class="progress-bar"><div class="progress-fill disk" id="disk-bar" style="width:0%"></div></div>
+  <div id="disk-cards-wrap" style="display:contents">
+    <div class="stat-card disk">
+      <div class="stat-label">Disk (C:)</div>
+      <div class="stat-value disk" id="disk-val">--</div>
+      <div class="stat-sub" id="disk-sub">Loading...</div>
+      <div class="progress-bar"><div class="progress-fill disk" id="disk-bar" style="width:0%"></div></div>
+    </div>
   </div>
   <div class="stat-card gpu">
     <div class="stat-label">GPU</div>
@@ -636,10 +638,22 @@
       document.getElementById('ram-sub').textContent = d.memory.usedGB + ' / ' + d.memory.totalGB + ' GB';
       document.getElementById('ram-bar').style.width = ramPct + '%';
 
-      // Disk
-      document.getElementById('disk-val').textContent = d.disk.usedPercent + '%';
-      document.getElementById('disk-sub').textContent = d.disk.usedGB + ' / ' + d.disk.totalGB + ' GB';
-      document.getElementById('disk-bar').style.width = d.disk.usedPercent + '%';
+      // Disks (all drives)
+      if (d.disks && d.disks.length) {
+        const wrap = document.getElementById('disk-cards-wrap');
+        wrap.innerHTML = d.disks.map(dk => `
+          <div class="stat-card disk">
+            <div class="stat-label">Disk (${dk.drive})</div>
+            <div class="stat-value disk">${dk.usedPercent}%</div>
+            <div class="stat-sub">${dk.usedGB} / ${dk.totalGB} GB</div>
+            <div class="progress-bar"><div class="progress-fill disk" style="width:${dk.usedPercent}%"></div></div>
+          </div>
+        `).join('');
+      } else {
+        document.getElementById('disk-val').textContent = d.disk.usedPercent + '%';
+        document.getElementById('disk-sub').textContent = d.disk.usedGB + ' / ' + d.disk.totalGB + ' GB';
+        document.getElementById('disk-bar').style.width = d.disk.usedPercent + '%';
+      }
 
       // GPU
       if (d.gpu) {

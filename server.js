@@ -753,17 +753,24 @@ app.get("/api/admin/status", requireAuth, (req, res) => {
   const freeMem = os.freemem();
   const usedMem = totalMem - freeMem;
 
-  // Disk (C:)
+  // Disks (all fixed drives)
   let disk = { totalGB: 0, usedGB: 0, usedPercent: 0 };
+  let disks = [];
   try {
     const { execSync } = require("child_process");
-    const out = execSync("powershell -NoProfile -Command \"Get-CimInstance Win32_LogicalDisk -Filter 'DeviceID=''C:''' | Select-Object Size,FreeSpace | ConvertTo-Json\"", { encoding: 'utf-8', timeout: 5000 });
-    const d = JSON.parse(out);
-    const totalBytes = d.Size;
-    const freeBytes = d.FreeSpace;
-    disk.totalGB = (totalBytes / 1073741824).toFixed(0);
-    disk.usedGB = ((totalBytes - freeBytes) / 1073741824).toFixed(0);
-    disk.usedPercent = Math.round((totalBytes - freeBytes) / totalBytes * 100);
+    const out = execSync("powershell -NoProfile -Command \"Get-CimInstance Win32_LogicalDisk -Filter 'DriveType=3' | Select-Object DeviceID,Size,FreeSpace | ConvertTo-Json\"", { encoding: 'utf-8', timeout: 5000 });
+    let parsed = JSON.parse(out);
+    if (!Array.isArray(parsed)) parsed = [parsed];
+    for (const d of parsed) {
+      if (!d.Size) continue;
+      const totalGB = (d.Size / 1073741824).toFixed(0);
+      const usedGB = ((d.Size - d.FreeSpace) / 1073741824).toFixed(0);
+      const usedPercent = Math.round((d.Size - d.FreeSpace) / d.Size * 100);
+      disks.push({ drive: d.DeviceID, totalGB, usedGB, usedPercent });
+    }
+    // Primary disk (C:) for backward compat
+    const cDisk = disks.find(d => d.drive === 'C:') || disks[0];
+    if (cDisk) { disk.totalGB = cDisk.totalGB; disk.usedGB = cDisk.usedGB; disk.usedPercent = cDisk.usedPercent; }
   } catch {}
 
   // Uptime
@@ -800,6 +807,7 @@ app.get("/api/admin/status", requireAuth, (req, res) => {
     cpu: { percent: cpuPercent, model: cpuModel.replace(/\(R\)|\(TM\)/g, '').replace(/\s+/g, ' ').trim(), cores: cpus.length },
     memory: { totalGB: (totalMem / 1073741824).toFixed(1), usedGB: (usedMem / 1073741824).toFixed(1), freeGB: (freeMem / 1073741824).toFixed(1) },
     disk,
+    disks,
     uptime: { seconds: uptimeSec, formatted, since },
     network: { hostname: os.hostname(), localIP, tailscaleIP, port: process.env.PORT || 3000, nodeVersion: process.version, platform: `${os.type()} ${os.release()}` },
   });
