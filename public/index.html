@@ -8085,6 +8085,16 @@
           }
           if (tab.type === 'editor') {
             entry.filePath = tab.filePath;
+            // Save unsaved content
+            if (tab.monacoEditor) {
+              try { entry.editorContent = tab.monacoEditor.getValue(); } catch(e) {}
+            }
+          }
+          if (tab.type === 'files') {
+            entry.filesCwd = typeof fileCwd !== 'undefined' ? fileCwd : '';
+          }
+          if (tab.type === 'preview') {
+            entry.filePath = tab.filePath;
           }
           state.tabs.push(entry);
           if (tabId === activeTabId) state.activeTabIndex = idx;
@@ -8137,6 +8147,26 @@
             restoredAny = true;
           } else if (entry.type === 'agent-monitor') {
             createTab('agent-monitor', { name: 'Agent Monitor', icon: '🤖' });
+            restoredAny = true;
+          } else if (entry.type === 'editor' && entry.filePath) {
+            // Restore editor — fetch content and open
+            (async (fp) => {
+              try {
+                const r = await fetch('/api/files/preview?path=' + encodeURIComponent(fp));
+                const d = await r.json();
+                if (d.content !== undefined) openFileInTab(fp, d.content);
+              } catch(e) {}
+            })(entry.filePath);
+            restoredAny = true;
+          } else if (entry.type === 'files') {
+            openFileModal();
+            if (entry.filesCwd) setTimeout(() => { if (typeof loadFiles === 'function') loadFiles(entry.filesCwd); }, 500);
+            restoredAny = true;
+          } else if (entry.type === 'preview' && entry.filePath) {
+            setTimeout(() => {
+              const name = entry.filePath.split('/').pop().split('\\').pop();
+              previewFile(entry.filePath, name);
+            }, 300);
             restoredAny = true;
           }
         }
