@@ -1036,6 +1036,9 @@ app.get("/api/agent/status", requireAuth, async (req, res) => {
 });
 
 // Protected static files — no cache for HTML
+// VS Code proxy - before requireAuth (uses its own token auth)
+app.use("/vscode", requireAuth, vscodeProxy);
+
 app.use(requireAuth, (req, res, next) => {
   if (req.path === '/' || req.path.endsWith('.html')) {
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
@@ -1054,8 +1057,7 @@ app.get("/api/vscode-url", (req, res) => {
     const portMatch = stdout.match(/--port\s+(\d+)/);
     const port = portMatch ? portMatch[1] : "8080";
     const token = tokenMatch ? tokenMatch[1] : "";
-    const url = `/vscode/?tkn=${token}`;
-    res.json({ url, port, hasToken: !!token });
+    res.json({ port, token, hasToken: !!token, url: `/vscode/?tkn=${token}` });
   });
 });
 
@@ -1066,14 +1068,21 @@ const vscodeProxy = createProxyMiddleware({
   changeOrigin: true,
   pathRewrite: { "^/vscode": "" },
   ws: false,
+  selfHandleResponse: false,
   on: {
+    proxyRes: (proxyRes) => {
+      // Rewrite Location header to add /vscode prefix
+      const loc = proxyRes.headers['location'];
+      if (loc && loc.startsWith('/') && !loc.startsWith('/vscode')) {
+        proxyRes.headers['location'] = '/vscode' + loc;
+      }
+    },
     error: (err, req, res) => {
       console.error("[VSCode proxy] error:", err.message);
       if (res.writeHead) res.writeHead(502).end("VS Code server not running on port " + VSCODE_PORT);
     }
   }
 });
-app.use("/vscode", vscodeProxy);
 
 // === OpenClaw Session Management ===
 const SESSIONS_STORE = path.join(process.env.USERPROFILE || process.env.HOME || '', '.openclaw', 'agents', 'main', 'sessions', 'sessions.json');

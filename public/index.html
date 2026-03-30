@@ -3113,8 +3113,8 @@
       try {
         const r = await fetch('/api/vscode-url');
         const d = await r.json();
-        if (d.url) window.open(d.url, '_blank');
-        else alert(d.error || 'VS Code server not running');
+        if (d.error) { alert(d.error); return; }
+        window.open('/vscode/?tkn=' + (d.token || ''), '_blank');
       } catch { alert('Failed to get VS Code URL'); }
     }
 
