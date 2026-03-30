@@ -4522,7 +4522,7 @@
         rec.stop();
         _voiceRecognitions.delete(tabId);
         if (micBtn) micBtn.classList.remove('recording');
-        showToast('🎤 Stopped', 'info');
+        // Silent stop — button animation already provides feedback
         return;
       }
 
@@ -4590,7 +4590,7 @@
         recognition.start();
         _voiceRecognitions.set(tabId, recognition);
         if (micBtn) micBtn.classList.add('recording');
-        showToast('🎤 Listening... click mic again to stop', 'info');
+        // No toast — mic button pulse animation is enough feedback
       } catch (e) {
         console.error('[Voice] Start error:', e);
         showToast('🎤 Failed to start: ' + e.message, 'error');
