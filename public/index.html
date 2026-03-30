@@ -3458,11 +3458,13 @@
       } else if (type === 'vscode') {
         paneEl.innerHTML = '<div class="vscode-tab-wrap"><iframe src="/vscode/" allow="clipboard-read; clipboard-write"></iframe></div>';
         const vsIframe = paneEl.querySelector('iframe');
-        vsIframe.addEventListener('load', function() {
-          setTimeout(() => {
+        const _injectVSCodeTheme = () => {
+          const inject = () => {
             try {
               const doc = vsIframe.contentDocument || vsIframe.contentWindow.document;
+              if (!doc || !doc.head || doc.querySelector('#cyberframe-vscode-theme')) return true;
               const s = doc.createElement('style');
+              s.id = 'cyberframe-vscode-theme';
               s.textContent = `
                 /* Hide VS Code logo */
                 .home-bar-icon-badge,
@@ -3548,9 +3550,17 @@
                 .monaco-workbench .part.titlebar .window-title { color: rgba(255,255,255,.6) !important; }
               `;
               doc.head.appendChild(s);
-            } catch(e) {}
-          }, 2000);
-        });
+              return true;
+            } catch(e) { return false; }
+          };
+          // Retry every 500ms until injected, up to 20s
+          let attempts = 0;
+          const timer = setInterval(() => {
+            if (inject() || ++attempts > 40) clearInterval(timer);
+          }, 500);
+        };
+        vsIframe.addEventListener('load', _injectVSCodeTheme);
+        _injectVSCodeTheme(); // Try immediately too
         container.appendChild(paneEl);
 
       } else if (type === 'vnc') {
