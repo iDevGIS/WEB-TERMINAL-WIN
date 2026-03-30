@@ -85,8 +85,18 @@
       background: var(--glass-bg);
       backdrop-filter: blur(var(--blur));
       -webkit-backdrop-filter: blur(var(--blur));
-      border-right: 1px solid var(--glass-border);
+      border-right: none;
       transition: margin-left .25s cubic-bezier(.4,0,.2,1);
+      position: relative;
+    }
+    #sidebar::after {
+      content: '';
+      position: absolute;
+      top: 0; right: 0; bottom: 0;
+      width: 2px;
+      background: linear-gradient(180deg, #4f46e5, #8b5cf6, #a855f7, #ec4899, #f97316, #ec4899, #a855f7, #8b5cf6, #4f46e5);
+      background-size: 100% 400%;
+      animation: scrollGradient 4s ease infinite;
     }
 
     #sidebar.collapsed { margin-left: -290px; }
@@ -450,11 +460,21 @@
       align-items: center;
       gap: 6px;
       height: 42px;
-      border-bottom: 1px solid var(--glass-border);
+      border-bottom: none;
       background: var(--glass-bg);
       backdrop-filter: blur(var(--blur));
       overflow-x: auto;
       scrollbar-width: none;
+      position: relative;
+    }
+    #toolbar::after {
+      content: '';
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, #4f46e5, #8b5cf6, #a855f7, #ec4899, #f97316);
+      background-size: 200% 100%;
+      animation: gradientBar 3s ease infinite;
     }
 
     #toolbar::-webkit-scrollbar { display: none; }
@@ -627,6 +647,17 @@
       flex: 1;
       min-height: 0;
       flex-direction: column;
+      position: relative;
+    }
+    .tab-pane::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, #4f46e5, #8b5cf6, #a855f7, #ec4899, #f97316);
+      background-size: 200% 100%;
+      animation: gradientBar 3s ease infinite;
+      z-index: 1;
     }
     .tab-pane.active { display: flex; }
 
@@ -1061,9 +1092,11 @@
       content: '';
       position: absolute;
       top: 0; left: 0; right: 0;
-      height: 1px;
-      background: linear-gradient(90deg, transparent, var(--accent), transparent);
-      opacity: 0;
+      height: 2px;
+      background: linear-gradient(90deg, #4f46e5, #8b5cf6, #a855f7, #ec4899, #f97316);
+      background-size: 200% 100%;
+      animation: gradientBar 3s ease infinite;
+      opacity: .6;
       transition: opacity .3s;
     }
     .feature:hover {
@@ -1073,6 +1106,11 @@
       box-shadow: 0 8px 24px rgba(108,99,255,.08);
     }
     .feature:hover::before { opacity: 1; }
+    @keyframes gradientBar {
+      0%   { background-position: 0% 50%; }
+      50%  { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
     .feature:hover .fi { transform: scale(1.15); }
 
     .feature .fi {
