@@ -2552,7 +2552,7 @@
     }
     @keyframes blink { 50% { opacity: 0; } }
     /* === Feature: Timestamps === */
-    .msg-time { font-size: 10px; color: var(--text3); margin-top: 2px; opacity: .5; display: flex; align-items: center; gap: 6px; }
+    .msg-time { font-size: 10px; color: var(--text3); margin-top: 2px; opacity: .5; display: flex; align-items: center; gap: 4px; flex-wrap: wrap; white-space: nowrap; }
     /* === Feature: Avatar Icons === */
     .msg-avatar {
       width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center;
@@ -2739,11 +2739,12 @@
     .voice-cancel-btn:hover { background: rgba(248,113,113,.2); color: var(--red); }
 
     .voice-transcribing-bar {
-      display: flex; align-items: center; gap: 10px; justify-content: center;
+      display: flex; align-items: center; gap: 8px; justify-content: center;
       background: linear-gradient(135deg, rgba(108,99,255,.12), rgba(139,92,246,.12));
       border: 1px solid rgba(108,99,255,.25);
-      border-radius: 24px; padding: 10px 20px; flex: 1;
+      border-radius: 24px; padding: 10px 16px; flex: 1;
       animation: transcribeBarIn .3s ease;
+      min-width: 0; overflow: hidden;
     }
     @keyframes transcribeBarIn { from { opacity: 0; transform: scale(.95); } to { opacity: 1; transform: scale(1); } }
 
@@ -2770,6 +2771,7 @@
       background: linear-gradient(90deg, var(--accent), #a78bfa, #c084fc);
       -webkit-background-clip: text; -webkit-text-fill-color: transparent;
       background-clip: text;
+      white-space: nowrap; flex-shrink: 0;
     }
     .transcribe-dots { display: inline-flex; gap: 1px; }
     .transcribe-dots span {
@@ -4667,6 +4669,15 @@
       _voiceVisualizers.delete(tabId);
     }
 
+    function _restoreInputRow(tabId) {
+      const bar = document.querySelector('.voice-transcribing-bar') || document.querySelector('.voice-recording-bar');
+      const row = bar?.closest('.chat-input-row');
+      const vis = _voiceVisualizers.get(tabId);
+      if (row && vis?.originalHtml) {
+        row.innerHTML = vis.originalHtml;
+      }
+    }
+
     function chatVoiceCancel(tabId) {
       if (_voiceRecognitions.has(tabId)) {
         try { _voiceRecognitions.get(tabId).stop(); } catch(e) {}
@@ -4733,21 +4744,17 @@
           const resp = await fetch('/api/stt', { method: 'POST', body: formData });
           const data = await resp.json();
           // Restore input row from saved HTML
-          const row2 = document.querySelector('.voice-transcribing-bar')?.closest('.chat-input-row');
-          const savedHtml = _voiceVisualizers.get(tabId)?.originalHtml;
-          if (row2 && savedHtml) row2.innerHTML = savedHtml;
+          _restoreInputRow(tabId);
           const restoredInput = document.getElementById(tabId + '-input');
-          if (data.text && restoredInput) {
-            restoredInput.value = data.text;
+          if (data.text?.trim()) {
+            if (restoredInput) restoredInput.value = data.text.trim();
             chatSend(tabId);
           } else {
             if (restoredInput) restoredInput.value = '';
             showToast('🎤 No speech detected', 'info');
           }
         } catch (e) {
-          const row2 = document.querySelector('.voice-transcribing-bar')?.closest('.chat-input-row');
-          const savedHtml = _voiceVisualizers.get(tabId)?.originalHtml;
-          if (row2 && savedHtml) row2.innerHTML = savedHtml;
+          _restoreInputRow(tabId);
           const restoredInput = document.getElementById(tabId + '-input');
           if (restoredInput) restoredInput.value = '';
           showToast('🎤 Transcription failed: ' + e.message, 'error');
