@@ -28,7 +28,10 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
   - Chat tabs restore messages (last 100/session), model, system prompt
   - VS Code tabs restore opened folder/project via saved iframe URL
   - Tab order and active tab remembered
-  - Works for all tab types (terminal, chat, vscode, vnc, admin, agent-monitor)
+  - File Manager restores current directory
+  - Editor tabs re-fetch file content from server
+  - Preview tabs restore file preview
+  - Works for all tab types (terminal, chat, vscode, vnc, admin, agent-monitor, files, editor, preview)
 - **VS Code CYBERFRAME theme** — comprehensive CSS variable injection (35+ vars)
   - Background, sidebar, activity bar, tabs, status bar, scrollbar, buttons, welcome page
   - Logo hidden, retry inject loop (500ms × 40), xterm bg smart replace
