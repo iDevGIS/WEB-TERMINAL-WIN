@@ -1059,17 +1059,18 @@ const vscodeProxy = createProxyMiddleware({
 });
 app.use("/vscode", requireAuth, vscodeProxy);
 
-// VS Code loads assets from /stable-xxx/ and /oss-dev/ absolute paths
+// VS Code loads assets from /stable-xxx/ and /oss-dev/ absolute paths — proxy them too
 const vscodeAssetsProxy = createProxyMiddleware({
   target: `http://127.0.0.1:${VSCODE_PORT}`,
   changeOrigin: true,
-  on: {
-    error: (err, req, res) => {
-      if (res.writeHead) res.writeHead(502).end("VS Code not running");
-    }
-  }
+  on: { error: (err, _req, _res) => { if (_res.writeHead) _res.writeHead(502).end("VS Code not running"); } }
 });
-app.use(["/stable-", "/oss-dev"], requireAuth, vscodeAssetsProxy);
+app.use((req, res, next) => {
+  if (req.path.startsWith('/stable-') || req.path.startsWith('/oss-dev')) {
+    return requireAuth(req, res, () => vscodeAssetsProxy(req, res, next));
+  }
+  next();
+});
 
 app.use(requireAuth, (req, res, next) => {
   if (req.path === '/' || req.path.endsWith('.html')) {
