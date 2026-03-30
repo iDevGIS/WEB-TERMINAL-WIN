@@ -6300,6 +6300,22 @@
           case 'sessions':
             sessions = msg.sessions;
             renderSessions();
+            // Reattach restored terminal tabs
+            if (window._pendingTerminalAttach && window._pendingTerminalAttach.length > 0) {
+              const pending = window._pendingTerminalAttach;
+              window._pendingTerminalAttach = null;
+              for (const p of pending) {
+                const tab = tabs.get(p.tabId);
+                if (!tab) continue;
+                // Check if session still exists on server
+                const serverSess = sessions.find(s => s.id === p.sessionId);
+                if (serverSess) {
+                  tab.sessionId = p.sessionId;
+                  if (tab.panes && tab.panes[0]) tab.panes[0].sessionId = p.sessionId;
+                  ws.send(JSON.stringify({ type: 'attach', id: p.sessionId }));
+                }
+              }
+            }
             break;
           case 'attached': {
             const existingTab = findTabBySessionId(msg.id);
@@ -8021,6 +8037,112 @@
     // Mobile modifier intercept is now built into term.onData above
 
     document.getElementById('sidebar-hostname').textContent = location.hostname;
+
+    // === Tab State Persistence ===
+    const TABS_STATE_KEY = 'cyberframe-tabs-state';
+
+    function _saveTabsState() {
+      try {
+        const state = { tabs: [], activeTabIndex: 0 };
+        let idx = 0;
+        const tabBar = document.getElementById('tab-bar');
+        const tabEls = tabBar ? tabBar.querySelectorAll('.tab-item') : [];
+        tabEls.forEach((el, i) => {
+          const tabId = el.dataset.tabId;
+          const tab = tabs.get(tabId);
+          if (!tab) return;
+          const entry = { type: tab.type, name: tab.name, icon: tab.icon };
+          if (tab.type === 'terminal') {
+            entry.sessionId = tab.sessionId || (tab.panes && tab.panes[0] ? tab.panes[0].sessionId : null);
+          }
+          if (tab.type === 'chat' && tab.chatSessions) {
+            entry.chatSessions = tab.chatSessions.map(cs => ({
+              id: cs.id, title: cs.title, model: cs.model, systemPrompt: cs.systemPrompt,
+              messages: cs.messages.slice(-100) // Keep last 100 messages per session
+            }));
+            entry.activeChatSession = tab.activeChatSession;
+          }
+          if (tab.type === 'editor') {
+            entry.filePath = tab.filePath;
+          }
+          state.tabs.push(entry);
+          if (tabId === activeTabId) state.activeTabIndex = idx;
+          idx++;
+        });
+        localStorage.setItem(TABS_STATE_KEY, JSON.stringify(state));
+      } catch(e) { console.error('[TabState] save error:', e); }
+    }
+
+    function _restoreTabsState() {
+      try {
+        const raw = localStorage.getItem(TABS_STATE_KEY);
+        if (!raw) return false;
+        const state = JSON.parse(raw);
+        if (!state.tabs || !state.tabs.length) return false;
+
+        let restoredAny = false;
+        const pendingAttach = []; // {tabId, sessionId} for terminals
+
+        for (const entry of state.tabs) {
+          if (entry.type === 'terminal' && entry.sessionId) {
+            const tabId = createTab('terminal', { name: entry.name || 'Shell', icon: entry.icon || '⚡', sessionId: entry.sessionId });
+            pendingAttach.push({ tabId, sessionId: entry.sessionId });
+            restoredAny = true;
+          } else if (entry.type === 'chat') {
+            const tabId = createTab('chat', { name: entry.name || 'AI Chat', icon: entry.icon || '💬' });
+            // Restore chat sessions data
+            if (entry.chatSessions) {
+              const tab = tabs.get(tabId);
+              if (tab) {
+                tab.chatSessions = entry.chatSessions;
+                tab.activeChatSession = entry.activeChatSession || (entry.chatSessions[0] ? entry.chatSessions[0].id : null);
+                if (typeof renderChatMessages === 'function') {
+                  setTimeout(() => {
+                    renderChatSessions(tabId, tab);
+                    renderChatMessages(tabId, tab);
+                  }, 100);
+                }
+              }
+            }
+            restoredAny = true;
+          } else if (entry.type === 'vscode') {
+            createTab('vscode', { name: 'VS Code', icon: '💻' });
+            restoredAny = true;
+          } else if (entry.type === 'vnc') {
+            createTab('vnc', { name: 'Remote Desktop', icon: '🖥️' });
+            restoredAny = true;
+          } else if (entry.type === 'admin') {
+            createTab('admin', { name: 'Admin', icon: '🛡️' });
+            restoredAny = true;
+          } else if (entry.type === 'agent-monitor') {
+            createTab('agent-monitor', { name: 'Agent Monitor', icon: '🤖' });
+            restoredAny = true;
+          }
+        }
+
+        // Switch to previously active tab
+        if (restoredAny) {
+          const allTabs = Array.from(tabs.keys());
+          const targetIdx = Math.min(state.activeTabIndex || 0, allTabs.length - 1);
+          if (allTabs[targetIdx]) switchTab(allTabs[targetIdx]);
+        }
+
+        // Attach terminal sessions after WS connects
+        if (pendingAttach.length > 0) {
+          window._pendingTerminalAttach = pendingAttach;
+        }
+
+        return restoredAny;
+      } catch(e) { console.error('[TabState] restore error:', e); return false; }
+    }
+
+    // Save state periodically + on unload
+    window.addEventListener('beforeunload', _saveTabsState);
+    setInterval(_saveTabsState, 10000); // Every 10s
+
+    // Restore tabs before connecting WS
+    const _restored = _restoreTabsState();
+
     connect();
   </script>
 </body>
