@@ -3107,7 +3107,7 @@
     function openVNC() {
       const h = location.hostname;
       const p = location.protocol === 'https:' ? 'wss' : 'ws';
-      window.open('/novnc/vnc.html?host=' + h + '&port=' + location.port + '&path=vnc-ws&resize=remote&autoconnect=true&reconnect=true&reconnect_delay=3000', '_blank');
+      window.open('/novnc/index.html?host=' + h + '&port=' + location.port + '&path=vnc-ws&resize=remote&autoconnect=true&reconnect=true&reconnect_delay=3000', '_blank');
     }
 
     // === Terminal Themes ===
