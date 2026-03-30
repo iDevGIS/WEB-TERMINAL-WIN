@@ -3456,8 +3456,16 @@
         if (opts.url) iframe.src = opts.url;
 
       } else if (type === 'vscode') {
-        paneEl.innerHTML = '<div class="vscode-tab-wrap"><iframe src="/vscode/" allow="clipboard-read; clipboard-write"></iframe></div>';
+        const vscodeUrl = opts.vscodePath || '/vscode/';
+        paneEl.innerHTML = '<div class="vscode-tab-wrap"><iframe src="' + escAttr(vscodeUrl) + '" allow="clipboard-read; clipboard-write"></iframe></div>';
         const vsIframe = paneEl.querySelector('iframe');
+        // Track VS Code URL changes for state persistence
+        setInterval(() => {
+          try {
+            const url = vsIframe.contentWindow.location.href;
+            if (url && !url.includes('about:blank')) tabData._lastVscodePath = url;
+          } catch(e) {}
+        }, 5000);
         const _injectVSCodeTheme = () => {
           const inject = () => {
             try {
@@ -8062,6 +8070,19 @@
             }));
             entry.activeChatSession = tab.activeChatSession;
           }
+          if (tab.type === 'vscode') {
+            // Save current VS Code URL (contains ?folder= etc.)
+            try {
+              const iframe = tab.paneEl.querySelector('iframe');
+              if (iframe && iframe.contentWindow) {
+                const vsUrl = iframe.contentWindow.location.href;
+                if (vsUrl && !vsUrl.includes('about:blank')) entry.vscodePath = vsUrl;
+              }
+            } catch(e) {
+              // Cross-origin fallback — save from last known
+              if (tab._lastVscodePath) entry.vscodePath = tab._lastVscodePath;
+            }
+          }
           if (tab.type === 'editor') {
             entry.filePath = tab.filePath;
           }
@@ -8106,7 +8127,7 @@
             }
             restoredAny = true;
           } else if (entry.type === 'vscode') {
-            createTab('vscode', { name: 'VS Code', icon: '💻' });
+            createTab('vscode', { name: 'VS Code', icon: '💻', vscodePath: entry.vscodePath });
             restoredAny = true;
           } else if (entry.type === 'vnc') {
             createTab('vnc', { name: 'Remote Desktop', icon: '🖥️' });
