@@ -5,6 +5,62 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [1.8.0] — 2026-03-30
+
+### Added
+- **AI Chat — Image & File Attach** — attach images (clip/paste/drag-drop) and 60+ text file types
+  - Multimodal OpenAI format (`image_url` + `text` content array)
+  - Preview bar with thumbnails/file pills before send
+  - Text files sent as code blocks with language detection
+- **Per-Message Token Count** — each message shows `HH:MM · X tokens · model-name`
+  - Captures `usage.completion_tokens` from SSE response (fallback: word estimate)
+  - Model name resolved from Agent Monitor (fixes gateway "openclaw" placeholder)
+- **Chat Input Pill Redesign** — unified capsule row with attach + input + send
+  - Glassmorphism border, focus glow, border-radius 24px
+- **Chat Buttons SVG Redesign** — all buttons use SVG stroke icons
+  - Stop: circle + red gradient + pulse animation
+  - Regenerate: inline in msg-time row, right-aligned, SVG refresh arrows, hover rotates 180°
+  - Copy: inline in msg-time row before Regenerate, SVG clipboard → green checkmark on click
+  - Token badge: SVG clock icon, JetBrains Mono font, 1k+ formatting
+- **Message Collapse/Expand** — click avatar to toggle, shows 80-char preview + time/actions row
+
+### Fixed
+- **Font size A+/A-** now affects AI Chat and Agent Monitor tabs
+  - Bug: `Map.forEach(t =>)` used `t.id` (undefined) instead of `(t, tabId)` key
+  - Uses CSS variable `--chat-fs` for cascading
+- **Model name "openclaw"** resolved to actual model via Agent Monitor API
+- **Copy button** moved from absolute overlay (blocked text) into msg-time row
+
+---
+
+## [1.7.0] — 2026-03-29
+
+### Added
+- **AI Chat** — OpenClaw Gateway SSE streaming chat
+  - Multi-session sidebar, per-session conversations
+  - Markdown + syntax highlighting (marked.js + highlight.js)
+  - Stop Generating, Copy, Regenerate, Model selector
+  - System prompt presets (Default/Code Expert/Thai Teacher/Creative Writer/Concise + custom)
+  - Export chat (.md), Search (Ctrl+F), Timestamps, Token counter
+  - Keyboard shortcuts (Ctrl+F, Ctrl+Shift+N, Ctrl+/, Escape)
+  - Mobile responsive (hamburger menu, bottom sheet system prompt, SVG icon buttons)
+  - Rename sessions inline, model/sysprompt dropdowns dark themed
+- **Agent Monitor** — real-time OpenClaw agent status dashboard
+  - Agent status (online/offline), model, machine info
+  - Session list with source badges (⚡ CYBERFRAME, 💬 Discord, 🤖 Sub-Agent, 🏠 Main)
+  - Session preview modal (last 30 messages)
+  - Session delete with confirmation dialog
+  - 30s cache TTL, async non-blocking, pre-warm on start
+  - Session info modal, rename display, fuzzy key matching
+- **Tab Drag Reorder** — drag tabs to reorder with purple indicator line
+- **SVG Icon Buttons** — replaced emoji with Feather-style SVG icons throughout chat header
+- **Dropdown Styling** — dark options, custom SVG chevron, pill shape on mobile
+
+### Changed
+- README updated with AI Chat + Agent Monitor sections, 2 new screenshots, 6 new API endpoints
+
+---
+
 ## [1.5.0] — 2026-03-29
 
 ### Added
