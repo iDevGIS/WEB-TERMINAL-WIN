@@ -2444,10 +2444,9 @@
     .code-copy-btn:hover { background: rgba(108,99,255,.2); color: var(--text); }
     /* Regenerate button */
     .chat-regen-btn {
-      align-self: flex-start; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08);
-      border-radius: 20px; padding: 6px 14px; cursor: pointer; font-size: 11px;
-      color: var(--text2); transition: all .15s; display: inline-flex; align-items: center; gap: 6px;
-      margin-top: -4px; margin-left: 44px;
+      background: none; border: none; cursor: pointer; font-size: 10px;
+      color: var(--text3); transition: all .15s; display: inline-flex; align-items: center; gap: 3px;
+      padding: 0; margin-left: auto; opacity: .6;
     }
     .chat-regen-btn svg { transition: transform .3s; }
     .chat-regen-btn:hover { background: rgba(108,99,255,.12); border-color: rgba(108,99,255,.3); color: var(--text); }
@@ -2493,7 +2492,7 @@
     }
     @keyframes blink { 50% { opacity: 0; } }
     /* === Feature: Timestamps === */
-    .msg-time { font-size: 10px; color: var(--text3); margin-top: 2px; opacity: .5; }
+    .msg-time { font-size: 10px; color: var(--text3); margin-top: 2px; opacity: .5; display: flex; align-items: center; gap: 6px; }
     /* === Feature: Avatar Icons === */
     .msg-avatar {
       width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center;
@@ -3959,11 +3958,14 @@
       if (!sess || !sess.messages.length) return;
       const lastMsg = sess.messages[sess.messages.length - 1];
       if (lastMsg.role !== 'assistant') return;
+      // Find last assistant bubble's msg-time
+      const lastBubble = messagesEl.querySelector('.chat-msg.assistant:last-of-type .msg-time');
+      if (!lastBubble) return;
       const btn = document.createElement('button');
       btn.className = 'chat-regen-btn';
-      btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg> Regenerate';
+      btn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg> Regenerate';
       btn.onclick = () => chatRegenerate(tabId);
-      messagesEl.appendChild(btn);
+      lastBubble.appendChild(btn);
     }
 
     function chatRegenerate(tabId) {
