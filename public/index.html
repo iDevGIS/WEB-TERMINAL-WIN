@@ -2486,6 +2486,13 @@
       opacity: .5; line-height: 1; font-size: 10px; margin-left: auto;
     }
     .chat-copy-btn:hover { color: var(--accent); opacity: 1; }
+    .chat-tts-btn {
+      background: none; border: none; padding: 0; cursor: pointer;
+      color: var(--text3); transition: all .15s; display: inline-flex; align-items: center;
+      opacity: .5; line-height: 1; font-size: 10px;
+    }
+    .chat-tts-btn:hover { color: var(--accent); opacity: 1; }
+    .chat-tts-btn.speaking { color: var(--accent); opacity: 1; animation: micPulse 1s ease infinite; }
     /* Copy button on code blocks */
     .chat-msg.assistant .msg-content pre { position: relative; }
     .code-copy-btn {
@@ -4168,6 +4175,20 @@
         const regenBtn = timeEl.querySelector('.chat-regen-btn');
         if (regenBtn) timeEl.insertBefore(btn, regenBtn);
         else timeEl.appendChild(btn);
+
+        // TTS button (assistant messages only)
+        if (msgEl.classList.contains('assistant') && !timeEl.querySelector('.chat-tts-btn')) {
+          const ttsBtn = document.createElement('button');
+          ttsBtn.className = 'chat-tts-btn';
+          ttsBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>';
+          ttsBtn.title = 'Read aloud';
+          ttsBtn.onclick = (e) => {
+            e.stopPropagation();
+            chatTTS(msgEl, ttsBtn);
+          };
+          if (regenBtn) timeEl.insertBefore(ttsBtn, regenBtn);
+          else timeEl.appendChild(ttsBtn);
+        }
       });
       // Copy button on each code block — integrated into language badge bar
       container.querySelectorAll('.chat-msg.assistant .msg-content pre').forEach(preEl => {
@@ -4544,6 +4565,68 @@
       _voiceRecognitions.set(tabId, recognition);
       if (micBtn) micBtn.classList.add('recording');
       showToast('🎤 Listening... click mic again to stop', 'info');
+    }
+
+    // === Text-to-Speech ===
+    function chatTTS(msgEl, btn) {
+      // If already speaking this message, stop
+      if (btn.classList.contains('speaking')) {
+        speechSynthesis.cancel();
+        btn.classList.remove('speaking');
+        btn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>';
+        return;
+      }
+
+      // Stop any other speaking
+      speechSynthesis.cancel();
+      document.querySelectorAll('.chat-tts-btn.speaking').forEach(b => {
+        b.classList.remove('speaking');
+        b.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>';
+      });
+
+      const text = msgEl.querySelector('.msg-content')?.innerText || '';
+      if (!text.trim()) return;
+
+      // Split long text into chunks (speechSynthesis has ~200 char limit on some browsers)
+      const chunks = [];
+      const sentences = text.match(/[^.!?\n]+[.!?\n]*/g) || [text];
+      let current = '';
+      for (const s of sentences) {
+        if ((current + s).length > 180) {
+          if (current) chunks.push(current.trim());
+          current = s;
+        } else {
+          current += s;
+        }
+      }
+      if (current.trim()) chunks.push(current.trim());
+
+      // Detect language — if mostly Thai characters, use Thai voice
+      const thaiChars = (text.match(/[\u0E00-\u0E7F]/g) || []).length;
+      const lang = thaiChars > text.length * 0.2 ? 'th-TH' : 'en-US';
+
+      btn.classList.add('speaking');
+      btn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>';
+
+      let chunkIdx = 0;
+      function speakNext() {
+        if (chunkIdx >= chunks.length) {
+          btn.classList.remove('speaking');
+          btn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>';
+          return;
+        }
+        const utterance = new SpeechSynthesisUtterance(chunks[chunkIdx]);
+        utterance.lang = lang;
+        utterance.rate = 1;
+        utterance.pitch = 1;
+        utterance.onend = () => { chunkIdx++; speakNext(); };
+        utterance.onerror = () => {
+          btn.classList.remove('speaking');
+          btn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>';
+        };
+        speechSynthesis.speak(utterance);
+      }
+      speakNext();
     }
 
     async function chatSend(tabId) {
