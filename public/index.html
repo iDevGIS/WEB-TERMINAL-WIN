@@ -934,15 +934,108 @@
       height: 100%;
       border: none;
     }
-    .tab-pane .vscode-tab-wrap {
+    /* IDE (Lambda-style inline editor) */
+    .ide-wrap {
+      display: flex;
       flex: 1;
       min-height: 0;
+      background: #1e1e2e;
+    }
+    .ide-sidebar {
+      width: 220px;
+      min-width: 220px;
+      background: #181825;
+      border-right: 1px solid rgba(255,255,255,.06);
+      display: flex;
+      flex-direction: column;
       overflow: hidden;
     }
-    .tab-pane .vscode-tab-wrap iframe {
-      width: 100%;
-      height: 100%;
-      border: none;
+    .ide-sidebar-header {
+      padding: 8px 12px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 1.2px;
+      color: rgba(255,255,255,.5);
+      text-transform: uppercase;
+      border-bottom: 1px solid rgba(255,255,255,.06);
+      user-select: none;
+    }
+    .ide-tree {
+      flex: 1;
+      overflow-y: auto;
+      padding: 4px 0;
+    }
+    .ide-tree-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px 12px;
+      font-size: 13px;
+      color: rgba(255,255,255,.7);
+      cursor: pointer;
+      user-select: none;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .ide-tree-item:hover { background: rgba(255,255,255,.05); }
+    .ide-tree-item.active { background: rgba(108,99,255,.15); color: #fff; }
+    .ide-tree-item.folder { color: rgba(255,255,255,.5); }
+    .ide-tree-item .ide-icon { font-size: 14px; flex-shrink: 0; width: 16px; text-align: center; }
+    .ide-tree-item .ide-indent { display: inline-block; }
+    .ide-main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+    .ide-tabs {
+      display: flex;
+      height: 35px;
+      background: #11111b;
+      border-bottom: 1px solid rgba(255,255,255,.06);
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    .ide-tabs::-webkit-scrollbar { display: none; }
+    .ide-tab {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 0 12px;
+      font-size: 12px;
+      color: rgba(255,255,255,.5);
+      border-right: 1px solid rgba(255,255,255,.04);
+      cursor: pointer;
+      white-space: nowrap;
+      user-select: none;
+      position: relative;
+    }
+    .ide-tab:hover { color: rgba(255,255,255,.8); background: rgba(255,255,255,.03); }
+    .ide-tab.active { color: #fff; background: #1e1e2e; }
+    .ide-tab.active::after { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: var(--accent); }
+    .ide-tab .ide-tab-close { font-size: 14px; opacity: 0; transition: opacity .15s; margin-left: 4px; }
+    .ide-tab:hover .ide-tab-close, .ide-tab.active .ide-tab-close { opacity: .5; }
+    .ide-tab .ide-tab-close:hover { opacity: 1; color: #ff6b6b; }
+    .ide-tab.modified .ide-tab-name::after { content: ' ●'; color: var(--accent); }
+    .ide-editor {
+      flex: 1;
+      min-height: 0;
+    }
+    .ide-statusbar {
+      height: 22px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 0 12px;
+      background: #181825;
+      border-top: 1px solid rgba(255,255,255,.06);
+      font-size: 11px;
+      color: rgba(255,255,255,.45);
+    }
+    .ide-sb-item { white-space: nowrap; }
+    @media (max-width: 768px) {
+      .ide-sidebar { display: none; }
     }
     .tab-pane .admin-tab-wrap {
       flex: 1;
@@ -3109,10 +3202,10 @@
               <span class="feat-label">Remote</span>
               <span class="feat-sub">VNC desktop</span>
             </div>
-            <div class="feature" onclick="openVSCode()" title="VS Code in Browser">
+            <div class="feature" onclick="openVSCode()" title="Inline Code Editor">
               <span class="fi"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg></span>
-              <span class="feat-label">VS Code</span>
-              <span class="feat-sub">Code editor</span>
+              <span class="feat-label">Code IDE</span>
+              <span class="feat-sub">Inline editor</span>
             </div>
             <div class="feature" onclick="openAgentMonitorTab()" title="Agent Monitor">
               <span class="fi"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg></span>
@@ -3161,11 +3254,233 @@
 
     // === VNC function (declared early) ===
     function openVSCode() {
-      // Reuse existing VS Code tab
+      // Reuse existing IDE tab
       for (const [tabId, tab] of tabs) {
         if (tab.type === 'vscode') { switchTab(tabId); return; }
       }
-      createTab('vscode', { name: 'VS Code', icon: '💻' });
+      createTab('vscode', { name: 'Code Editor', icon: '⌨️' });
+    }
+
+    // === Inline IDE (Lambda-style) ===
+    const _ideLangMap = {'.js':'javascript','.mjs':'javascript','.ts':'typescript','.tsx':'typescript','.jsx':'javascript','.py':'python','.json':'json','.yaml':'yaml','.yml':'yaml','.html':'html','.htm':'html','.css':'css','.scss':'scss','.less':'less','.ps1':'powershell','.sh':'shell','.bash':'shell','.go':'go','.rs':'rust','.java':'java','.c':'c','.cpp':'cpp','.cs':'csharp','.sql':'sql','.md':'markdown','.xml':'xml','.bat':'bat','.cmd':'bat','.rb':'ruby','.toml':'ini','.ini':'ini','.cfg':'ini','.env':'shell','.vue':'html','.svelte':'html','.php':'php','.r':'r','.swift':'swift','.kt':'kotlin','.dart':'dart','.lua':'lua'};
+
+    function _ideGetLang(name) {
+      const ext = '.' + (name || '').split('.').pop().toLowerCase();
+      return _ideLangMap[ext] || 'plaintext';
+    }
+    function _ideGetIcon(name, isDir) {
+      if (isDir) return '📁';
+      const ext = (name || '').split('.').pop().toLowerCase();
+      const m = {js:'📜',mjs:'📜',ts:'🔷',py:'🐍',json:'📋',html:'🌐',css:'🎨',md:'📝',sh:'⚡',ps1:'⚡',go:'🔵',rs:'🦀',java:'☕',yml:'⚙️',yaml:'⚙️',sql:'🗃️',xml:'📰',env:'🔒',svg:'🖼️',png:'🖼️',jpg:'🖼️',gif:'🖼️',txt:'📄',log:'📄',toml:'⚙️',ini:'⚙️',cfg:'⚙️'};
+      return m[ext] || '📄';
+    }
+
+    async function _initIDE(tabId, tabData) {
+      // Initialize Monaco editor
+      const editorEl = document.getElementById(tabId + '-ide-editor');
+      if (typeof monaco !== 'undefined') {
+        tabData.ideEditor = monaco.editor.create(editorEl, {
+          value: '// Open a file from the explorer to start editing\n',
+          language: 'javascript',
+          theme: 'vs-dark',
+          fontSize: 13,
+          fontFamily: "'JetBrains Mono', 'Cascadia Code', 'Fira Code', monospace",
+          minimap: { enabled: true },
+          scrollBeyondLastLine: false,
+          renderWhitespace: 'selection',
+          bracketPairColorization: { enabled: true },
+          automaticLayout: true,
+          tabSize: 2,
+          readOnly: false,
+          lineNumbers: 'on',
+          glyphMargin: false,
+          folding: true,
+          wordWrap: 'off',
+          padding: { top: 8 }
+        });
+
+        // Ctrl+S save
+        tabData.ideEditor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
+          _ideSaveFile(tabId, tabData);
+        });
+
+        // Cursor position update
+        tabData.ideEditor.onDidChangeCursorPosition((e) => {
+          const ln = document.getElementById(tabId + '-ide-ln');
+          if (ln) ln.textContent = 'Ln ' + e.position.lineNumber + ', Col ' + e.position.column;
+        });
+
+        // Modified indicator
+        tabData.ideEditor.onDidChangeModelContent(() => {
+          if (tabData.ideActiveFile) {
+            const f = tabData.ideOpenFiles.find(f => f.path === tabData.ideActiveFile);
+            if (f && !f.modified) {
+              f.modified = true;
+              _ideRenderTabs(tabId, tabData);
+            }
+          }
+        });
+      }
+
+      // Load workspace root
+      await _ideLoadTree(tabId, tabData, 'C:\\Users\\BudToZai');
+    }
+
+    async function _ideLoadTree(tabId, tabData, dir, parentEl, depth) {
+      depth = depth || 0;
+      try {
+        const r = await fetch('/api/files/list?path=' + encodeURIComponent(dir));
+        const data = await r.json();
+        if (!data.files) return;
+
+        const treeEl = parentEl || document.getElementById(tabId + '-tree');
+        if (!parentEl && depth === 0) treeEl.innerHTML = '';
+
+        // Sort: folders first, then files
+        const sorted = data.files.sort((a, b) => {
+          if (a.isDir && !b.isDir) return -1;
+          if (!a.isDir && b.isDir) return 1;
+          return a.name.localeCompare(b.name);
+        });
+
+        for (const file of sorted) {
+          const item = document.createElement('div');
+          item.className = 'ide-tree-item' + (file.isDir ? ' folder' : '');
+          const indent = depth * 16;
+          const arrow = file.isDir ? '▸ ' : '';
+          item.innerHTML = '<span class="ide-indent" style="width:${indent}px"></span><span class="ide-icon">${_ideGetIcon(file.name, file.isDir)}</span><span>${escHtml(file.name)}</span>'.replace(/\$\{indent\}/g, indent).replace('${_ideGetIcon(file.name, file.isDir)}', _ideGetIcon(file.name, file.isDir)).replace('${escHtml(file.name)}', escHtml(file.name));
+          item.style.paddingLeft = (12 + indent) + 'px';
+
+          if (file.isDir) {
+            let expanded = false;
+            const childContainer = document.createElement('div');
+            childContainer.style.display = 'none';
+            item.onclick = async () => {
+              expanded = !expanded;
+              if (expanded && childContainer.children.length === 0) {
+                await _ideLoadTree(tabId, tabData, file.path, childContainer, depth + 1);
+              }
+              childContainer.style.display = expanded ? 'block' : 'none';
+              item.querySelector('.ide-icon').textContent = expanded ? '📂' : '📁';
+            };
+            treeEl.appendChild(item);
+            treeEl.appendChild(childContainer);
+          } else {
+            item.onclick = () => _ideOpenFile(tabId, tabData, file.path, file.name);
+            treeEl.appendChild(item);
+          }
+        }
+      } catch (e) { console.error('[IDE tree]', e); }
+    }
+
+    async function _ideOpenFile(tabId, tabData, filePath, fileName) {
+      // Check if already open
+      const existing = tabData.ideOpenFiles.find(f => f.path === filePath);
+      if (existing) {
+        tabData.ideActiveFile = filePath;
+        _ideShowFile(tabId, tabData, existing);
+        _ideRenderTabs(tabId, tabData);
+        return;
+      }
+
+      try {
+        const r = await fetch('/api/files/preview?path=' + encodeURIComponent(filePath));
+        const data = await r.json();
+        if (data.error) { showToast(data.error, 'error'); return; }
+
+        const fileData = {
+          path: filePath,
+          name: fileName,
+          content: data.content || '',
+          originalContent: data.content || '',
+          modified: false,
+          lang: _ideGetLang(fileName)
+        };
+        tabData.ideOpenFiles.push(fileData);
+        tabData.ideActiveFile = filePath;
+        _ideShowFile(tabId, tabData, fileData);
+        _ideRenderTabs(tabId, tabData);
+      } catch (e) { showToast('Failed to load file', 'error'); }
+    }
+
+    function _ideShowFile(tabId, tabData, fileData) {
+      if (!tabData.ideEditor) return;
+      const model = monaco.editor.createModel(fileData.content, fileData.lang);
+      const oldModel = tabData.ideEditor.getModel();
+      tabData.ideEditor.setModel(model);
+      if (oldModel && !tabData.ideOpenFiles.some(f => f._model === oldModel)) oldModel.dispose();
+      fileData._model = model;
+
+      // Update status bar
+      const langEl = document.getElementById(tabId + '-ide-lang');
+      if (langEl) langEl.textContent = fileData.lang;
+      const lnEl = document.getElementById(tabId + '-ide-ln');
+      if (lnEl) lnEl.textContent = 'Ln 1, Col 1';
+
+      // Highlight active in tree
+      const treeItems = document.querySelectorAll('#' + tabId + '-tree .ide-tree-item');
+      treeItems.forEach(el => el.classList.remove('active'));
+    }
+
+    function _ideRenderTabs(tabId, tabData) {
+      const tabsEl = document.getElementById(tabId + '-ide-tabs');
+      if (!tabsEl) return;
+      tabsEl.innerHTML = '';
+      for (const f of tabData.ideOpenFiles) {
+        const t = document.createElement('div');
+        t.className = 'ide-tab' + (f.path === tabData.ideActiveFile ? ' active' : '') + (f.modified ? ' modified' : '');
+        t.innerHTML = '<span class="ide-icon" style="font-size:12px">' + _ideGetIcon(f.name, false) + '</span><span class="ide-tab-name">' + escHtml(f.name) + '</span><span class="ide-tab-close" onclick="event.stopPropagation();_ideCloseFile(\'' + tabId + '\',\'' + f.path.replace(/\\/g, '\\\\').replace(/'/g, "\\'") + '\')">✕</span>';
+        t.onclick = () => {
+          tabData.ideActiveFile = f.path;
+          _ideShowFile(tabId, tabData, f);
+          _ideRenderTabs(tabId, tabData);
+        };
+        tabsEl.appendChild(t);
+      }
+    }
+
+    function _ideCloseFile(tabId, filePath) {
+      const tab = tabs.get(tabId);
+      if (!tab) return;
+      const idx = tab.ideOpenFiles.findIndex(f => f.path === filePath);
+      if (idx === -1) return;
+      const f = tab.ideOpenFiles[idx];
+      if (f.modified && !confirm('Unsaved changes in ' + f.name + '. Close anyway?')) return;
+      if (f._model) f._model.dispose();
+      tab.ideOpenFiles.splice(idx, 1);
+      if (tab.ideActiveFile === filePath) {
+        if (tab.ideOpenFiles.length > 0) {
+          const next = tab.ideOpenFiles[Math.min(idx, tab.ideOpenFiles.length - 1)];
+          tab.ideActiveFile = next.path;
+          _ideShowFile(tabId, tab, next);
+        } else {
+          tab.ideActiveFile = null;
+          if (tab.ideEditor) tab.ideEditor.setValue('// Open a file from the explorer\n');
+        }
+      }
+      _ideRenderTabs(tabId, tab);
+    }
+
+    async function _ideSaveFile(tabId, tabData) {
+      if (!tabData.ideActiveFile) return;
+      const f = tabData.ideOpenFiles.find(f => f.path === tabData.ideActiveFile);
+      if (!f) return;
+      const content = tabData.ideEditor.getValue();
+      try {
+        const r = await fetch('/api/files/save', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ path: f.path, content })
+        });
+        const data = await r.json();
+        if (data.success) {
+          f.content = content;
+          f.originalContent = content;
+          f.modified = false;
+          _ideRenderTabs(tabId, tabData);
+          showToast('Saved ' + f.name, 'success');
+        } else { showToast(data.error || 'Save failed', 'error'); }
+      } catch (e) { showToast('Save failed', 'error'); }
     }
 
     function openVNC() {
@@ -3458,8 +3773,29 @@
         if (opts.url) iframe.src = opts.url;
 
       } else if (type === 'vscode') {
-        paneEl.innerHTML = '<div class="vscode-tab-wrap"><iframe src="/vscode/" allow="clipboard-read; clipboard-write"></iframe></div>';
+        paneEl.innerHTML = `<div class="ide-wrap">
+          <div class="ide-sidebar">
+            <div class="ide-sidebar-header">EXPLORER</div>
+            <div class="ide-tree" id="${tabId}-tree"></div>
+          </div>
+          <div class="ide-main">
+            <div class="ide-tabs" id="${tabId}-ide-tabs"></div>
+            <div class="ide-editor" id="${tabId}-ide-editor"></div>
+            <div class="ide-statusbar" id="${tabId}-ide-statusbar">
+              <span class="ide-sb-item" id="${tabId}-ide-ln">Ln 1, Col 1</span>
+              <span class="ide-sb-item" id="${tabId}-ide-spaces">Spaces: 2</span>
+              <span class="ide-sb-item">UTF-8</span>
+              <span class="ide-sb-item">LF</span>
+              <span class="ide-sb-item" id="${tabId}-ide-lang">plaintext</span>
+            </div>
+          </div>
+        </div>`;
         container.appendChild(paneEl);
+        tabData.ideFiles = [];
+        tabData.ideOpenFiles = [];
+        tabData.ideActiveFile = null;
+        tabData.ideEditor = null;
+        _initIDE(tabId, tabData);
 
       } else if (type === 'vnc') {
         const h = location.hostname;
