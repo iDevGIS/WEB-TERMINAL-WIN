@@ -2427,13 +2427,12 @@
     }
     /* Copy button on message hover */
     .chat-copy-btn {
-      position: absolute; top: 4px; right: 4px; opacity: 0; background: rgba(0,0,0,.5);
-      border: 1px solid var(--glass-border); border-radius: 6px; padding: 2px 6px;
-      cursor: pointer; font-size: 12px; color: var(--text2); transition: opacity .15s, background .15s;
-      z-index: 2; line-height: 1;
+      background: none; border: none; padding: 0; cursor: pointer;
+      color: var(--text3); transition: all .15s; display: inline-flex; align-items: center;
+      opacity: 0; line-height: 1; font-size: 10px;
     }
-    .chat-msg:hover .chat-copy-btn { opacity: 1; }
-    .chat-copy-btn:hover { background: rgba(108,99,255,.3); color: #fff; }
+    .chat-msg:hover .chat-copy-btn { opacity: .6; }
+    .chat-copy-btn:hover { color: var(--accent); opacity: 1 !important; }
     /* Copy button on code blocks */
     .chat-msg.assistant .msg-content pre { position: relative; }
     .code-copy-btn {
@@ -3897,20 +3896,21 @@
     function _injectCopyBtns(container) {
       // Copy button on each message bubble
       container.querySelectorAll('.chat-msg').forEach(msgEl => {
-        if (msgEl.querySelector('.chat-copy-btn')) return;
+        const timeEl = msgEl.querySelector('.msg-time');
+        if (!timeEl || timeEl.querySelector('.chat-copy-btn')) return;
         const btn = document.createElement('button');
         btn.className = 'chat-copy-btn';
-        btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+        btn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
         btn.title = 'Copy message';
         btn.onclick = (e) => {
           e.stopPropagation();
           const text = msgEl.querySelector('.msg-content')?.innerText || '';
           navigator.clipboard.writeText(text).then(() => {
-            btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#34d399" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>';
-            setTimeout(() => { btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>'; }, 1200);
+            btn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#34d399" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>';
+            setTimeout(() => { btn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>'; }, 1200);
           });
         };
-        msgEl.appendChild(btn);
+        timeEl.appendChild(btn);
       });
       // Copy button on each code block — integrated into language badge bar
       container.querySelectorAll('.chat-msg.assistant .msg-content pre').forEach(preEl => {
