@@ -4735,8 +4735,9 @@
     }
 
     async function chatVoiceSend(tabId) {
+      showToast('🔧 chatVoiceSend called', 'info');
       const recorder = _voiceRecognitions.get(tabId);
-      if (!recorder) return;
+      if (!recorder) { showToast('🔧 no recorder!', 'error'); return; }
 
       const sendBtn = document.querySelector('.voice-recording-bar .chat-send-btn');
       if (sendBtn) {
@@ -4752,6 +4753,7 @@
       const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 
       recorder.onstop = async () => {
+        showToast('🔧 onstop fired! mobile:'+isMobile, 'info');
         // Check native text INSIDE onstop (SR may still be processing when stop is called)
         const hasNativeText = isMobile && window._voiceTranscript?.[tabId]?.trim();
         const chunks = window._voiceAudioChunks?.[tabId] || [];
