@@ -2786,20 +2786,34 @@
     }
 
     .msg-voice {
-      display: inline-flex; align-items: center; gap: 6px;
-      background: linear-gradient(135deg, rgba(108,99,255,.15), rgba(139,92,246,.1));
-      border: 1px solid rgba(108,99,255,.2); border-radius: 16px;
-      padding: 4px 10px; margin-top: 4px;
+      display: flex; align-items: center; gap: 8px;
+      background: linear-gradient(135deg, rgba(108,99,255,.1), rgba(139,92,246,.06));
+      border: 1px solid rgba(108,99,255,.15); border-radius: 20px;
+      padding: 6px 12px; margin-top: 6px; max-width: 280px;
     }
     .voice-play-btn {
-      background: var(--accent); border: none; border-radius: 50%;
-      width: 24px; height: 24px; cursor: pointer; color: #fff;
+      background: linear-gradient(135deg, var(--accent), #8b5cf6); border: none; border-radius: 50%;
+      width: 32px; height: 32px; min-width: 32px; cursor: pointer; color: #fff;
       display: flex; align-items: center; justify-content: center;
-      transition: all .15s; flex-shrink: 0;
+      transition: all .2s; flex-shrink: 0;
+      box-shadow: 0 2px 8px rgba(108,99,255,.3);
     }
-    .voice-play-btn:hover { transform: scale(1.1); filter: brightness(1.2); }
-    .voice-play-btn:active { transform: scale(.95); }
-    .voice-label { font-size: 11px; color: var(--text3); white-space: nowrap; }
+    .voice-play-btn:hover { transform: scale(1.1); box-shadow: 0 4px 14px rgba(108,99,255,.5); }
+    .voice-play-btn:active { transform: scale(.92); }
+    .voice-play-btn.playing { background: linear-gradient(135deg, #ec4899, #8b5cf6); }
+    .voice-waveform-play {
+      display: flex; align-items: center; gap: 1.5px; height: 24px; flex: 1; min-width: 0;
+    }
+    .voice-waveform-play .vw-bar {
+      width: 2.5px; border-radius: 2px; min-height: 3px;
+      background: rgba(255,255,255,.2); transition: height .08s ease, background .15s;
+    }
+    .voice-waveform-play.active .vw-bar { background: rgba(108,99,255,.6); }
+    .voice-waveform-play.active .vw-bar.lit { background: linear-gradient(to top, var(--accent), #a78bfa); }
+    .voice-time {
+      font-size: 11px; color: var(--text3); font-family: 'JetBrains Mono', monospace;
+      white-space: nowrap; min-width: 30px; text-align: right;
+    }
     .chat-empty {
       flex: 1; display: flex; align-items: center; justify-content: center;
       flex-direction: column; gap: 10px; opacity: .3;
@@ -4685,19 +4699,69 @@
       _voiceVisualizers.delete(tabId);
     }
 
-    const _playIcon = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>';
-    const _pauseIcon = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>';
+    const _vPlayIcon = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="6 3 20 12 6 21 6 3"/></svg>';
+    const _vPauseIcon = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>';
 
     function toggleVoicePlay(btn) {
-      const audio = btn.closest('.msg-voice').querySelector('audio');
+      const wrap = btn.closest('.msg-voice');
+      const audio = wrap.querySelector('audio');
+      const waveform = wrap.querySelector('.voice-waveform-play');
+      const timeEl = wrap.querySelector('.voice-time');
+      const bars = waveform ? [...waveform.querySelectorAll('.vw-bar')] : [];
+
       if (audio.paused) {
+        // Stop any other playing voice
+        document.querySelectorAll('.msg-voice audio').forEach(a => {
+          if (a !== audio && !a.paused) { a.pause(); a.currentTime = 0; _resetVoiceUI(a.closest('.msg-voice')); }
+        });
+
         audio.play();
-        btn.innerHTML = _pauseIcon;
-        audio.onended = () => { btn.innerHTML = _playIcon; };
+        btn.innerHTML = _vPauseIcon;
+        btn.classList.add('playing');
+        if (waveform) waveform.classList.add('active');
+
+        // Animate waveform progress
+        const animFrame = () => {
+          if (audio.paused) return;
+          const progress = audio.duration ? audio.currentTime / audio.duration : 0;
+          const litCount = Math.floor(progress * bars.length);
+          bars.forEach((b, i) => {
+            b.classList.toggle('lit', i < litCount);
+          });
+          if (timeEl && audio.duration) {
+            const rem = Math.ceil(audio.duration - audio.currentTime);
+            const m = Math.floor(rem / 60);
+            const s = rem % 60;
+            timeEl.textContent = m + ':' + String(s).padStart(2, '0');
+          }
+          requestAnimationFrame(animFrame);
+        };
+        requestAnimationFrame(animFrame);
+
+        audio.onended = () => _resetVoiceUI(wrap);
       } else {
         audio.pause();
         audio.currentTime = 0;
-        btn.innerHTML = _playIcon;
+        _resetVoiceUI(wrap);
+      }
+    }
+
+    function _resetVoiceUI(wrap) {
+      if (!wrap) return;
+      const btn = wrap.querySelector('.voice-play-btn');
+      const waveform = wrap.querySelector('.voice-waveform-play');
+      const timeEl = wrap.querySelector('.voice-time');
+      if (btn) { btn.innerHTML = _vPlayIcon; btn.classList.remove('playing'); }
+      if (waveform) {
+        waveform.classList.remove('active');
+        waveform.querySelectorAll('.vw-bar').forEach(b => b.classList.remove('lit'));
+      }
+      const audio = wrap.querySelector('audio');
+      if (timeEl && audio?.duration) {
+        const d = Math.ceil(audio.duration);
+        timeEl.textContent = Math.floor(d/60) + ':' + String(d%60).padStart(2,'0');
+      } else if (timeEl) {
+        timeEl.textContent = '0:00';
       }
     }
 
@@ -5073,9 +5137,22 @@
       if (tab._pendingVoiceUrl) delete tab._pendingVoiceUrl;
       if (voiceAudioUrl) {
         if (voiceAudioUrl !== 'voice-no-audio') {
-          voiceHtml = `<div class="msg-voice"><audio src="${voiceAudioUrl}" preload="metadata"></audio><button class="voice-play-btn" onclick="toggleVoicePlay(this)" title="Play voice"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="5 3 19 12 5 21 5 3"/></svg></button><span class="voice-label">🎤 Voice</span></div>`;
+          // Generate random waveform bars (like voice message preview)
+          const barCount = 28;
+          const barsHtml = Array.from({length: barCount}, () => {
+            const h = Math.floor(Math.random() * 18) + 4;
+            return `<div class="vw-bar" style="height:${h}px" data-h="${h}"></div>`;
+          }).join('');
+          voiceHtml = `<div class="msg-voice" data-voice-id="${Date.now()}">
+            <audio preload="metadata" src="${voiceAudioUrl}" onloadedmetadata="const d=Math.ceil(this.duration);this.closest('.msg-voice').querySelector('.voice-time').textContent=Math.floor(d/60)+':'+String(d%60).padStart(2,'0')"></audio>
+            <button class="voice-play-btn" onclick="toggleVoicePlay(this)" title="Play">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="6 3 20 12 6 21 6 3"/></svg>
+            </button>
+            <div class="voice-waveform-play">${barsHtml}</div>
+            <span class="voice-time">0:00</span>
+          </div>`;
         } else {
-          voiceHtml = `<div class="msg-voice"><span class="voice-label">🎤 Voice</span></div>`;
+          voiceHtml = `<div class="msg-voice"><span class="voice-time" style="margin:0 4px">🎤 Voice</span></div>`;
         }
       }
       userBubble.innerHTML = `<div class="msg-avatar">👤</div><div class="msg-bubble"><div class="msg-content">${text ? escHtml(text).replace(/\n/g, '<br>') : ''}${filesHtml}${imagesHtml}${voiceHtml}</div><div class="msg-time">${userTimeStr} · <span style="color:var(--accent);font-weight:500">~${userTokenEst} tokens</span></div></div>`;
