@@ -898,9 +898,34 @@ app.post("/api/tts", requireAuth, async (req, res) => {
   }
 });
 
-// === STT (faster-whisper) ===
+// === Voice uploads ===
 const multer = require("multer");
+const VOICE_DIR = path.join(__dirname, "voices");
+if (!fs.existsSync(VOICE_DIR)) fs.mkdirSync(VOICE_DIR, { recursive: true });
+
 const _sttUpload = multer({ dest: require("os").tmpdir(), limits: { fileSize: 10 * 1024 * 1024 } }); // 10MB max
+const _voiceUpload = multer({ dest: VOICE_DIR, limits: { fileSize: 10 * 1024 * 1024 } });
+
+// Upload voice audio for persistent playback
+app.post("/api/voice-upload", requireAuth, _voiceUpload.single("audio"), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: "audio required" });
+  const ext = (req.file.mimetype || "").includes("mp4") ? ".mp4" :
+              (req.file.mimetype || "").includes("ogg") ? ".ogg" : ".webm";
+  const finalName = req.file.filename + ext;
+  const finalPath = path.join(VOICE_DIR, finalName);
+  fs.renameSync(req.file.path, finalPath);
+  res.json({ url: "/api/voice/" + finalName });
+});
+
+// Serve voice files
+app.get("/api/voice/:file", requireAuth, (req, res) => {
+  const filePath = path.join(VOICE_DIR, path.basename(req.params.file));
+  if (!fs.existsSync(filePath)) return res.status(404).send("Not found");
+  const ext = path.extname(filePath);
+  const mime = ext === ".mp4" ? "audio/mp4" : ext === ".ogg" ? "audio/ogg" : "audio/webm";
+  res.setHeader("Content-Type", mime);
+  fs.createReadStream(filePath).pipe(res);
+});
 
 app.post("/api/stt", requireAuth, _sttUpload.single("audio"), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: "audio file required" });
