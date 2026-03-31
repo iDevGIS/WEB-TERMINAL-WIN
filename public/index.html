@@ -4735,9 +4735,8 @@
     }
 
     async function chatVoiceSend(tabId) {
-      showToast('🔧 chatVoiceSend called', 'info');
       const recorder = _voiceRecognitions.get(tabId);
-      if (!recorder) { showToast('🔧 no recorder!', 'error'); return; }
+      if (!recorder) return;
 
       const sendBtn = document.querySelector('.voice-recording-bar .chat-send-btn');
       if (sendBtn) {
@@ -4753,7 +4752,6 @@
       const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 
       recorder.onstop = async () => {
-        showToast('🔧 onstop fired! mobile:'+isMobile, 'info');
         // Check native text INSIDE onstop (SR may still be processing when stop is called)
         const hasNativeText = isMobile && window._voiceTranscript?.[tabId]?.trim();
         const chunks = window._voiceAudioChunks?.[tabId] || [];
@@ -4814,15 +4812,10 @@
           return;
         }
 
-        // Store audio URL for attaching to chat message (even if null — badge still shows)
-        window._voiceAudioUrl = window._voiceAudioUrl || {};
-        window._voiceAudioUrl[tabId] = audioUrl || 'voice-no-audio';
-        showToast('🔧 voiceUrl set: ' + (audioUrl ? 'blob' : 'no-audio') + ' chunks:' + chunks.length, 'info');
-
-        // Set text and send
+        // Set text and send with voice audio attached
         const restoredInput = document.getElementById(tabId + '-input');
         if (restoredInput) restoredInput.value = text;
-        chatSend(tabId);
+        chatSend(tabId, audioUrl || 'voice-no-audio');
 
         delete window._voiceAudioChunks?.[tabId];
         delete window._voiceTranscript?.[tabId];
@@ -4998,7 +4991,7 @@
       }
     }
 
-    async function chatSend(tabId) {
+    async function chatSend(tabId, voiceAudioUrl) {
       const tab = tabs.get(tabId);
       if (!tab || tab.chatStreaming) return;
       // Stop voice recording if still active (user pressed Enter while recording)
@@ -5072,15 +5065,12 @@
       const userTokenEst = Math.round((fullText || text || '').split(/\s+/).length * 1.3) + (images.length * 85);
       // Attach voice audio if available
       let voiceHtml = '';
-      const voiceUrl = window._voiceAudioUrl?.[tabId];
-      showToast('🔧 chatSend voiceUrl: ' + (voiceUrl || 'NONE'), 'info');
-      if (voiceUrl) {
-        if (voiceUrl !== 'voice-no-audio') {
-          voiceHtml = `<div class="msg-voice"><audio src="${voiceUrl}" preload="metadata"></audio><button class="voice-play-btn" onclick="toggleVoicePlay(this)" title="Play voice"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="5 3 19 12 5 21 5 3"/></svg></button><span class="voice-label">🎤 Voice</span></div>`;
+      if (voiceAudioUrl) {
+        if (voiceAudioUrl !== 'voice-no-audio') {
+          voiceHtml = `<div class="msg-voice"><audio src="${voiceAudioUrl}" preload="metadata"></audio><button class="voice-play-btn" onclick="toggleVoicePlay(this)" title="Play voice"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="5 3 19 12 5 21 5 3"/></svg></button><span class="voice-label">🎤 Voice</span></div>`;
         } else {
           voiceHtml = `<div class="msg-voice"><span class="voice-label">🎤 Voice</span></div>`;
         }
-        delete window._voiceAudioUrl[tabId];
       }
       userBubble.innerHTML = `<div class="msg-avatar">👤</div><div class="msg-bubble"><div class="msg-content">${text ? escHtml(text).replace(/\n/g, '<br>') : ''}${filesHtml}${imagesHtml}${voiceHtml}</div><div class="msg-time">${userTimeStr} · <span style="color:var(--accent);font-weight:500">~${userTokenEst} tokens</span></div></div>`;
       messagesEl.appendChild(userBubble);
