@@ -7119,8 +7119,14 @@
         const data = await res.json();
         if (!data.tabs) { showToast('Invalid workspace', 'error'); return; }
 
-        // Put saved state into localStorage and reload page
-        localStorage.setItem(TABS_STATE_KEY, JSON.stringify(data.tabs));
+        // Strip terminal sessionIds so they create fresh sessions on restore
+        const state = data.tabs;
+        if (state?.tabs) {
+          state.tabs.forEach(t => {
+            if (t.type === 'terminal') delete t.sessionId;
+          });
+        }
+        localStorage.setItem(TABS_STATE_KEY, JSON.stringify(state));
         showToast('📂 Loading: ' + (data.name || id), 'success');
         setTimeout(() => location.reload(), 300);
       } catch(e) {
@@ -7224,13 +7230,20 @@
               for (const p of pending) {
                 const tab = tabs.get(p.tabId);
                 if (!tab) continue;
-                // Check if session still exists on server
                 const serverSess = sessions.find(s => s.id === p.sessionId);
                 if (serverSess) {
                   tab.sessionId = p.sessionId;
                   if (tab.panes && tab.panes[0]) tab.panes[0].sessionId = p.sessionId;
                   ws.send(JSON.stringify({ type: 'attach', id: p.sessionId }));
                 }
+              }
+            }
+            // Create fresh terminals for workspace restore (no sessionId)
+            if (window._pendingNewTerminals && window._pendingNewTerminals.length > 0) {
+              const newTerms = window._pendingNewTerminals;
+              window._pendingNewTerminals = null;
+              for (const nt of newTerms) {
+                createSession();
               }
             }
             break;
@@ -9027,6 +9040,11 @@
           if (entry.type === 'terminal' && entry.sessionId) {
             const tabId = createTab('terminal', { name: entry.name || 'Shell', icon: entry.icon || '⚡', sessionId: entry.sessionId });
             pendingAttach.push({ tabId, sessionId: entry.sessionId });
+            restoredAny = true;
+          } else if (entry.type === 'terminal' && !entry.sessionId) {
+            // No session to attach — create fresh terminal after WS connects
+            window._pendingNewTerminals = window._pendingNewTerminals || [];
+            window._pendingNewTerminals.push({ name: entry.name, icon: entry.icon });
             restoredAny = true;
           } else if (entry.type === 'chat') {
             const tabId = createTab('chat', { name: entry.name || 'AI Chat', icon: entry.icon || '💬' });
