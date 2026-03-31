@@ -913,7 +913,7 @@ app.get("/api/workspaces", requireAuth, (req, res) => {
           id: path.basename(f, ".json"),
           name: data.name || path.basename(f, ".json"),
           savedAt: data.savedAt || fs.statSync(path.join(WORKSPACE_DIR, f)).mtime.toISOString(),
-          tabCount: (data.tabs || []).length,
+          tabCount: (data.tabs?.tabs || data.tabs || []).length,
           description: data.description || ""
         };
       } catch { return null; }

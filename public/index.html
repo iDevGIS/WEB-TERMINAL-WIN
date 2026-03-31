@@ -7085,50 +7085,27 @@
     }
 
     async function saveWorkspacePrompt() {
-      const name = prompt('Workspace name:', 'My Workspace ' + new Date().toLocaleDateString('en-GB'));
+      // Force save current state to localStorage first
+      _saveTabsState();
+      const name = prompt('Workspace name:', 'Workspace ' + new Date().toLocaleDateString('en-GB'));
       if (!name) return;
-      const desc = prompt('Description (optional):', '') || '';
-      await saveWorkspaceToServer(name, desc);
-    }
 
-    async function saveWorkspaceToServer(name, description) {
-      // Collect current tab state
-      const tabsData = [];
-      tabs.forEach((t, id) => {
-        const entry = { type: t.type, name: t.name };
-        if (t.type === 'chat') {
-          entry.chatSessions = (t.chatSessions || []).map(s => ({
-            id: s.id, name: s.name, model: s.model, systemPrompt: s.systemPrompt,
-            messages: (s.messages || []).slice(-100).map(m => ({
-              role: m.role, content: m.content, ts: m.ts, tokens: m.tokens, model: m.model, _voiceUrl: m._voiceUrl || null
-            }))
-          }));
-          entry.activeChatSession = t.activeChatSession;
-        } else if (t.type === 'editor') {
-          entry.filePath = t.filePath;
-        } else if (t.type === 'file-manager') {
-          entry.cwd = t.cwd;
-        } else if (t.type === 'vscode') {
-          entry.url = t.url;
-        } else if (t.type === 'terminal') {
-          entry.shellId = t.shellId;
-          entry.sessionId = t.sessionId;
-        }
-        tabsData.push(entry);
-      });
+      const stateRaw = localStorage.getItem(TABS_STATE_KEY);
+      if (!stateRaw) { showToast('No tabs to save', 'info'); return; }
 
       try {
         const res = await fetch('/api/workspaces', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name, description, tabs: tabsData })
+          body: JSON.stringify({ name, description: '', tabs: JSON.parse(stateRaw) })
         });
         const data = await res.json();
         if (data.id) {
-          showToast('💾 Workspace saved: ' + name, 'success');
+          showToast('💾 Saved: ' + name, 'success');
+          _wsListLoaded = false;
           loadWorkspaceList();
         } else {
-          showToast('Save failed: ' + (data.error || 'unknown'), 'error');
+          showToast('Save failed', 'error');
         }
       } catch(e) {
         showToast('Save error: ' + e.message, 'error');
@@ -7142,38 +7119,10 @@
         const data = await res.json();
         if (!data.tabs) { showToast('Invalid workspace', 'error'); return; }
 
-        // Close all current tabs
-        const tabIds = [...tabs.keys()];
-        tabIds.forEach(tid => closeTab(tid));
-
-        // Restore tabs
-        for (const t of data.tabs) {
-          if (t.type === 'terminal') {
-            createSession(t.shellId);
-          } else if (t.type === 'chat') {
-            openChatTab();
-            // Wait for tab to be created
-            await new Promise(r => setTimeout(r, 100));
-            const lastTab = [...tabs.values()].find(x => x.type === 'chat' && x.chatSessions);
-            if (lastTab && t.chatSessions) {
-              lastTab.chatSessions = t.chatSessions;
-              lastTab.activeChatSession = t.activeChatSession || t.chatSessions[0]?.id;
-              renderChatSessions(lastTab.id);
-              renderChatMessages(lastTab.id);
-            }
-          } else if (t.type === 'editor' && t.filePath) {
-            openEditorTab(t.filePath);
-          } else if (t.type === 'file-manager') {
-            openFileModal();
-          } else if (t.type === 'vscode') {
-            openVSCode();
-          } else if (t.type === 'admin') {
-            openAdminTab();
-          } else if (t.type === 'agent-monitor') {
-            openAgentMonitorTab();
-          }
-        }
-        showToast('📂 Loaded: ' + (data.name || id), 'success');
+        // Put saved state into localStorage and reload page
+        localStorage.setItem(TABS_STATE_KEY, JSON.stringify(data.tabs));
+        showToast('📂 Loading: ' + (data.name || id), 'success');
+        setTimeout(() => location.reload(), 300);
       } catch(e) {
         showToast('Load error: ' + e.message, 'error');
       }
