@@ -4814,7 +4814,7 @@
         // Store audio URL for attaching to chat message
         window._voiceAudioUrl = window._voiceAudioUrl || {};
         window._voiceAudioUrl[tabId] = audioUrl;
-        console.log('[Voice] Audio URL:', audioUrl, 'Blob size:', audioBlob?.size, 'Text:', text);
+        showToast('🎤 chunks:' + chunks.length + ' size:' + (audioBlob?.size||0) + ' url:' + (audioUrl?'yes':'no'), 'info');
 
         // Set text and send
         const restoredInput = document.getElementById(tabId + '-input');
@@ -4826,8 +4826,9 @@
       };
 
       try {
-        // Request final data chunk before stopping
-        if (recorder.state === 'recording') recorder.requestData();
+        if (recorder.state === 'recording') {
+          try { recorder.requestData(); } catch(e) {} // iOS may not support requestData
+        }
         recorder.stop();
       } catch(e) { chatVoiceCancel(tabId); }
     }
