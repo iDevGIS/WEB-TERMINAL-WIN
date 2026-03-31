@@ -4706,7 +4706,8 @@
       const row = bar?.closest('.chat-input-row');
       const saved = window._savedInputHtml?.[tabId];
       if (row && saved) {
-        row.innerHTML = saved;
+        // Strip recording class from saved HTML before restoring
+        row.innerHTML = saved.replace(/\brecording\b/g, '');
         delete window._savedInputHtml[tabId];
       }
       // Always reset mic button state
@@ -4823,7 +4824,11 @@
         delete window._voiceTranscript?.[tabId];
       };
 
-      try { recorder.stop(); } catch(e) { chatVoiceCancel(tabId); }
+      try {
+        // Request final data chunk before stopping
+        if (recorder.state === 'recording') recorder.requestData();
+        recorder.stop();
+      } catch(e) { chatVoiceCancel(tabId); }
     }
 
     async function chatToggleVoice(tabId) {
@@ -4982,13 +4987,17 @@
     async function chatSend(tabId) {
       const tab = tabs.get(tabId);
       if (!tab || tab.chatStreaming) return;
-      // Stop voice recording if active
+      // Stop voice recording if still active (user pressed Enter while recording)
       if (_voiceRecognitions.has(tabId)) {
-        _voiceRecognitions.get(tabId).stop();
+        const rec = _voiceRecognitions.get(tabId);
+        if (rec._nativeSR) try { rec._nativeSR.stop(); } catch(e) {}
+        try { rec.stop(); } catch(e) {}
         _voiceRecognitions.delete(tabId);
-        const micBtn = document.getElementById(tabId + '-mic');
-        if (micBtn) micBtn.classList.remove('recording');
+        _hideVoiceBar(tabId);
       }
+      // Always ensure mic button is reset
+      const micBtn = document.getElementById(tabId + '-mic');
+      if (micBtn) micBtn.classList.remove('recording');
       const sess = tab.chatSessions.find(s => s.id === tab.activeChatSession);
       if (!sess) return;
       const input = document.getElementById(tabId + '-input');
