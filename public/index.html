@@ -4750,9 +4750,10 @@
       }
 
       const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-      const hasNativeText = isMobile && window._voiceTranscript?.[tabId]?.trim();
 
       recorder.onstop = async () => {
+        // Check native text INSIDE onstop (SR may still be processing when stop is called)
+        const hasNativeText = isMobile && window._voiceTranscript?.[tabId]?.trim();
         const chunks = window._voiceAudioChunks?.[tabId] || [];
         const audioBlob = chunks.length ? new Blob(chunks, { type: recorder.mimeType || 'audio/webm' }) : null;
         const audioUrl = audioBlob ? URL.createObjectURL(audioBlob) : null;
@@ -4772,7 +4773,7 @@
           text = window._voiceTranscript[tabId].trim();
           _restoreInputRow(tabId);
         } else {
-          // Desktop: use server-side Whisper
+          // Desktop: use server-side Whisper — need audio
           if (!audioBlob) { chatVoiceCancel(tabId); return; }
 
           // Show transcribing animation
@@ -4811,10 +4812,9 @@
           return;
         }
 
-        // Store audio URL for attaching to chat message
+        // Store audio URL for attaching to chat message (even if null — badge still shows)
         window._voiceAudioUrl = window._voiceAudioUrl || {};
-        window._voiceAudioUrl[tabId] = audioUrl;
-        showToast('🎤 chunks:' + chunks.length + ' size:' + (audioBlob?.size||0) + ' url:' + (audioUrl?'yes':'no'), 'info');
+        window._voiceAudioUrl[tabId] = audioUrl || 'voice-no-audio'; // marker for badge without playback
 
         // Set text and send
         const restoredInput = document.getElementById(tabId + '-input');
@@ -5068,7 +5068,11 @@
       let voiceHtml = '';
       const voiceUrl = window._voiceAudioUrl?.[tabId];
       if (voiceUrl) {
-        voiceHtml = `<div class="msg-voice"><audio src="${voiceUrl}" preload="metadata"></audio><button class="voice-play-btn" onclick="toggleVoicePlay(this)" title="Play voice"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="5 3 19 12 5 21 5 3"/></svg></button><span class="voice-label">🎤 Voice</span></div>`;
+        if (voiceUrl !== 'voice-no-audio') {
+          voiceHtml = `<div class="msg-voice"><audio src="${voiceUrl}" preload="metadata"></audio><button class="voice-play-btn" onclick="toggleVoicePlay(this)" title="Play voice"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="5 3 19 12 5 21 5 3"/></svg></button><span class="voice-label">🎤 Voice</span></div>`;
+        } else {
+          voiceHtml = `<div class="msg-voice"><span class="voice-label">🎤 Voice</span></div>`;
+        }
         delete window._voiceAudioUrl[tabId];
       }
       userBubble.innerHTML = `<div class="msg-avatar">👤</div><div class="msg-bubble"><div class="msg-content">${text ? escHtml(text).replace(/\n/g, '<br>') : ''}${filesHtml}${imagesHtml}${voiceHtml}</div><div class="msg-time">${userTimeStr} · <span style="color:var(--accent);font-weight:500">~${userTokenEst} tokens</span></div></div>`;
