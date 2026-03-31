@@ -4429,7 +4429,7 @@
           if (m._voiceUrl && m._voiceUrl !== 'voice-no-audio') {
             const bc = 28;
             const vBars = Array.from({length:bc}, () => { const h = Math.floor(Math.random()*18)+4; return `<div class="vw-bar" style="height:${h}px" data-h="${h}"></div>`; }).join('');
-            voicePart = `<div class="msg-voice"><audio preload="metadata" src="${m._voiceUrl}" onloadedmetadata="if(isFinite(this.duration)){const d=Math.ceil(this.duration);this.closest('.msg-voice').querySelector('.voice-time').textContent=Math.floor(d/60)+':'+String(d%60).padStart(2,'0')}"></audio><button class="voice-play-btn" onclick="toggleVoicePlay(this)" title="Play"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="6 3 20 12 6 21 6 3"/></svg></button><div class="voice-waveform-play">${vBars}</div><span class="voice-time">0:00</span></div>`;
+            voicePart = `<div class="msg-voice"><audio preload="metadata" src="${m._voiceUrl}"></audio><button class="voice-play-btn" onclick="toggleVoicePlay(this)" title="Play"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="6 3 20 12 6 21 6 3"/></svg></button><div class="voice-waveform-play">${vBars}</div><span class="voice-time">0:00</span></div>`;
           } else if (m._voiceUrl === 'voice-no-audio') {
             voicePart = `<div class="msg-voice"><span class="voice-time" style="margin:0 4px">🎤 Voice</span></div>`;
           }
@@ -4448,8 +4448,9 @@
       // Generate real waveforms for voice messages
       messagesEl.querySelectorAll('.msg-voice').forEach(ve => {
         const audio = ve.querySelector('audio');
-        if (audio?.src && !audio.src.startsWith('blob:')) {
+        if (audio?.src) {
           _generateWaveform(audio.src, 28).then(h => _applyWaveform(ve, h));
+          _fixAudioDuration(audio);
         }
       });
       // Inject copy buttons & regen
@@ -4760,6 +4761,31 @@
         audio.pause();
         audio.currentTime = 0;
         _resetVoiceUI(wrap);
+      }
+    }
+
+    // Fix duration for blob URLs (Chrome returns Infinity)
+    function _fixAudioDuration(audioEl) {
+      if (!audioEl) return;
+      const timeEl = audioEl.closest('.msg-voice')?.querySelector('.voice-time');
+      const update = () => {
+        if (isFinite(audioEl.duration) && audioEl.duration > 0) {
+          const d = Math.ceil(audioEl.duration);
+          if (timeEl) timeEl.textContent = Math.floor(d/60) + ':' + String(d%60).padStart(2,'0');
+        }
+      };
+      audioEl.addEventListener('loadedmetadata', update);
+      audioEl.addEventListener('durationchange', update);
+      // Blob URL trick: seek to large value forces duration calc
+      if (!isFinite(audioEl.duration)) {
+        audioEl.currentTime = 1e10;
+        audioEl.addEventListener('timeupdate', function once() {
+          audioEl.removeEventListener('timeupdate', once);
+          audioEl.currentTime = 0;
+          update();
+        });
+      } else {
+        update();
       }
     }
 
@@ -5206,7 +5232,7 @@
             return `<div class="vw-bar" style="height:${h}px" data-h="${h}"></div>`;
           }).join('');
           voiceHtml = `<div class="msg-voice" data-voice-id="${Date.now()}">
-            <audio preload="metadata" src="${voiceAudioUrl}" onloadedmetadata="if(isFinite(this.duration)){const d=Math.ceil(this.duration);this.closest('.msg-voice').querySelector('.voice-time').textContent=Math.floor(d/60)+':'+String(d%60).padStart(2,'0')}"></audio>
+            <audio preload="metadata" src="${voiceAudioUrl}"></audio>
             <button class="voice-play-btn" onclick="toggleVoicePlay(this)" title="Play">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="6 3 20 12 6 21 6 3"/></svg>
             </button>
@@ -5223,6 +5249,7 @@
       const voiceEl = userBubble.querySelector('.msg-voice');
       if (voiceEl && voiceAudioUrl && voiceAudioUrl !== 'voice-no-audio') {
         _generateWaveform(voiceAudioUrl, 28).then(h => _applyWaveform(voiceEl, h));
+        _fixAudioDuration(voiceEl.querySelector('audio'));
       }
       _injectCopyBtns(messagesEl);
 
