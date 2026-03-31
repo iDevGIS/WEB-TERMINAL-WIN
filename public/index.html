@@ -4445,6 +4445,13 @@
       messagesEl.querySelectorAll('pre code').forEach(el => {
         if (!el.dataset.highlighted) { hljs.highlightElement(el); el.dataset.highlighted = '1'; }
       });
+      // Generate real waveforms for voice messages
+      messagesEl.querySelectorAll('.msg-voice').forEach(ve => {
+        const audio = ve.querySelector('audio');
+        if (audio?.src && !audio.src.startsWith('blob:')) {
+          _generateWaveform(audio.src, 28).then(h => _applyWaveform(ve, h));
+        }
+      });
       // Inject copy buttons & regen
       _injectCopyBtns(messagesEl);
       _addRegenBtn(tabId, messagesEl);
@@ -4754,6 +4761,42 @@
         audio.currentTime = 0;
         _resetVoiceUI(wrap);
       }
+    }
+
+    // Generate real waveform from audio data
+    async function _generateWaveform(audioUrl, barCount) {
+      try {
+        const resp = await fetch(audioUrl);
+        const arrayBuf = await resp.arrayBuffer();
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const audioBuf = await audioCtx.decodeAudioData(arrayBuf);
+        const rawData = audioBuf.getChannelData(0); // mono
+        const samplesPerBar = Math.floor(rawData.length / barCount);
+        const bars = [];
+        for (let i = 0; i < barCount; i++) {
+          let sum = 0;
+          const start = i * samplesPerBar;
+          for (let j = start; j < start + samplesPerBar && j < rawData.length; j++) {
+            sum += Math.abs(rawData[j]);
+          }
+          const avg = sum / samplesPerBar;
+          const h = Math.max(3, Math.round(avg * 80)); // scale to pixels
+          bars.push(h);
+        }
+        audioCtx.close();
+        return bars;
+      } catch(e) {
+        console.warn('[Waveform] decode failed', e);
+        return null;
+      }
+    }
+
+    function _applyWaveform(voiceEl, heights) {
+      if (!voiceEl || !heights) return;
+      const bars = voiceEl.querySelectorAll('.vw-bar');
+      heights.forEach((h, i) => {
+        if (bars[i]) { bars[i].style.height = h + 'px'; bars[i].dataset.h = h; }
+      });
     }
 
     function _resetVoiceUI(wrap) {
@@ -5176,6 +5219,11 @@
       }
       userBubble.innerHTML = `<div class="msg-avatar">👤</div><div class="msg-bubble"><div class="msg-content">${text ? escHtml(text).replace(/\n/g, '<br>') : ''}${filesHtml}${imagesHtml}${voiceHtml}</div><div class="msg-time">${userTimeStr} · <span style="color:var(--accent);font-weight:500">~${userTokenEst} tokens</span></div></div>`;
       messagesEl.appendChild(userBubble);
+      // Generate real waveform for voice messages
+      const voiceEl = userBubble.querySelector('.msg-voice');
+      if (voiceEl && voiceAudioUrl && voiceAudioUrl !== 'voice-no-audio') {
+        _generateWaveform(voiceAudioUrl, 28).then(h => _applyWaveform(voiceEl, h));
+      }
       _injectCopyBtns(messagesEl);
 
       // Auto-title from first message
