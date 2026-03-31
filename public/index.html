@@ -7242,8 +7242,9 @@
             if (window._pendingNewTerminals && window._pendingNewTerminals.length > 0) {
               const newTerms = window._pendingNewTerminals;
               window._pendingNewTerminals = null;
+              console.log('[WS] Creating', newTerms.length, 'fresh terminals from workspace');
               for (const nt of newTerms) {
-                createSession();
+                setTimeout(() => createSession(), 200);
               }
             }
             break;
@@ -9029,9 +9030,10 @@
     function _restoreTabsState() {
       try {
         const raw = localStorage.getItem(TABS_STATE_KEY);
-        if (!raw) return false;
+        if (!raw) { console.log('[Restore] No saved state'); return false; }
         const state = JSON.parse(raw);
-        if (!state.tabs || !state.tabs.length) return false;
+        console.log('[Restore] State:', state.tabs?.length, 'tabs, activeIdx:', state.activeTabIndex);
+        if (!state.tabs || !state.tabs.length) { console.log('[Restore] Empty tabs'); return false; }
 
         let restoredAny = false;
         const pendingAttach = []; // {tabId, sessionId} for terminals
