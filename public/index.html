@@ -2833,45 +2833,47 @@
       font-size: 11px; color: var(--text3); font-family: 'JetBrains Mono', monospace;
       white-space: nowrap; min-width: 30px; text-align: right;
     }
-    /* Workspace section */
-    .workspace-section {
-      margin-top: 20px; width: 100%; max-width: 560px;
+    /* Workspace sidebar section */
+    .sidebar-section { border-top: 1px solid rgba(255,255,255,.06); }
+    .sidebar-section-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 8px 16px; cursor: pointer; font-size: 12px; color: var(--text2);
+      transition: background .15s;
     }
-    .workspace-header {
-      display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; padding: 0 4px;
-    }
-    .workspace-header h3 { font-size: 14px; color: var(--text2); margin: 0; font-weight: 500; }
+    .sidebar-section-header:hover { background: rgba(255,255,255,.03); }
     .btn-sm.workspace-save-btn {
-      display: flex; align-items: center; gap: 4px; padding: 4px 10px;
+      display: flex; align-items: center; gap: 3px; padding: 3px 8px;
       background: rgba(108,99,255,.15); border: 1px solid rgba(108,99,255,.25);
-      border-radius: 6px; color: var(--accent); font-size: 11px; cursor: pointer;
+      border-radius: 5px; color: var(--accent); font-size: 10px; cursor: pointer;
       transition: all .15s;
     }
-    .btn-sm.workspace-save-btn:hover { background: rgba(108,99,255,.25); }
+    .btn-sm.workspace-save-btn:hover { background: rgba(108,99,255,.3); }
     .workspace-list {
-      display: flex; flex-direction: column; gap: 6px; max-height: 200px; overflow-y: auto;
+      flex-direction: column; gap: 2px; max-height: 180px; overflow-y: auto;
+      padding: 0 8px 8px;
     }
+    .workspace-list.open { display: flex; }
     .workspace-item {
-      display: flex; align-items: center; gap: 10px; padding: 10px 14px;
-      background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.06);
-      border-radius: 10px; cursor: pointer; transition: all .15s;
+      display: flex; align-items: center; gap: 8px; padding: 7px 10px;
+      background: rgba(255,255,255,.02); border: 1px solid rgba(255,255,255,.04);
+      border-radius: 8px; cursor: pointer; transition: all .15s;
     }
-    .workspace-item:hover { background: rgba(108,99,255,.08); border-color: rgba(108,99,255,.2); }
+    .workspace-item:hover { background: rgba(108,99,255,.08); border-color: rgba(108,99,255,.15); }
     .workspace-item-icon {
-      width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center;
-      background: linear-gradient(135deg, rgba(108,99,255,.15), rgba(139,92,246,.1)); font-size: 16px; flex-shrink: 0;
+      width: 28px; height: 28px; border-radius: 6px; display: flex; align-items: center; justify-content: center;
+      background: linear-gradient(135deg, rgba(108,99,255,.12), rgba(139,92,246,.08)); font-size: 13px; flex-shrink: 0;
     }
     .workspace-item-info { flex: 1; min-width: 0; }
-    .workspace-item-name { font-size: 13px; color: var(--text1); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .workspace-item-meta { font-size: 10px; color: var(--text3); margin-top: 2px; }
-    .workspace-item-actions { display: flex; gap: 4px; opacity: 0; transition: opacity .15s; }
+    .workspace-item-name { font-size: 12px; color: var(--text1); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .workspace-item-meta { font-size: 9px; color: var(--text3); margin-top: 1px; }
+    .workspace-item-actions { display: flex; gap: 2px; opacity: 0; transition: opacity .15s; }
     .workspace-item:hover .workspace-item-actions { opacity: 1; }
     .workspace-item-actions button {
       background: none; border: none; color: var(--text3); cursor: pointer; padding: 2px;
-      border-radius: 4px; transition: all .15s;
+      border-radius: 3px; transition: all .15s;
     }
     .workspace-item-actions button:hover { color: #f87171; background: rgba(248,113,113,.1); }
-    .workspace-empty { color: var(--text3); font-size: 12px; padding: 16px; text-align: center; }
+    .workspace-empty { color: var(--text3); font-size: 11px; padding: 10px; text-align: center; }
 
     .chat-empty {
       flex: 1; display: flex; align-items: center; justify-content: center;
@@ -3160,6 +3162,18 @@
       </div>
     </div>
 
+    <!-- Workspace Section -->
+    <div id="workspace-panel" class="sidebar-section">
+      <div class="sidebar-section-header" onclick="toggleWorkspacePanel()">
+        <span>💾 Workspaces</span>
+        <button class="btn-sm workspace-save-btn" onclick="event.stopPropagation();saveWorkspacePrompt()" title="Save current">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+          Save
+        </button>
+      </div>
+      <div class="workspace-list" id="workspace-list" style="display:none"></div>
+    </div>
+
     <div id="sidebar-footer">
       <span class="info" id="session-count">0 sessions</span>
       <a href="javascript:void(0)" onclick="openAdminTab()" class="btn-logout" style="color:var(--accent);border-color:rgba(108,99,255,.2)">🛡️ Admin</a>
@@ -3308,19 +3322,7 @@
               <span class="feat-sub">Monitor status</span>
             </div>
           </div>
-          <!-- Workspace section -->
-          <div class="workspace-section" id="workspace-section">
-            <div class="workspace-header">
-              <h3>💾 Workspaces</h3>
-              <button class="btn-sm workspace-save-btn" onclick="saveWorkspacePrompt()" title="Save current workspace">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-                Save
-              </button>
-            </div>
-            <div class="workspace-list" id="workspace-list">
-              <div style="color:var(--text3);font-size:12px;padding:12px;text-align:center">Loading...</div>
-            </div>
-          </div>
+
         </div>
       </div>
       <div id="term-container-inner" style="position:relative;flex:1;display:flex;flex-direction:column;min-height:0;display:none">
@@ -7040,6 +7042,16 @@
       return date.toLocaleDateString('en-GB');
     }
 
+    let _wsListLoaded = false;
+
+    function toggleWorkspacePanel() {
+      const list = document.getElementById('workspace-list');
+      if (!list) return;
+      const isOpen = list.classList.toggle('open');
+      list.style.display = isOpen ? 'flex' : 'none';
+      if (isOpen && !_wsListLoaded) loadWorkspaceList();
+    }
+
     async function loadWorkspaceList() {
       const listEl = document.getElementById('workspace-list');
       if (!listEl) return;
@@ -7066,6 +7078,7 @@
             </div>
           </div>`;
         }).join('');
+        _wsListLoaded = true;
       } catch(e) {
         listEl.innerHTML = '<div class="workspace-empty">Failed to load</div>';
       }
@@ -7176,10 +7189,6 @@
         showToast('Delete error: ' + e.message, 'error');
       }
     }
-
-    // Load workspace list on welcome show
-    const _origShowWelcome = showWelcomeTab;
-    showWelcomeTab = function() { _origShowWelcome(); loadWorkspaceList(); };
 
     // Preview from editor (for .md/.html/.htm)
     function previewFromEditor(tabId) {
@@ -9145,8 +9154,7 @@
     // Restore tabs before connecting WS
     const _restored = _restoreTabsState();
 
-    // Load workspace list if welcome screen visible
-    if (!_restored) loadWorkspaceList();
+
 
     connect();
   </script>
