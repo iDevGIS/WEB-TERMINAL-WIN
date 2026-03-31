@@ -7033,8 +7033,9 @@
       if (!listEl) return;
       try {
         const res = await fetch('/api/workspaces');
+        if (!res.ok) { listEl.innerHTML = '<div class="workspace-empty">No saved workspaces</div>'; return; }
         const workspaces = await res.json();
-        if (!workspaces.length) {
+        if (!Array.isArray(workspaces) || !workspaces.length) {
           listEl.innerHTML = '<div class="workspace-empty">No saved workspaces</div>';
           return;
         }
