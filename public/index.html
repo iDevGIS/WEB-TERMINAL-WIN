@@ -2833,6 +2833,46 @@
       font-size: 11px; color: var(--text3); font-family: 'JetBrains Mono', monospace;
       white-space: nowrap; min-width: 30px; text-align: right;
     }
+    /* Workspace section */
+    .workspace-section {
+      margin-top: 20px; width: 100%; max-width: 560px;
+    }
+    .workspace-header {
+      display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; padding: 0 4px;
+    }
+    .workspace-header h3 { font-size: 14px; color: var(--text2); margin: 0; font-weight: 500; }
+    .btn-sm.workspace-save-btn {
+      display: flex; align-items: center; gap: 4px; padding: 4px 10px;
+      background: rgba(108,99,255,.15); border: 1px solid rgba(108,99,255,.25);
+      border-radius: 6px; color: var(--accent); font-size: 11px; cursor: pointer;
+      transition: all .15s;
+    }
+    .btn-sm.workspace-save-btn:hover { background: rgba(108,99,255,.25); }
+    .workspace-list {
+      display: flex; flex-direction: column; gap: 6px; max-height: 200px; overflow-y: auto;
+    }
+    .workspace-item {
+      display: flex; align-items: center; gap: 10px; padding: 10px 14px;
+      background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.06);
+      border-radius: 10px; cursor: pointer; transition: all .15s;
+    }
+    .workspace-item:hover { background: rgba(108,99,255,.08); border-color: rgba(108,99,255,.2); }
+    .workspace-item-icon {
+      width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center;
+      background: linear-gradient(135deg, rgba(108,99,255,.15), rgba(139,92,246,.1)); font-size: 16px; flex-shrink: 0;
+    }
+    .workspace-item-info { flex: 1; min-width: 0; }
+    .workspace-item-name { font-size: 13px; color: var(--text1); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .workspace-item-meta { font-size: 10px; color: var(--text3); margin-top: 2px; }
+    .workspace-item-actions { display: flex; gap: 4px; opacity: 0; transition: opacity .15s; }
+    .workspace-item:hover .workspace-item-actions { opacity: 1; }
+    .workspace-item-actions button {
+      background: none; border: none; color: var(--text3); cursor: pointer; padding: 2px;
+      border-radius: 4px; transition: all .15s;
+    }
+    .workspace-item-actions button:hover { color: #f87171; background: rgba(248,113,113,.1); }
+    .workspace-empty { color: var(--text3); font-size: 12px; padding: 16px; text-align: center; }
+
     .chat-empty {
       flex: 1; display: flex; align-items: center; justify-content: center;
       flex-direction: column; gap: 10px; opacity: .3;
@@ -3266,6 +3306,19 @@
               <span class="fi"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg></span>
               <span class="feat-label">Agent</span>
               <span class="feat-sub">Monitor status</span>
+            </div>
+          </div>
+          <!-- Workspace section -->
+          <div class="workspace-section" id="workspace-section">
+            <div class="workspace-header">
+              <h3>💾 Workspaces</h3>
+              <button class="btn-sm workspace-save-btn" onclick="saveWorkspacePrompt()" title="Save current workspace">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                Save
+              </button>
+            </div>
+            <div class="workspace-list" id="workspace-list">
+              <div style="color:var(--text3);font-size:12px;padding:12px;text-align:center">Loading...</div>
             </div>
           </div>
         </div>
@@ -6974,6 +7027,147 @@
       document.getElementById('term-container-inner').style.display = 'none';
     }
 
+    // === Workspace Save/Load ===
+    async function loadWorkspaceList() {
+      const listEl = document.getElementById('workspace-list');
+      if (!listEl) return;
+      try {
+        const res = await fetch('/api/workspaces');
+        const workspaces = await res.json();
+        if (!workspaces.length) {
+          listEl.innerHTML = '<div class="workspace-empty">No saved workspaces</div>';
+          return;
+        }
+        listEl.innerHTML = workspaces.map(w => {
+          const ago = _timeAgo(new Date(w.savedAt));
+          return `<div class="workspace-item" onclick="openWorkspace('${escAttr(w.id)}')" title="${escAttr(w.description || '')}">
+            <div class="workspace-item-icon">📋</div>
+            <div class="workspace-item-info">
+              <div class="workspace-item-name">${escHtml(w.name)}</div>
+              <div class="workspace-item-meta">${w.tabCount} tabs · ${ago}</div>
+            </div>
+            <div class="workspace-item-actions">
+              <button onclick="event.stopPropagation();deleteWorkspace('${escAttr(w.id)}','${escAttr(w.name)}')" title="Delete">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+              </button>
+            </div>
+          </div>`;
+        }).join('');
+      } catch(e) {
+        listEl.innerHTML = '<div class="workspace-empty">Failed to load</div>';
+      }
+    }
+
+    async function saveWorkspacePrompt() {
+      const name = prompt('Workspace name:', 'My Workspace ' + new Date().toLocaleDateString('en-GB'));
+      if (!name) return;
+      const desc = prompt('Description (optional):', '') || '';
+      await saveWorkspaceToServer(name, desc);
+    }
+
+    async function saveWorkspaceToServer(name, description) {
+      // Collect current tab state
+      const tabsData = [];
+      tabs.forEach((t, id) => {
+        const entry = { type: t.type, name: t.name };
+        if (t.type === 'chat') {
+          entry.chatSessions = (t.chatSessions || []).map(s => ({
+            id: s.id, name: s.name, model: s.model, systemPrompt: s.systemPrompt,
+            messages: (s.messages || []).slice(-100).map(m => ({
+              role: m.role, content: m.content, ts: m.ts, tokens: m.tokens, model: m.model, _voiceUrl: m._voiceUrl || null
+            }))
+          }));
+          entry.activeChatSession = t.activeChatSession;
+        } else if (t.type === 'editor') {
+          entry.filePath = t.filePath;
+        } else if (t.type === 'file-manager') {
+          entry.cwd = t.cwd;
+        } else if (t.type === 'vscode') {
+          entry.url = t.url;
+        } else if (t.type === 'terminal') {
+          entry.shellId = t.shellId;
+          entry.sessionId = t.sessionId;
+        }
+        tabsData.push(entry);
+      });
+
+      try {
+        const res = await fetch('/api/workspaces', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, description, tabs: tabsData })
+        });
+        const data = await res.json();
+        if (data.id) {
+          showToast('💾 Workspace saved: ' + name, 'success');
+          loadWorkspaceList();
+        } else {
+          showToast('Save failed: ' + (data.error || 'unknown'), 'error');
+        }
+      } catch(e) {
+        showToast('Save error: ' + e.message, 'error');
+      }
+    }
+
+    async function openWorkspace(id) {
+      if (!confirm('Load this workspace? Current tabs will be replaced.')) return;
+      try {
+        const res = await fetch('/api/workspaces/' + encodeURIComponent(id));
+        const data = await res.json();
+        if (!data.tabs) { showToast('Invalid workspace', 'error'); return; }
+
+        // Close all current tabs
+        const tabIds = [...tabs.keys()];
+        tabIds.forEach(tid => closeTab(tid));
+
+        // Restore tabs
+        for (const t of data.tabs) {
+          if (t.type === 'terminal') {
+            createSession(t.shellId);
+          } else if (t.type === 'chat') {
+            openChatTab();
+            // Wait for tab to be created
+            await new Promise(r => setTimeout(r, 100));
+            const lastTab = [...tabs.values()].find(x => x.type === 'chat' && x.chatSessions);
+            if (lastTab && t.chatSessions) {
+              lastTab.chatSessions = t.chatSessions;
+              lastTab.activeChatSession = t.activeChatSession || t.chatSessions[0]?.id;
+              renderChatSessions(lastTab.id);
+              renderChatMessages(lastTab.id);
+            }
+          } else if (t.type === 'editor' && t.filePath) {
+            openEditorTab(t.filePath);
+          } else if (t.type === 'file-manager') {
+            openFileModal();
+          } else if (t.type === 'vscode') {
+            openVSCode();
+          } else if (t.type === 'admin') {
+            openAdminTab();
+          } else if (t.type === 'agent-monitor') {
+            openAgentMonitorTab();
+          }
+        }
+        showToast('📂 Loaded: ' + (data.name || id), 'success');
+      } catch(e) {
+        showToast('Load error: ' + e.message, 'error');
+      }
+    }
+
+    async function deleteWorkspace(id, name) {
+      if (!confirm('Delete workspace "' + name + '"?')) return;
+      try {
+        await fetch('/api/workspaces/' + encodeURIComponent(id), { method: 'DELETE' });
+        showToast('🗑️ Deleted: ' + name, 'info');
+        loadWorkspaceList();
+      } catch(e) {
+        showToast('Delete error: ' + e.message, 'error');
+      }
+    }
+
+    // Load workspace list on welcome show
+    const _origShowWelcome = showWelcomeTab;
+    showWelcomeTab = function() { _origShowWelcome(); loadWorkspaceList(); };
+
     // Preview from editor (for .md/.html/.htm)
     function previewFromEditor(tabId) {
       const tab = tabs.get(tabId);
@@ -8937,6 +9131,9 @@
 
     // Restore tabs before connecting WS
     const _restored = _restoreTabsState();
+
+    // Load workspace list if welcome screen visible
+    if (!_restored) loadWorkspaceList();
 
     connect();
   </script>

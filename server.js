@@ -898,6 +898,71 @@ app.post("/api/tts", requireAuth, async (req, res) => {
   }
 });
 
+// === Workspace Save/Load ===
+const WORKSPACE_DIR = path.join(__dirname, "workspaces");
+if (!fs.existsSync(WORKSPACE_DIR)) fs.mkdirSync(WORKSPACE_DIR, { recursive: true });
+
+// List saved workspaces
+app.get("/api/workspaces", requireAuth, (req, res) => {
+  try {
+    const files = fs.readdirSync(WORKSPACE_DIR).filter(f => f.endsWith(".json"));
+    const workspaces = files.map(f => {
+      try {
+        const data = JSON.parse(fs.readFileSync(path.join(WORKSPACE_DIR, f), "utf8"));
+        return {
+          id: path.basename(f, ".json"),
+          name: data.name || path.basename(f, ".json"),
+          savedAt: data.savedAt || fs.statSync(path.join(WORKSPACE_DIR, f)).mtime.toISOString(),
+          tabCount: (data.tabs || []).length,
+          description: data.description || ""
+        };
+      } catch { return null; }
+    }).filter(Boolean).sort((a, b) => new Date(b.savedAt) - new Date(a.savedAt));
+    res.json(workspaces);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Save workspace
+app.post("/api/workspaces", requireAuth, express.json({ limit: "5mb" }), (req, res) => {
+  const { name, description, tabs } = req.body;
+  if (!name || !tabs) return res.status(400).json({ error: "name and tabs required" });
+  const id = name.toLowerCase().replace(/[^a-z0-9_-]/g, "_").substring(0, 50) + "_" + Date.now();
+  const data = { name, description: description || "", tabs, savedAt: new Date().toISOString() };
+  fs.writeFileSync(path.join(WORKSPACE_DIR, id + ".json"), JSON.stringify(data, null, 2));
+  res.json({ id, name: data.name, savedAt: data.savedAt });
+});
+
+// Load workspace
+app.get("/api/workspaces/:id", requireAuth, (req, res) => {
+  const filePath = path.join(WORKSPACE_DIR, path.basename(req.params.id) + ".json");
+  if (!fs.existsSync(filePath)) return res.status(404).json({ error: "not found" });
+  try {
+    const data = JSON.parse(fs.readFileSync(filePath, "utf8"));
+    res.json(data);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Delete workspace
+app.delete("/api/workspaces/:id", requireAuth, (req, res) => {
+  const filePath = path.join(WORKSPACE_DIR, path.basename(req.params.id) + ".json");
+  if (!fs.existsSync(filePath)) return res.status(404).json({ error: "not found" });
+  fs.unlinkSync(filePath);
+  res.json({ ok: true });
+});
+
+// Rename/update workspace
+app.patch("/api/workspaces/:id", requireAuth, express.json(), (req, res) => {
+  const filePath = path.join(WORKSPACE_DIR, path.basename(req.params.id) + ".json");
+  if (!fs.existsSync(filePath)) return res.status(404).json({ error: "not found" });
+  try {
+    const data = JSON.parse(fs.readFileSync(filePath, "utf8"));
+    if (req.body.name) data.name = req.body.name;
+    if (req.body.description !== undefined) data.description = req.body.description;
+    fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // === Voice uploads ===
 const multer = require("multer");
 const VOICE_DIR = path.join(__dirname, "voices");
