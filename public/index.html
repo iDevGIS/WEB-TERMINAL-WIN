@@ -7127,6 +7127,7 @@
           });
         }
         localStorage.setItem(TABS_STATE_KEY, JSON.stringify(state));
+        window._skipSaveState = true; // Prevent beforeunload from overwriting
         showToast('📂 Loading: ' + (data.name || id), 'success');
         setTimeout(() => location.reload(), 300);
       } catch(e) {
@@ -8973,6 +8974,7 @@
     const TABS_STATE_KEY = 'cyberframe-tabs-state';
 
     function _saveTabsState() {
+      if (window._skipSaveState) return;
       try {
         const state = { tabs: [], activeTabIndex: 0 };
         let idx = 0;
