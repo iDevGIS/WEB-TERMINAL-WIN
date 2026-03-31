@@ -4816,7 +4816,8 @@
 
         // Store audio URL for attaching to chat message (even if null — badge still shows)
         window._voiceAudioUrl = window._voiceAudioUrl || {};
-        window._voiceAudioUrl[tabId] = audioUrl || 'voice-no-audio'; // marker for badge without playback
+        window._voiceAudioUrl[tabId] = audioUrl || 'voice-no-audio';
+        showToast('🔧 voiceUrl set: ' + (audioUrl ? 'blob' : 'no-audio') + ' chunks:' + chunks.length, 'info');
 
         // Set text and send
         const restoredInput = document.getElementById(tabId + '-input');
@@ -5072,6 +5073,7 @@
       // Attach voice audio if available
       let voiceHtml = '';
       const voiceUrl = window._voiceAudioUrl?.[tabId];
+      showToast('🔧 chatSend voiceUrl: ' + (voiceUrl || 'NONE'), 'info');
       if (voiceUrl) {
         if (voiceUrl !== 'voice-no-audio') {
           voiceHtml = `<div class="msg-voice"><audio src="${voiceUrl}" preload="metadata"></audio><button class="voice-play-btn" onclick="toggleVoicePlay(this)" title="Play voice"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="5 3 19 12 5 21 5 3"/></svg></button><span class="voice-label">🎤 Voice</span></div>`;
