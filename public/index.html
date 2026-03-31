@@ -4728,11 +4728,12 @@
           bars.forEach((b, i) => {
             b.classList.toggle('lit', i < litCount);
           });
-          if (timeEl && audio.duration) {
-            const rem = Math.ceil(audio.duration - audio.currentTime);
-            const m = Math.floor(rem / 60);
-            const s = rem % 60;
-            timeEl.textContent = m + ':' + String(s).padStart(2, '0');
+          if (timeEl && isFinite(audio.duration)) {
+            const cur = Math.floor(audio.currentTime);
+            timeEl.textContent = Math.floor(cur/60) + ':' + String(cur%60).padStart(2, '0');
+          } else if (timeEl && audio.currentTime > 0) {
+            const cur = Math.floor(audio.currentTime);
+            timeEl.textContent = Math.floor(cur/60) + ':' + String(cur%60).padStart(2, '0');
           }
           requestAnimationFrame(animFrame);
         };
@@ -4757,12 +4758,7 @@
         waveform.querySelectorAll('.vw-bar').forEach(b => b.classList.remove('lit'));
       }
       const audio = wrap.querySelector('audio');
-      if (timeEl && audio?.duration) {
-        const d = Math.ceil(audio.duration);
-        timeEl.textContent = Math.floor(d/60) + ':' + String(d%60).padStart(2,'0');
-      } else if (timeEl) {
-        timeEl.textContent = '0:00';
-      }
+      if (timeEl) timeEl.textContent = '0:00';
     }
 
     function _restoreInputRow(tabId) {
@@ -5144,7 +5140,7 @@
             return `<div class="vw-bar" style="height:${h}px" data-h="${h}"></div>`;
           }).join('');
           voiceHtml = `<div class="msg-voice" data-voice-id="${Date.now()}">
-            <audio preload="metadata" src="${voiceAudioUrl}" onloadedmetadata="const d=Math.ceil(this.duration);this.closest('.msg-voice').querySelector('.voice-time').textContent=Math.floor(d/60)+':'+String(d%60).padStart(2,'0')"></audio>
+            <audio preload="metadata" src="${voiceAudioUrl}" onloadedmetadata="if(isFinite(this.duration)){const d=Math.ceil(this.duration);this.closest('.msg-voice').querySelector('.voice-time').textContent=Math.floor(d/60)+':'+String(d%60).padStart(2,'0')}"></audio>
             <button class="voice-play-btn" onclick="toggleVoicePlay(this)" title="Play">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="6 3 20 12 6 21 6 3"/></svg>
             </button>
