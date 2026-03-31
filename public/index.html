@@ -5092,6 +5092,9 @@
       if (micBtn) micBtn.classList.remove('recording');
       const sess = tab.chatSessions.find(s => s.id === tab.activeChatSession);
       if (!sess) return;
+      // Resolve voice audio URL early (param > tab pending > null)
+      const voiceAudioUrl = voiceAudioUrl_ || tab._pendingVoiceUrl || null;
+      if (tab._pendingVoiceUrl) delete tab._pendingVoiceUrl;
       const input = document.getElementById(tabId + '-input');
       const text = input.value.trim();
       const attachments = (_chatAttachments[tabId] || []).slice();
@@ -5150,9 +5153,6 @@
       const userTokenEst = Math.round((fullText || text || '').split(/\s+/).length * 1.3) + (images.length * 85);
       // Attach voice audio if available
       let voiceHtml = '';
-      // Check param first, then tab pending voice
-      const voiceAudioUrl = voiceAudioUrl_ || tab._pendingVoiceUrl || null;
-      if (tab._pendingVoiceUrl) delete tab._pendingVoiceUrl;
       if (voiceAudioUrl) {
         if (voiceAudioUrl !== 'voice-no-audio') {
           // Generate random waveform bars (like voice message preview)
