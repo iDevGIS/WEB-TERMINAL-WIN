@@ -2807,10 +2807,28 @@
     }
     .voice-waveform-play .vw-bar {
       width: 2.5px; border-radius: 2px; min-height: 3px;
-      background: rgba(255,255,255,.2); transition: height .08s ease, background .15s;
+      background: rgba(255,255,255,.15); transition: height .1s ease, background .2s, transform .1s, box-shadow .2s;
+      transform-origin: center center;
     }
-    .voice-waveform-play.active .vw-bar { background: rgba(108,99,255,.6); }
-    .voice-waveform-play.active .vw-bar.lit { background: linear-gradient(to top, var(--accent), #a78bfa); }
+    .voice-waveform-play.active .vw-bar { background: rgba(108,99,255,.35); }
+    .voice-waveform-play.active .vw-bar.lit {
+      background: linear-gradient(to top, var(--accent), #a78bfa);
+      box-shadow: 0 0 4px rgba(108,99,255,.4);
+    }
+    .voice-waveform-play.active .vw-bar.current {
+      background: linear-gradient(to top, #c084fc, #e879f9);
+      box-shadow: 0 0 8px rgba(192,132,252,.6);
+      transform: scaleY(1.25);
+    }
+    @keyframes vwPulse {
+      0%, 100% { transform: scaleY(1); }
+      50% { transform: scaleY(1.3); }
+    }
+    .voice-waveform-play.active .vw-bar.near {
+      animation: vwPulse .4s ease-in-out infinite;
+      background: linear-gradient(to top, var(--accent), #c084fc);
+      box-shadow: 0 0 6px rgba(108,99,255,.3);
+    }
     .voice-time {
       font-size: 11px; color: var(--text3); font-family: 'JetBrains Mono', monospace;
       white-space: nowrap; min-width: 30px; text-align: right;
@@ -4740,15 +4758,15 @@
         // Animate waveform progress
         const animFrame = () => {
           if (audio.paused) return;
-          const progress = audio.duration ? audio.currentTime / audio.duration : 0;
+          const dur = isFinite(audio.duration) ? audio.duration : 0;
+          const progress = dur ? audio.currentTime / dur : 0;
           const litCount = Math.floor(progress * bars.length);
           bars.forEach((b, i) => {
             b.classList.toggle('lit', i < litCount);
+            b.classList.toggle('current', i === litCount);
+            b.classList.toggle('near', i > litCount && i <= litCount + 2);
           });
-          if (timeEl && isFinite(audio.duration)) {
-            const cur = Math.floor(audio.currentTime);
-            timeEl.textContent = Math.floor(cur/60) + ':' + String(cur%60).padStart(2, '0');
-          } else if (timeEl && audio.currentTime > 0) {
+          if (timeEl) {
             const cur = Math.floor(audio.currentTime);
             timeEl.textContent = Math.floor(cur/60) + ':' + String(cur%60).padStart(2, '0');
           }
@@ -4833,7 +4851,7 @@
       if (btn) { btn.innerHTML = _vPlayIcon; btn.classList.remove('playing'); }
       if (waveform) {
         waveform.classList.remove('active');
-        waveform.querySelectorAll('.vw-bar').forEach(b => b.classList.remove('lit'));
+        waveform.querySelectorAll('.vw-bar').forEach(b => { b.classList.remove('lit','current','near'); b.style.transform = ''; });
       }
       const audio = wrap.querySelector('audio');
       if (timeEl) timeEl.textContent = '0:00';
