@@ -4827,9 +4827,12 @@
 
       try {
         if (recorder.state === 'recording') {
-          try { recorder.requestData(); } catch(e) {} // iOS may not support requestData
+          try { recorder.requestData(); } catch(e) {}
+          // Small delay to let final ondataavailable fire before stop
+          setTimeout(() => { try { recorder.stop(); } catch(e) {} }, 150);
+        } else {
+          recorder.stop();
         }
-        recorder.stop();
       } catch(e) { chatVoiceCancel(tabId); }
     }
 
