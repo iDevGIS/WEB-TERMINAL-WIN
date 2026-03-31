@@ -4754,7 +4754,7 @@
 
       recorder.onstop = async () => {
         const chunks = window._voiceAudioChunks?.[tabId] || [];
-        const audioBlob = chunks.length ? new Blob(chunks, { type: 'audio/webm' }) : null;
+        const audioBlob = chunks.length ? new Blob(chunks, { type: recorder.mimeType || 'audio/webm' }) : null;
         const audioUrl = audioBlob ? URL.createObjectURL(audioBlob) : null;
 
         // Save originalHtml BEFORE hideVoiceBar destroys it
@@ -4814,6 +4814,7 @@
         // Store audio URL for attaching to chat message
         window._voiceAudioUrl = window._voiceAudioUrl || {};
         window._voiceAudioUrl[tabId] = audioUrl;
+        console.log('[Voice] Audio URL:', audioUrl, 'Blob size:', audioBlob?.size, 'Text:', text);
 
         // Set text and send
         const restoredInput = document.getElementById(tabId + '-input');
@@ -4859,7 +4860,13 @@
       }
 
       // Always record audio for playback in chat
-      const mediaRecorder = new MediaRecorder(micStream, { mimeType: 'audio/webm;codecs=opus' });
+      // iOS Safari doesn't support webm — fallback to mp4 or default
+      let recMime = 'audio/webm;codecs=opus';
+      if (!MediaRecorder.isTypeSupported(recMime)) {
+        recMime = MediaRecorder.isTypeSupported('audio/mp4') ? 'audio/mp4' :
+                  MediaRecorder.isTypeSupported('audio/ogg') ? 'audio/ogg' : '';
+      }
+      const mediaRecorder = new MediaRecorder(micStream, recMime ? { mimeType: recMime } : {});
       const audioChunks = [];
       mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunks.push(e.data); };
       mediaRecorder.start(250);
