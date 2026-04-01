@@ -6179,24 +6179,13 @@
     }
 
     function _dockerOpenPath(mountPath) {
-      // Docker volumes on Windows are inside WSL/Docker VM — translate path
-      // /var/lib/docker/volumes/... → open in File Manager tab
-      // On Windows with Docker Desktop, volumes are at \\wsl$\docker-desktop-data\...
-      const winPath = mountPath.startsWith('/') 
-        ? '\\\\wsl$\\docker-desktop-data' + mountPath.replace(/\//g, '\\')
-        : mountPath;
-      // Open or reuse Files tab
-      let filesTabId = null;
-      for (const [tid, t] of tabs) { if (t.type === 'files') { filesTabId = tid; break; } }
-      if (!filesTabId) {
-        filesTabId = createTab('files', { name: 'Files', icon: '📂' });
-      }
-      switchTab(filesTabId);
-      // Navigate to the path
-      setTimeout(() => {
-        if (typeof loadFiles === 'function') loadFiles(winPath);
-      }, 300);
-      showToast('📂 Opening: ' + mountPath, 'info');
+      // Docker volumes live inside WSL VM — can't browse directly from Windows
+      // Copy path to clipboard instead
+      navigator.clipboard.writeText(mountPath).then(() => {
+        showToast('📋 Path copied! Use terminal: docker run --rm -v <volume>:/data alpine ls /data', 'success');
+      }).catch(() => {
+        showToast('📋 ' + mountPath, 'info');
+      });
     }
 
     function _dockerTimeAgo(ts) {
