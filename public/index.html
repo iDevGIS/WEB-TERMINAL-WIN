@@ -3007,6 +3007,27 @@
     }
     .tree-row:hover .tree-dl-btn { opacity: 1; }
     .tree-dl-btn:hover { color: var(--accent); background: rgba(108,99,255,.1); }
+    /* Docker port popup */
+    .dpp-popup {
+      position: fixed; z-index: 9999; min-width: 220px;
+      background: linear-gradient(145deg, rgba(15,15,30,.98), rgba(10,10,26,.99));
+      border: 1px solid rgba(108,99,255,.15); border-radius: 12px;
+      box-shadow: 0 12px 40px rgba(0,0,0,.5), 0 0 20px rgba(108,99,255,.06);
+      padding: 8px; animation: slideUp .15s ease;
+    }
+    .dpp-header {
+      display: flex; align-items: center; gap: 6px; padding: 6px 10px;
+      font-size: 11px; color: var(--text3); font-family: 'JetBrains Mono', monospace;
+      border-bottom: 1px solid rgba(255,255,255,.04); margin-bottom: 4px;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .dpp-btn {
+      display: flex; align-items: center; gap: 8px; width: 100%;
+      padding: 8px 10px; background: none; border: none; border-radius: 8px;
+      color: var(--text2); font-size: 12px; font-family: inherit; cursor: pointer;
+      transition: all .1s;
+    }
+    .dpp-btn:hover { background: rgba(108,99,255,.1); color: var(--text1); }
     /* Docker logs area — fixed at bottom, persists across view switches */
     .docker-logs-area { flex-shrink: 0; }
     .docker-logs-area:empty { display: none; }
@@ -6483,17 +6504,68 @@
 
     function _dockerPortLinks(ports) {
       if (!ports || ports === '—') return '—';
-      // Use current hostname (works for Tailscale, LAN, etc.)
       const host = window.location.hostname;
       return ports.split(', ').map(p => {
         const m = p.match(/^(\d+):\d+\/(tcp|udp)$/);
         if (m) {
           const hostPort = m[1];
           const url = 'http://' + host + ':' + hostPort;
-          return `<a href="${url}" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none" title="Open ${url}">${escHtml(p)}</a>`;
+          return `<a href="#" onclick="event.preventDefault();_dockerPortPopup(event,'${escAttr(url)}','${escAttr(p)}')" style="color:var(--accent);text-decoration:none;cursor:pointer" title="${escAttr(url)}">${escHtml(p)}</a>`;
         }
         return escHtml(p);
       }).join(', ');
+    }
+
+    function _dockerPortPopup(event, url, label) {
+      // Remove existing popup
+      document.querySelectorAll('.dpp-popup').forEach(p => p.remove());
+      const popup = document.createElement('div');
+      popup.className = 'dpp-popup';
+      popup.innerHTML = `
+        <div class="dpp-header">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+          <span>${escHtml(url)}</span>
+        </div>
+        <button class="dpp-btn" onclick="_dppAction('browser','${escAttr(url)}')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+          Open in Browser
+        </button>
+        <button class="dpp-btn" onclick="_dppAction('tab','${escAttr(url)}')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+          Open in CYBERFRAME Tab
+        </button>
+        <button class="dpp-btn" onclick="_dppAction('copy','${escAttr(url)}')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          Copy URL
+        </button>`;
+
+      // Position near click
+      const rect = event.target.getBoundingClientRect();
+      popup.style.top = (rect.bottom + 4) + 'px';
+      popup.style.left = rect.left + 'px';
+      document.body.appendChild(popup);
+
+      // Close on click outside
+      setTimeout(() => {
+        const close = (e) => { if (!popup.contains(e.target)) { popup.remove(); document.removeEventListener('click', close); } };
+        document.addEventListener('click', close);
+      }, 10);
+    }
+
+    function _dppAction(action, url) {
+      document.querySelectorAll('.dpp-popup').forEach(p => p.remove());
+      if (action === 'browser') {
+        window.open(url, '_blank', 'noopener');
+      } else if (action === 'tab') {
+        const tabId = createTab('preview', { name: '🌐 ' + new URL(url).port, icon: '🌐' });
+        const tab = tabs.get(tabId);
+        if (tab && tab.paneEl) {
+          tab.paneEl.innerHTML = '<iframe src="' + escAttr(url) + '" style="width:100%;height:100%;border:none;border-radius:8px"></iframe>';
+        }
+        switchTab(tabId);
+      } else if (action === 'copy') {
+        navigator.clipboard.writeText(url).then(() => showToast('📋 Copied', 'success'));
+      }
     }
 
     function _dockerFormatSize(bytes) {
