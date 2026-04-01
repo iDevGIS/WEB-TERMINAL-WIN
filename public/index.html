@@ -2899,6 +2899,60 @@
       color: var(--text3); font-size: 11px; padding: 16px 10px; text-align: center;
       border: 1px dashed rgba(255,255,255,.06); border-radius: 8px; margin: 0 10px 10px;
     }
+    /* Workspace save dialog */
+    .ws-save-dialog {
+      width: 420px; max-width: 90vw; border-radius: 16px; overflow: hidden;
+      background: linear-gradient(145deg, rgba(15,15,30,.98), rgba(10,10,26,.99));
+      border: 1px solid rgba(108,99,255,.15); box-shadow: 0 20px 60px rgba(0,0,0,.6), 0 0 40px rgba(108,99,255,.08);
+      animation: slideUp .2s ease;
+    }
+    .ws-save-header {
+      padding: 24px 24px 16px; text-align: center;
+      border-bottom: 1px solid rgba(255,255,255,.04);
+    }
+    .ws-save-icon {
+      width: 48px; height: 48px; border-radius: 12px; margin: 0 auto 12px;
+      background: linear-gradient(135deg, rgba(108,99,255,.15), rgba(139,92,246,.1));
+      display: flex; align-items: center; justify-content: center;
+    }
+    .ws-save-header h3 { margin: 0; font-size: 16px; color: var(--text1); font-weight: 600; }
+    .ws-save-sub { margin: 4px 0 0; font-size: 12px; color: var(--text3); }
+    .ws-save-body { padding: 20px 24px; }
+    .ws-save-label {
+      display: block; font-size: 11px; color: var(--text2); font-weight: 600;
+      text-transform: uppercase; letter-spacing: .5px; margin-bottom: 6px;
+    }
+    .ws-save-input {
+      width: 100%; padding: 10px 14px; border-radius: 10px; font-size: 13px;
+      background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08);
+      color: var(--text1); outline: none; transition: all .2s; box-sizing: border-box;
+      font-family: inherit;
+    }
+    .ws-save-input:focus {
+      border-color: var(--accent); background: rgba(108,99,255,.06);
+      box-shadow: 0 0 0 3px rgba(108,99,255,.1);
+    }
+    .ws-save-input::placeholder { color: var(--text3); }
+    .ws-save-footer {
+      padding: 16px 24px; display: flex; gap: 10px; justify-content: flex-end;
+      border-top: 1px solid rgba(255,255,255,.04);
+    }
+    .ws-save-cancel {
+      padding: 8px 18px; border-radius: 8px; font-size: 13px; cursor: pointer;
+      background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08);
+      color: var(--text2); transition: all .15s;
+    }
+    .ws-save-cancel:hover { background: rgba(255,255,255,.08); }
+    .ws-save-confirm {
+      padding: 8px 20px; border-radius: 8px; font-size: 13px; cursor: pointer;
+      background: linear-gradient(135deg, var(--accent), #8b5cf6); border: none;
+      color: #fff; font-weight: 500; display: flex; align-items: center; gap: 6px;
+      transition: all .2s; box-shadow: 0 4px 12px rgba(108,99,255,.25);
+    }
+    .ws-save-confirm:hover {
+      box-shadow: 0 6px 20px rgba(108,99,255,.4); transform: translateY(-1px);
+    }
+    .ws-save-confirm:disabled { opacity: .6; cursor: default; transform: none; }
 
     .chat-empty {
       flex: 1; display: flex; align-items: center; justify-content: center;
@@ -7120,32 +7174,86 @@
       }
     }
 
-    async function saveWorkspacePrompt() {
-      // Force save current state to localStorage first
+    function saveWorkspacePrompt() {
       _saveTabsState();
-      const name = prompt('Workspace name:', 'Workspace ' + new Date().toLocaleDateString('en-GB'));
-      if (!name) return;
-
       const stateRaw = localStorage.getItem(TABS_STATE_KEY);
       if (!stateRaw) { showToast('No tabs to save', 'info'); return; }
 
-      try {
-        const res = await fetch('/api/workspaces', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name, description: '', tabs: JSON.parse(stateRaw) })
-        });
-        const data = await res.json();
-        if (data.id) {
-          showToast('💾 Saved: ' + name, 'success');
-          _wsListLoaded = false;
-          loadWorkspaceList();
-        } else {
-          showToast('Save failed', 'error');
+      // Count current tabs
+      const tabCount = tabs.size;
+      const defaultName = 'Workspace ' + new Date().toLocaleDateString('en-GB');
+
+      // Create custom dialog
+      const overlay = document.createElement('div');
+      overlay.className = 'cyber-overlay';
+      overlay.innerHTML = `
+        <div class="cyber-dialog ws-save-dialog">
+          <div class="ws-save-header">
+            <div class="ws-save-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round">
+                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+                <polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>
+              </svg>
+            </div>
+            <h3>Save Workspace</h3>
+            <p class="ws-save-sub">${tabCount} tabs will be saved</p>
+          </div>
+          <div class="ws-save-body">
+            <label class="ws-save-label">Workspace Name</label>
+            <input type="text" class="ws-save-input" id="ws-save-name" value="${defaultName}" placeholder="Enter workspace name..." autofocus>
+            <label class="ws-save-label" style="margin-top:12px">Description <span style="color:var(--text3);font-weight:400">(optional)</span></label>
+            <input type="text" class="ws-save-input" id="ws-save-desc" placeholder="Brief description...">
+          </div>
+          <div class="ws-save-footer">
+            <button class="ws-save-cancel" onclick="this.closest('.cyber-overlay').remove()">Cancel</button>
+            <button class="ws-save-confirm" id="ws-save-btn">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+                <polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>
+              </svg>
+              Save Workspace
+            </button>
+          </div>
+        </div>`;
+      document.body.appendChild(overlay);
+
+      // Focus and select input
+      const nameInput = document.getElementById('ws-save-name');
+      setTimeout(() => { nameInput.focus(); nameInput.select(); }, 50);
+
+      // Enter to save
+      const onKey = (e) => { if (e.key === 'Enter') document.getElementById('ws-save-btn').click(); if (e.key === 'Escape') overlay.remove(); };
+      overlay.addEventListener('keydown', onKey);
+
+      // Click overlay to close
+      overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+
+      // Save action
+      document.getElementById('ws-save-btn').onclick = async () => {
+        const name = nameInput.value.trim();
+        if (!name) { nameInput.style.borderColor = '#f87171'; return; }
+        const desc = document.getElementById('ws-save-desc').value.trim();
+        const btn = document.getElementById('ws-save-btn');
+        btn.disabled = true; btn.textContent = 'Saving...';
+        try {
+          const res = await fetch('/api/workspaces', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, description: desc, tabs: JSON.parse(stateRaw) })
+          });
+          const data = await res.json();
+          if (data.id) {
+            showToast('💾 Saved: ' + name, 'success');
+            _wsListLoaded = false;
+            loadWorkspaceList();
+          } else {
+            showToast('Save failed', 'error');
+          }
+        } catch(e) {
+          showToast('Save error: ' + e.message, 'error');
         }
-      } catch(e) {
-        showToast('Save error: ' + e.message, 'error');
-      }
+        overlay.remove();
+      };
     }
 
     async function openWorkspace(id) {
