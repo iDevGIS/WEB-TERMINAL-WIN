@@ -319,9 +319,21 @@ Open `http://localhost:3000` in your browser.
 |---------|--------------|
 | ![AI Chat](docs/images/ai-chat.png) | ![Agent Monitor](docs/images/agent-monitor.png) |
 
-| VS Code (in-tab) | Multi-Tab |
-|-------------------|-----------|
-| ![VS Code](docs/images/vscode.png) | ![Multi-Tab](docs/images/multi-tab.png) |
+| VS Code (in-tab) | Monaco Editor |
+|-------------------|--------------|
+| ![VS Code](docs/images/vscode.png) | ![Editor](docs/images/editor.png) |
+
+| Split Pane (3-way + htop) | Theme Picker |
+|---------------------------|-------------|
+| ![Split Pane](docs/images/split-pane.png) | ![Themes](docs/images/themes.png) |
+
+| Snippets | Activity Log |
+|----------|-------------|
+| ![Snippets](docs/images/snippets.png) | ![Activity Log](docs/images/activity-log.png) |
+
+| Remote Desktop (VNC) | README Preview |
+|---------------------|---------------|
+| ![Remote Desktop](docs/images/remote-desktop.png) | ![README Preview](docs/images/readme-preview.png) |
 
 ### 📱 Mobile (iOS Safari)
 
