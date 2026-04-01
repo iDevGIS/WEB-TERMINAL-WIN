@@ -6142,11 +6142,14 @@
           const vols = await fetch('/api/docker/volumes').then(r => r.json());
           if (!vols.length) { content.innerHTML = '<div class="docker-empty"><p>No volumes</p></div>'; return; }
           let html = `<table class="docker-table"><thead><tr>
-            <th>Name</th><th>Driver</th><th>Created</th><th>Actions</th>
+            <th>Name</th><th>Mount Path</th><th>Driver</th><th>Created</th><th>Actions</th>
           </tr></thead><tbody>`;
           vols.forEach(v => {
+            const mp = v.mountpoint || '—';
+            const mpShort = mp.length > 40 ? '…' + mp.slice(-38) : mp;
             html += `<tr>
               <td style="font-family:'JetBrains Mono',monospace;font-size:11px" title="${escAttr(v.name)}">${escHtml(v.name.length > 35 ? v.name.slice(0, 35) + '…' : v.name)}</td>
+              <td style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text3)" title="${escAttr(mp)}">${escHtml(mpShort)}</td>
               <td>${escHtml(v.driver)}</td>
               <td style="font-size:11px;color:var(--text3)">${v.created ? new Date(v.created).toLocaleDateString() : '—'}</td>
               <td><div class="docker-actions">
