@@ -6528,14 +6528,16 @@
         </div>
         <div class="docker-logs-body" id="${tabId}-logs-body">Loading logs...</div>`;
       content.appendChild(panel);
+      panel.scrollIntoView({ behavior: 'smooth' });
 
-      // Fetch logs
+      // Fetch logs (newest at bottom)
       try {
         const r = await fetch('/api/docker/containers/' + containerId + '/logs?tail=200&timestamps=true');
         const d = await r.json();
         const body = document.getElementById(tabId + '-logs-body');
         if (body && d.lines) {
           body.textContent = d.lines.join('\n');
+          // Auto-scroll to bottom (newest logs)
           body.scrollTop = body.scrollHeight;
         }
       } catch (e) {
