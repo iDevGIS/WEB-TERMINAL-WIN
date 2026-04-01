@@ -1576,6 +1576,27 @@ app.get("/api/admin/tailscale", requireAuth, (req, res) => {
   });
 });
 
+// POST /api/admin/tailscale/serve — add/remove tailscale serve rule
+app.post("/api/admin/tailscale/serve", requireAuth, express.json(), (req, res) => {
+  const { action, port, target } = req.body;
+  const { exec } = require("child_process");
+  if (action === "add") {
+    if (!port || !target) return res.status(400).json({ error: "port and target required" });
+    exec(`tailscale serve --bg --https ${port} ${target}`, { timeout: 10000 }, (err, stdout, stderr) => {
+      if (err) return res.status(500).json({ error: stderr || err.message });
+      res.json({ ok: true, output: stdout });
+    });
+  } else if (action === "remove") {
+    if (!port) return res.status(400).json({ error: "port required" });
+    exec(`tailscale serve --https=${port} off`, { timeout: 10000 }, (err, stdout, stderr) => {
+      if (err) return res.status(500).json({ error: stderr || err.message });
+      res.json({ ok: true, output: stdout });
+    });
+  } else {
+    res.status(400).json({ error: "action must be add or remove" });
+  }
+});
+
 // === VS Code serve-web auto-start + Proxy ===
 const VSCODE_PORT = parseInt(process.env.VSCODE_PORT) || 8080;
 
