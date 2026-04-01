@@ -348,7 +348,19 @@ Open `http://localhost:3000` in your browser.
 <td><strong>Admin Panel</strong><br><img src="docs/images/mobile-admin.png" width="200"></td>
 <td><strong>File Manager</strong><br><img src="docs/images/mobile-files.png" width="200"></td>
 <td><strong>Monaco Editor</strong><br><img src="docs/images/mobile-editor.png" width="200"></td>
-<td><strong>Sessions</strong><br><img src="docs/images/mobile-session.png" width="200"></td>
+<td><strong>Themes</strong><br><img src="docs/images/mobile-themes.png" width="200"></td>
+</tr>
+<tr>
+<td><strong>Agent Monitor</strong><br><img src="docs/images/mobile-agent-monitor.png" width="200"></td>
+<td><strong>Session Preview</strong><br><img src="docs/images/mobile-session-preview.png" width="200"></td>
+<td><strong>Voice Recording</strong><br><img src="docs/images/mobile-voice-recording.png" width="200"></td>
+<td><strong>AI Chat</strong><br><img src="docs/images/mobile-chat-weather.png" width="200"></td>
+</tr>
+<tr>
+<td><strong>Image Attach</strong><br><img src="docs/images/mobile-chat-attach.png" width="200"></td>
+<td><strong>Multimodal Chat</strong><br><img src="docs/images/mobile-chat-image.png" width="200"></td>
+<td><strong>Connected Browsers</strong><br><img src="docs/images/mobile-admin-clients.png" width="200"></td>
+<td><strong>README Preview</strong><br><img src="docs/images/mobile-preview.png" width="200"></td>
 </tr>
 </table>
 
