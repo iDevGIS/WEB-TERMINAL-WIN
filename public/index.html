@@ -6217,6 +6217,7 @@
             ` : `
               <button onclick="dockerAction('${c.id}','start')" title="Start"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg></button>
             `}
+            <button onclick="dockerBrowseContainer('${c.id}','${escAttr(c.name)}')" title="Browse Files" ${c.state !== 'running' ? 'disabled style="opacity:.3"' : ''}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></button>
             <button onclick="dockerLogs('${tabId}','${c.id}','${escAttr(c.name)}')" title="Logs"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></button>
             <button onclick="dockerExec('${c.id}','${escAttr(c.name)}')" title="Shell" ${c.state !== 'running' ? 'disabled style="opacity:.3"' : ''}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg></button>
             <button class="danger" onclick="dockerRemove('${c.id}','${escAttr(c.name)}')" title="Remove"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
@@ -6234,6 +6235,57 @@
       }).catch(() => {
         showToast('📋 ' + mountPath, 'info');
       });
+    }
+
+    async function dockerBrowseContainer(containerId, name, subpath) {
+      subpath = subpath || '/';
+      let modal = document.querySelector('.vol-browser');
+      if (!modal) {
+        modal = document.createElement('div');
+        modal.className = 'vol-browser';
+        modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+        document.body.appendChild(modal);
+      }
+      modal.innerHTML = `<div class="vol-browser-dialog">
+        <div class="vol-browser-header">
+          <h3><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"><rect x="2" y="7" width="5" height="5" rx="1"/><rect x="9.5" y="7" width="5" height="5" rx="1"/><rect x="17" y="7" width="5" height="5" rx="1"/></svg> ${escHtml(name)}</h3>
+          <button onclick="this.closest('.vol-browser').remove()" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:18px;padding:4px">✕</button>
+        </div>
+        <div class="vol-browser-path">
+          ${subpath !== '/' ? `<button onclick="dockerBrowseContainer('${escAttr(containerId)}','${escAttr(name)}','${escAttr(subpath.replace(/\/[^/]+\/?$/, '/') || '/')}')">⬆ Up</button>` : ''}
+          <span>${escHtml(subpath)}</span>
+        </div>
+        <div class="vol-browser-list"><div class="vol-browser-loading">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" style="animation:spin 1s linear infinite"><path d="M21 12a9 9 0 1 1-6.22-8.56"/></svg>
+          Loading...
+        </div></div>
+      </div>`;
+
+      try {
+        const r = await fetch('/api/docker/containers/' + containerId + '/browse?path=' + encodeURIComponent(subpath));
+        const d = await r.json();
+        const list = modal.querySelector('.vol-browser-list');
+        if (!list) return;
+        if (d.error) { list.innerHTML = '<div class="vol-browser-empty">❌ ' + escHtml(d.error) + '</div>'; return; }
+        if (!d.files || !d.files.length) { list.innerHTML = '<div class="vol-browser-empty">📭 Empty</div>'; return; }
+        d.files.sort((a, b) => b.isDir - a.isDir || a.name.localeCompare(b.name));
+        list.innerHTML = d.files.map(f => {
+          const sizeStr = f.isDir ? '—' : _dockerFormatSize(f.size);
+          const icon = f.isDir ? '📁' : _dockerFileIcon(f.name);
+          const clickAction = f.isDir
+            ? `onclick="dockerBrowseContainer('${escAttr(containerId)}','${escAttr(name)}','${escAttr(subpath.replace(/\/$/, '') + '/' + f.name)}')"` 
+            : '';
+          return `<div class="vol-file-item" ${clickAction}>
+            <span class="vol-file-icon">${icon}</span>
+            <span class="vol-file-name ${f.isDir ? 'dir' : ''}">${escHtml(f.name)}</span>
+            <span class="vol-file-size">${sizeStr}</span>
+            <span class="vol-file-date">${escHtml(f.date || '')}</span>
+          </div>`;
+        }).join('');
+      } catch (e) {
+        const list = modal.querySelector('.vol-browser-list');
+        if (list) list.innerHTML = '<div class="vol-browser-empty">❌ ' + escHtml(e.message) + '</div>';
+      }
     }
 
     async function dockerBrowseVolume(volName, subpath) {

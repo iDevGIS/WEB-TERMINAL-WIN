@@ -1448,6 +1448,29 @@ app.get("/api/docker/volumes/:name/browse", requireAuth, async (req, res) => {
   }
 });
 
+// GET /api/docker/containers/:id/browse — browse container filesystem
+app.get("/api/docker/containers/:id/browse", requireAuth, (req, res) => {
+  const containerId = req.params.id;
+  const subpath = req.query.path || "/";
+  const { exec } = require("child_process");
+  const cmd = `docker exec ${containerId} ls -la "${subpath}"`;
+  exec(cmd, { timeout: 10000 }, (err, stdout, stderr) => {
+    if (err) return res.status(500).json({ error: stderr || err.message });
+    const lines = stdout.split("\n").filter(l => l.trim() && !l.startsWith("total"));
+    const files = lines.map(line => {
+      const parts = line.trim().split(/\s+/);
+      if (parts.length < 8) return null;
+      const perms = parts[0];
+      const size = parseInt(parts[4]) || 0;
+      const date = parts[5] + " " + (parts[6] || "");
+      const name = parts.slice(7).join(" ");
+      if (!name || name === "." || name === "..") return null;
+      return { name, isDir: perms.startsWith("d") || perms.startsWith("l"), size, date, perms };
+    }).filter(Boolean);
+    res.json({ path: subpath, files });
+  });
+});
+
 // === VS Code serve-web auto-start + Proxy ===
 const VSCODE_PORT = parseInt(process.env.VSCODE_PORT) || 8080;
 
