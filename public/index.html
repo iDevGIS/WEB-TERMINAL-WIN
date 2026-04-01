@@ -6097,11 +6097,14 @@
           const vols = await fetch('/api/docker/volumes').then(r => r.json());
           if (!vols.length) { content.innerHTML = '<div class="docker-empty"><p>No volumes</p></div>'; return; }
           let html = `<table class="docker-table"><thead><tr>
-            <th>Name</th><th>Driver</th><th>Created</th>
+            <th>Name</th><th>Mount Path</th><th>Driver</th><th>Created</th>
           </tr></thead><tbody>`;
           vols.forEach(v => {
+            const mp = v.mountpoint || '—';
+            const mpShort = mp.length > 50 ? '…' + mp.slice(-45) : mp;
             html += `<tr>
               <td style="font-family:'JetBrains Mono',monospace;font-size:11px">${escHtml(v.name.length > 30 ? v.name.slice(0, 30) + '…' : v.name)}</td>
+              <td><a href="#" onclick="event.preventDefault();_dockerOpenPath('${escAttr(mp)}')" style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--accent);text-decoration:none;cursor:pointer" title="${escAttr(mp)}">${escHtml(mpShort)}</a></td>
               <td>${escHtml(v.driver)}</td>
               <td style="font-size:11px;color:var(--text3)">${v.created ? new Date(v.created).toLocaleDateString() : '—'}</td>
             </tr>`;
@@ -6173,6 +6176,27 @@
       });
       html += '</tbody></table>';
       content.innerHTML = html + logsHtml;
+    }
+
+    function _dockerOpenPath(mountPath) {
+      // Docker volumes on Windows are inside WSL/Docker VM — translate path
+      // /var/lib/docker/volumes/... → open in File Manager tab
+      // On Windows with Docker Desktop, volumes are at \\wsl$\docker-desktop-data\...
+      const winPath = mountPath.startsWith('/') 
+        ? '\\\\wsl$\\docker-desktop-data' + mountPath.replace(/\//g, '\\')
+        : mountPath;
+      // Open or reuse Files tab
+      let filesTabId = null;
+      for (const [tid, t] of tabs) { if (t.type === 'files') { filesTabId = tid; break; } }
+      if (!filesTabId) {
+        filesTabId = createTab('files', { name: 'Files', icon: '📂' });
+      }
+      switchTab(filesTabId);
+      // Navigate to the path
+      setTimeout(() => {
+        if (typeof loadFiles === 'function') loadFiles(winPath);
+      }, 300);
+      showToast('📂 Opening: ' + mountPath, 'info');
     }
 
     function _dockerTimeAgo(ts) {
