@@ -1,6 +1,19 @@
 # TODO.md — CYBERFRAME Roadmap
 
-## 🔥 Priority: High
+## 🔥 Priority: High — Next Feature
+
+### 🐳 Docker Container Management
+- [ ] **Docker tab** — new tab type in CYBERFRAME
+- [ ] **Container list** — name, image, status, ports, uptime
+- [ ] **Actions** — start, stop, restart, pause, remove containers
+- [ ] **Container logs** — real-time log streaming (like `docker logs -f`)
+- [ ] **Exec into container** — interactive shell inside container (attach to xterm)
+- [ ] **Image management** — list images, pull, remove, inspect
+- [ ] **Volume management** — list, create, remove volumes
+- [ ] **Network management** — list, inspect networks
+- [ ] **Docker Compose** — detect `docker-compose.yml`, up/down/restart services
+- [ ] **Stats** — real-time CPU/RAM/Network per container (like `docker stats`)
+- [ ] **API:** `GET /api/docker/containers`, `POST /api/docker/containers/:id/start|stop|restart`, `GET /api/docker/containers/:id/logs`, `POST /api/docker/containers/:id/exec`
 
 ### ⌨️ Command Palette (`Ctrl+K`)
 - [ ] Popup search box with fuzzy matching

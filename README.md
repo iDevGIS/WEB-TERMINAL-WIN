@@ -513,15 +513,21 @@ CYBERFRAME
 
 ## 🚧 Roadmap
 
-- **Command Palette** — `Ctrl+K` quick access
+### 🔜 Next Up
+- **🐳 Docker Container Management** — manage Docker containers, images, volumes, networks directly from CYBERFRAME UI (start/stop/restart/logs/exec)
+- **⌨️ Command Palette** — `Ctrl+K` quick access to all actions
+
+### 📋 Planned
 - **Terminal built-in commands** — `!status`, `!sessions`, `!kill`
 - **2FA / TOTP** — two-factor authentication
 - **Terminal Sharing** — read-only collaboration links
 - **Session Recording** — asciinema-style playback
 - **Custom Keybindings** — user-configurable shortcuts
+
+### 🔮 Future
 - **Multi-user support** — currently single user
 - **HTTPS built-in** — currently relies on Tailscale
-- **Docker image** — one-click deploy
+- **Docker image** — one-click deploy CYBERFRAME itself
 - **Linux support** — currently Windows-only
 
 ---
