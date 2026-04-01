@@ -2916,6 +2916,33 @@
     }
     .docker-stat-cpu { color: var(--green); }
     .docker-stat-mem { color: var(--blue); }
+    /* Docker loading animation */
+    .docker-loading {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      height: 60%; gap: 24px;
+    }
+    .docker-loading-containers {
+      display: grid; grid-template-columns: repeat(3, 36px); gap: 6px;
+    }
+    .dlc-box {
+      width: 36px; height: 36px; border-radius: 8px;
+      background: linear-gradient(135deg, rgba(108,99,255,.15), rgba(56,189,248,.1));
+      border: 1px solid rgba(108,99,255,.15);
+      animation: dlcPulse 1.2s ease-in-out infinite;
+    }
+    @keyframes dlcPulse {
+      0%, 100% { opacity: .2; transform: scale(.9); }
+      50% { opacity: 1; transform: scale(1); border-color: rgba(108,99,255,.4); background: linear-gradient(135deg, rgba(108,99,255,.25), rgba(56,189,248,.2)); box-shadow: 0 0 12px rgba(108,99,255,.2); }
+    }
+    .docker-loading-text {
+      font-size: 13px; color: var(--text3); letter-spacing: .5px;
+    }
+    .dlc-dots::after {
+      content: ''; animation: dlcDots 1.5s steps(4, end) infinite;
+    }
+    @keyframes dlcDots {
+      0% { content: ''; } 25% { content: '.'; } 50% { content: '..'; } 75% { content: '...'; }
+    }
     .docker-unavailable {
       display: flex; flex-direction: column; align-items: center; justify-content: center;
       height: 100%; gap: 12px; color: var(--text3);
@@ -4189,7 +4216,17 @@
             <span class="ds-item">Images: <span class="ds-val" id="${tabId}-docker-imgs">…</span></span>
           </div>
           <div class="docker-content" id="${tabId}-docker-content" style="position:relative">
-            <div style="text-align:center;padding:40px;color:var(--text3)">Loading...</div>
+            <div class="docker-loading">
+              <div class="docker-loading-containers">
+                <div class="dlc-box" style="animation-delay:0s"></div>
+                <div class="dlc-box" style="animation-delay:.15s"></div>
+                <div class="dlc-box" style="animation-delay:.3s"></div>
+                <div class="dlc-box" style="animation-delay:.1s"></div>
+                <div class="dlc-box" style="animation-delay:.25s"></div>
+                <div class="dlc-box" style="animation-delay:.4s"></div>
+              </div>
+              <div class="docker-loading-text">Loading containers<span class="dlc-dots"></span></div>
+            </div>
           </div>
         </div>`;
         container.appendChild(paneEl);
