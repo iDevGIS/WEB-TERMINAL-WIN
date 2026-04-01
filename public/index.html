@@ -3007,6 +3007,9 @@
     }
     .tree-row:hover .tree-dl-btn { opacity: 1; }
     .tree-dl-btn:hover { color: var(--accent); background: rgba(108,99,255,.1); }
+    /* Docker logs area — fixed at bottom, persists across view switches */
+    .docker-logs-area { flex-shrink: 0; }
+    .docker-logs-area:empty { display: none; }
     /* Logs header buttons */
     .dlh-btn {
       display: flex; align-items: center; gap: 4px; padding: 4px 10px;
@@ -4294,7 +4297,7 @@
             <span class="ds-item">Stopped: <span class="ds-val" id="${tabId}-docker-stopped">…</span></span>
             <span class="ds-item">Images: <span class="ds-val" id="${tabId}-docker-imgs">…</span></span>
           </div>
-          <div class="docker-content" id="${tabId}-docker-content" style="position:relative">
+          <div class="docker-content" id="${tabId}-docker-content" style="position:relative;flex:1;overflow:auto">
             <div class="docker-loading">
               <div class="docker-loading-containers">
                 <div class="dlc-box" style="animation-delay:0s"></div>
@@ -4307,6 +4310,7 @@
               <div class="docker-loading-text">Loading containers<span class="dlc-dots"></span></div>
             </div>
           </div>
+          <div class="docker-logs-area" id="${tabId}-docker-logs-area"></div>
         </div>`;
         container.appendChild(paneEl);
         tabData._dockerView = 'containers';
@@ -6229,14 +6233,6 @@
           <p>No containers found</p></div>`;
         return;
       }
-      // Detach logs panel to preserve SSE + scroll + events
-      const logsPanel = content.querySelector('.docker-logs-panel');
-      let logsScroll = 0;
-      if (logsPanel) {
-        const lb = logsPanel.querySelector('.docker-logs-body');
-        if (lb) logsScroll = lb.scrollTop;
-        logsPanel.remove();
-      }
       let html = `<table class="docker-table"><thead><tr>
         <th>Container</th><th>Image</th><th>Network</th><th>Status</th>
         <th>Ports</th><th>CPU / MEM</th><th>Actions</th>
@@ -6270,14 +6266,6 @@
       });
       html += '</tbody></table>';
       content.innerHTML = html;
-      if (logsPanel) {
-        content.appendChild(logsPanel);
-        const lb = logsPanel.querySelector('.docker-logs-body');
-        if (lb) {
-          if (logsPanel._autoScroll) lb.scrollTop = lb.scrollHeight;
-          else lb.scrollTop = logsScroll;
-        }
-      }
     }
 
     function _dockerOpenPath(mountPath) {
@@ -6542,11 +6530,11 @@
     }
 
     async function dockerLogs(tabId, containerId, name) {
-      const content = document.getElementById(tabId + '-docker-content');
-      if (!content) return;
+      const logsArea = document.getElementById(tabId + '-docker-logs-area');
+      if (!logsArea) return;
       // Remove existing logs panel
-      const existing = content.querySelector('.docker-logs-panel');
-      if (existing) { existing.remove(); return; }
+      const existing = logsArea.querySelector('.docker-logs-panel');
+      if (existing) { if (existing._sse) existing._sse.close(); existing.remove(); return; }
 
       const panel = document.createElement('div');
       panel.className = 'docker-logs-panel';
@@ -6578,8 +6566,7 @@
           </div>
         </div>
         <div class="docker-logs-body" id="${tabId}-logs-body">Loading logs...</div>`;
-      content.appendChild(panel);
-      panel.scrollIntoView({ behavior: 'smooth' });
+      logsArea.appendChild(panel);
 
       // Fetch initial logs then stream new ones via SSE
       try {
