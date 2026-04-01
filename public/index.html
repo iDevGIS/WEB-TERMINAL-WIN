@@ -6245,7 +6245,7 @@
           <td><span class="docker-image">${escHtml(c.image)}</span></td>
           <td><span style="font-size:10px;color:var(--text2);font-family:'JetBrains Mono',monospace">${escHtml(c.network || '—')}</span></td>
           <td style="white-space:nowrap"><span style="text-transform:capitalize;font-size:11px">${escHtml(c.status)}</span></td>
-          <td><span class="docker-port">${escHtml(c.ports || '—')}</span></td>
+          <td><span class="docker-port">${_dockerPortLinks(c.ports)}</span></td>
           <td>${c.state === 'running' ? `<span class="docker-stat-bar"><span class="docker-stat-cpu">${s.cpu != null ? s.cpu.toFixed(1) + '%' : '…'}</span> / <span class="docker-stat-mem">${s.memUsage != null ? s.memUsage + 'MB' : '…'}</span></span>` : '<span style="color:var(--text3);font-size:10px">—</span>'}</td>
           <td><div class="docker-actions">
             ${c.state === 'running' ? `
@@ -6479,6 +6479,20 @@
       a.href = url; a.download = filePath.split('/').pop() || 'file';
       document.body.appendChild(a); a.click(); a.remove();
       showToast('⬇️ Downloading ' + (filePath.split('/').pop() || 'file'), 'info');
+    }
+
+    function _dockerPortLinks(ports) {
+      if (!ports || ports === '—') return '—';
+      return ports.split(', ').map(p => {
+        // Match "8888:80/tcp" → hostPort=8888
+        const m = p.match(/^(\d+):\d+\/(tcp|udp)$/);
+        if (m) {
+          const hostPort = m[1];
+          const url = 'http://localhost:' + hostPort;
+          return `<a href="${url}" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none" title="Open ${url}">${escHtml(p)}</a>`;
+        }
+        return escHtml(p);
+      }).join(', ');
     }
 
     function _dockerFormatSize(bytes) {
