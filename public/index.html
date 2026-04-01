@@ -2895,10 +2895,14 @@
       text-align: center; padding: 40px; color: var(--text3);
     }
     .docker-empty svg { opacity: .3; margin-bottom: 12px; }
-    .docker-logs-panel {
-      position: absolute; bottom: 0; left: 0; right: 0; height: 40%;
-      background: var(--bg); border-top: 2px solid var(--accent);
+    .docker-logs-area {
+      position: absolute; bottom: 0; left: 0; right: 0; max-height: 60%;
       display: flex; flex-direction: column; z-index: 10;
+    }
+    .docker-logs-panel {
+      background: var(--bg); border-top: 2px solid var(--accent);
+      display: flex; flex-direction: column; height: 200px; min-height: 100px;
+      resize: vertical; overflow: hidden; position: relative;
     }
     .docker-logs-header {
       display: flex; align-items: center; justify-content: space-between;
@@ -3029,7 +3033,6 @@
     }
     .dpp-btn:hover { background: rgba(108,99,255,.1); color: var(--text1); }
     /* Docker logs area — fixed at bottom, persists across view switches */
-    .docker-logs-area { flex-shrink: 0; }
     .docker-logs-area:empty { display: none; }
     /* Logs header buttons */
     .dlh-btn {
@@ -6643,17 +6646,26 @@
     async function dockerLogs(tabId, containerId, name) {
       const logsArea = document.getElementById(tabId + '-docker-logs-area');
       if (!logsArea) return;
-      // Remove existing logs panel
-      const existing = logsArea.querySelector('.docker-logs-panel');
+
+      // Toggle: if this container's logs already open, close it
+      const existing = logsArea.querySelector('[data-container-id="' + containerId + '"]');
       if (existing) { if (existing._sse) existing._sse.close(); existing.remove(); return; }
+
+      // Color palette for multi-log panels
+      const colors = ['#6c63ff','#4ade80','#f59e0b','#ef4444','#ec4899','#06b6d4','#a78bfa','#fb923c'];
+      const idx = logsArea.children.length % colors.length;
+      const accent = colors[idx];
+      const bodyId = tabId + '-logs-body-' + containerId.slice(0,8);
 
       const panel = document.createElement('div');
       panel.className = 'docker-logs-panel';
+      panel.dataset.containerId = containerId;
       panel._autoScroll = true;
+      panel.style.borderTopColor = accent;
       panel.innerHTML = `
         <div class="docker-logs-header">
           <div style="display:flex;align-items:center;gap:8px">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+            <div style="width:8px;height:8px;border-radius:50%;background:${accent};flex-shrink:0"></div>
             <span style="font-weight:600;color:var(--text1)">${escHtml(name)}</span>
             <span class="dlh-live-dot"></span>
             <span style="font-size:10px;color:var(--text3)">Live</span>
@@ -6676,14 +6688,14 @@
             </button>
           </div>
         </div>
-        <div class="docker-logs-body" id="${tabId}-logs-body">Loading logs...</div>`;
+        <div class="docker-logs-body" id="${bodyId}">Loading logs...</div>`;
       logsArea.appendChild(panel);
 
       // Fetch initial logs then stream new ones via SSE
       try {
         const r = await fetch('/api/docker/containers/' + containerId + '/logs?tail=200&timestamps=true');
         const d = await r.json();
-        const body = document.getElementById(tabId + '-logs-body');
+        const body = document.getElementById(bodyId);
         if (body && d.lines) {
           body.innerHTML = '';
           const pre = document.createElement('pre');
@@ -6698,6 +6710,7 @@
         sse.onmessage = (e) => {
           try {
             const line = JSON.parse(e.data);
+            const body = document.getElementById(bodyId);
             const pre = body?.querySelector('pre');
             if (pre) {
               pre.appendChild(document.createTextNode('\n' + line));
@@ -6708,7 +6721,7 @@
         sse.addEventListener('end', () => { sse.close(); });
         sse.onerror = () => { sse.close(); };
       } catch (e) {
-        const body = document.getElementById(tabId + '-logs-body');
+        const body = document.getElementById(bodyId);
         if (body) body.textContent = 'Error loading logs: ' + e.message;
       }
     }
