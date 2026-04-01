@@ -1437,9 +1437,59 @@ server.on("upgrade", (req, socket, head) => {
   });
 });
 
+// === Connected Browsers tracking ===
+const connectedClients = new Map(); // ws → { ip, userAgent, user, connectedAt, browser }
+
+function _parseBrowser(ua) {
+  if (!ua) return 'Unknown';
+  if (ua.includes('Edg/')) return 'Edge';
+  if (ua.includes('Chrome/')) return 'Chrome';
+  if (ua.includes('Firefox/')) return 'Firefox';
+  if (ua.includes('Safari/') && !ua.includes('Chrome')) return 'Safari';
+  return 'Browser';
+}
+
+function _parseOS(ua) {
+  if (!ua) return '';
+  if (ua.includes('Windows')) return 'Windows';
+  if (ua.includes('Mac OS')) return 'macOS';
+  if (ua.includes('iPhone') || ua.includes('iPad')) return 'iOS';
+  if (ua.includes('Android')) return 'Android';
+  if (ua.includes('Linux')) return 'Linux';
+  return '';
+}
+
+app.get("/api/admin/clients", requireAuth, (req, res) => {
+  const clients = [];
+  connectedClients.forEach((info) => {
+    clients.push({
+      ip: info.ip,
+      browser: info.browser,
+      os: info.os,
+      user: info.user,
+      connectedAt: info.connectedAt,
+      sessions: info.sessionCount || 0
+    });
+  });
+  res.json(clients);
+});
+
 wss.on("connection", (ws, req) => {
   const user = req.session?.user || "unknown";
-  console.log(`[+] ${user} WebSocket connected`);
+  const ip = req.headers["x-forwarded-for"]?.split(",")[0]?.trim() || req.socket.remoteAddress || "unknown";
+  const ua = req.headers["user-agent"] || "";
+  console.log(`[+] ${user} WebSocket connected from ${ip}`);
+
+  connectedClients.set(ws, {
+    ip: ip.replace('::ffff:', ''),
+    userAgent: ua,
+    browser: _parseBrowser(ua),
+    os: _parseOS(ua),
+    user,
+    connectedAt: new Date().toISOString(),
+    sessionCount: 0
+  });
+
   // Track all sessions attached by this WS client (multi-tab support)
   const attachedSessions = new Map(); // id → session
 
@@ -1456,6 +1506,7 @@ wss.on("connection", (ws, req) => {
           }
           attachedSessions.set(sess.id, sess);
           attachSession(sess, ws);
+          const ci = connectedClients.get(ws); if (ci) ci.sessionCount = attachedSessions.size;
           // Send buffered output for restore
           ws.send(JSON.stringify({ type: "attached", id: sess.id, name: sess.name }));
           if (sess.buffer.length > 0) {
@@ -1468,6 +1519,7 @@ wss.on("connection", (ws, req) => {
           const sess = createTermSession(parsed.name, parsed.cols || 120, parsed.rows || 30, parsed.shell || "pwsh");
           attachedSessions.set(sess.id, sess);
           attachSession(sess, ws);
+          const ci2 = connectedClients.get(ws); if (ci2) ci2.sessionCount = attachedSessions.size;
           ws.send(JSON.stringify({ type: "attached", id: sess.id, name: sess.name, fresh: true }));
           break;
         }
@@ -1527,6 +1579,7 @@ wss.on("connection", (ws, req) => {
     console.log(`[-] ${user} WebSocket disconnected, detaching ${attachedSessions.size} sessions`);
     attachedSessions.forEach(sess => detachSession(sess, ws));
     attachedSessions.clear();
+    connectedClients.delete(ws);
   });
 });
 
