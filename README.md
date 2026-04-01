@@ -352,6 +352,19 @@ Open `http://localhost:3000` in your browser.
 </tr>
 </table>
 
+### 📱 iPad Pro
+
+<table>
+<tr>
+<td width="25%"><strong>VS Code</strong><br><img src="docs/images/ipad-vscode.jpg" width="300"></td>
+<td width="25%"><strong>Remote Desktop</strong><br><img src="docs/images/ipad-remote-desktop.jpg" width="300"></td>
+</tr>
+<tr>
+<td><strong>AI Chat</strong><br><img src="docs/images/ipad-ai-chat.jpg" width="300"></td>
+<td><strong>WSL Terminal (htop)</strong><br><img src="docs/images/ipad-terminal-htop.jpg" width="300"></td>
+</tr>
+</table>
+
 ---
 
 ## 🌐 Remote Access via Tailscale
