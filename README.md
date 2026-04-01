@@ -137,7 +137,24 @@
 - **Network Info** — hostname, local IP, Tailscale IP, Node version, platform
 - **Server Info** — PID, memory (RSS + heap), server uptime, shell profile count
 - **Quick Actions** — New Shell, Kill All Sessions, Remote Desktop, Copy IP, Export Logs
+- **Connected Browsers** — track active browser sessions (IP, browser, OS, connected time)
+- **Tailscale Serve Management** — view/add/remove Tailscale serve rules directly from admin panel
 - **Activity Log** — real-time server activity viewer
+
+### 🐳 Docker Container Management
+- **Container Dashboard** — list all containers with status, image, network, ports, CPU/MEM stats
+- **Container Actions** — start, stop, restart, pause, unpause, remove with one click
+- **Live Log Streaming** — real-time log viewer via SSE with Follow/Clear/Download controls
+- **File Browser** — tree-view filesystem browser for running containers (expandable directories, lazy-load)
+- **Volume Browser** — browse Docker volume files via temporary alpine container
+- **Open in Editor** — click text files to open in Monaco Editor with syntax highlighting (60+ file types)
+- **Save Back to Container** — edit files and Ctrl+S to write back via `docker cp`
+- **Download Files** — download any file from container or volume
+- **Exec Shell** — open terminal shell inside running container
+- **Port Popup** — click port to Open in Browser / Open in CYBERFRAME Tab / Copy URL / Forward via Tailscale
+- **Images/Volumes/Networks** — browse Docker images, volumes (with mount paths), and networks
+- **Stats Cache** — CPU/MEM stats cached for flicker-free refresh
+- **Persist Across Refresh** — Docker tab survives page reload via workspace state
 
 ### 💬 AI Chat (OpenClaw)
 - **SSE streaming** — real-time token-by-token response via Server-Sent Events
@@ -242,6 +259,7 @@
 - **Windows** (uses `node-pty` for PTY)
 - **Python 3.10+** (optional, for voice STT)
 - **TightVNC** (optional, for Remote Desktop)
+- **Docker Desktop** (optional, for Docker Management)
 - **gsudo** (optional, for Admin shells) — `winget install gerardog.gsudo`
 
 ### Install
@@ -335,6 +353,24 @@ Open `http://localhost:3000` in your browser.
 |---------------------|---------------|
 | ![Remote Desktop](docs/images/remote-desktop.png) | ![README Preview](docs/images/readme-preview.png) |
 
+### 🐳 Docker
+
+| Container Dashboard | File Browser (Tree View) |
+|--------------------|------------------------|
+| ![Docker Containers](docs/images/docker-containers.png) | ![Docker File Browser](docs/images/docker-file-browser.png) |
+
+| Edit Container Files | Live Log Streaming |
+|---------------------|-------------------|
+| ![Docker Editor](docs/images/docker-editor.png) | ![Docker Logs](docs/images/docker-logs.png) |
+
+| Exec Shell | Port Popup + Tailscale |
+|-----------|----------------------|
+| ![Docker Exec](docs/images/docker-exec.png) | ![Docker Port Popup](docs/images/docker-port-popup.png) |
+
+| Admin — Tailscale Serve |
+|------------------------|
+| ![Admin Tailscale](docs/images/admin-tailscale.png) |
+
 ### 📱 Mobile (iOS Safari)
 
 <table>
@@ -407,6 +443,17 @@ tailscale funnel --bg --https 443 http://127.0.0.1:3000
 ```
 
 ⚠️ **Warning:** Funnel exposes your terminal to the internet. Make sure you use a strong password!
+
+### 4. Manage Serve Rules from Admin Panel
+
+You can also add/remove Tailscale serve rules directly from the CYBERFRAME Admin panel — no CLI needed!
+
+- Navigate to **Admin** → **Tailscale Serve** card
+- Click **+** to add a new HTTPS port forwarding rule
+- Click **✕** to remove an existing rule
+- Click **Open** to visit the served URL
+
+This is especially useful for Docker containers — forward container ports through Tailscale with one click from the Docker port popup menu.
 
 ---
 
@@ -510,6 +557,25 @@ CYBERFRAME
 | GET | `/api/agent/sessions/info` | Session metadata |
 | POST | `/api/agent/sessions/delete` | Delete session |
 | GET | `/api/vscode-url` | VS Code connection info |
+| GET | `/api/docker/info` | Docker engine info |
+| GET | `/api/docker/containers` | List all containers |
+| GET | `/api/docker/containers/:id` | Inspect container |
+| POST | `/api/docker/containers/:id/:action` | Start/stop/restart/pause/unpause |
+| DELETE | `/api/docker/containers/:id` | Remove container |
+| GET | `/api/docker/containers/:id/logs` | Container logs (SSE follow) |
+| GET | `/api/docker/containers/:id/browse` | Browse container filesystem |
+| GET | `/api/docker/containers/:id/cat` | Read file from container |
+| PUT | `/api/docker/containers/:id/save` | Write file to container |
+| GET | `/api/docker/containers/:id/download` | Download file from container |
+| GET | `/api/docker/stats` | Container CPU/MEM stats |
+| GET | `/api/docker/images` | List Docker images |
+| GET | `/api/docker/volumes` | List Docker volumes |
+| GET | `/api/docker/volumes/:name/browse` | Browse volume files |
+| GET | `/api/docker/volumes/:name/cat` | Read file from volume |
+| GET | `/api/docker/volumes/:name/download` | Download file from volume |
+| GET | `/api/docker/networks` | List Docker networks |
+| GET | `/api/admin/tailscale` | Tailscale serve status |
+| POST | `/api/admin/tailscale/serve` | Add/remove Tailscale serve rule |
 
 ### WebSocket Messages
 
@@ -539,8 +605,8 @@ CYBERFRAME
 ## 🚧 Roadmap
 
 ### 🔜 Next Up
-- **🐳 Docker Container Management** — manage Docker containers, images, volumes, networks directly from CYBERFRAME UI (start/stop/restart/logs/exec)
 - **⌨️ Command Palette** — `Ctrl+K` quick access to all actions
+- **🐳 Docker Compose** — detect compose projects, up/down/restart, per-service logs
 
 ### 📋 Planned
 - **Terminal built-in commands** — `!status`, `!sessions`, `!kill`
