@@ -6137,12 +6137,15 @@
           // Load containers first (fast), stats lazy (slow)
           const containers = await fetch('/api/docker/containers').then(r => r.json());
           const statsMap = {};
-          // Render immediately without stats
-          _dockerRenderContainers(tabId, containers, statsMap);
-          // Then fetch stats in background and re-render
+          // Use cached stats for instant render, then refresh in background
+          const cachedStats = tab._statsCache || {};
+          _dockerRenderContainers(tabId, containers, cachedStats);
+          // Fetch fresh stats in background
           fetch('/api/docker/stats').then(r => r.json()).then(stats => {
-            (Array.isArray(stats) ? stats : []).forEach(s => { statsMap[s.id] = s; });
-            _dockerRenderContainers(tabId, containers, statsMap);
+            const freshMap = {};
+            (Array.isArray(stats) ? stats : []).forEach(s => { freshMap[s.id] = s; });
+            tab._statsCache = freshMap;
+            _dockerRenderContainers(tabId, containers, freshMap);
           }).catch(() => {});
 
           // Already rendered above via _dockerRenderContainers
