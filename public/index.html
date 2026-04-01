@@ -9635,6 +9635,9 @@
           } else if (entry.type === 'agent-monitor') {
             createTab('agent-monitor', { name: 'Agent Monitor', icon: '🤖' });
             restoredAny = true;
+          } else if (entry.type === 'docker') {
+            createTab('docker', { name: 'Docker', icon: '🐳' });
+            restoredAny = true;
           } else if (entry.type === 'editor' && entry.filePath) {
             // Restore editor — fetch content and open
             (async (fp) => {
