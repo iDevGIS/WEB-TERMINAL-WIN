@@ -1468,6 +1468,50 @@ app.get("/api/docker/containers/:id/browse", requireAuth, (req, res) => {
   });
 });
 
+// GET /api/docker/containers/:id/download — download file from container
+app.get("/api/docker/containers/:id/download", requireAuth, (req, res) => {
+  const containerId = req.params.id;
+  const filePath = req.query.path;
+  if (!filePath) return res.status(400).json({ error: "path required" });
+  const { exec } = require("child_process");
+  const fileName = filePath.split("/").pop() || "file";
+  // Use docker cp to stream file out
+  const tmpDir = require("os").tmpdir();
+  const tmpFile = require("path").join(tmpDir, "cf-dl-" + Date.now() + "-" + fileName);
+  exec(`docker cp "${containerId}:${filePath}" "${tmpFile}"`, { timeout: 30000 }, (err, stdout, stderr) => {
+    if (err) return res.status(500).json({ error: stderr || err.message });
+    res.download(tmpFile, fileName, () => {
+      require("fs").unlink(tmpFile, () => {});
+    });
+  });
+});
+
+// GET /api/docker/volumes/:name/download — download file from volume
+app.get("/api/docker/volumes/:name/download", requireAuth, (req, res) => {
+  const volName = req.params.name;
+  const filePath = req.query.path;
+  if (!filePath) return res.status(400).json({ error: "path required" });
+  const { exec } = require("child_process");
+  const fileName = filePath.split("/").pop() || "file";
+  const tmpDir = require("os").tmpdir();
+  const tmpFile = require("path").join(tmpDir, "cf-dl-" + Date.now() + "-" + fileName);
+  exec(`docker run --rm -v "${volName}:/vol:ro" -v "${tmpDir}:/out" alpine cp "/vol${filePath}" "/out/cf-dl-${Date.now()}-${fileName}"`, { timeout: 30000 }, (err) => {
+    // Fallback: use docker cp from a temp container
+    if (err) {
+      exec(`docker create --name cf-tmp-dl -v "${volName}:/vol:ro" alpine true`, { timeout: 10000 }, (e1) => {
+        if (e1) return res.status(500).json({ error: e1.message });
+        exec(`docker cp "cf-tmp-dl:/vol${filePath}" "${tmpFile}"`, { timeout: 30000 }, (e2, so, se) => {
+          exec(`docker rm cf-tmp-dl`, () => {});
+          if (e2) return res.status(500).json({ error: se || e2.message });
+          res.download(tmpFile, fileName, () => { require("fs").unlink(tmpFile, () => {}); });
+        });
+      });
+      return;
+    }
+    res.download(tmpFile, fileName, () => { require("fs").unlink(tmpFile, () => {}); });
+  });
+});
+
 // === VS Code serve-web auto-start + Proxy ===
 const VSCODE_PORT = parseInt(process.env.VSCODE_PORT) || 8080;
 

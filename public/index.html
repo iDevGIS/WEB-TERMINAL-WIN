@@ -3001,6 +3001,12 @@
     .tree-icon { flex-shrink: 0; display: flex; align-items: center; }
     .tree-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .tree-children { padding-left: 18px; border-left: 1px solid rgba(255,255,255,.04); margin-left: 18px; }
+    .tree-dl-btn {
+      background: none; border: none; color: var(--text3); cursor: pointer; padding: 2px;
+      border-radius: 4px; opacity: 0; transition: all .15s; display: flex; align-items: center;
+    }
+    .tree-row:hover .tree-dl-btn { opacity: 1; }
+    .tree-dl-btn:hover { color: var(--accent); background: rgba(108,99,255,.1); }
     .docker-unavailable {
       display: flex; flex-direction: column; align-items: center; justify-content: center;
       height: 100%; gap: 12px; color: var(--text3);
@@ -6309,17 +6315,19 @@
           const fileIcon = f.isDir
             ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="2" stroke-linecap="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>'
             : '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>';
-          const sizeStr = f.isDir ? '' : '<span style="color:var(--text3);font-size:10px;margin-left:auto;font-family:JetBrains Mono,monospace">' + _dockerFormatSize(f.size) + '</span>';
+          const fullFilePath = subpath.replace(/\/$/, '') + '/' + f.name;
+          const dlBtn = f.isDir ? '' : `<button onclick="event.stopPropagation();_dockerDownloadFile('${mode}','${escAttr(id)}','${escAttr(fullFilePath)}')" class="tree-dl-btn" title="Download"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>`;
+          const sizeStr = f.isDir ? '' : '<span style="color:var(--text3);font-size:10px;font-family:JetBrains Mono,monospace">' + _dockerFormatSize(f.size) + '</span>';
           const nameClass = f.isDir ? 'style="color:#4ade80;font-weight:500"' : 'style="color:var(--text2)"';
           const clickAction = f.isDir
-            ? `onclick="event.stopPropagation();_dockerTreeToggle(this,'${mode}','${escAttr(id)}','${escAttr(name)}','${escAttr(subpath.replace(/\/$/, '') + '/' + f.name)}')"` 
+            ? `onclick="event.stopPropagation();_dockerTreeToggle(this,'${mode}','${escAttr(id)}','${escAttr(name)}','${escAttr(fullFilePath)}')"` 
             : '';
           return `<div class="tree-node" ${clickAction}>
             <div class="tree-row">
               <span class="tree-toggle">${chevron}</span>
               <span class="tree-icon">${fileIcon}</span>
               <span class="tree-name" ${nameClass}>${escHtml(f.name)}</span>
-              ${sizeStr}
+              <span style="margin-left:auto;display:flex;align-items:center;gap:6px">${sizeStr}${dlBtn}</span>
             </div>
             <div class="tree-children" style="display:none"></div>
           </div>`;
@@ -6366,12 +6374,13 @@
           const fIcon = f.isDir
             ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="2" stroke-linecap="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>'
             : '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>';
-          const sz = f.isDir ? '' : '<span style="color:var(--text3);font-size:10px;margin-left:auto;font-family:JetBrains Mono,monospace">' + _dockerFormatSize(f.size) + '</span>';
-          const nc = f.isDir ? 'style="color:#4ade80;font-weight:500"' : 'style="color:var(--text2)"';
           const childPath = fullpath.replace(/\/$/, '') + '/' + f.name;
+          const dlB = f.isDir ? '' : `<button onclick="event.stopPropagation();_dockerDownloadFile('${mode}','${escAttr(id)}','${escAttr(childPath)}')" class="tree-dl-btn" title="Download"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>`;
+          const sz = f.isDir ? '' : '<span style="color:var(--text3);font-size:10px;font-family:JetBrains Mono,monospace">' + _dockerFormatSize(f.size) + '</span>';
+          const nc = f.isDir ? 'style="color:#4ade80;font-weight:500"' : 'style="color:var(--text2)"';
           const click = f.isDir ? `onclick="event.stopPropagation();_dockerTreeToggle(this,'${mode}','${escAttr(id)}','${escAttr(name)}','${escAttr(childPath)}')"` : '';
           return `<div class="tree-node" ${click}>
-            <div class="tree-row"><span class="tree-toggle">${chv}</span><span class="tree-icon">${fIcon}</span><span class="tree-name" ${nc}>${escHtml(f.name)}</span>${sz}</div>
+            <div class="tree-row"><span class="tree-toggle">${chv}</span><span class="tree-icon">${fIcon}</span><span class="tree-name" ${nc}>${escHtml(f.name)}</span><span style="margin-left:auto;display:flex;align-items:center;gap:6px">${sz}${dlB}</span></div>
             <div class="tree-children" style="display:none"></div>
           </div>`;
         }).join('');
@@ -6379,6 +6388,16 @@
       } catch (e) {
         children.innerHTML = '<div style="padding:4px 0 4px 24px;font-size:10px;color:var(--red)">Error</div>';
       }
+    }
+
+    function _dockerDownloadFile(mode, id, filePath) {
+      const url = mode === 'container'
+        ? '/api/docker/containers/' + encodeURIComponent(id) + '/download?path=' + encodeURIComponent(filePath)
+        : '/api/docker/volumes/' + encodeURIComponent(id) + '/download?path=' + encodeURIComponent(filePath);
+      const a = document.createElement('a');
+      a.href = url; a.download = filePath.split('/').pop() || 'file';
+      document.body.appendChild(a); a.click(); a.remove();
+      showToast('⬇️ Downloading ' + (filePath.split('/').pop() || 'file'), 'info');
     }
 
     function _dockerFormatSize(bytes) {
