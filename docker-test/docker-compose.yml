@@ -1,0 +1,64 @@
+version: "3.8"
+
+# CYBERFRAME Docker Test Stack
+# 4 services for testing Docker Container Management feature
+
+services:
+  # 1. Nginx — reverse proxy / web server
+  nginx:
+    image: nginx:alpine
+    container_name: cf-nginx
+    ports:
+      - "8888:80"
+    volumes:
+      - ./nginx-html:/usr/share/nginx/html:ro
+    restart: unless-stopped
+    labels:
+      cyberframe.test: "true"
+      cyberframe.desc: "Web Server"
+
+  # 2. Redis — in-memory cache
+  redis:
+    image: redis:alpine
+    container_name: cf-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --save 60 1 --loglevel notice
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+    labels:
+      cyberframe.test: "true"
+      cyberframe.desc: "Cache Server"
+
+  # 3. PostgreSQL — database
+  postgres:
+    image: postgres:16-alpine
+    container_name: cf-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: cyberframe
+      POSTGRES_PASSWORD: testpass123
+      POSTGRES_DB: cyberframe_test
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    restart: unless-stopped
+    labels:
+      cyberframe.test: "true"
+      cyberframe.desc: "Database"
+
+  # 4. Portainer Agent — container monitoring
+  whoami:
+    image: traefik/whoami
+    container_name: cf-whoami
+    ports:
+      - "8889:80"
+    restart: unless-stopped
+    labels:
+      cyberframe.test: "true"
+      cyberframe.desc: "Debug / WhoAmI"
+
+volumes:
+  redis-data:
+  pg-data:
