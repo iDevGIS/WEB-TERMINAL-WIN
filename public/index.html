@@ -6255,10 +6255,7 @@
       if (logsPanel) {
         content.appendChild(logsPanel);
         const lb = logsPanel.querySelector('.docker-logs-body');
-        if (lb) {
-          if (!logsPanel._userScrolled) lb.scrollTop = lb.scrollHeight;
-          else lb.scrollTop = logsScroll;
-        }
+        if (lb) lb.scrollTop = lb.scrollHeight;
       }
     }
 
@@ -6560,18 +6557,13 @@
         // Start SSE follow stream
         const sse = new EventSource('/api/docker/containers/' + containerId + '/logs?tail=0&follow=true&timestamps=true');
         panel._sse = sse;
-        panel._userScrolled = false;
-        if (body) {
-          body.addEventListener('wheel', () => { panel._userScrolled = true; });
-          body.addEventListener('touchstart', () => { panel._userScrolled = true; });
-        }
         sse.onmessage = (e) => {
           try {
             const line = JSON.parse(e.data);
             const pre = body?.querySelector('pre');
             if (pre) {
               pre.appendChild(document.createTextNode('\n' + line));
-              if (!panel._userScrolled) setTimeout(() => { body.scrollTop = 999999999; }, 0);
+              body.scrollTop = body.scrollHeight;
             }
           } catch {}
         };
