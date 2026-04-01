@@ -2,17 +2,6 @@
 
 ## 🔥 Priority: High
 
-### 🖥️ Admin Panel UI (`/admin`) ✅
-- [x] Dashboard page with glassmorphism UI
-- [x] System Monitor — real-time CPU%, RAM%, Disk, GPU, Uptime (auto refresh 5s)
-- [x] Session Manager — view all active sessions, kill remotely
-- [x] Server Logs — activity log viewer
-- [x] Process Manager — top 20 processes by RAM, kill by PID
-- [x] Network Info — hostname, local IP, Tailscale IP, port, Node version
-- [x] Quick Actions — New Shell, Kill All, VNC, Copy IP, Export Logs
-- [x] Server Info — PID, memory, server uptime, shell profiles
-- [ ] Log level filter (info/warn/error)
-
 ### ⌨️ Command Palette (`Ctrl+K`)
 - [ ] Popup search box with fuzzy matching
 - [ ] `/status` — system info at a glance
@@ -23,12 +12,10 @@
 - [ ] `/disk` — disk usage summary
 - [ ] `/top` — top processes by resource usage
 
-### 🔌 Admin REST API
-- [x] `GET /api/admin/status` — system metrics (JSON) ✅
-- [x] `GET /api/admin/processes` — running process list ✅
-- [x] `POST /api/admin/kill-process` — kill process by PID ✅
+### 🔌 Admin REST API (remaining)
 - [ ] `POST /api/admin/restart` — graceful restart
 - [ ] `GET /api/admin/logs` — server log tail
+- [ ] Log level filter (info/warn/error) in admin panel
 
 ### 📟 Terminal Built-in Commands
 - [ ] Server intercepts `!` prefix before sending to shell
@@ -65,8 +52,15 @@
 - [ ] **Input Injection:** `@nut-tree/nut-js` for mouse/keyboard
 - [ ] **UI:** Integrated as CYBERFRAME tab (not separate window)
 - [ ] **Benefits:** No external service, no extra port, built-in to server
-- [ ] **Limitation:** Lid closed = black screen (same as VNC, needs HDMI dummy plug)
-- [ ] Optional: Multi-monitor select, annotation, recording
+
+### 🎤 Mobile Voice Badge
+- [ ] Fix voice badge (🎤 Voice) not showing on mobile
+- [ ] Debug: `chatSend` called from different path on mobile vs desktop
+- [ ] Root cause: native STT + MediaRecorder async timing
+
+### 📱 VS Code Serve-Web
+- [ ] Auto-start on CYBERFRAME boot
+- [ ] Confirm all features work fully through proxy
 
 ---
 
@@ -95,6 +89,12 @@
 - [ ] Network traffic graph
 - [ ] GPU temperature (HWiNFO integration)
 
+### 🏗️ Infrastructure
+- [ ] Multi-user support (currently single user)
+- [ ] HTTPS built-in (currently relies on Tailscale)
+- [ ] Docker image / one-click deploy
+- [ ] Linux support (currently Windows-only)
+
 ---
 
 ## ✅ Completed
@@ -104,40 +104,38 @@
 - [x] Terminal search (Ctrl+F)
 - [x] Command snippets
 - [x] Export terminal output (txt/html)
-- [x] Remote Desktop (TightVNC + noVNC)
-- [x] File Manager (browse, upload, download, CRUD)
-- [x] File Info panel + Favorites
-- [x] File Preview (code, image, PDF, JSON)
-- [x] Markdown preview (GitHub-style)
-- [x] HTML web preview + toggle view
-- [x] Monaco Editor (VS Code in browser)
+- [x] Remote Desktop (TightVNC + noVNC as tab)
+- [x] File Manager (browse, upload, download, CRUD, favorites, info)
+- [x] File Preview (code, image, PDF, JSON, Markdown, HTML)
+- [x] Monaco Editor (VS Code engine in browser)
+- [x] VS Code serve-web as tab (iframe, theme injection, multi-tab)
 - [x] 8 terminal themes
 - [x] Mobile responsive (iOS Safari support)
-- [x] Heartbeat monitor (ECG + latency)
+- [x] Heartbeat monitor (ECG + latency + BPM + bitrate)
 - [x] Browser notifications + toast
 - [x] Auto-reconnect WebSocket
-- [x] Activity log
+- [x] Activity log (500 entries, API access)
+- [x] Admin Panel (system monitor, sessions, processes, GPU, network, server info)
 - [x] Admin shell profiles (gsudo)
-- [x] Admin Panel UI (system monitor, sessions, processes, GPU, network)
-- [x] Quick Actions (kill all, VNC, copy IP, export logs)
-- [x] Neon blue heartbeat monitor (3D, gradient mask, grid)
-- [x] Welcome feature cards (SVG icons, grid layout, hover glow)
-- [x] Custom confirm dialog (glassmorphism)
-- [x] No-cache headers for HTML
+- [x] Admin REST API (`GET /status`, `GET /processes`, `POST /kill-process`, `GET /server`)
 - [x] Multi-tab system (terminal, editor, preview, admin, chat, agent, vscode, vnc, files)
+- [x] Tab drag reorder
 - [x] Split Pane (horizontal/vertical, nested, drag resize, drag swap, max 4)
 - [x] Drag & drop session → split pane (4-direction drop zones)
-- [x] Tab drag reorder
 - [x] AI Chat (OpenClaw Gateway SSE, multi-session, markdown+syntax, model selector)
-- [x] Agent Monitor (status, sessions, preview, delete, source badges)
-- [x] VS Code as tab (iframe, theme injection, multi-tab, state persist)
-- [x] VNC as tab (iframe noVNC)
+- [x] System prompt presets (Default, Code Expert, Thai Teacher, Creative Writer, Concise)
+- [x] Chat search, export, token counter, timestamps, stop/regenerate
+- [x] Image & file attach in chat (60+ types, paste/drag-drop)
+- [x] Agent Monitor (status, sessions, preview, restore, info, delete, source badges)
 - [x] Animated gradient top bar + neon scrollbar
-- [x] Workspace state persistence (all tab types, localStorage)
-- [x] Image & file attach in chat (60+ types, paste/drag-drop, multimodal)
-- [x] Per-message token count + model name display
-- [x] Message collapse/expand (click avatar)
-- [x] Voice Input STT (faster-whisper server-side, MediaRecorder, waveform UI)
+- [x] Workspace state persistence (all tab types, localStorage, 10s auto-save)
+- [x] Workspace save/load to server (cross-browser restore)
+- [x] Voice Input STT — dual engine (mobile: Web Speech API, desktop: faster-whisper)
+- [x] Recording waveform UI (35 bars, real-time viz, timer, send/cancel)
 - [x] Text-to-Speech TTS (Edge Neural Voices, Thai+English auto-detect)
+- [x] Voice Message Player (persistent audio, real waveform, animated playback, gradient play btn)
 - [x] Enter to send, Shift+Enter new line
 - [x] All disk drives in admin panel
+- [x] Welcome feature cards (SVG icons, grid layout)
+- [x] Custom confirm dialog (glassmorphism)
+- [x] No-cache headers for HTML
