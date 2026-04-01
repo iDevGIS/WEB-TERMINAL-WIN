@@ -6483,12 +6483,13 @@
 
     function _dockerPortLinks(ports) {
       if (!ports || ports === '—') return '—';
+      // Use current hostname (works for Tailscale, LAN, etc.)
+      const host = window.location.hostname;
       return ports.split(', ').map(p => {
-        // Match "8888:80/tcp" → hostPort=8888
         const m = p.match(/^(\d+):\d+\/(tcp|udp)$/);
         if (m) {
           const hostPort = m[1];
-          const url = 'http://localhost:' + hostPort;
+          const url = 'http://' + host + ':' + hostPort;
           return `<a href="${url}" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none" title="Open ${url}">${escHtml(p)}</a>`;
         }
         return escHtml(p);
