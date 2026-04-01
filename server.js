@@ -1204,6 +1204,223 @@ app.get("/api/agent/status", requireAuth, async (req, res) => {
 });
 
 // Protected static files — no cache for HTML
+
+// === Docker Container Management ===
+const Docker = require("dockerode");
+const docker = new Docker({ socketPath: process.platform === "win32" ? "//./pipe/docker_engine" : "/var/run/docker.sock" });
+
+// Docker availability check
+let _dockerAvailable = null;
+async function isDockerAvailable() {
+  if (_dockerAvailable !== null) return _dockerAvailable;
+  try { await docker.ping(); _dockerAvailable = true; } catch { _dockerAvailable = false; }
+  setTimeout(() => { _dockerAvailable = null; }, 30000); // re-check every 30s
+  return _dockerAvailable;
+}
+
+// GET /api/docker/info
+app.get("/api/docker/info", requireAuth, async (req, res) => {
+  try {
+    if (!await isDockerAvailable()) return res.status(503).json({ error: "Docker not available" });
+    const info = await docker.info();
+    const ver = await docker.version();
+    res.json({
+      version: ver.Version,
+      apiVersion: ver.ApiVersion,
+      os: ver.Os + "/" + ver.Arch,
+      containers: info.Containers,
+      containersRunning: info.ContainersRunning,
+      containersStopped: info.ContainersStopped,
+      containersPaused: info.ContainersPaused,
+      images: info.Images,
+      memTotal: info.MemTotal,
+      cpus: info.NCPU
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// GET /api/docker/containers
+app.get("/api/docker/containers", requireAuth, async (req, res) => {
+  try {
+    if (!await isDockerAvailable()) return res.status(503).json({ error: "Docker not available" });
+    const containers = await docker.listContainers({ all: true });
+    const list = containers.map(c => ({
+      id: c.Id.slice(0, 12),
+      idFull: c.Id,
+      name: (c.Names[0] || "").replace(/^\//, ""),
+      image: c.Image,
+      state: c.State,
+      status: c.Status,
+      ports: (c.Ports || []).map(p => p.PublicPort ? `${p.PublicPort}:${p.PrivatePort}/${p.Type}` : `${p.PrivatePort}/${p.Type}`).join(", "),
+      created: c.Created * 1000,
+      labels: c.Labels || {}
+    }));
+    res.json(list);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// GET /api/docker/containers/:id — inspect
+app.get("/api/docker/containers/:id", requireAuth, async (req, res) => {
+  try {
+    const container = docker.getContainer(req.params.id);
+    const info = await container.inspect();
+    res.json(info);
+  } catch (e) {
+    res.status(e.statusCode || 500).json({ error: e.message });
+  }
+});
+
+// POST /api/docker/containers/:id/:action (start, stop, restart, pause, unpause)
+app.post("/api/docker/containers/:id/:action", requireAuth, async (req, res) => {
+  const { id, action } = req.params;
+  const allowed = ["start", "stop", "restart", "pause", "unpause"];
+  if (!allowed.includes(action)) return res.status(400).json({ error: "Invalid action" });
+  try {
+    const container = docker.getContainer(id);
+    await container[action]();
+    res.json({ ok: true, action, id });
+  } catch (e) {
+    res.status(e.statusCode || 500).json({ error: e.reason || e.message });
+  }
+});
+
+// DELETE /api/docker/containers/:id
+app.delete("/api/docker/containers/:id", requireAuth, async (req, res) => {
+  try {
+    const container = docker.getContainer(req.params.id);
+    const force = req.query.force === "true";
+    await container.remove({ force });
+    res.json({ ok: true, removed: req.params.id });
+  } catch (e) {
+    res.status(e.statusCode || 500).json({ error: e.reason || e.message });
+  }
+});
+
+// GET /api/docker/containers/:id/logs
+app.get("/api/docker/containers/:id/logs", requireAuth, async (req, res) => {
+  try {
+    const container = docker.getContainer(req.params.id);
+    const tail = parseInt(req.query.tail) || 200;
+    const follow = req.query.follow === "true";
+
+    if (follow) {
+      // SSE streaming logs
+      res.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-cache", "Connection": "keep-alive" });
+      const logStream = await container.logs({ follow: true, stdout: true, stderr: true, tail, timestamps: true });
+      logStream.on("data", (chunk) => {
+        // Docker multiplexed stream: first 8 bytes = header
+        const lines = chunk.toString("utf8").split("\n").filter(Boolean);
+        for (const line of lines) {
+          // Strip docker stream header (8 bytes)
+          const clean = line.length > 8 ? line.slice(8) : line;
+          res.write("data: " + JSON.stringify(clean) + "\n\n");
+        }
+      });
+      logStream.on("end", () => { res.write("event: end\ndata: done\n\n"); res.end(); });
+      logStream.on("error", (e) => { res.write("data: " + JSON.stringify("Error: " + e.message) + "\n\n"); res.end(); });
+      req.on("close", () => { try { logStream.destroy(); } catch {} });
+    } else {
+      const logs = await container.logs({ stdout: true, stderr: true, tail, timestamps: req.query.timestamps === "true" });
+      // Parse multiplexed stream
+      const text = Buffer.isBuffer(logs) ? logs.toString("utf8") : logs;
+      const lines = text.split("\n").map(line => line.length > 8 ? line.slice(8) : line).filter(Boolean);
+      res.json({ lines });
+    }
+  } catch (e) {
+    res.status(e.statusCode || 500).json({ error: e.message });
+  }
+});
+
+// GET /api/docker/containers/stats — real-time stats
+app.get("/api/docker/stats", requireAuth, async (req, res) => {
+  try {
+    if (!await isDockerAvailable()) return res.status(503).json({ error: "Docker not available" });
+    const containers = await docker.listContainers();
+    const stats = await Promise.all(containers.map(async c => {
+      try {
+        const container = docker.getContainer(c.Id);
+        const s = await container.stats({ stream: false });
+        const cpuDelta = s.cpu_stats.cpu_usage.total_usage - (s.precpu_stats.cpu_usage?.total_usage || 0);
+        const sysDelta = s.cpu_stats.system_cpu_usage - (s.precpu_stats.system_cpu_usage || 0);
+        const cpuPercent = sysDelta > 0 && cpuDelta > 0 ? (cpuDelta / sysDelta) * (s.cpu_stats.online_cpus || 1) * 100 : 0;
+        const memUsage = s.memory_stats.usage || 0;
+        const memLimit = s.memory_stats.limit || 1;
+        return {
+          id: c.Id.slice(0, 12),
+          name: (c.Names[0] || "").replace(/^\//, ""),
+          cpu: Math.round(cpuPercent * 100) / 100,
+          memUsage: Math.round(memUsage / 1024 / 1024),
+          memLimit: Math.round(memLimit / 1024 / 1024),
+          memPercent: Math.round(memUsage / memLimit * 10000) / 100,
+          netRx: s.networks ? Object.values(s.networks).reduce((a, n) => a + n.rx_bytes, 0) : 0,
+          netTx: s.networks ? Object.values(s.networks).reduce((a, n) => a + n.tx_bytes, 0) : 0
+        };
+      } catch { return null; }
+    }));
+    res.json(stats.filter(Boolean));
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// GET /api/docker/images
+app.get("/api/docker/images", requireAuth, async (req, res) => {
+  try {
+    if (!await isDockerAvailable()) return res.status(503).json({ error: "Docker not available" });
+    const images = await docker.listImages();
+    const list = images.map(i => ({
+      id: i.Id.replace("sha256:", "").slice(0, 12),
+      tags: i.RepoTags || ["<none>"],
+      size: i.Size,
+      created: i.Created * 1000
+    }));
+    res.json(list);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// GET /api/docker/volumes
+app.get("/api/docker/volumes", requireAuth, async (req, res) => {
+  try {
+    if (!await isDockerAvailable()) return res.status(503).json({ error: "Docker not available" });
+    const result = await docker.listVolumes();
+    const list = (result.Volumes || []).map(v => ({
+      name: v.Name,
+      driver: v.Driver,
+      mountpoint: v.Mountpoint,
+      created: v.CreatedAt
+    }));
+    res.json(list);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// GET /api/docker/networks
+app.get("/api/docker/networks", requireAuth, async (req, res) => {
+  try {
+    if (!await isDockerAvailable()) return res.status(503).json({ error: "Docker not available" });
+    const networks = await docker.listNetworks();
+    const list = networks.map(n => ({
+      id: n.Id.slice(0, 12),
+      name: n.Name,
+      driver: n.Driver,
+      scope: n.Scope,
+      containers: Object.keys(n.Containers || {}).length,
+      subnet: n.IPAM?.Config?.[0]?.Subnet || "—",
+      gateway: n.IPAM?.Config?.[0]?.Gateway || "—"
+    }));
+    res.json(list);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // === VS Code serve-web auto-start + Proxy ===
 const VSCODE_PORT = parseInt(process.env.VSCODE_PORT) || 8080;
 
