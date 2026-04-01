@@ -6213,7 +6213,12 @@
       }
       // Detach logs panel to preserve SSE + scroll + events
       const logsPanel = content.querySelector('.docker-logs-panel');
-      if (logsPanel) logsPanel.remove();
+      let logsScroll = 0;
+      if (logsPanel) {
+        const lb = logsPanel.querySelector('.docker-logs-body');
+        if (lb) logsScroll = lb.scrollTop;
+        logsPanel.remove();
+      }
       let html = `<table class="docker-table"><thead><tr>
         <th>Container</th><th>Image</th><th>Network</th><th>Status</th>
         <th>Ports</th><th>CPU / MEM</th><th>Actions</th>
@@ -6247,7 +6252,14 @@
       });
       html += '</tbody></table>';
       content.innerHTML = html;
-      if (logsPanel) content.appendChild(logsPanel);
+      if (logsPanel) {
+        content.appendChild(logsPanel);
+        const lb = logsPanel.querySelector('.docker-logs-body');
+        if (lb) {
+          if (!logsPanel._userScrolled) lb.scrollTop = lb.scrollHeight;
+          else lb.scrollTop = logsScroll;
+        }
+      }
     }
 
     function _dockerOpenPath(mountPath) {
