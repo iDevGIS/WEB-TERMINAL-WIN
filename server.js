@@ -1254,6 +1254,7 @@ app.get("/api/docker/containers", requireAuth, async (req, res) => {
       state: c.State,
       status: c.Status,
       ports: (c.Ports || []).map(p => p.PublicPort ? `${p.PublicPort}:${p.PrivatePort}/${p.Type}` : `${p.PrivatePort}/${p.Type}`).join(", "),
+      network: Object.keys(c.NetworkSettings?.Networks || {}).join(", ") || "—",
       created: c.Created * 1000,
       labels: c.Labels || {}
     }));
