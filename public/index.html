@@ -6540,6 +6540,11 @@
         <button class="dpp-btn" onclick="_dppAction('copy','${escAttr(url)}')">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
           Copy URL
+        </button>
+        <div style="border-top:1px solid rgba(255,255,255,.06);margin:4px 0"></div>
+        <button class="dpp-btn" onclick="_dppAction('tailscale','${escAttr(url)}')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          Forward via Tailscale
         </button>`;
 
       // Position near click
@@ -6555,7 +6560,7 @@
       }, 10);
     }
 
-    function _dppAction(action, url) {
+    async function _dppAction(action, url) {
       document.querySelectorAll('.dpp-popup').forEach(p => p.remove());
       if (action === 'browser') {
         window.open(url, '_blank', 'noopener');
@@ -6568,6 +6573,22 @@
         switchTab(tabId);
       } else if (action === 'copy') {
         navigator.clipboard.writeText(url).then(() => showToast('📋 Copied', 'success'));
+      } else if (action === 'tailscale') {
+        const port = new URL(url).port;
+        const target = 'http://localhost:' + port;
+        showToast('🔒 Adding Tailscale serve rule for :' + port + '...', 'info');
+        try {
+          const r = await fetch('/api/admin/tailscale/serve', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'add', port, target })
+          });
+          const d = await r.json();
+          if (d.error) { showToast('❌ ' + d.error, 'error'); return; }
+          const tsUrl = 'https://' + window.location.hostname + ':' + port;
+          showToast('✅ Forwarded! ' + tsUrl, 'success');
+        } catch (e) {
+          showToast('❌ ' + e.message, 'error');
+        }
       }
     }
 
