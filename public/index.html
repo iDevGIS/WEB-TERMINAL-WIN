@@ -6505,11 +6505,14 @@
     function _dockerPortLinks(ports) {
       if (!ports || ports === '—') return '—';
       const host = window.location.hostname;
-      return ports.split(', ').map(p => {
+      const proto = window.location.protocol === 'https:' ? 'https' : 'http';
+      // Deduplicate ports
+      const seen = new Set();
+      return ports.split(', ').filter(p => { if (seen.has(p)) return false; seen.add(p); return true; }).map(p => {
         const m = p.match(/^(\d+):\d+\/(tcp|udp)$/);
         if (m) {
           const hostPort = m[1];
-          const url = 'http://' + host + ':' + hostPort;
+          const url = proto + '://' + host + ':' + hostPort;
           return `<a href="#" onclick="event.preventDefault();_dockerPortPopup(event,'${escAttr(url)}','${escAttr(p)}')" style="color:var(--accent);text-decoration:none;cursor:pointer" title="${escAttr(url)}">${escHtml(p)}</a>`;
         }
         return escHtml(p);
