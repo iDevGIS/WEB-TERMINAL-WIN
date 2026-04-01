@@ -6417,12 +6417,14 @@
         // Close the browser modal
         const modal = document.querySelector('.vol-browser');
         if (modal) modal.remove();
-        // Open in editor tab (read-only, from Docker)
+        // Open in editor tab (from Docker — saveable for containers)
         const tabId = createTab('editor', { name: '🐳 ' + fileName, icon: '📝' });
         const tab = tabs.get(tabId);
         if (tab) {
           tab.filePath = '[docker] ' + filePath;
-          tab._dockerReadOnly = true;
+          tab._dockerMode = mode;
+          tab._dockerId = id;
+          tab._dockerPath = filePath;
         }
         switchTab(tabId);
         // Wait for Monaco to load then set content
@@ -8048,6 +8050,23 @@
       if (!tab || tab.type !== 'editor' || !tab.monacoEditor) return;
       try {
         const content = tab.monacoEditor.getValue();
+        // Docker container save
+        if (tab._dockerMode === 'container' && tab._dockerId && tab._dockerPath) {
+          const res = await fetch('/api/docker/containers/' + encodeURIComponent(tab._dockerId) + '/save', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ path: tab._dockerPath, content }),
+          });
+          if (res.ok) {
+            tab.originalContent = content;
+            tab.tabEl.querySelector('.tab-label').textContent = tab.name;
+            showToast('🐳 Saved to container', 'success');
+          } else {
+            const d = await res.json().catch(() => ({}));
+            showToast('Save failed: ' + (d.error || 'unknown'), 'error');
+          }
+          return;
+        }
         const res = await fetch('/api/files/save', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },

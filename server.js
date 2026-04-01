@@ -1536,6 +1536,23 @@ app.get("/api/docker/volumes/:name/cat", requireAuth, (req, res) => {
   });
 });
 
+// PUT /api/docker/containers/:id/save — write file back to container
+app.put("/api/docker/containers/:id/save", requireAuth, express.json({ limit: '5mb' }), (req, res) => {
+  const containerId = req.params.id;
+  const filePath = req.body.path;
+  const content = req.body.content;
+  if (!filePath || content === undefined) return res.status(400).json({ error: "path and content required" });
+  const { exec } = require("child_process");
+  const fs = require("fs"), path = require("path"), os = require("os");
+  const tmpFile = path.join(os.tmpdir(), "cf-save-" + Date.now());
+  fs.writeFileSync(tmpFile, content, "utf8");
+  exec(`docker cp "${tmpFile}" "${containerId}:${filePath}"`, { timeout: 15000 }, (err, stdout, stderr) => {
+    fs.unlink(tmpFile, () => {});
+    if (err) return res.status(500).json({ error: stderr || err.message });
+    res.json({ ok: true });
+  });
+});
+
 // === VS Code serve-web auto-start + Proxy ===
 const VSCODE_PORT = parseInt(process.env.VSCODE_PORT) || 8080;
 
