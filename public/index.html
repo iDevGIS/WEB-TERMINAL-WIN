@@ -6530,15 +6530,38 @@
       content.appendChild(panel);
       panel.scrollIntoView({ behavior: 'smooth' });
 
-      // Fetch logs (newest at bottom)
+      // Fetch initial logs then stream new ones via SSE
       try {
         const r = await fetch('/api/docker/containers/' + containerId + '/logs?tail=200&timestamps=true');
         const d = await r.json();
         const body = document.getElementById(tabId + '-logs-body');
         if (body && d.lines) {
           body.textContent = d.lines.join('\n');
-          // Auto-scroll to bottom (newest logs)
           body.scrollTop = body.scrollHeight;
+        }
+        // Start SSE follow stream
+        const sse = new EventSource('/api/docker/containers/' + containerId + '/logs?tail=0&follow=true&timestamps=true');
+        panel._sse = sse;
+        let autoScroll = true;
+        if (body) body.addEventListener('scroll', () => {
+          autoScroll = body.scrollTop + body.clientHeight >= body.scrollHeight - 30;
+        });
+        sse.onmessage = (e) => {
+          try {
+            const line = JSON.parse(e.data);
+            if (body) {
+              body.textContent += '\n' + line;
+              if (autoScroll) body.scrollTop = body.scrollHeight;
+            }
+          } catch {}
+        };
+        sse.addEventListener('end', () => { sse.close(); });
+        sse.onerror = () => { sse.close(); };
+        // Close SSE when panel closes
+        const origClose = panel.querySelector('button:last-child');
+        if (origClose) {
+          const origClick = origClose.getAttribute('onclick');
+          origClose.setAttribute('onclick', `this.closest('.docker-logs-panel')._sse?.close();${origClick}`);
         }
       } catch (e) {
         const body = document.getElementById(tabId + '-logs-body');
