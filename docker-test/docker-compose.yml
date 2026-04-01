@@ -59,6 +59,42 @@ services:
       cyberframe.test: "true"
       cyberframe.desc: "Debug / WhoAmI"
 
+  # 5. Log Generator — mock log stream for testing
+  loggen:
+    image: alpine
+    container_name: cf-loggen
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        i=0
+        while true; do
+          i=$$((i+1))
+          case $$((i % 4)) in
+            0) LVL=INFO ;;
+            1) LVL=WARN ;;
+            2) LVL=ERROR ;;
+            3) LVL=DEBUG ;;
+          esac
+          case $$((i % 10)) in
+            0) MSG="Request processed successfully" ;;
+            1) MSG="Connection established from 10.0.0.$$i" ;;
+            2) MSG="Cache miss for key user:session:$$i" ;;
+            3) MSG="Query executed in $${i}ms" ;;
+            4) MSG="Health check OK - uptime $${i}s" ;;
+            5) MSG="Rate limit exceeded for IP 192.168.1.$$((i%255))" ;;
+            6) MSG="Session expired for user_$$i" ;;
+            7) MSG="Payment received $$$$$$((i*10)).00 USD" ;;
+            8) MSG="Webhook dispatched to endpoint #$$i" ;;
+            9) MSG="File uploaded: document_$${i}.pdf ($$((i*100))KB)" ;;
+          esac
+          echo "$$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ) [$$LVL] #$$(printf '%05d' $$i) $$MSG"
+          sleep $$((i % 3 + 1))
+        done
+    restart: unless-stopped
+    labels:
+      cyberframe.test: "true"
+      cyberframe.desc: "Log Generator"
+
 volumes:
   redis-data:
   pg-data:
