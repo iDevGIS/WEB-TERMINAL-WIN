@@ -6179,10 +6179,8 @@
     }
 
     function _dockerOpenPath(mountPath) {
-      // Docker volumes live inside WSL VM — can't browse directly from Windows
-      // Copy path to clipboard instead
       navigator.clipboard.writeText(mountPath).then(() => {
-        showToast('📋 Path copied! Use terminal: docker run --rm -v <volume>:/data alpine ls /data', 'success');
+        showToast('📋 Copied to clipboard', 'success');
       }).catch(() => {
         showToast('📋 ' + mountPath, 'info');
       });
