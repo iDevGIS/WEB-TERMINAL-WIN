@@ -6312,7 +6312,7 @@
           const sizeStr = f.isDir ? '' : '<span style="color:var(--text3);font-size:10px;margin-left:auto;font-family:JetBrains Mono,monospace">' + _dockerFormatSize(f.size) + '</span>';
           const nameClass = f.isDir ? 'style="color:#4ade80;font-weight:500"' : 'style="color:var(--text2)"';
           const clickAction = f.isDir
-            ? `onclick="_dockerTreeToggle(this,'${mode}','${escAttr(id)}','${escAttr(name)}','${escAttr(subpath.replace(/\/$/, '') + '/' + f.name)}')"` 
+            ? `onclick="event.stopPropagation();_dockerTreeToggle(this,'${mode}','${escAttr(id)}','${escAttr(name)}','${escAttr(subpath.replace(/\/$/, '') + '/' + f.name)}')"` 
             : '';
           return `<div class="tree-node" ${clickAction}>
             <div class="tree-row">
@@ -6369,7 +6369,7 @@
           const sz = f.isDir ? '' : '<span style="color:var(--text3);font-size:10px;margin-left:auto;font-family:JetBrains Mono,monospace">' + _dockerFormatSize(f.size) + '</span>';
           const nc = f.isDir ? 'style="color:#4ade80;font-weight:500"' : 'style="color:var(--text2)"';
           const childPath = fullpath.replace(/\/$/, '') + '/' + f.name;
-          const click = f.isDir ? `onclick="_dockerTreeToggle(this,'${mode}','${escAttr(id)}','${escAttr(name)}','${escAttr(childPath)}')"` : '';
+          const click = f.isDir ? `onclick="event.stopPropagation();_dockerTreeToggle(this,'${mode}','${escAttr(id)}','${escAttr(name)}','${escAttr(childPath)}')"` : '';
           return `<div class="tree-node" ${click}>
             <div class="tree-row"><span class="tree-toggle">${chv}</span><span class="tree-icon">${fIcon}</span><span class="tree-name" ${nc}>${escHtml(f.name)}</span>${sz}</div>
             <div class="tree-children" style="display:none"></div>
