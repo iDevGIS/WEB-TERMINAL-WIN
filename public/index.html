@@ -6211,8 +6211,9 @@
           <p>No containers found</p></div>`;
         return;
       }
+      // Detach logs panel to preserve SSE + scroll + events
       const logsPanel = content.querySelector('.docker-logs-panel');
-      const logsHtml = logsPanel ? logsPanel.outerHTML : '';
+      if (logsPanel) logsPanel.remove();
       let html = `<table class="docker-table"><thead><tr>
         <th>Container</th><th>Image</th><th>Network</th><th>Status</th>
         <th>Ports</th><th>CPU / MEM</th><th>Actions</th>
@@ -6245,7 +6246,8 @@
         </tr>`;
       });
       html += '</tbody></table>';
-      content.innerHTML = html + logsHtml;
+      content.innerHTML = html;
+      if (logsPanel) content.appendChild(logsPanel);
     }
 
     function _dockerOpenPath(mountPath) {
