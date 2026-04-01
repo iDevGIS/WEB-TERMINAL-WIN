@@ -367,9 +367,9 @@ Open `http://localhost:3000` in your browser.
 |-----------|----------------------|
 | ![Docker Exec](docs/images/docker-exec.png) | ![Docker Port Popup](docs/images/docker-port-popup.png) |
 
-| Admin — Tailscale Serve |
-|------------------------|
-| ![Admin Tailscale](docs/images/admin-tailscale.png) |
+| Admin — Tailscale Serve | Add Tailscale Rule |
+|------------------------|-------------------|
+| ![Admin Tailscale](docs/images/admin-tailscale.png) | ![Add Tailscale Rule](docs/images/admin-tailscale-add.png) |
 
 ### 📱 Mobile (iOS Safari)
 
