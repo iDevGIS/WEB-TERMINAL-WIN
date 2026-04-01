@@ -6205,16 +6205,25 @@
     }
 
     function dockerExec(containerId, name) {
-      // Open a new terminal tab that execs into the container
-      const shell = 'docker exec -it ' + containerId + ' /bin/sh';
-      const tabId = createTab('terminal', { name: '🐳 ' + name, shell: 'cmd' });
-      // Wait for session to be created, then send docker exec command
-      setTimeout(() => {
-        const tab = tabs.get(tabId);
-        if (tab && tab.sessionId) {
-          sendWS({ type: 'input', id: tab.sessionId, data: 'docker exec -it ' + containerId + ' /bin/sh\r' });
-        }
-      }, 1000);
+      // Create terminal tab with pwsh shell, then exec into container
+      const tabId = createTab('terminal', { name: '🐳 ' + name, icon: '🐳' });
+      const tab = tabs.get(tabId);
+      if (!tab) return;
+      const cols = tab.term ? tab.term.cols : 120;
+      const rows = tab.term ? tab.term.rows : 30;
+      tab._pendingCreate = true;
+      tab._dockerExecCmd = 'docker exec -it ' + containerId + ' /bin/sh';
+
+      const msg = JSON.stringify({ type: 'create', name: '🐳 ' + name, cols, rows, shell: 'pwsh' });
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(msg);
+      } else {
+        const waitSend = () => {
+          if (ws && ws.readyState === WebSocket.OPEN) { ws.send(msg); return; }
+          setTimeout(waitSend, 200);
+        };
+        waitSend();
+      }
     }
 
     function _parseTranscriptMsg(m) {
@@ -7827,6 +7836,13 @@
                     if (t) ws.send(JSON.stringify({ type: 'resize', id: targetTab.sessionId, cols: t.cols, rows: t.rows }));
                   }
                   if (targetTab.term) targetTab.term.focus();
+                  // Docker exec: send command after session is ready
+                  if (targetTab._dockerExecCmd) {
+                    setTimeout(() => {
+                      ws.send(JSON.stringify({ type: 'input', id: targetTab.sessionId, data: targetTab._dockerExecCmd + '\r' }));
+                      delete targetTab._dockerExecCmd;
+                    }, 500);
+                  }
                 }, 50);
               } else {
                 // Create new tab for this session (fallback — e.g. from another client)
