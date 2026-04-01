@@ -2838,7 +2838,10 @@
       white-space: nowrap; min-width: 30px; text-align: right;
     }
     /* Docker Management */
-    .docker-wrap { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
+    .docker-wrap { display: flex; flex-direction: column; height: 100%; overflow: hidden; position: relative; }
+    @media (max-width: 1024px) {
+      .docker-wrap { overflow-y: auto; }
+    }
     .docker-nav {
       display: flex; gap: 2px; padding: 8px 12px; border-bottom: 1px solid var(--glass-border);
       background: var(--glass-bg); overflow-x: auto; flex-shrink: 0;
@@ -2898,6 +2901,19 @@
     .docker-logs-area {
       position: absolute; bottom: 0; left: 0; right: 0; max-height: 60%;
       display: flex; flex-direction: column; z-index: 10;
+    }
+    @media (max-width: 1024px) {
+      .docker-logs-area {
+        position: relative; max-height: none;
+      }
+      .docker-logs-panel { height: 180px !important; resize: none !important; }
+      .docker-logs-header {
+        flex-wrap: wrap; gap: 4px; padding: 6px 8px !important;
+      }
+      .docker-logs-header > div:last-child {
+        flex-wrap: wrap; gap: 4px !important;
+      }
+      .docker-logs-body { font-size: 10px !important; padding: 6px 8px !important; }
     }
     .docker-logs-panel {
       background: var(--bg); border-top: 2px solid var(--accent);
@@ -3056,7 +3072,13 @@
     .docker-unavailable h3 { color: var(--text2); font-size: 16px; }
     @media (max-width: 1024px) {
       .docker-table th:nth-child(4), .docker-table td:nth-child(4),
-      .docker-table th:nth-child(5), .docker-table td:nth-child(5) { display: none; }
+      .docker-table th:nth-child(5), .docker-table td:nth-child(5),
+      .docker-table th:nth-child(6), .docker-table td:nth-child(6) { display: none; }
+      .docker-table { font-size: 11px; }
+      .docker-table td { padding: 6px 4px; }
+      .docker-content { padding: 8px; }
+      .docker-actions { flex-wrap: wrap; gap: 2px !important; }
+      .docker-actions button { width: 24px !important; height: 24px !important; min-width: 24px !important; }
     }
     /* Workspace sidebar section */
     .sidebar-section { border-top: 1px solid rgba(255,255,255,.06); margin-top: 4px; }
