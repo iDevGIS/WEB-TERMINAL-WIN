@@ -8161,11 +8161,7 @@
     document.getElementById('btn-font-down').onclick = () => changeFontSize(-2);
 
     // === Remote Desktop (VNC) ===
-    document.getElementById('btn-vnc').onclick = () => {
-      const wsProto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const vncUrl = `/novnc/index.html?autoconnect=true&reconnect=true&resize=scale&path=vnc-ws&host=${location.hostname}&port=${location.port}&encrypt=${location.protocol === 'https:' ? 'true' : 'false'}`;
-      window.open(vncUrl, '_blank');
-    };
+    document.getElementById('btn-vnc').onclick = () => openVNC();
 
     // === File Preview ===
     const PREVIEWABLE_EXTS = new Set([
