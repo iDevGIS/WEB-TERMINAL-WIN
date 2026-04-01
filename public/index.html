@@ -3007,6 +3007,21 @@
     }
     .tree-row:hover .tree-dl-btn { opacity: 1; }
     .tree-dl-btn:hover { color: var(--accent); background: rgba(108,99,255,.1); }
+    /* Logs header buttons */
+    .dlh-btn {
+      display: flex; align-items: center; gap: 4px; padding: 4px 10px;
+      background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08);
+      border-radius: 6px; cursor: pointer; color: var(--text3); font-size: 11px;
+      font-family: inherit; transition: all .15s; white-space: nowrap;
+    }
+    .dlh-btn:hover { background: rgba(108,99,255,.1); color: var(--text1); border-color: rgba(108,99,255,.2); }
+    .dlh-btn.dlh-active { background: rgba(108,99,255,.15); color: var(--accent); border-color: rgba(108,99,255,.3); }
+    .dlh-close:hover { background: rgba(239,68,68,.15); color: #ef4444; border-color: rgba(239,68,68,.3); }
+    .dlh-live-dot {
+      width: 6px; height: 6px; border-radius: 50%; background: #22c55e;
+      box-shadow: 0 0 6px rgba(34,197,94,.6); animation: dlhPulse 2s ease infinite;
+    }
+    @keyframes dlhPulse { 0%,100% { opacity: 1; } 50% { opacity: .4; } }
     .docker-unavailable {
       display: flex; flex-direction: column; align-items: center; justify-content: center;
       height: 100%; gap: 12px; color: var(--text3);
@@ -6255,7 +6270,10 @@
       if (logsPanel) {
         content.appendChild(logsPanel);
         const lb = logsPanel.querySelector('.docker-logs-body');
-        if (lb) lb.scrollTop = lb.scrollHeight;
+        if (lb) {
+          if (logsPanel._autoScroll) lb.scrollTop = lb.scrollHeight;
+          else lb.scrollTop = logsScroll;
+        }
       }
     }
 
@@ -6529,12 +6547,31 @@
 
       const panel = document.createElement('div');
       panel.className = 'docker-logs-panel';
+      panel._autoScroll = true;
       panel.innerHTML = `
         <div class="docker-logs-header">
-          <span>📋 ${escHtml(name)}</span>
-          <div style="display:flex;gap:4px">
-            <button onclick="dockerLogsDownload('${containerId}','${escAttr(name)}')" style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:5px;padding:3px 8px;cursor:pointer;color:var(--text2);font-size:10px;font-family:inherit">Download</button>
-            <button onclick="this.closest('.docker-logs-panel').remove()" style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:5px;padding:3px 8px;cursor:pointer;color:var(--text2);font-size:10px;font-family:inherit">✕ Close</button>
+          <div style="display:flex;align-items:center;gap:8px">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+            <span style="font-weight:600;color:var(--text1)">${escHtml(name)}</span>
+            <span class="dlh-live-dot"></span>
+            <span style="font-size:10px;color:var(--text3)">Live</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px">
+            <button class="dlh-btn dlh-active" onclick="_dockerToggleAutoScroll(this)" title="Auto-scroll lock">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14"/><path d="M19 12l-7 7-7-7"/></svg>
+              <span>Follow</span>
+            </button>
+            <button class="dlh-btn" onclick="_dockerClearLogs(this)" title="Clear logs">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+              <span>Clear</span>
+            </button>
+            <button class="dlh-btn" onclick="dockerLogsDownload('${containerId}','${escAttr(name)}')" title="Download logs">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <span>Download</span>
+            </button>
+            <button class="dlh-btn dlh-close" onclick="const p=this.closest('.docker-logs-panel');if(p._sse)p._sse.close();p.remove()" title="Close">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
           </div>
         </div>
         <div class="docker-logs-body" id="${tabId}-logs-body">Loading logs...</div>`;
@@ -6563,22 +6600,34 @@
             const pre = body?.querySelector('pre');
             if (pre) {
               pre.appendChild(document.createTextNode('\n' + line));
-              body.scrollTop = body.scrollHeight;
+              if (panel._autoScroll) body.scrollTop = body.scrollHeight;
             }
           } catch {}
         };
         sse.addEventListener('end', () => { sse.close(); });
         sse.onerror = () => { sse.close(); };
-        // Close SSE when panel closes
-        const origClose = panel.querySelector('button:last-child');
-        if (origClose) {
-          const origClick = origClose.getAttribute('onclick');
-          origClose.setAttribute('onclick', `this.closest('.docker-logs-panel')._sse?.close();${origClick}`);
-        }
       } catch (e) {
         const body = document.getElementById(tabId + '-logs-body');
         if (body) body.textContent = 'Error loading logs: ' + e.message;
       }
+    }
+
+    function _dockerToggleAutoScroll(btn) {
+      const panel = btn.closest('.docker-logs-panel');
+      if (!panel) return;
+      panel._autoScroll = !panel._autoScroll;
+      btn.classList.toggle('dlh-active', panel._autoScroll);
+      if (panel._autoScroll) {
+        const body = panel.querySelector('.docker-logs-body');
+        if (body) body.scrollTop = body.scrollHeight;
+      }
+    }
+
+    function _dockerClearLogs(btn) {
+      const panel = btn.closest('.docker-logs-panel');
+      if (!panel) return;
+      const pre = panel.querySelector('.docker-logs-body pre');
+      if (pre) pre.textContent = '';
     }
 
     async function dockerLogsDownload(containerId, name) {
