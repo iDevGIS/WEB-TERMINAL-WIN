@@ -1421,6 +1421,41 @@ app.get("/api/docker/networks", requireAuth, async (req, res) => {
   }
 });
 
+// GET /api/docker/volumes/:name/browse — browse volume via temp container
+app.get("/api/docker/volumes/:name/browse", requireAuth, async (req, res) => {
+  const volName = req.params.name;
+  const subpath = req.query.path || "/";
+  try {
+    // Run temp alpine container to list files
+    const result = await docker.run("alpine", [
+      "sh", "-c",
+      `cd "/vol${subpath}" 2>/dev/null && ls -la --time-style=long-iso 2>/dev/null || ls -la "/vol${subpath}" 2>/dev/null || echo "NOTFOUND"`
+    ], undefined, {
+      HostConfig: { Binds: [`${volName}:/vol:ro`], AutoRemove: true },
+      Tty: false
+    });
+    const output = result[0]?.StatusCode === 0 || true;
+    const raw = Buffer.isBuffer(result[1]) ? result[1].toString("utf8") : (typeof result[1] === "string" ? result[1] : "");
+    // Parse ls -la output
+    const lines = raw.split("\n").filter(l => l.trim() && !l.startsWith("total") && !l.includes("NOTFOUND"));
+    const files = lines.map(line => {
+      // drwxr-xr-x  2 root root 4096 2026-04-01 12:00 dirname
+      const parts = line.trim().split(/\s+/);
+      if (parts.length < 8) return null;
+      const perms = parts[0];
+      const size = parseInt(parts[4]) || 0;
+      const date = parts[5] + " " + (parts[6] || "");
+      const name = parts.slice(7).join(" ");
+      if (!name || name === "." || name === "..") return null;
+      const isDir = perms.startsWith("d");
+      return { name, isDir, size, date, perms };
+    }).filter(Boolean);
+    res.json({ path: subpath, files });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // === VS Code serve-web auto-start + Proxy ===
 const VSCODE_PORT = parseInt(process.env.VSCODE_PORT) || 8080;
 
