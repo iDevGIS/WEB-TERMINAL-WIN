@@ -1421,6 +1421,23 @@ app.get("/api/docker/networks", requireAuth, async (req, res) => {
   }
 });
 
+// Parse `ls -la` output (handles BusyBox/Alpine: Mon DD HH:MM format)
+function _parseLsLa(stdout) {
+  const lines = stdout.split("\n").filter(l => l.trim() && !l.startsWith("total"));
+  return lines.map(line => {
+    // drwxr-xr-x  2 root root 4096 Apr  1 12:01 dirname
+    // Extra spaces (e.g. "Apr  1") collapse via split(/\s+/)
+    const parts = line.trim().split(/\s+/);
+    if (parts.length < 9) return null;
+    const perms = parts[0];
+    const size = parseInt(parts[4]) || 0;
+    const date = parts[5] + " " + parts[6] + " " + parts[7];
+    const name = parts.slice(8).join(" ");
+    if (!name || name === "." || name === "..") return null;
+    return { name, isDir: perms.startsWith("d") || perms.startsWith("l"), size, date, perms };
+  }).filter(Boolean);
+}
+
 // GET /api/docker/volumes/:name/browse — browse volume via temp container
 app.get("/api/docker/volumes/:name/browse", requireAuth, async (req, res) => {
   const volName = req.params.name;
@@ -1430,17 +1447,7 @@ app.get("/api/docker/volumes/:name/browse", requireAuth, async (req, res) => {
     const cmd = `docker run --rm -v "${volName}:/vol:ro" alpine sh -c "ls -la /vol${subpath}"`;
     exec(cmd, { timeout: 10000 }, (err, stdout, stderr) => {
       if (err) return res.status(500).json({ error: stderr || err.message });
-      const lines = stdout.split("\n").filter(l => l.trim() && !l.startsWith("total"));
-      const files = lines.map(line => {
-        const parts = line.trim().split(/\s+/);
-        if (parts.length < 8) return null;
-        const perms = parts[0];
-        const size = parseInt(parts[4]) || 0;
-        const date = parts[5] + " " + (parts[6] || "");
-        const name = parts.slice(7).join(" ");
-        if (!name || name === "." || name === "..") return null;
-        return { name, isDir: perms.startsWith("d"), size, date, perms };
-      }).filter(Boolean);
+      const files = _parseLsLa(stdout);
       res.json({ path: subpath, files });
     });
   } catch (e) {
@@ -1456,17 +1463,7 @@ app.get("/api/docker/containers/:id/browse", requireAuth, (req, res) => {
   const cmd = `docker exec ${containerId} ls -la "${subpath}"`;
   exec(cmd, { timeout: 10000 }, (err, stdout, stderr) => {
     if (err) return res.status(500).json({ error: stderr || err.message });
-    const lines = stdout.split("\n").filter(l => l.trim() && !l.startsWith("total"));
-    const files = lines.map(line => {
-      const parts = line.trim().split(/\s+/);
-      if (parts.length < 8) return null;
-      const perms = parts[0];
-      const size = parseInt(parts[4]) || 0;
-      const date = parts[5] + " " + (parts[6] || "");
-      const name = parts.slice(7).join(" ");
-      if (!name || name === "." || name === "..") return null;
-      return { name, isDir: perms.startsWith("d") || perms.startsWith("l"), size, date, perms };
-    }).filter(Boolean);
+    const files = _parseLsLa(stdout);
     res.json({ path: subpath, files });
   });
 });
