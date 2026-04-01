@@ -6556,8 +6556,8 @@
             const line = JSON.parse(e.data);
             const pre = body?.querySelector('pre');
             if (pre) {
-              pre.textContent += '\n' + line;
-              if (!panel._userScrolled) body.scrollTop = body.scrollHeight;
+              pre.appendChild(document.createTextNode('\n' + line));
+              if (!panel._userScrolled) setTimeout(() => { body.scrollTop = 999999999; }, 0);
             }
           } catch {}
         };
