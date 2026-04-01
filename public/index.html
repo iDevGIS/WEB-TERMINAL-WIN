@@ -6316,6 +6316,8 @@
             ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="2" stroke-linecap="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>'
             : '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>';
           const fullFilePath = subpath.replace(/\/$/, '') + '/' + f.name;
+          const isText = _isTextFile(f.name);
+          const openBtn = (!f.isDir && isText) ? `<button onclick="event.stopPropagation();_dockerOpenInEditor('${mode}','${escAttr(id)}','${escAttr(fullFilePath)}','${escAttr(f.name)}')" class="tree-dl-btn" title="Open in Editor"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>` : '';
           const dlBtn = f.isDir ? '' : `<button onclick="event.stopPropagation();_dockerDownloadFile('${mode}','${escAttr(id)}','${escAttr(fullFilePath)}')" class="tree-dl-btn" title="Download"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>`;
           const sizeStr = f.isDir ? '' : '<span style="color:var(--text3);font-size:10px;font-family:JetBrains Mono,monospace">' + _dockerFormatSize(f.size) + '</span>';
           const nameClass = f.isDir ? 'style="color:#4ade80;font-weight:500"' : 'style="color:var(--text2)"';
@@ -6327,7 +6329,7 @@
               <span class="tree-toggle">${chevron}</span>
               <span class="tree-icon">${fileIcon}</span>
               <span class="tree-name" ${nameClass}>${escHtml(f.name)}</span>
-              <span style="margin-left:auto;display:flex;align-items:center;gap:6px">${sizeStr}${dlBtn}</span>
+              <span style="margin-left:auto;display:flex;align-items:center;gap:6px">${sizeStr}${openBtn}${dlBtn}</span>
             </div>
             <div class="tree-children" style="display:none"></div>
           </div>`;
@@ -6375,18 +6377,74 @@
             ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="2" stroke-linecap="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>'
             : '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>';
           const childPath = fullpath.replace(/\/$/, '') + '/' + f.name;
+          const isTxt = _isTextFile(f.name);
+          const opB = (!f.isDir && isTxt) ? `<button onclick="event.stopPropagation();_dockerOpenInEditor('${mode}','${escAttr(id)}','${escAttr(childPath)}','${escAttr(f.name)}')" class="tree-dl-btn" title="Open in Editor"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>` : '';
           const dlB = f.isDir ? '' : `<button onclick="event.stopPropagation();_dockerDownloadFile('${mode}','${escAttr(id)}','${escAttr(childPath)}')" class="tree-dl-btn" title="Download"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>`;
           const sz = f.isDir ? '' : '<span style="color:var(--text3);font-size:10px;font-family:JetBrains Mono,monospace">' + _dockerFormatSize(f.size) + '</span>';
           const nc = f.isDir ? 'style="color:#4ade80;font-weight:500"' : 'style="color:var(--text2)"';
           const click = f.isDir ? `onclick="event.stopPropagation();_dockerTreeToggle(this,'${mode}','${escAttr(id)}','${escAttr(name)}','${escAttr(childPath)}')"` : '';
           return `<div class="tree-node" ${click}>
-            <div class="tree-row"><span class="tree-toggle">${chv}</span><span class="tree-icon">${fIcon}</span><span class="tree-name" ${nc}>${escHtml(f.name)}</span><span style="margin-left:auto;display:flex;align-items:center;gap:6px">${sz}${dlB}</span></div>
+            <div class="tree-row"><span class="tree-toggle">${chv}</span><span class="tree-icon">${fIcon}</span><span class="tree-name" ${nc}>${escHtml(f.name)}</span><span style="margin-left:auto;display:flex;align-items:center;gap:6px">${sz}${opB}${dlB}</span></div>
             <div class="tree-children" style="display:none"></div>
           </div>`;
         }).join('');
         children.dataset.loaded = '1';
       } catch (e) {
         children.innerHTML = '<div style="padding:4px 0 4px 24px;font-size:10px;color:var(--red)">Error</div>';
+      }
+    }
+
+    function _isTextFile(name) {
+      const ext = name.split('.').pop().toLowerCase();
+      const textExts = ['txt','md','json','yaml','yml','toml','xml','csv','html','htm','css','js','ts','jsx','tsx',
+        'py','rb','go','rs','java','c','cpp','h','hpp','cs','sh','bash','zsh','fish','ps1','bat','cmd',
+        'sql','env','cfg','conf','ini','log','dockerfile','makefile','gitignore','editorconfig',
+        'nginx','apache','properties','gradle','lock','mod','sum','cjs','mjs','vue','svelte','astro'];
+      // Also match dotfiles and extensionless common names
+      if (textExts.includes(ext)) return true;
+      const base = name.toLowerCase();
+      return ['dockerfile','makefile','readme','license','changelog','todo','.env','.gitignore','.dockerignore','.htaccess'].includes(base);
+    }
+
+    async function _dockerOpenInEditor(mode, id, filePath, fileName) {
+      const url = mode === 'container'
+        ? '/api/docker/containers/' + encodeURIComponent(id) + '/cat?path=' + encodeURIComponent(filePath)
+        : '/api/docker/volumes/' + encodeURIComponent(id) + '/cat?path=' + encodeURIComponent(filePath);
+      try {
+        const r = await fetch(url);
+        const d = await r.json();
+        if (d.error) { showToast('❌ ' + d.error, 'error'); return; }
+        // Close the browser modal
+        const modal = document.querySelector('.vol-browser');
+        if (modal) modal.remove();
+        // Open in editor tab (read-only, from Docker)
+        const tabId = createTab('editor', { name: '🐳 ' + fileName, icon: '📝' });
+        const tab = tabs.get(tabId);
+        if (tab) {
+          tab.filePath = '[docker] ' + filePath;
+          tab._dockerReadOnly = true;
+        }
+        switchTab(tabId);
+        // Wait for Monaco to load then set content
+        const waitMonaco = setInterval(() => {
+          const t = tabs.get(tabId);
+          if (t && t.monacoEditor) {
+            clearInterval(waitMonaco);
+            // Detect language from extension
+            const ext = fileName.split('.').pop().toLowerCase();
+            const langMap = {js:'javascript',ts:'typescript',py:'python',rb:'ruby',go:'go',rs:'rust',
+              json:'json',yaml:'yaml',yml:'yaml',xml:'xml',html:'html',css:'css',sql:'sql',
+              sh:'shell',bash:'shell',ps1:'powershell',md:'markdown',dockerfile:'dockerfile'};
+            const lang = langMap[ext] || 'plaintext';
+            const model = t.monacoEditor.getModel();
+            if (model) monaco.editor.setModelLanguage(model, lang);
+            t.monacoEditor.setValue(d.content);
+            showToast('📝 Opened from Docker (read-only)', 'info');
+          }
+        }, 200);
+        setTimeout(() => clearInterval(waitMonaco), 10000); // safety timeout
+      } catch (e) {
+        showToast('❌ ' + e.message, 'error');
       }
     }
 

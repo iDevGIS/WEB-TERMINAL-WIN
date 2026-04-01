@@ -1512,6 +1512,30 @@ app.get("/api/docker/volumes/:name/download", requireAuth, (req, res) => {
   });
 });
 
+// GET /api/docker/containers/:id/cat — read text file from container
+app.get("/api/docker/containers/:id/cat", requireAuth, (req, res) => {
+  const containerId = req.params.id;
+  const filePath = req.query.path;
+  if (!filePath) return res.status(400).json({ error: "path required" });
+  const { exec } = require("child_process");
+  exec(`docker exec ${containerId} cat "${filePath}"`, { timeout: 10000, maxBuffer: 2 * 1024 * 1024 }, (err, stdout, stderr) => {
+    if (err) return res.status(500).json({ error: stderr || err.message });
+    res.json({ content: stdout, path: filePath });
+  });
+});
+
+// GET /api/docker/volumes/:name/cat — read text file from volume
+app.get("/api/docker/volumes/:name/cat", requireAuth, (req, res) => {
+  const volName = req.params.name;
+  const filePath = req.query.path;
+  if (!filePath) return res.status(400).json({ error: "path required" });
+  const { exec } = require("child_process");
+  exec(`docker run --rm -v "${volName}:/vol:ro" alpine cat "/vol${filePath}"`, { timeout: 10000, maxBuffer: 2 * 1024 * 1024 }, (err, stdout, stderr) => {
+    if (err) return res.status(500).json({ error: stderr || err.message });
+    res.json({ content: stdout, path: filePath });
+  });
+});
+
 // === VS Code serve-web auto-start + Proxy ===
 const VSCODE_PORT = parseInt(process.env.VSCODE_PORT) || 8080;
 
