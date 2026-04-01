@@ -5,6 +5,56 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [2.0.0] — 2026-04-02
+
+### Added — 🐳 Docker Container Management
+- **Container Dashboard** — list all containers with status, image, network, ports, CPU/MEM stats
+- **Container Actions** — start, stop, restart, pause, unpause, remove with confirmation
+- **Live Log Streaming** — real-time log viewer via SSE with Follow/Clear/Download controls
+- **Logs Header Redesign** — SVG icons, pulsing green Live dot, glassmorphism buttons
+- **Container File Browser** — tree-view with expandable directories, lazy-load children, level indentation
+- **Volume Browser** — browse Docker volume files via temporary alpine container
+- **Open in Editor** — click text files (60+ types) to open in Monaco Editor with auto-detect language
+- **Save Back to Container** — edit files and Ctrl+S to write back via `docker cp`
+- **Download Files** — download any file from container or volume (hover ⬇️ button)
+- **Exec Shell** — open terminal inside running container as CYBERFRAME tab
+- **Port Popup Menu** — click port → Open in Browser / Open in CYBERFRAME Tab / Copy URL / Forward via Tailscale
+- **Docker Images/Volumes/Networks** — browse images, volumes (with mount paths), and networks
+- **SVG Nav Icons** — containers (blocks), images (frame), volumes (cylinder), networks (globe)
+- **Docker Loading Animation** — 6-box grid pulsing with accent gradient glow
+- **Stats Cache** — `tab._statsCache` persists CPU/MEM across refresh cycles (flicker-free)
+- **Docker Tab Persist** — survives page reload via workspace state
+- **Mock Log Generator** — `cf-loggen` alpine container for testing live log streaming
+- 20 new API endpoints (`/api/docker/*`)
+- Backend via `dockerode` npm package
+
+### Added — 🔒 Tailscale Serve Management
+- **Admin Panel Card** — view all Tailscale serve rules (port, route, target, scope badge)
+- **Add Rule** — glassmorphism dialog, HTTPS port + proxy target → `tailscale serve --bg`
+- **Remove Rule** — click ✕ with confirmation → `tailscale serve off`
+- **Forward via Tailscale** — one-click from Docker port popup menu
+- `GET /api/admin/tailscale` + `POST /api/admin/tailscale/serve` endpoints
+
+### Added — Admin Panel
+- **Connected Browsers Card** — track active browser sessions (IP, browser, OS, connected time)
+
+### Fixed
+- Docker port links use `https://` when page served over HTTPS
+- Docker port deduplication (IPv4 + IPv6 bindings → show once)
+- Alpine BusyBox `ls -la` date format (3 columns) — name at `parts[8]` not `parts[7]`
+- Tree view event bubbling — `stopPropagation()` on nested click handlers
+- Docker logs auto-scroll — `appendChild(createTextNode())` instead of `textContent +=`
+- Docker logs panel survives container refresh (DOM detach/reattach, not `outerHTML`)
+- Docker logs persist across view switches (separate div outside `docker-content`)
+- Docker exec timing — wait for WS `attached` event, not setTimeout
+
+### Changed
+- Docker stats render: container list first → stats lazy-load background
+- Docker refresh interval: 5s → 10s
+- Tailscale card style: green → blue (`#60a5fa`) to match Connected Browsers
+
+---
+
 ## [1.9.1] — 2026-03-31
 
 ### Added
