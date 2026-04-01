@@ -1426,31 +1426,23 @@ app.get("/api/docker/volumes/:name/browse", requireAuth, async (req, res) => {
   const volName = req.params.name;
   const subpath = req.query.path || "/";
   try {
-    // Run temp alpine container to list files
-    const result = await docker.run("alpine", [
-      "sh", "-c",
-      `cd "/vol${subpath}" 2>/dev/null && ls -la --time-style=long-iso 2>/dev/null || ls -la "/vol${subpath}" 2>/dev/null || echo "NOTFOUND"`
-    ], undefined, {
-      HostConfig: { Binds: [`${volName}:/vol:ro`], AutoRemove: true },
-      Tty: false
+    const { exec } = require("child_process");
+    const cmd = `docker run --rm -v "${volName}:/vol:ro" alpine sh -c "ls -la /vol${subpath}"`;
+    exec(cmd, { timeout: 10000 }, (err, stdout, stderr) => {
+      if (err) return res.status(500).json({ error: stderr || err.message });
+      const lines = stdout.split("\n").filter(l => l.trim() && !l.startsWith("total"));
+      const files = lines.map(line => {
+        const parts = line.trim().split(/\s+/);
+        if (parts.length < 8) return null;
+        const perms = parts[0];
+        const size = parseInt(parts[4]) || 0;
+        const date = parts[5] + " " + (parts[6] || "");
+        const name = parts.slice(7).join(" ");
+        if (!name || name === "." || name === "..") return null;
+        return { name, isDir: perms.startsWith("d"), size, date, perms };
+      }).filter(Boolean);
+      res.json({ path: subpath, files });
     });
-    const output = result[0]?.StatusCode === 0 || true;
-    const raw = Buffer.isBuffer(result[1]) ? result[1].toString("utf8") : (typeof result[1] === "string" ? result[1] : "");
-    // Parse ls -la output
-    const lines = raw.split("\n").filter(l => l.trim() && !l.startsWith("total") && !l.includes("NOTFOUND"));
-    const files = lines.map(line => {
-      // drwxr-xr-x  2 root root 4096 2026-04-01 12:00 dirname
-      const parts = line.trim().split(/\s+/);
-      if (parts.length < 8) return null;
-      const perms = parts[0];
-      const size = parseInt(parts[4]) || 0;
-      const date = parts[5] + " " + (parts[6] || "");
-      const name = parts.slice(7).join(" ");
-      if (!name || name === "." || name === "..") return null;
-      const isDir = perms.startsWith("d");
-      return { name, isDir, size, date, perms };
-    }).filter(Boolean);
-    res.json({ path: subpath, files });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
