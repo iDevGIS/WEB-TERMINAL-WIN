@@ -1974,22 +1974,26 @@
       font-size: 10px;
     }
     .fav-item {
-      display: flex;
+      display: inline-flex;
       align-items: center;
-      gap: 6px;
-      padding: 4px 8px;
+      gap: 5px;
+      padding: 3px 10px 3px 7px;
       cursor: pointer;
       font-size: 11px;
       color: var(--text2);
       border-radius: 6px;
+      background: rgba(255,255,255,.03);
+      border: 1px solid rgba(255,255,255,.05);
+      transition: all .15s;
+      white-space: nowrap;
     }
-    .fav-item:hover { background: var(--glass-bg2); color: var(--text); }
+    .fav-item:hover { background: rgba(108,99,255,.08); border-color: rgba(108,99,255,.15); color: var(--text1); }
     .fav-item .fav-remove {
-      margin-left: auto;
+      margin-left: 2px;
       opacity: 0;
       cursor: pointer;
       color: var(--red);
-      font-size: 12px;
+      font-size: 10px;
     }
     .fav-item:hover .fav-remove { opacity: 1; }
     .file-item.selected { background: rgba(108,99,255,.12) !important; border-left: 2px solid var(--accent); }
@@ -3098,7 +3102,7 @@
     <div id="file-breadcrumb" class="file-breadcrumb"></div>
     <div id="favorites-bar" style="display:none;padding:4px 0;border-bottom:1px solid var(--glass-border)">
       <div style="font-size:10px;color:var(--text3);padding:2px 4px;text-transform:uppercase;letter-spacing:.5px">★ Favorites</div>
-      <div id="favorites-list" style="display:flex;flex-direction:column;gap:1px"></div>
+      <div id="favorites-list" style="display:flex;flex-wrap:wrap;gap:4px"></div>
     </div>
     <div id="file-list" class="file-list"></div>
     <div id="file-drop-zone" class="file-drop-zone" style="display:none">
