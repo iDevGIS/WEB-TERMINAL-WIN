@@ -2988,6 +2988,19 @@
     .vol-file-date { color: var(--text3); font-size: 10px; min-width: 80px; text-align: right; }
     .vol-browser-loading { text-align: center; padding: 30px; color: var(--text3); }
     .vol-browser-empty { text-align: center; padding: 30px; color: var(--text3); font-size: 12px; }
+    /* Tree view */
+    .tree-node { user-select: none; }
+    .tree-row {
+      display: flex; align-items: center; gap: 4px; padding: 3px 12px;
+      font-size: 12px; cursor: default; border-radius: 4px; transition: background .1s;
+    }
+    .tree-node[onclick] > .tree-row { cursor: pointer; }
+    .tree-node[onclick] > .tree-row:hover { background: rgba(108,99,255,.06); }
+    .tree-toggle { width: 14px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .tree-chevron { transition: transform .15s; color: var(--text3); }
+    .tree-icon { flex-shrink: 0; display: flex; align-items: center; }
+    .tree-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .tree-children { padding-left: 18px; border-left: 1px solid rgba(255,255,255,.04); margin-left: 18px; }
     .docker-unavailable {
       display: flex; flex-direction: column; align-items: center; justify-content: center;
       height: 100%; gap: 12px; color: var(--text3);
@@ -6239,6 +6252,17 @@
 
     async function dockerBrowseContainer(containerId, name, subpath) {
       subpath = subpath || '/';
+      // Use same modal as volume browser but for container filesystem
+      _dockerTreeBrowse('container', containerId, name, subpath);
+    }
+
+    async function dockerBrowseVolume(volName, subpath) {
+      subpath = subpath || '/';
+      _dockerTreeBrowse('volume', volName, volName, subpath);
+    }
+
+    // Unified tree browser for containers and volumes
+    async function _dockerTreeBrowse(mode, id, name, subpath) {
       let modal = document.querySelector('.vol-browser');
       if (!modal) {
         modal = document.createElement('div');
@@ -6246,100 +6270,114 @@
         modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
         document.body.appendChild(modal);
       }
+      const icon = mode === 'container'
+        ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"><rect x="2" y="7" width="5" height="5" rx="1"/><rect x="9.5" y="7" width="5" height="5" rx="1"/><rect x="17" y="7" width="5" height="5" rx="1"/></svg>'
+        : '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>';
+      const browseCall = mode === 'container' ? 'dockerBrowseContainer' : 'dockerBrowseVolume';
+
       modal.innerHTML = `<div class="vol-browser-dialog">
         <div class="vol-browser-header">
-          <h3><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"><rect x="2" y="7" width="5" height="5" rx="1"/><rect x="9.5" y="7" width="5" height="5" rx="1"/><rect x="17" y="7" width="5" height="5" rx="1"/></svg> ${escHtml(name)}</h3>
+          <h3>${icon} ${escHtml(name)}</h3>
           <button onclick="this.closest('.vol-browser').remove()" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:18px;padding:4px">✕</button>
         </div>
         <div class="vol-browser-path">
-          ${subpath !== '/' ? `<button onclick="dockerBrowseContainer('${escAttr(containerId)}','${escAttr(name)}','${escAttr(subpath.replace(/\/[^/]+\/?$/, '/') || '/')}')">⬆ Up</button>` : ''}
-          <span>${escHtml(subpath)}</span>
+          ${subpath !== '/' ? `<button onclick="${browseCall}('${escAttr(id)}','${escAttr(name)}','${escAttr(subpath.replace(/\/[^/]+\/?$/, '/') || '/')}')">⬆ Up</button>` : ''}
+          <span style="flex:1">${escHtml(subpath)}</span>
         </div>
-        <div class="vol-browser-list"><div class="vol-browser-loading">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" style="animation:spin 1s linear infinite"><path d="M21 12a9 9 0 1 1-6.22-8.56"/></svg>
-          Loading...
-        </div></div>
+        <div class="vol-browser-list" id="_vb-tree">
+          <div class="vol-browser-loading">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" style="animation:spin 1s linear infinite"><path d="M21 12a9 9 0 1 1-6.22-8.56"/></svg>
+            Loading...
+          </div>
+        </div>
       </div>`;
 
+      const url = mode === 'container'
+        ? '/api/docker/containers/' + id + '/browse?path=' + encodeURIComponent(subpath)
+        : '/api/docker/volumes/' + encodeURIComponent(id) + '/browse?path=' + encodeURIComponent(subpath);
+
       try {
-        const r = await fetch('/api/docker/containers/' + containerId + '/browse?path=' + encodeURIComponent(subpath));
+        const r = await fetch(url);
         const d = await r.json();
-        const list = modal.querySelector('.vol-browser-list');
+        const list = document.getElementById('_vb-tree');
         if (!list) return;
         if (d.error) { list.innerHTML = '<div class="vol-browser-empty">❌ ' + escHtml(d.error) + '</div>'; return; }
         if (!d.files || !d.files.length) { list.innerHTML = '<div class="vol-browser-empty">📭 Empty</div>'; return; }
         d.files.sort((a, b) => b.isDir - a.isDir || a.name.localeCompare(b.name));
         list.innerHTML = d.files.map(f => {
-          const sizeStr = f.isDir ? '—' : _dockerFormatSize(f.size);
-          const icon = f.isDir ? '📁' : _dockerFileIcon(f.name);
+          const chevron = f.isDir ? '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" class="tree-chevron"><polyline points="9 18 15 12 9 6"/></svg>' : '';
+          const fileIcon = f.isDir
+            ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="2" stroke-linecap="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>'
+            : '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>';
+          const sizeStr = f.isDir ? '' : '<span style="color:var(--text3);font-size:10px;margin-left:auto;font-family:JetBrains Mono,monospace">' + _dockerFormatSize(f.size) + '</span>';
+          const nameClass = f.isDir ? 'style="color:#4ade80;font-weight:500"' : 'style="color:var(--text2)"';
           const clickAction = f.isDir
-            ? `onclick="dockerBrowseContainer('${escAttr(containerId)}','${escAttr(name)}','${escAttr(subpath.replace(/\/$/, '') + '/' + f.name)}')"` 
+            ? `onclick="_dockerTreeToggle(this,'${mode}','${escAttr(id)}','${escAttr(name)}','${escAttr(subpath.replace(/\/$/, '') + '/' + f.name)}')"` 
             : '';
-          return `<div class="vol-file-item" ${clickAction}>
-            <span class="vol-file-icon">${icon}</span>
-            <span class="vol-file-name ${f.isDir ? 'dir' : ''}">${escHtml(f.name)}</span>
-            <span class="vol-file-size">${sizeStr}</span>
-            <span class="vol-file-date">${escHtml(f.date || '')}</span>
+          return `<div class="tree-node" ${clickAction}>
+            <div class="tree-row">
+              <span class="tree-toggle">${chevron}</span>
+              <span class="tree-icon">${fileIcon}</span>
+              <span class="tree-name" ${nameClass}>${escHtml(f.name)}</span>
+              ${sizeStr}
+            </div>
+            <div class="tree-children" style="display:none"></div>
           </div>`;
         }).join('');
       } catch (e) {
-        const list = modal.querySelector('.vol-browser-list');
+        const list = document.getElementById('_vb-tree');
         if (list) list.innerHTML = '<div class="vol-browser-empty">❌ ' + escHtml(e.message) + '</div>';
       }
     }
 
-    async function dockerBrowseVolume(volName, subpath) {
-      subpath = subpath || '/';
-      // Create or update modal
-      let modal = document.querySelector('.vol-browser');
-      if (!modal) {
-        modal = document.createElement('div');
-        modal.className = 'vol-browser';
-        modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
-        document.body.appendChild(modal);
+    async function _dockerTreeToggle(el, mode, id, name, fullpath) {
+      const children = el.querySelector('.tree-children');
+      const chevron = el.querySelector('.tree-chevron');
+      if (!children) return;
+
+      // Toggle open/close
+      if (children.dataset.loaded) {
+        const open = children.style.display === 'none';
+        children.style.display = open ? 'block' : 'none';
+        if (chevron) chevron.style.transform = open ? 'rotate(90deg)' : '';
+        return;
       }
-      modal.innerHTML = `<div class="vol-browser-dialog">
-        <div class="vol-browser-header">
-          <h3><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg> ${escHtml(volName)}</h3>
-          <button onclick="this.closest('.vol-browser').remove()" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:18px;padding:4px">✕</button>
-        </div>
-        <div class="vol-browser-path">
-          ${subpath !== '/' ? '<button onclick="dockerBrowseVolume(\'' + escAttr(volName) + '\',\'' + escAttr(subpath.replace(/\/[^/]+\/?$/, '/') || '/') + '\')">⬆ Up</button>' : ''}
-          <span>${escHtml(subpath)}</span>
-        </div>
-        <div class="vol-browser-list"><div class="vol-browser-loading">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" style="animation:spin 1s linear infinite"><path d="M21 12a9 9 0 1 1-6.22-8.56"/></svg>
-          Loading...
-        </div></div>
-      </div>`;
+
+      // Load children
+      children.style.display = 'block';
+      if (chevron) chevron.style.transform = 'rotate(90deg)';
+      children.innerHTML = '<div style="padding:4px 0 4px 24px;font-size:11px;color:var(--text3)">Loading...</div>';
+
+      const url = mode === 'container'
+        ? '/api/docker/containers/' + id + '/browse?path=' + encodeURIComponent(fullpath)
+        : '/api/docker/volumes/' + encodeURIComponent(id) + '/browse?path=' + encodeURIComponent(fullpath);
 
       try {
-        const r = await fetch('/api/docker/volumes/' + encodeURIComponent(volName) + '/browse?path=' + encodeURIComponent(subpath));
+        const r = await fetch(url);
         const d = await r.json();
-        const list = modal.querySelector('.vol-browser-list');
-        if (!list) return;
-        if (d.error) { list.innerHTML = '<div class="vol-browser-empty">❌ ' + escHtml(d.error) + '</div>'; return; }
-        if (!d.files || !d.files.length) { list.innerHTML = '<div class="vol-browser-empty">📭 Empty directory</div>'; return; }
-
-        // Sort: dirs first, then files
+        if (d.error || !d.files || !d.files.length) {
+          children.innerHTML = '<div style="padding:4px 0 4px 24px;font-size:10px;color:var(--text3)">empty</div>';
+          children.dataset.loaded = '1';
+          return;
+        }
         d.files.sort((a, b) => b.isDir - a.isDir || a.name.localeCompare(b.name));
-
-        list.innerHTML = d.files.map(f => {
-          const sizeStr = f.isDir ? '—' : _dockerFormatSize(f.size);
-          const icon = f.isDir ? '📁' : _dockerFileIcon(f.name);
-          const clickAction = f.isDir
-            ? `onclick="dockerBrowseVolume('${escAttr(volName)}','${escAttr(subpath.replace(/\/$/, '') + '/' + f.name)}')"` 
-            : '';
-          return `<div class="vol-file-item" ${clickAction}>
-            <span class="vol-file-icon">${icon}</span>
-            <span class="vol-file-name ${f.isDir ? 'dir' : ''}">${escHtml(f.name)}</span>
-            <span class="vol-file-size">${sizeStr}</span>
-            <span class="vol-file-date">${escHtml(f.date || '')}</span>
+        children.innerHTML = d.files.map(f => {
+          const chv = f.isDir ? '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" class="tree-chevron"><polyline points="9 18 15 12 9 6"/></svg>' : '';
+          const fIcon = f.isDir
+            ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="2" stroke-linecap="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>'
+            : '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>';
+          const sz = f.isDir ? '' : '<span style="color:var(--text3);font-size:10px;margin-left:auto;font-family:JetBrains Mono,monospace">' + _dockerFormatSize(f.size) + '</span>';
+          const nc = f.isDir ? 'style="color:#4ade80;font-weight:500"' : 'style="color:var(--text2)"';
+          const childPath = fullpath.replace(/\/$/, '') + '/' + f.name;
+          const click = f.isDir ? `onclick="_dockerTreeToggle(this,'${mode}','${escAttr(id)}','${escAttr(name)}','${escAttr(childPath)}')"` : '';
+          return `<div class="tree-node" ${click}>
+            <div class="tree-row"><span class="tree-toggle">${chv}</span><span class="tree-icon">${fIcon}</span><span class="tree-name" ${nc}>${escHtml(f.name)}</span>${sz}</div>
+            <div class="tree-children" style="display:none"></div>
           </div>`;
         }).join('');
+        children.dataset.loaded = '1';
       } catch (e) {
-        const list = modal.querySelector('.vol-browser-list');
-        if (list) list.innerHTML = '<div class="vol-browser-empty">❌ ' + escHtml(e.message) + '</div>';
+        children.innerHTML = '<div style="padding:4px 0 4px 24px;font-size:10px;color:var(--red)">Error</div>';
       }
     }
 
