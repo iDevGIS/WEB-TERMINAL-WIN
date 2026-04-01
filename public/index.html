@@ -6536,23 +6536,28 @@
         const d = await r.json();
         const body = document.getElementById(tabId + '-logs-body');
         if (body && d.lines) {
-          body.textContent = d.lines.join('\n');
-          requestAnimationFrame(() => { body.scrollTop = body.scrollHeight; });
+          body.innerHTML = '';
+          const pre = document.createElement('pre');
+          pre.style.cssText = 'margin:0;white-space:pre-wrap;word-break:break-all;';
+          pre.textContent = d.lines.join('\n');
+          body.appendChild(pre);
+          body.scrollTop = body.scrollHeight;
         }
         // Start SSE follow stream
         const sse = new EventSource('/api/docker/containers/' + containerId + '/logs?tail=0&follow=true&timestamps=true');
         panel._sse = sse;
-        let autoScroll = true;
-        if (body) body.addEventListener('scroll', () => {
-          autoScroll = body.scrollTop + body.clientHeight >= body.scrollHeight - 30;
-        });
+        panel._userScrolled = false;
+        if (body) {
+          body.addEventListener('wheel', () => { panel._userScrolled = true; });
+          body.addEventListener('touchstart', () => { panel._userScrolled = true; });
+        }
         sse.onmessage = (e) => {
           try {
             const line = JSON.parse(e.data);
-            if (body) {
-              const lineEl = document.createTextNode('\n' + line);
-              body.appendChild(lineEl);
-              if (autoScroll) requestAnimationFrame(() => { body.scrollTop = body.scrollHeight; });
+            const pre = body?.querySelector('pre');
+            if (pre) {
+              pre.textContent += '\n' + line;
+              if (!panel._userScrolled) body.scrollTop = body.scrollHeight;
             }
           } catch {}
         };
