@@ -6537,7 +6537,7 @@
         const body = document.getElementById(tabId + '-logs-body');
         if (body && d.lines) {
           body.textContent = d.lines.join('\n');
-          body.scrollTop = body.scrollHeight;
+          requestAnimationFrame(() => { body.scrollTop = body.scrollHeight; });
         }
         // Start SSE follow stream
         const sse = new EventSource('/api/docker/containers/' + containerId + '/logs?tail=0&follow=true&timestamps=true');
@@ -6550,8 +6550,9 @@
           try {
             const line = JSON.parse(e.data);
             if (body) {
-              body.textContent += '\n' + line;
-              if (autoScroll) body.scrollTop = body.scrollHeight;
+              const lineEl = document.createTextNode('\n' + line);
+              body.appendChild(lineEl);
+              if (autoScroll) requestAnimationFrame(() => { body.scrollTop = body.scrollHeight; });
             }
           } catch {}
         };
