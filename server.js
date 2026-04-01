@@ -1554,6 +1554,28 @@ app.put("/api/docker/containers/:id/save", requireAuth, express.json({ limit: '5
   });
 });
 
+// GET /api/admin/tailscale — tailscale serve status
+app.get("/api/admin/tailscale", requireAuth, (req, res) => {
+  const { exec } = require("child_process");
+  exec("tailscale serve status", { timeout: 5000 }, (err, stdout) => {
+    if (err) return res.json({ available: false, error: err.message });
+    // Parse: https://host:port (scope)\n|-- /path proxy target
+    const entries = [];
+    let current = null;
+    stdout.split("\n").forEach(line => {
+      const hostMatch = line.match(/^(https?:\/\/\S+?)(?:\s+\((.+?)\))?$/);
+      if (hostMatch) {
+        current = { url: hostMatch[1], scope: hostMatch[2] || '', routes: [] };
+        entries.push(current);
+      } else if (current && line.includes("|--")) {
+        const routeMatch = line.match(/\|--\s+(\S+)\s+proxy\s+(\S+)/);
+        if (routeMatch) current.routes.push({ path: routeMatch[1], target: routeMatch[2] });
+      }
+    });
+    res.json({ available: true, entries });
+  });
+});
+
 // === VS Code serve-web auto-start + Proxy ===
 const VSCODE_PORT = parseInt(process.env.VSCODE_PORT) || 8080;
 

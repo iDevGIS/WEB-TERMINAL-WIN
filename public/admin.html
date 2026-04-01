@@ -602,6 +602,20 @@
     </div>
   </div>
 
+  <!-- Tailscale Serve -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        Tailscale Serve
+      </div>
+      <span class="card-badge" id="ts-count" style="background:rgba(74,222,128,.15);color:#4ade80">…</span>
+    </div>
+    <div id="ts-list">
+      <div class="net-item"><span class="net-label" style="color:var(--text3)">Loading...</span></div>
+    </div>
+  </div>
+
   <!-- Processes -->
   <div class="card card-full">
     <div class="card-header">
@@ -784,7 +798,7 @@
   async function refreshAll() {
     const btn = document.getElementById('refresh-btn');
     btn.classList.add('loading');
-    await Promise.all([fetchStatus(), fetchSessions(), fetchProcesses(), fetchLogs(), fetchServerInfo(), fetchClients()]);
+    await Promise.all([fetchStatus(), fetchSessions(), fetchProcesses(), fetchLogs(), fetchServerInfo(), fetchClients(), fetchTailscale()]);
     btn.classList.remove('loading');
   }
 
@@ -843,6 +857,41 @@
     if (h < 24) return h + 'h ago';
     const d = Math.floor(h / 24);
     return d + 'd ago';
+  }
+
+  // === Fetch Tailscale Serve ===
+  async function fetchTailscale() {
+    try {
+      const r = await fetch(API + '/api/admin/tailscale');
+      const d = await r.json();
+      const list = document.getElementById('ts-list');
+      if (!d.available || !d.entries.length) {
+        document.getElementById('ts-count').textContent = '0';
+        list.innerHTML = '<div class="net-item"><span class="net-label" style="color:var(--text3)">No serve rules</span></div>';
+        return;
+      }
+      document.getElementById('ts-count').textContent = d.entries.length;
+      list.innerHTML = d.entries.map(e => {
+        const port = e.url.match(/:(\d+)$/)?.[1] || '443';
+        const scope = e.scope ? `<span style="font-size:9px;color:var(--text3);background:rgba(255,255,255,.04);padding:1px 5px;border-radius:3px;margin-left:4px">${e.scope}</span>` : '';
+        return `<div style="padding:8px 0;border-bottom:1px solid var(--border)">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+            <span style="font-size:12px;color:var(--text);font-weight:500">:${port}${scope}</span>
+            <a href="${e.url}" target="_blank" rel="noopener" style="font-size:10px;color:var(--blue);text-decoration:none">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="vertical-align:middle"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+              Open
+            </a>
+          </div>
+          ${e.routes.map(r => `<div style="display:flex;align-items:center;gap:4px;padding:2px 0 2px 8px">
+            <span style="color:var(--text3);font-size:10px">${r.path}</span>
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2" stroke-linecap="round"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
+            <span style="color:var(--green);font-size:10px;font-family:'JetBrains Mono',monospace">${r.target}</span>
+          </div>`).join('')}
+        </div>`;
+      }).join('');
+    } catch (e) {
+      console.error('Tailscale fetch failed:', e);
+    }
   }
 
   // === Quick Action Helpers ===
