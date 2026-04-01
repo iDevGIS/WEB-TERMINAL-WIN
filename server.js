@@ -1204,8 +1204,37 @@ app.get("/api/agent/status", requireAuth, async (req, res) => {
 });
 
 // Protected static files — no cache for HTML
-// === VS Code serve-web Proxy ===
+// === VS Code serve-web auto-start + Proxy ===
 const VSCODE_PORT = parseInt(process.env.VSCODE_PORT) || 8080;
+
+// Auto-start VS Code serve-web if not running
+(async () => {
+  try {
+    const net = require("net");
+    const probe = new net.Socket();
+    const running = await new Promise((resolve) => {
+      probe.setTimeout(1000);
+      probe.once("connect", () => { probe.destroy(); resolve(true); });
+      probe.once("error", () => resolve(false));
+      probe.once("timeout", () => { probe.destroy(); resolve(false); });
+      probe.connect(VSCODE_PORT, "127.0.0.1");
+    });
+    if (!running) {
+      console.log("[VS Code] Not running — starting serve-web on port " + VSCODE_PORT);
+      const { spawn } = require("child_process");
+      const vsc = spawn("code.cmd", [
+        "serve-web", "--host", "127.0.0.1", "--port", String(VSCODE_PORT),
+        "--without-connection-token", "--accept-server-license-terms"
+      ], { detached: true, stdio: "ignore", shell: true, windowsHide: true });
+      vsc.unref();
+      console.log("[VS Code] Started serve-web (PID " + vsc.pid + ")");
+    } else {
+      console.log("[VS Code] Already running on port " + VSCODE_PORT);
+    }
+  } catch (e) {
+    console.error("[VS Code] Auto-start failed:", e.message);
+  }
+})();
 const vscodeProxy = createProxyMiddleware({
   target: `http://127.0.0.1:${VSCODE_PORT}`,
   changeOrigin: true,
