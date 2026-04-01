@@ -2834,46 +2834,71 @@
       white-space: nowrap; min-width: 30px; text-align: right;
     }
     /* Workspace sidebar section */
-    .sidebar-section { border-top: 1px solid rgba(255,255,255,.06); }
+    .sidebar-section { border-top: 1px solid rgba(255,255,255,.06); margin-top: 4px; }
     .sidebar-section-header {
       display: flex; align-items: center; justify-content: space-between;
-      padding: 8px 16px; cursor: pointer; font-size: 12px; color: var(--text2);
+      padding: 10px 16px; cursor: pointer; font-size: 11px; color: var(--text3);
+      letter-spacing: .5px; text-transform: uppercase; font-weight: 600;
       transition: background .15s;
     }
-    .sidebar-section-header:hover { background: rgba(255,255,255,.03); }
+    .sidebar-section-header:hover { background: rgba(255,255,255,.03); color: var(--text2); }
+    .sidebar-section-header svg { transition: transform .2s; }
+    .sidebar-section-header.open svg { transform: rotate(180deg); }
     .btn-sm.workspace-save-btn {
-      display: flex; align-items: center; gap: 3px; padding: 3px 8px;
-      background: rgba(108,99,255,.15); border: 1px solid rgba(108,99,255,.25);
-      border-radius: 5px; color: var(--accent); font-size: 10px; cursor: pointer;
-      transition: all .15s;
+      display: flex; align-items: center; gap: 4px; padding: 4px 10px;
+      background: linear-gradient(135deg, rgba(108,99,255,.15), rgba(139,92,246,.1));
+      border: 1px solid rgba(108,99,255,.2); border-radius: 6px;
+      color: var(--accent); font-size: 10px; cursor: pointer;
+      transition: all .2s; text-transform: none; letter-spacing: 0; font-weight: 500;
     }
-    .btn-sm.workspace-save-btn:hover { background: rgba(108,99,255,.3); }
+    .btn-sm.workspace-save-btn:hover {
+      background: linear-gradient(135deg, rgba(108,99,255,.25), rgba(139,92,246,.18));
+      border-color: rgba(108,99,255,.4); box-shadow: 0 2px 8px rgba(108,99,255,.15);
+    }
     .workspace-list {
-      flex-direction: column; gap: 2px; max-height: 180px; overflow-y: auto;
-      padding: 0 8px 8px;
+      flex-direction: column; gap: 4px; max-height: 220px; overflow-y: auto;
+      padding: 0 10px 10px;
     }
     .workspace-list.open { display: flex; }
     .workspace-item {
-      display: flex; align-items: center; gap: 8px; padding: 7px 10px;
+      display: flex; align-items: center; gap: 10px; padding: 8px 12px;
       background: rgba(255,255,255,.02); border: 1px solid rgba(255,255,255,.04);
-      border-radius: 8px; cursor: pointer; transition: all .15s;
+      border-radius: 10px; cursor: pointer; transition: all .2s; position: relative;
     }
-    .workspace-item:hover { background: rgba(108,99,255,.08); border-color: rgba(108,99,255,.15); }
+    .workspace-item:hover {
+      background: linear-gradient(135deg, rgba(108,99,255,.06), rgba(139,92,246,.04));
+      border-color: rgba(108,99,255,.2); transform: translateX(2px);
+    }
     .workspace-item-icon {
-      width: 28px; height: 28px; border-radius: 6px; display: flex; align-items: center; justify-content: center;
-      background: linear-gradient(135deg, rgba(108,99,255,.12), rgba(139,92,246,.08)); font-size: 13px; flex-shrink: 0;
+      width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center;
+      background: linear-gradient(135deg, rgba(108,99,255,.15), rgba(139,92,246,.1));
+      font-size: 14px; flex-shrink: 0;
     }
     .workspace-item-info { flex: 1; min-width: 0; }
-    .workspace-item-name { font-size: 12px; color: var(--text1); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .workspace-item-meta { font-size: 9px; color: var(--text3); margin-top: 1px; }
-    .workspace-item-actions { display: flex; gap: 2px; opacity: 0; transition: opacity .15s; }
+    .workspace-item-name {
+      font-size: 12px; color: var(--text1); font-weight: 500;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .workspace-item-meta {
+      font-size: 10px; color: var(--text3); margin-top: 2px;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .workspace-item-meta .ws-dot { width: 3px; height: 3px; border-radius: 50%; background: var(--text3); }
+    .workspace-item-actions {
+      display: flex; gap: 2px; opacity: 0; transition: opacity .15s;
+      position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+    }
     .workspace-item:hover .workspace-item-actions { opacity: 1; }
     .workspace-item-actions button {
-      background: none; border: none; color: var(--text3); cursor: pointer; padding: 2px;
-      border-radius: 3px; transition: all .15s;
+      background: rgba(0,0,0,.3); border: none; color: var(--text3); cursor: pointer;
+      padding: 4px; border-radius: 5px; transition: all .15s;
+      display: flex; align-items: center; justify-content: center;
     }
-    .workspace-item-actions button:hover { color: #f87171; background: rgba(248,113,113,.1); }
-    .workspace-empty { color: var(--text3); font-size: 11px; padding: 10px; text-align: center; }
+    .workspace-item-actions button:hover { color: #f87171; background: rgba(248,113,113,.12); }
+    .workspace-empty {
+      color: var(--text3); font-size: 11px; padding: 16px 10px; text-align: center;
+      border: 1px dashed rgba(255,255,255,.06); border-radius: 8px; margin: 0 10px 10px;
+    }
 
     .chat-empty {
       flex: 1; display: flex; align-items: center; justify-content: center;
@@ -3164,10 +3189,13 @@
 
     <!-- Workspace Section -->
     <div id="workspace-panel" class="sidebar-section">
-      <div class="sidebar-section-header" onclick="toggleWorkspacePanel()">
-        <span>💾 Workspaces</span>
-        <button class="btn-sm workspace-save-btn" onclick="event.stopPropagation();saveWorkspacePrompt()" title="Save current">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+      <div class="sidebar-section-header" id="ws-header" onclick="toggleWorkspacePanel()">
+        <span style="display:flex;align-items:center;gap:6px">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg>
+          Workspaces
+        </span>
+        <button class="btn-sm workspace-save-btn" onclick="event.stopPropagation();saveWorkspacePrompt()" title="Save current workspace">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
           Save
         </button>
       </div>
@@ -7046,9 +7074,11 @@
 
     function toggleWorkspacePanel() {
       const list = document.getElementById('workspace-list');
+      const header = document.getElementById('ws-header');
       if (!list) return;
       const isOpen = list.classList.toggle('open');
       list.style.display = isOpen ? 'flex' : 'none';
+      if (header) header.classList.toggle('open', isOpen);
       if (isOpen && !_wsListLoaded) loadWorkspaceList();
     }
 
@@ -7065,15 +7095,21 @@
         }
         listEl.innerHTML = workspaces.map(w => {
           const ago = _wsTimeAgo(new Date(w.savedAt));
-          return `<div class="workspace-item" onclick="openWorkspace('${escAttr(w.id)}')" title="${escAttr(w.description || '')}">
-            <div class="workspace-item-icon">📋</div>
+          return `<div class="workspace-item" onclick="openWorkspace('${escAttr(w.id)}')" title="${escAttr(w.description || 'Click to load')}">
+            <div class="workspace-item-icon">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round"><rect x="2" y="6" width="20" height="14" rx="2"/><path d="M2 10h20"/><path d="M6 6V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v2"/></svg>
+            </div>
             <div class="workspace-item-info">
               <div class="workspace-item-name">${escHtml(w.name)}</div>
-              <div class="workspace-item-meta">${w.tabCount} tabs · ${ago}</div>
+              <div class="workspace-item-meta">
+                <span>${w.tabCount} tabs</span>
+                <span class="ws-dot"></span>
+                <span>${ago}</span>
+              </div>
             </div>
             <div class="workspace-item-actions">
               <button onclick="event.stopPropagation();deleteWorkspace('${escAttr(w.id)}','${escAttr(w.name)}')" title="Delete">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
               </button>
             </div>
           </div>`;
