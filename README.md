@@ -1,10 +1,10 @@
 # ⚡ CYBERFRAME
 
-**Neural Shell Interface** — Web-based terminal with AI chat, agent monitoring, remote desktop, file manager, and cyberpunk UI.
+**Neural Shell Interface** — Web-based terminal with AI chat, voice I/O, agent monitoring, remote desktop, file manager, workspace management, and cyberpunk UI.
 
 ![Node.js](https://img.shields.io/badge/Node.js-18+-339933?logo=nodedotjs&logoColor=white)
 ![Platform](https://img.shields.io/badge/Platform-Windows-0078D6?logo=windows&logoColor=white)
-![Version](https://img.shields.io/badge/Version-1.9.0-6c63ff)
+![Version](https://img.shields.io/badge/Version-1.9.2-6c63ff)
 ![License](https://img.shields.io/badge/License-MIT-blue)
 
 ## ✨ Features
@@ -21,8 +21,9 @@
 
 ### 📑 Multi-Tab Interface
 - **Tab bar** — each session opens in its own tab with dedicated terminal instance
-- **Mixed tabs** — terminal, editor (Monaco), preview, and admin dashboard tabs
+- **Mixed tabs** — terminal, editor (Monaco), preview, admin, AI chat, agent monitor, VS Code, VNC
 - **`+` button** — spawn new shell tab from tab bar
+- **Tab drag reorder** — drag tabs to rearrange, purple indicator line shows drop position
 - **Keyboard shortcuts** — `Ctrl+S` save editor tab, `Ctrl+W` close active tab
 - **Per-tab xterm** — no more detach/attach; switch tabs instantly
 - **Auto-fit** — terminal resizes on tab switch and window resize
@@ -73,9 +74,9 @@
 - **Reverse proxy** — proxied through `/vscode/` on same port, no extra port needed
 - **Asset proxying** — `/stable-*` paths transparently proxied to VS Code server
 - **WebSocket support** — VS Code's WS connections proxied for full functionality
-- **Auto-detect** — connection token detected from running process
+- **CYBERFRAME theme injection** — deep purple theme matching CYBERFRAME aesthetic, auto-injected via retry loop
 - **CYBERFRAME auth** — protected by same login session, no separate VS Code auth needed
-- **In-tab iframe** — opens as a tab like terminal, chat, admin, etc.
+- **Multiple tabs** — open multiple VS Code tabs simultaneously
 
 ### 📁 File Manager
 - **Browse, upload, download** files from any drive on the system
@@ -91,30 +92,22 @@
 - **Refresh button** — reload current directory without navigating away
 
 ### 👁️ File Preview
-- **Code viewer** — syntax highlighting for 25+ languages (JavaScript, Python, TypeScript, Go, Rust, Java, C/C++, C#, PowerShell, Bash, SQL, HTML, CSS, YAML, TOML, and more) powered by [highlight.js](https://highlightjs.org/) with Tokyo Night Dark theme
+- **Code viewer** — syntax highlighting for 25+ languages powered by [highlight.js](https://highlightjs.org/) with Tokyo Night Dark theme
 - **Line numbers** — separate scrollable column, synced with code view
-- **Markdown preview** — GitHub-style rendering via [marked.js](https://marked.js.org/) + [github-markdown-css](https://github.com/sindresorhus/github-markdown-css) dark theme, with syntax-highlighted code blocks and copy buttons
+- **Markdown preview** — GitHub-style rendering via [marked.js](https://marked.js.org/) with syntax-highlighted code blocks and copy buttons
 - **HTML web preview** — render `.html` files as live webpages in iframe
 - **Toggle view** — switch between code/preview mode with one click (for `.md` and `.html` files)
-- **Image viewer** — full zoom support:
-  - 🖱️ Scroll wheel to zoom in/out (25%–500%)
-  - ✋ Click and drag to pan
-  - 👆 Double-click to toggle 100% ↔ 200%
-  - 🔘 Zoom controls: [−] level [+] ⟲ reset
+- **Image viewer** — full zoom support (scroll wheel, drag to pan, double-click toggle, controls)
 - **PDF viewer** — inline iframe, native browser PDF rendering
 - **JSON formatter** — auto pretty-print with indentation
-- **Full-screen overlay** — blurred backdrop, max-width 1200px centered, Esc to close
-- **Download button** — always accessible from preview header
 
 ### ✏️ Text Editor (Monaco / VS Code)
 - **Monaco Editor** — the same editor that powers VS Code, running in your browser
 - **Syntax highlighting** — 25+ languages with bracket pair colorization
 - **Minimap** — code overview panel on the right
-- **IntelliSense-ready** — auto-closing brackets, indentation guides, line highlight
 - **Ctrl+S to save** — saves directly to the server filesystem
 - **Unsaved indicator** — purple "● Modified" badge when content differs
 - **JSON auto-format** — pretty-prints JSON files on open
-- **Glassmorphism confirm** — custom styled dialog for unsaved changes (no ugly browser popups)
 
 ### 🎨 Themes
 8 built-in terminal color schemes, persisted in `localStorage`:
@@ -130,14 +123,14 @@
 ### 📱 Mobile Ready
 - **Special keys bar** — horizontal scrollable bar with: Esc, Tab, Ctrl, Alt, Fn, ▲▼◀▶ arrows, PgUp/PgDn, Del, Home, End, `|`, `/`, `.`, `~`, `_`, `-`
 - **One-shot modifier toggle** — tap Ctrl (turns purple) → type any key → sends combo (e.g. Ctrl+C) → auto-clears
-- **Clipboard integration** — 📋 Copy (terminal selection) / 📥 Paste (from clipboard with prompt fallback)
+- **Clipboard integration** — 📋 Copy / 📥 Paste buttons
 - **Font size controls** — A- / A+ buttons, range 8–32px, persisted in `localStorage`
 - **Responsive sidebar** — hidden by default, hamburger ☰ toggle with backdrop overlay
 - **iOS Safari support** — `100dvh` viewport fix, safe area insets, `touch-action: manipulation`
 - **Touch-friendly** — minimum 44px tap targets, no hover-dependent UI
 
-### 🛡️ Admin Panel (`/admin`)
-- **System Monitor** — real-time CPU%, RAM%, Disk, GPU (nvidia-smi), Uptime with progress bars (auto refresh 5s)
+### 🛡️ Admin Panel
+- **System Monitor** — real-time CPU%, RAM%, Disk (all drives), GPU (nvidia-smi), Uptime with progress bars (auto refresh 5s)
 - **GPU Monitoring** — utilization %, temperature, power draw, VRAM usage
 - **Session Manager** — view all active sessions, kill remotely
 - **Process Manager** — top 20 processes by memory, kill by PID
@@ -145,31 +138,44 @@
 - **Server Info** — PID, memory (RSS + heap), server uptime, shell profile count
 - **Quick Actions** — New Shell, Kill All Sessions, Remote Desktop, Copy IP, Export Logs
 - **Activity Log** — real-time server activity viewer
-- **REST API** — `GET /api/admin/status`, `GET /api/admin/processes`, `POST /api/admin/kill-process`, `GET /api/admin/server`
 
 ### 💬 AI Chat (OpenClaw)
 - **SSE streaming** — real-time token-by-token response via Server-Sent Events
 - **Multi-session** — sidebar with session list, create/rename/delete/switch sessions
 - **Auto-title** — session automatically titled from first message
 - **Markdown rendering** — full GitHub-style markdown via [marked.js](https://marked.js.org/)
-- **Syntax highlighting** — code blocks with language badge, copy button, [highlight.js](https://highlightjs.org/) Tokyo Night Dark theme
+- **Syntax highlighting** — code blocks with language badge, copy button, Tokyo Night Dark theme
 - **Model selector** — switch between models (Default/OpenClaw/Custom) per session
 - **System prompt presets** — Default, Code Expert, Thai Teacher, Creative Writer, Concise, or Custom
-- **Stop generating** — abort streaming mid-response with AbortController
-- **Regenerate** — re-send last message for a new response
-- **Copy buttons** — per-message copy to clipboard
+- **Stop / Regenerate** — abort streaming mid-response or re-send for a new answer
+- **File & image attachments** — paste or drag images, attach text files (60+ types)
 - **Chat search** — `Ctrl+F` to search messages with highlight
 - **Export** — download conversation as `.md` file
-- **Token counter** — live estimate of tokens used
+- **Token counter** — live estimate of tokens used per message
 - **Timestamps** — HH:MM on each message
-- **Avatars** — 👤 User (purple) / ✦ Assistant (accent)
-- **Typing indicator** — bouncing dots animation during streaming
-- **Smart scroll** — auto-scroll only when near bottom
-- **Keyboard shortcuts** — `Ctrl+F` search, `Ctrl+Shift+N` new session, `Ctrl+/` toggle sidebar, `Escape` close
-- **Mobile bottom sheet** — system prompt opens as iOS-style bottom sheet with handle bar and backdrop
-- **SVG icon buttons** — gear, search, export, clear with hover/active effects
-- **🎤 Voice Input (STT)** — microphone button using Web Speech API, Thai default, continuous mode, real-time interim text
-- **🔊 Read Aloud (TTS)** — Edge Neural Voices via server-side `msedge-tts`, Thai (`PremwadeeNeural`) + English (`JennyNeural`) auto-detect, works on all browsers
+- **Keyboard shortcuts** — `Enter` to send, `Shift+Enter` for new line, `Ctrl+F` search
+
+### 🎤 Voice Input (STT)
+- **Dual engine** — Mobile uses native Web Speech API (real-time), Desktop uses server-side [faster-whisper](https://github.com/SYSTRAN/faster-whisper) (accurate)
+- **Server-side Whisper** — `medium` model (1.5GB, CPU int8), accurate Thai + English transcription
+- **Recording waveform UI** — real-time audio visualization with 35 waveform bars, timer, send/cancel buttons
+- **Animated transcribing bar** — gradient wave bars + shimmer text while processing
+- **Thai default** — `initial_prompt` hint for accurate Thai script output (not romanized)
+- **iOS Safari MIME fallback** — `audio/webm` → `audio/mp4` → `audio/ogg` → default
+
+### 🔊 Text-to-Speech (TTS)
+- **Edge Neural Voices** — server-side `msedge-tts`, works on ALL browsers
+- **Auto language detect** — Thai (`PremwadeeNeural`) + English (`JennyNeural`)
+- **Per-message TTS** — speaker icon on each assistant message
+- **Streaming MP3** — low latency audio playback
+
+### 🎵 Voice Message Player
+- **Persistent audio** — voice recordings uploaded to server (`/api/voice-upload`), survive browser refresh
+- **Real waveform** — audio decoded via `AudioContext.decodeAudioData()`, amplitude-based bar heights
+- **Animated playback** — progress bars light up left-to-right, current bar glows + scales, near bars pulse
+- **Gradient play button** — purple→violet gradient, pink→purple glow when playing
+- **Duration display** — elapsed time counter (JetBrains Mono font)
+- **One-at-a-time** — playing a new message auto-stops the previous one
 
 ### 🤖 Agent Monitor
 - **Real-time status** — online/offline indicator with pulsing dot animation
@@ -179,66 +185,53 @@
   - 💬 **Discord** (blue) — Discord channel sessions
   - 🤖 **Sub-Agent** (purple) — spawned sub-agents
   - 🏠 **Main** (green) — main agent session
-- **Session management** — hover actions on each session:
-  - 👁 **Preview** — modal showing transcript with avatars, timestamps, role colors
-  - 💬 **Restore** — load CYBERFRAME transcript back into chat tab (CYBERFRAME sessions only)
-  - ℹ️ **Info** — session metadata: key, ID, type, dates, file size, message count, compactions, origin
-  - ✕ **Delete** — danger confirmation dialog, slide-out animation on remove
-- **Display names** — chat session names shown above session keys
-- **Refresh button** — force cache invalidate with spinning icon
-- **Async & non-blocking** — `openclaw status` runs asynchronously (~4.4s), never blocks event loop
-- **Smart caching** — 30-second cache TTL, pre-warmed on server start, instant API response
-- **Loading animation** — pulsing dot + shimmer "Connecting..." text
+- **Session management** — Preview transcript, Restore to chat, Info metadata, Delete
+- **Async & non-blocking** — `openclaw status` runs asynchronously, never blocks event loop
+- **Smart caching** — 30-second cache TTL, pre-warmed on server start
 
-### 📑 Tab Drag & Reorder
-- **Drag tabs** to reorder — purple indicator line shows drop position
-- **Tab types** — terminal, editor, preview, admin, chat, agent-monitor, VS Code, VNC
+### 💾 Workspace Save/Load
+- **Save to server** — current tab layout + chat history + editor state saved as JSON on server
+- **Workspace list** — collapsible sidebar section showing all saved workspaces
+- **Cross-browser restore** — load a workspace from any browser/device on the same server
+- **Smart terminal handling** — saved terminal sessions create fresh shells on different browsers
+- **One-click load** — select workspace → writes to localStorage → page reload → full restore
+- **Delete workspaces** — hover to reveal delete button with confirmation
 
-### 💾 Workspace State Persistence
+### 💾 Auto State Persistence
 - **Tabs survive refresh** — all open tabs saved to `localStorage` every 10 seconds + on page close
-- **Terminal reattach** — terminal sessions reconnect to the same PTY process after browser refresh (sessions are kept alive on server)
-- **Chat history preserved** — AI Chat messages (last 100 per session), model selection, and system prompts restored
-- **VS Code workspace** — opened folder/project restored automatically via saved iframe URL
-- **Tab order & active tab** — exact tab layout and which tab was active is remembered
-- **Works for all tab types** — terminal, chat, VS Code, VNC, admin, agent monitor, editor
+- **Terminal reattach** — terminal sessions reconnect to the same PTY process after browser refresh
+- **Chat history preserved** — AI Chat messages (last 100 per session), model selection, system prompts, and voice messages restored
+- **VS Code workspace** — opened folder/project restored automatically
+- **Tab order & active tab** — exact tab layout remembered
+- **Works for all tab types** — terminal, chat, VS Code, VNC, admin, agent monitor, editor, file manager
 
 ### 🎨 Visual Effects
-- **Animated gradient top bar** — indigo → violet → purple → pink → orange gradient line at top of page with smooth animation
-- **Neon scrollbar** — 3px ultra-slim scrollbar with animated gradient (indigo → violet → purple → pink → orange), glow effect on hover
+- **Animated gradient top bar** — indigo → violet → purple → pink → orange gradient line with smooth animation
+- **Neon scrollbar** — 3px ultra-slim scrollbar with animated gradient and glow effect
 - **Consistent across iframes** — scrollbar style applied to main UI, admin panel, and noVNC
 
 ### 💓 Heartbeat Monitor
 - **Neon blue ECG** — 3D waveform with 4-layer glow, grid overlay, gradient mask fade edges
 - **Animated heart** — pulses with each successful ping, neon blue glow
-- **BPM display** — calculated from actual ping frequency (30 BPM = every 2 seconds)
+- **BPM display** — calculated from actual ping frequency
 - **Latency readout** — exact millisecond round-trip time
-- **Bitrate indicator** — live WebSocket throughput in bps / Kbps / Mbps
-- **Connection status** — green dot (connected) / red dot (disconnected) with pulse animation
+- **Bitrate indicator** — live WebSocket throughput
 
 ### 🔔 Notifications
-- **Browser notifications** — alerts you when a long-running command completes while the tab is in the background
-- **Permission request** — asks for notification permission on first visit
-- **Toast notifications** — in-app popup messages for file operations, connection status, errors, and confirmations
-- **Auto-dismiss** — toasts disappear after 4 seconds with fade-out animation
+- **Browser notifications** — alerts when commands complete in background tabs
+- **Toast notifications** — in-app popups for file operations, connections, errors
+- **Auto-dismiss** — toasts disappear after 4 seconds
 
 ### 🔄 Auto-Reconnect
 - **Automatic WebSocket reconnection** — reconnects every 2 seconds when connection drops
-- **Session re-attach** — automatically re-attaches to the previously active terminal session after reconnect
-- **Visual feedback** — toolbar shows "↻ Reconnecting…" with pulse animation during disconnect
-- **Toast alert** — notifies you of connection loss and successful reconnection
-
-### 📋 Activity Log
-- **Server-side audit trail** — logs login events, file saves, creates, renames, moves, and deletions
-- **API access** — `GET /api/activity?limit=50` returns recent activity entries
-- **In-memory store** — last 500 actions with timestamp, user, action type, and detail
-- **Security auditing** — know who did what and when
+- **Session re-attach** — automatically re-attaches to previous terminal session
+- **Visual feedback** — "↻ Reconnecting…" with pulse animation
 
 ### 🔒 Security
-- **Session-based authentication** — Express session with configurable secret, 24-hour cookie lifetime
-- **WebSocket auth check** — every WS upgrade request validates the session cookie; unauthorized connections are immediately destroyed
-- **Credentials in `.env`** — username and password stored in environment file, never committed to git (`.gitignore`)
-- **File delete with double confirm** — custom glassmorphism confirmation dialog, no accidental deletions
-- **No external dependencies for auth** — self-contained, no third-party auth services required
+- **Session-based authentication** — Express session with 24-hour cookie lifetime
+- **WebSocket auth check** — every WS upgrade validates session cookie
+- **Credentials in `.env`** — never committed to git
+- **File delete with double confirm** — custom glassmorphism confirmation dialog
 
 ---
 
@@ -247,6 +240,7 @@
 ### Prerequisites
 - **Node.js** 18+
 - **Windows** (uses `node-pty` for PTY)
+- **Python 3.10+** (optional, for voice STT)
 - **TightVNC** (optional, for Remote Desktop)
 - **gsudo** (optional, for Admin shells) — `winget install gerardog.gsudo`
 
@@ -271,6 +265,14 @@ TERM_PASS=your-secure-password
 SESSION_SECRET=your-random-secret
 PORT=3000
 ```
+
+### Voice STT (Optional)
+
+```bash
+pip install faster-whisper
+```
+
+The `medium` model (~1.5GB) downloads automatically on first use.
 
 ### Run
 
@@ -376,7 +378,6 @@ tailscale funnel --bg --https 443 http://127.0.0.1:3000
 ### Option 1: Windows Task Scheduler (Recommended)
 
 ```powershell
-# Create a scheduled task that runs at startup
 $action = New-ScheduledTaskAction `
   -Execute "node.exe" `
   -Argument "server.js" `
@@ -395,47 +396,14 @@ Register-ScheduledTask `
   -Description "CYBERFRAME Web Terminal"
 ```
 
-To remove:
-```powershell
-Unregister-ScheduledTask -TaskName "CYBERFRAME" -Confirm:$false
-```
-
 ### Option 2: PM2 (Process Manager)
 
 ```powershell
-# Install PM2 globally
 npm install -g pm2
-
-# Start CYBERFRAME
 cd C:\path\to\WEB-TERMINAL-WIN
 pm2 start server.js --name cyberframe
-
-# Save process list & setup startup
 pm2 save
 pm2-startup install
-```
-
-PM2 commands:
-```powershell
-pm2 status          # Check status
-pm2 logs cyberframe # View logs
-pm2 restart cyberframe
-pm2 stop cyberframe
-```
-
-### Option 3: Simple startup script
-
-Create `start-cyberframe.bat` in your Startup folder:
-
-```
-Win+R → shell:startup → Enter
-```
-
-Create the file:
-```bat
-@echo off
-cd /d "C:\path\to\WEB-TERMINAL-WIN"
-start /min node server.js
 ```
 
 ---
@@ -444,11 +412,16 @@ start /min node server.js
 
 ```
 CYBERFRAME
-├── server.js              # Express + WebSocket + PTY + VNC proxy
+├── server.js              # Express + WebSocket + PTY + VNC proxy + AI Chat + TTS/STT
+├── stt-worker.py           # faster-whisper STT worker (Python)
 ├── .env                   # Credentials (git-ignored)
 ├── .env.example           # Template
+├── voices/                # Uploaded voice audio files (git-ignored)
+├── workspaces/            # Saved workspace states (git-ignored)
+├── snippets.json          # Saved command snippets
 └── public/
     ├── index.html         # Single-page app (all UI + JS + CSS)
+    ├── admin.html         # Admin panel (embedded in iframe)
     ├── favicon.svg        # Lightning bolt icon
     └── novnc/             # noVNC web client
 ```
@@ -457,35 +430,49 @@ CYBERFRAME
 
 | Method | Path | Description |
 |--------|------|-------------|
-| POST | `/api/login` | Authenticate with username/password |
-| GET | `/api/logout` | Destroy session and redirect to login |
+| POST | `/api/login` | Authenticate |
+| GET | `/api/logout` | Destroy session |
 | GET | `/api/shells` | List available shell profiles |
 | GET | `/api/sessions` | List active terminal sessions |
-| POST | `/api/sessions` | Create new session (REST fallback) |
-| DELETE | `/api/sessions/:id` | Destroy a terminal session |
-| POST | `/api/sessions/:id/rename` | Rename a session |
-| GET | `/api/sessions/:id/export` | Export session output (`?format=txt\|html`) |
-| GET | `/api/files` | Browse directory (`?path=`) |
-| GET | `/api/files/download` | Download a file (`?path=`) |
-| POST | `/api/files/upload` | Upload file (base64 body) |
+| POST | `/api/sessions` | Create new session |
+| DELETE | `/api/sessions/:id` | Destroy session |
+| POST | `/api/sessions/:id/rename` | Rename session |
+| GET | `/api/sessions/:id/export` | Export output (txt/html) |
+| GET | `/api/files/list` | Browse directory |
+| GET | `/api/files/download` | Download file |
+| POST | `/api/files/upload` | Upload file |
 | GET | `/api/files/drives` | List drives with free space |
-| GET | `/api/files/preview` | Preview file content (`?path=`, max 5MB) |
-| PUT | `/api/files/save` | Save file content (text editor) |
-| POST | `/api/files/new-file` | Create new empty file |
+| GET | `/api/files/preview` | Preview file content |
+| PUT | `/api/files/save` | Save file content |
+| POST | `/api/files/new-file` | Create new file |
 | POST | `/api/files/new-folder` | Create new folder |
-| POST | `/api/files/rename` | Rename file or folder |
-| POST | `/api/files/move` | Move file or folder |
-| GET | `/api/snippets` | List saved command snippets |
-| POST | `/api/snippets` | Add new snippet |
-| DELETE | `/api/snippets/:id` | Delete a snippet |
-| GET | `/api/activity` | Activity log (`?limit=50`, max 500) |
-| POST | `/api/chat` | AI Chat — SSE streaming to OpenClaw gateway |
-| GET | `/api/agent/status` | Agent status (cached, `?force=1` to refresh) |
-| GET | `/api/agent/sessions` | List all agent sessions from store |
-| GET | `/api/agent/sessions/preview` | Preview session transcript (`?key=`) |
-| GET | `/api/agent/sessions/info` | Session metadata & file stats (`?key=`) |
-| POST | `/api/agent/sessions/delete` | Delete session + transcript file |
-| GET | `/api/vscode-url` | Get VS Code connection info (token, port) |
+| POST | `/api/files/rename` | Rename file/folder |
+| POST | `/api/files/move` | Move file/folder |
+| POST | `/api/files/delete` | Delete file/folder |
+| GET | `/api/snippets` | List command snippets |
+| POST | `/api/snippets` | Add snippet |
+| DELETE | `/api/snippets/:id` | Delete snippet |
+| GET | `/api/activity` | Activity log |
+| POST | `/api/chat` | AI Chat SSE streaming |
+| POST | `/api/tts` | Text-to-Speech (MP3) |
+| POST | `/api/stt` | Speech-to-Text (upload audio) |
+| POST | `/api/voice-upload` | Upload voice recording |
+| GET | `/api/voice/:file` | Serve voice audio |
+| GET | `/api/workspaces` | List saved workspaces |
+| POST | `/api/workspaces` | Save workspace |
+| GET | `/api/workspaces/:id` | Load workspace |
+| DELETE | `/api/workspaces/:id` | Delete workspace |
+| PATCH | `/api/workspaces/:id` | Update workspace |
+| GET | `/api/admin/status` | System metrics |
+| GET | `/api/admin/processes` | Process list |
+| POST | `/api/admin/kill-process` | Kill process by PID |
+| GET | `/api/admin/server` | Server info |
+| GET | `/api/agent/status` | Agent status (cached) |
+| GET | `/api/agent/sessions` | Agent session list |
+| GET | `/api/agent/sessions/preview` | Session transcript |
+| GET | `/api/agent/sessions/info` | Session metadata |
+| POST | `/api/agent/sessions/delete` | Delete session |
+| GET | `/api/vscode-url` | VS Code connection info |
 
 ### WebSocket Messages
 
@@ -499,71 +486,25 @@ CYBERFRAME
 
 ---
 
-## 🛠️ Configuration
-
-| Env Variable | Default | Description |
-|-------------|---------|-------------|
-| `TERM_USER` | `admin` | Login username |
-| `TERM_PASS` | `changeme` | Login password |
-| `SESSION_SECRET` | random | Express session secret |
-| `PORT` | `3000` | Server port |
-| `VNC_PORT` | `5900` | TightVNC server port |
-
----
-
 ## ⌨️ Keyboard Shortcuts
 
 | Shortcut | Action |
 |----------|--------|
-| `Ctrl+F` | Search terminal output |
-| `Enter` / `Shift+Enter` | Next / Previous search result |
-| `Ctrl+S` | Save file (in text editor) |
+| `Ctrl+F` | Search terminal / chat messages |
+| `Enter` | Send chat message / Next search result |
+| `Shift+Enter` | New line in chat / Previous search result |
+| `Ctrl+S` | Save file (in editor) |
+| `Ctrl+W` | Close active tab |
 | `Esc` | Close search / preview / editor |
-| `Tab` | Insert 2 spaces (in text editor) |
-
-## 📱 Mobile Tips
-
-- **Ctrl+C**: Tap `ctrl` (turns purple) → tap `c` on keyboard
-- **Arrow keys**: Use ▲▼◀▶ in the special keys bar
-- **Paste**: Tap `📥paste` button to paste from clipboard
-- **Copy**: Select text in terminal → tap `📋copy`
-- **Font size**: Use `A-` / `A+` buttons
-- **File select**: Single tap to select, double tap to preview
 
 ---
 
-## 🚧 Next Features (Roadmap)
+## 🚧 Roadmap
 
-### ⌨️ Command Palette
-Quick access via `Ctrl+K`:
-- `/status` — system info at a glance
-- `/sessions` — list active sessions
-- `/kill <id>` — terminate a session
-- `/restart` — restart CYBERFRAME server
-- `/ip` — show all IP addresses
-- `/disk` — disk usage summary
-- `/top` — top processes by resource usage
-
-### 🔌 Admin REST API
-Programmatic access for automation & monitoring:
-- `GET /api/admin/status` — system metrics (JSON)
-- `GET /api/admin/processes` — running process list
-- `POST /api/admin/kill-session/:id` — kill session
-- `POST /api/admin/restart` — graceful restart
-- `GET /api/admin/logs` — server log tail
-
-### 📟 Terminal Built-in Commands
-Server-intercepted commands (type directly in terminal):
-- `!status` — display system info inline
-- `!sessions` — list active sessions
-- `!kill <id>` — kill a session
-- `!ip` — show IP addresses
-- `!ports` — listening ports
-
-### 🔮 Future Ideas
+- **Command Palette** — `Ctrl+K` quick access
+- **Terminal built-in commands** — `!status`, `!sessions`, `!kill`
 - **2FA / TOTP** — two-factor authentication
-- **Session Timeout Warning** — countdown before auto-disconnect
-- **Terminal Sharing** — read-only link for collaboration
+- **Terminal Sharing** — read-only collaboration links
 - **Session Recording** — asciinema-style playback
 - **Custom Keybindings** — user-configurable shortcuts
 - **Multi-user support** — currently single user
