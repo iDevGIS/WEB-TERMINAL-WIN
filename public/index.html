@@ -3422,11 +3422,18 @@
   <!-- Activity Log Drawer -->
   <div class="snippets-overlay" id="activity-overlay"></div>
   <div class="snippets-drawer" id="activity-drawer">
-    <div class="file-drawer-header">
-      <h2><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" style="vertical-align:-2px;margin-right:6px"><path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="10"/></svg>Activity Log</h2>
-      <button class="toolbar-icon" onclick="closeActivity()">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-      </button>
+    <div style="padding:16px 20px;border-bottom:1px solid var(--glass-border);background:rgba(108,99,255,.03)">
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <div style="display:flex;align-items:center;gap:10px">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"><path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="10"/></svg>
+          <h2 style="margin:0;font-size:16px;color:var(--text1);font-weight:700">Activity Log</h2>
+        </div>
+        <button class="dip-close" onclick="closeActivity()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+      <div style="margin-top:6px;font-size:11px;color:var(--text3);display:flex;align-items:center;gap:4px">
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+        Server activity &amp; events
+      </div>
     </div>
     <div id="activity-list" style="flex:1;overflow-y:auto;padding:4px 0"></div>
   </div>
@@ -3437,11 +3444,18 @@
   <!-- Snippets Drawer -->
   <div class="snippets-overlay" id="snippets-overlay"></div>
   <div class="snippets-drawer" id="snippets-drawer">
-    <div class="file-drawer-header">
-      <h2><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" style="vertical-align:-2px;margin-right:6px"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>Snippets</h2>
-      <button class="toolbar-icon" onclick="closeSnippets()">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-      </button>
+    <div style="padding:16px 20px;border-bottom:1px solid var(--glass-border);background:rgba(108,99,255,.03)">
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <div style="display:flex;align-items:center;gap:10px">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+          <h2 style="margin:0;font-size:16px;color:var(--text1);font-weight:700">Snippets</h2>
+        </div>
+        <button class="dip-close" onclick="closeSnippets()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+      <div style="margin-top:6px;font-size:11px;color:var(--text3);display:flex;align-items:center;gap:4px">
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/></svg>
+        Saved command shortcuts
+      </div>
     </div>
     <div id="snippet-list" style="flex:1;overflow-y:auto;padding:4px 0"></div>
     <div class="snippet-add-form" id="snippet-form">
