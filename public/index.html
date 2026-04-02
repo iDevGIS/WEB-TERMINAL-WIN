@@ -44,6 +44,8 @@
     html {
       height: 100%;
       height: -webkit-fill-available;
+      overflow: hidden;
+      overscroll-behavior: none;
     }
 
     body {
@@ -52,6 +54,9 @@
       height: -webkit-fill-available;
       display: flex;
       overscroll-behavior: none;
+      overflow-x: hidden;
+      position: fixed;
+      width: 100%;
       color: var(--text);
       overflow: hidden;
       background: #0a0a1a;
