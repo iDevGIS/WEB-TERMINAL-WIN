@@ -6257,11 +6257,8 @@
       if (overlay) overlay.classList.remove('visible');
     }
 
-    // Prevent mobile swipe-back — capture left-edge touch → open sidebar
+    // Mobile left-edge swipe → open sidebar
     if (window.innerWidth <= 1024) {
-      history.replaceState({ cyberframe: true }, '');
-      history.pushState({ cyberframe: true }, '');
-
       // Left-edge swipe capture zone (30px from left)
       let _swipeStartX = 0, _swipeStartY = 0;
       document.addEventListener('touchstart', (e) => {
@@ -6315,10 +6312,6 @@
       // Close inspect panel
       const dip = document.querySelector('.docker-inspect-panel.open');
       if (dip) { _dipClose(); handled = true; }
-      // Always re-push state to stay in app
-      if (window.innerWidth <= 1024) {
-        history.pushState({ cyberframe: true }, '');
-      }
     });
 
     // === Chat Feature: Keyboard Shortcuts ===
