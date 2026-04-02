@@ -2294,6 +2294,7 @@
     .chat-session-list::-webkit-scrollbar { width: 4px; }
     .chat-session-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,.08); border-radius: 2px; }
     .chat-session-item {
+      align-items: flex-start;
       padding: 8px 10px; border-radius: 8px; cursor: pointer; margin-bottom: 2px;
       font-size: 12px; color: var(--text2); display: flex; align-items: center; gap: 8px;
       transition: background .15s; position: relative;
@@ -2302,6 +2303,8 @@
     .chat-session-item.active { background: rgba(108,99,255,.1); color: var(--text); }
     .chat-session-item .cs-icon { opacity: .5; display: flex; align-items: center; }
     .chat-session-item .cs-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .chat-session-item .cs-meta { font-size: 9px; color: var(--text3); display: flex; gap: 6px; margin-top: 1px; font-family: 'JetBrains Mono', monospace; }
+    .chat-session-item .cs-meta .cs-tokens { color: var(--accent); }
     .chat-session-item .cs-rename, .chat-session-item .cs-delete {
       opacity: 0; font-size: 10px; padding: 2px 4px; border-radius: 4px; cursor: pointer;
       color: var(--text3); transition: opacity .15s;
@@ -4751,20 +4754,47 @@
       if (sess) { sess.messages = []; sess.tokenCount = 0; renderChatMessages(tabId); }
     }
 
+    function _chatTimeAgo(ts) {
+      const s = Math.floor((Date.now() - ts) / 1000);
+      if (s < 60) return 'just now';
+      const m = Math.floor(s / 60);
+      if (m < 60) return m + 'm ago';
+      const h = Math.floor(m / 60);
+      if (h < 24) return h + 'h ago';
+      const d = Math.floor(h / 24);
+      return d + 'd ago';
+    }
+
     function renderChatSessions(tabId) {
       const tab = tabs.get(tabId);
       if (!tab) return;
       const listEl = document.getElementById(tabId + '-sessions');
       if (!listEl) return;
-      listEl.innerHTML = tab.chatSessions.map(s => `
+      listEl.innerHTML = tab.chatSessions.map(s => {
+        // Time ago from session ID timestamp
+        const ts = parseInt(s.id.replace('cs-', ''));
+        const ago = _chatTimeAgo(ts);
+        const msgCount = s.messages.filter(m => m.role !== 'system').length;
+        const tokens = s.tokenCount || 0;
+        const tokenStr = tokens > 1000 ? (tokens / 1000).toFixed(1) + 'k' : tokens;
+        return `
         <div class="chat-session-item ${s.id === tab.activeChatSession ? 'active' : ''}"
              onclick="chatSwitchSession('${tabId}','${s.id}')">
-          <span class="cs-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
-          <span class="cs-title" ondblclick="event.stopPropagation();chatRenameSession('${tabId}','${s.id}',this)" title="Double-click to rename">${escHtml(s.title)}</span>
-          <span class="cs-rename" onclick="event.stopPropagation();chatRenameSession('${tabId}','${s.id}',this.previousElementSibling)" title="Rename">✏️</span>
+          <div style="flex:1;min-width:0">
+            <div style="display:flex;align-items:center;gap:6px">
+              <span class="cs-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
+              <span class="cs-title" ondblclick="event.stopPropagation();chatRenameSession('${tabId}','${s.id}',this)" title="${s.id}">${escHtml(s.title)}</span>
+            </div>
+            <div class="cs-meta">
+              <span>${ago}</span>
+              <span>${msgCount} msg</span>
+              ${tokens ? `<span class="cs-tokens">${tokenStr} tok</span>` : ''}
+            </div>
+          </div>
+          <span class="cs-rename" onclick="event.stopPropagation();chatRenameSession('${tabId}','${s.id}',this.closest('.chat-session-item').querySelector('.cs-title'))" title="Rename">✏️</span>
           <span class="cs-delete" onclick="event.stopPropagation();chatDeleteSession('${tabId}','${s.id}')" title="Delete">✕</span>
-        </div>
-      `).join('');
+        </div>`;
+      }).join('');
       // Update header title
       const titleEl = document.getElementById(tabId + '-chat-title');
       const sess = tab.chatSessions.find(s => s.id === tab.activeChatSession);
