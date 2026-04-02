@@ -51,6 +51,8 @@
       height: 100dvh;
       height: -webkit-fill-available;
       display: flex;
+      overscroll-behavior-x: none;
+      overscroll-behavior-y: none;
       color: var(--text);
       overflow: hidden;
       background: #0a0a1a;
@@ -6256,17 +6258,37 @@
       if (overlay) overlay.classList.remove('visible');
     }
 
-    // Back button → close chat sidebar instead of navigate back
+    // Prevent mobile swipe-back from leaving the app
+    if (window.innerWidth <= 1024) {
+      history.replaceState({ cyberframe: true }, '');
+      history.pushState({ cyberframe: true }, '');
+    }
     window.addEventListener('popstate', (e) => {
+      // Close chat sidebar if open
       if (e.state && e.state.chatSidebar) {
         chatCloseMobileSidebar(e.state.chatSidebar);
+        return;
       }
-      // Also close any open mobile sidebar (snippets, activity)
+      // Close any open drawers/overlays
+      let handled = false;
       document.querySelectorAll('.chat-sidebar.mobile-open').forEach(sb => {
         sb.classList.remove('mobile-open');
         const ov = sb.parentElement?.querySelector('.chat-sidebar-overlay.visible');
         if (ov) ov.classList.remove('visible');
+        handled = true;
       });
+      document.querySelectorAll('.snippets-drawer.open').forEach(d => {
+        d.classList.remove('open');
+        handled = true;
+      });
+      document.querySelectorAll('.snippets-overlay.open').forEach(o => o.classList.remove('open'));
+      // Close inspect panel
+      const dip = document.querySelector('.docker-inspect-panel.open');
+      if (dip) { _dipClose(); handled = true; }
+      // Always re-push state to stay in app
+      if (window.innerWidth <= 1024) {
+        history.pushState({ cyberframe: true }, '');
+      }
     });
 
     // === Chat Feature: Keyboard Shortcuts ===
