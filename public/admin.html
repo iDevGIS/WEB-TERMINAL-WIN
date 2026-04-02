@@ -123,6 +123,7 @@
     padding: 20px;
     transition: border-color .2s;
     overflow: hidden;
+    min-width: 0;
   }
   .card:hover { border-color: var(--border-light); }
   .card-header {
@@ -642,7 +643,7 @@
       </div>
       <span class="card-badge" id="ports-count" style="background:rgba(236,72,153,.15);color:#ec4899">…</span>
     </div>
-    <div id="ports-list" style="max-height:280px;overflow-y:auto">
+    <div id="ports-list" style="max-height:280px;overflow-y:auto;overflow-x:hidden;margin:-4px -4px 0;padding:0 4px">
       <div class="net-item"><span class="net-label" style="color:var(--text3)">Loading...</span></div>
     </div>
   </div>
@@ -656,7 +657,7 @@
       </div>
       <span class="card-badge" id="arp-count" style="background:rgba(6,182,212,.15);color:#06b6d4">…</span>
     </div>
-    <div id="arp-list" style="max-height:280px;overflow-y:auto">
+    <div id="arp-list" style="max-height:280px;overflow-y:auto;overflow-x:hidden;margin:-4px -4px 0;padding:0 4px">
       <div class="net-item"><span class="net-label" style="color:var(--text3)">Loading...</span></div>
     </div>
   </div>
@@ -1008,12 +1009,12 @@
       list.innerHTML = d.ports.map(p => {
         const label = labels[p.Port];
         const known = !!label;
-        return `<div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.02);font-size:11px">
-          <div style="display:flex;align-items:center;gap:6px">
-            <span style="color:${known ? '#ec4899' : 'var(--text)'};font-family:'JetBrains Mono',monospace;font-weight:${known ? '600' : '400'};min-width:45px">:${p.Port}</span>
-            ${label ? `<span style="font-size:9px;padding:1px 6px;border-radius:3px;background:rgba(236,72,153,.08);color:#ec4899">${label}</span>` : ''}
+        return `<div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.02);font-size:11px;gap:4px">
+          <div style="display:flex;align-items:center;gap:4px;flex-shrink:0">
+            <span style="color:${known ? '#ec4899' : 'var(--text)'};font-family:'JetBrains Mono',monospace;font-weight:${known ? '600' : '400'};min-width:40px;font-size:10px">:${p.Port}</span>
+            ${label ? `<span style="font-size:8px;padding:1px 4px;border-radius:3px;background:rgba(236,72,153,.08);color:#ec4899;white-space:nowrap">${label}</span>` : ''}
           </div>
-          <span style="color:var(--text3);font-size:10px">${p.Process || '—'} <span style="font-size:9px;opacity:.6">(${p.PID})</span></span>
+          <span style="color:var(--text3);font-size:9px;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.Process || '—'} (${p.PID})</span>
         </div>`;
       }).join('');
     } catch (e) { console.error('Ports fetch failed:', e); }
@@ -1033,10 +1034,10 @@
       document.getElementById('arp-count').textContent = d.entries.length;
       list.innerHTML = d.entries.map(e => {
         const isGW = e.ip.endsWith('.1');
-        return `<div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.02);font-size:11px">
-          <span style="color:var(--text);font-family:'JetBrains Mono',monospace;min-width:110px">${e.ip}${isGW ? ' <span style="font-size:8px;color:#fbbf24">GW</span>' : ''}</span>
-          <span style="color:var(--text3);font-family:'JetBrains Mono',monospace;font-size:10px">${e.mac}</span>
-          <span style="font-size:9px;padding:1px 6px;border-radius:3px;${e.type === 'dynamic' ? 'color:#4ade80;background:rgba(74,222,128,.08)' : 'color:var(--text3);background:rgba(255,255,255,.03)'}">${e.type}</span>
+        return `<div style="display:flex;align-items:center;justify-content:space-between;padding:3px 0;border-bottom:1px solid rgba(255,255,255,.02);font-size:10px;gap:4px">
+          <span style="color:var(--text);font-family:'JetBrains Mono',monospace;min-width:90px;font-size:10px;flex-shrink:0">${e.ip}${isGW ? ' <span style="font-size:7px;color:#fbbf24">GW</span>' : ''}</span>
+          <span style="color:var(--text3);font-family:'JetBrains Mono',monospace;font-size:9px;overflow:hidden;text-overflow:ellipsis">${e.mac}</span>
+          <span style="font-size:8px;padding:1px 4px;border-radius:3px;flex-shrink:0;${e.type === 'dynamic' ? 'color:#4ade80;background:rgba(74,222,128,.08)' : 'color:var(--text3);background:rgba(255,255,255,.03)'}">${e.type}</span>
         </div>`;
       }).join('');
     } catch (e) { console.error('ARP fetch failed:', e); }
