@@ -144,6 +144,7 @@
 ### 🐳 Docker Container Management
 - **Container Dashboard** — list all containers with status, image, network, ports, CPU/MEM stats
 - **Container Actions** — start, stop, restart, pause, unpause, remove with one click
+- **Multi-Log Viewer** — open logs from multiple containers simultaneously, color-coded panels, resizable
 - **Live Log Streaming** — real-time log viewer via SSE with Follow/Clear/Download controls
 - **File Browser** — tree-view filesystem browser for running containers (expandable directories, lazy-load)
 - **Volume Browser** — browse Docker volume files via temporary alpine container
@@ -154,6 +155,7 @@
 - **Port Popup** — click port to Open in Browser / Open in CYBERFRAME Tab / Copy URL / Forward via Tailscale
 - **Images/Volumes/Networks** — browse Docker images, volumes (with mount paths), and networks
 - **Stats Cache** — CPU/MEM stats cached for flicker-free refresh
+- **Container Inspect Panel** — slide-in detail view with env vars, mounts, labels, ports, networks, action buttons
 - **Persist Across Refresh** — Docker tab survives page reload via workspace state
 
 ### 💬 AI Chat (OpenClaw)

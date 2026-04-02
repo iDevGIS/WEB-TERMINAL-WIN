@@ -5,6 +5,26 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [2.1.0] — 2026-04-02
+
+### Added
+- **Multi-Log Viewer** — open logs from multiple containers simultaneously, color-coded panels (8 colors), resizable, stacked
+- **Container Inspect Panel** — Docker Desktop-style slide-in detail view: status badge, action buttons (Stop/Restart/Exec/Logs/Remove), overview grid, ports, networks, mounts, environment vars, labels — all color-coded
+- **Tailscale Serve Management** — add/remove serve rules from Admin panel + one-click Forward via Tailscale in Docker port popup
+- **Terminal Ctrl+F Search** — `attachCustomKeyEventHandler` intercepts Ctrl+F inside focused terminal, search bar injected into active tab pane
+- **Search Highlight** — purple-pink theme: active match `#ec4899`, all matches `#c084fc`
+
+### Changed
+- **Snippets + Activity Log drawer headers** redesigned to match Container Detail style (accent icon, bold title, subtitle, dip-close button)
+- **Docker port links** use `https://` when page served over HTTPS + deduplicate IPv4/IPv6
+
+### Fixed
+- Container Inspect panel `position: fixed` + `z-index: 901` (above Snippets z-800) — avoids stacking context trap
+- Docker mobile layout — logs panel relative (not absolute), table compact, hide CPU/MEM column
+- Terminal search `searchAddon` fallback — resolve from active tab/pane if global is null
+
+---
+
 ## [2.0.0] — 2026-04-02
 
 ### Added — 🐳 Docker Container Management
