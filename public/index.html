@@ -9725,28 +9725,45 @@
 
     // === Terminal Search ===
     function openTermSearch() {
-      const bar = document.getElementById('term-search-bar');
+      if (!searchAddon) { showToast('⚠️ Switch to a terminal tab first', 'error'); return; }
+      // Find active tab pane and show search bar inside it
+      const activeTab = tabs.get(activeTabId);
+      if (!activeTab || activeTab.type !== 'terminal') { showToast('⚠️ Search works on terminal tabs', 'error'); return; }
+      let bar = activeTab.paneEl.querySelector('.term-search-bar');
+      if (!bar) {
+        bar = document.createElement('div');
+        bar.className = 'term-search-bar';
+        bar.innerHTML = `<input type="text" placeholder="Search terminal..." autocomplete="off">
+          <button onclick="termSearchNext(-1)" title="Previous">▲</button>
+          <button onclick="termSearchNext(1)" title="Next">▼</button>
+          <button onclick="closeTermSearch()" title="Close">✕</button>`;
+        activeTab.paneEl.style.position = 'relative';
+        activeTab.paneEl.appendChild(bar);
+        const input = bar.querySelector('input');
+        input.addEventListener('input', (e) => { if (searchAddon && e.target.value) searchAddon.findNext(e.target.value); });
+        input.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') { e.preventDefault(); termSearchNext(e.shiftKey ? -1 : 1); }
+          if (e.key === 'Escape') closeTermSearch();
+        });
+      }
       bar.classList.add('active');
-      document.getElementById('term-search-input').focus();
+      bar.querySelector('input').focus();
     }
     function closeTermSearch() {
-      const bar = document.getElementById('term-search-bar');
-      bar.classList.remove('active');
       if (searchAddon) searchAddon.clearDecorations();
-      document.getElementById('term-search-input').value = '';
+      // Close all search bars
+      document.querySelectorAll('.term-search-bar.active').forEach(b => {
+        b.classList.remove('active');
+        b.querySelector('input').value = '';
+      });
     }
     function termSearchNext(dir) {
-      const q = document.getElementById('term-search-input').value;
+      const activeTab = tabs.get(activeTabId);
+      const bar = activeTab?.paneEl?.querySelector('.term-search-bar input');
+      const q = bar?.value;
       if (!q || !searchAddon) return;
       if (dir > 0) searchAddon.findNext(q); else searchAddon.findPrevious(q);
     }
-    document.getElementById('term-search-input')?.addEventListener('input', (e) => {
-      if (searchAddon && e.target.value) searchAddon.findNext(e.target.value);
-    });
-    document.getElementById('term-search-input')?.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') { e.preventDefault(); termSearchNext(e.shiftKey ? -1 : 1); }
-      if (e.key === 'Escape') closeTermSearch();
-    });
 
     // === Command Snippets ===
     async function openSnippets() {
