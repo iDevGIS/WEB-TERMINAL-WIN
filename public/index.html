@@ -51,8 +51,7 @@
       height: 100dvh;
       height: -webkit-fill-available;
       display: flex;
-      overscroll-behavior-x: none;
-      overscroll-behavior-y: none;
+      overscroll-behavior: none;
       color: var(--text);
       overflow: hidden;
       background: #0a0a1a;
@@ -6258,10 +6257,41 @@
       if (overlay) overlay.classList.remove('visible');
     }
 
-    // Prevent mobile swipe-back from leaving the app
+    // Prevent mobile swipe-back — capture left-edge touch → open sidebar
     if (window.innerWidth <= 1024) {
       history.replaceState({ cyberframe: true }, '');
       history.pushState({ cyberframe: true }, '');
+
+      // Left-edge swipe capture zone (30px from left)
+      let _swipeStartX = 0, _swipeStartY = 0;
+      document.addEventListener('touchstart', (e) => {
+        const t = e.touches[0];
+        if (t.clientX < 30) {
+          _swipeStartX = t.clientX;
+          _swipeStartY = t.clientY;
+        } else {
+          _swipeStartX = -1;
+        }
+      }, { passive: true });
+      document.addEventListener('touchend', (e) => {
+        if (_swipeStartX < 0) return;
+        const t = e.changedTouches[0];
+        const dx = t.clientX - _swipeStartX;
+        const dy = Math.abs(t.clientY - _swipeStartY);
+        // Swipe right from left edge (>60px horizontal, <40px vertical)
+        if (dx > 60 && dy < 40) {
+          e.preventDefault();
+          // Open sidebar or chat sidebar
+          const activeTab = tabs.get(activeTabId);
+          if (activeTab && activeTab.type === 'chat') {
+            chatToggleMobileSidebar(activeTabId);
+          } else {
+            document.getElementById('sidebar')?.classList.add('open');
+            document.getElementById('sidebar-overlay')?.classList.add('active');
+          }
+        }
+        _swipeStartX = -1;
+      }, { passive: false });
     }
     window.addEventListener('popstate', (e) => {
       // Close chat sidebar if open
