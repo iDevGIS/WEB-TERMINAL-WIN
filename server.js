@@ -1067,20 +1067,32 @@ app.post("/api/chat", requireAuth, async (req, res) => {
     res.setHeader("X-Accel-Buffering", "no");
     res.flushHeaders();
 
+    // Keepalive ping every 15s to prevent mobile connection timeout
+    const keepalive = setInterval(() => {
+      if (!res.writableEnded) res.write(': keepalive\n\n');
+    }, 15000);
+
     // Convert Web ReadableStream to Node stream and pipe
     const { Readable } = require("stream");
     const nodeStream = Readable.fromWeb(upstream.body);
+    let gotData = false;
     nodeStream.on("data", (chunk) => {
+      gotData = true;
       res.write(chunk);
     });
     nodeStream.on("end", () => {
+      clearInterval(keepalive);
+      if (!gotData) console.warn("[Chat proxy] stream ended with no data");
       res.end();
     });
     nodeStream.on("error", (err) => {
+      clearInterval(keepalive);
       console.error("[Chat proxy] stream error:", err.message);
+      if (!res.writableEnded) res.write(`data: {"error":"${err.message}"}\n\n`);
       res.end();
     });
     req.on("close", () => {
+      clearInterval(keepalive);
       nodeStream.destroy();
     });
   } catch (e) {
