@@ -5971,8 +5971,14 @@
           if (usage?.total_tokens) {
             sess.tokenCount = usage.total_tokens;
           } else {
-            sess.tokenCount = (sess.tokenCount || 0) + Math.round(fullContent.split(/\s+/).length * 1.3);
+            // Estimate from all messages
+            let estTokens = 0;
+            for (const m of sess.messages) {
+              estTokens += Math.round((m.content || '').split(/\s+/).length * 1.3);
+            }
+            sess.tokenCount = Math.max(sess.tokenCount || 0, estTokens);
           }
+          console.log('[Chat] tokenCount updated:', sess.tokenCount, 'usage:', usage);
           tab._lastUsage = null;
           _updateTokenBadge(tabId, sess);
         }
