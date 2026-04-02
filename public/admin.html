@@ -633,6 +633,20 @@
     </div>
   </div>
 
+  <!-- Listening Ports -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="2" width="20" height="20" rx="2"/><line x1="7" y1="2" x2="7" y2="22"/><line x1="17" y1="2" x2="17" y2="22"/><line x1="2" y1="12" x2="22" y2="12"/></svg>
+        Listening Ports
+      </div>
+      <span class="card-badge" id="ports-count" style="background:rgba(236,72,153,.15);color:#ec4899">…</span>
+    </div>
+    <div id="ports-list" style="max-height:280px;overflow-y:auto">
+      <div class="net-item"><span class="net-label" style="color:var(--text3)">Loading...</span></div>
+    </div>
+  </div>
+
   <!-- ARP Table -->
   <div class="card">
     <div class="card-header">
@@ -846,7 +860,7 @@
   async function refreshAll() {
     const btn = document.getElementById('refresh-btn');
     btn.classList.add('loading');
-    await Promise.all([fetchStatus(), fetchSessions(), fetchProcesses(), fetchLogs(), fetchServerInfo(), fetchClients(), fetchTailscale(), fetchVPN(), fetchARP(), fetchRoutes()]);
+    await Promise.all([fetchStatus(), fetchSessions(), fetchProcesses(), fetchLogs(), fetchServerInfo(), fetchClients(), fetchTailscale(), fetchVPN(), fetchPorts(), fetchARP(), fetchRoutes()]);
     btn.classList.remove('loading');
   }
 
@@ -975,6 +989,34 @@
         </div>`;
       }).join('');
     } catch (e) { console.error('VPN fetch failed:', e); }
+  }
+
+  // === Fetch Listening Ports ===
+  async function fetchPorts() {
+    try {
+      const r = await fetch(API + '/api/admin/ports');
+      const d = await r.json();
+      const list = document.getElementById('ports-list');
+      if (!d.ports.length) {
+        document.getElementById('ports-count').textContent = '0';
+        list.innerHTML = '<div class="net-item"><span class="net-label" style="color:var(--text3)">No listening ports</span></div>';
+        return;
+      }
+      document.getElementById('ports-count').textContent = d.ports.length;
+      // Known port labels
+      const labels = {3000:'CYBERFRAME',3443:'CYBERFRAME-TLS',5900:'VNC',8080:'VS Code',18789:'OpenClaw',80:'HTTP',443:'HTTPS',22:'SSH',3306:'MySQL',5432:'PostgreSQL',6379:'Redis',8888:'Docker',8889:'Docker',27017:'MongoDB'};
+      list.innerHTML = d.ports.map(p => {
+        const label = labels[p.Port];
+        const known = !!label;
+        return `<div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.02);font-size:11px">
+          <div style="display:flex;align-items:center;gap:6px">
+            <span style="color:${known ? '#ec4899' : 'var(--text)'};font-family:'JetBrains Mono',monospace;font-weight:${known ? '600' : '400'};min-width:45px">:${p.Port}</span>
+            ${label ? `<span style="font-size:9px;padding:1px 6px;border-radius:3px;background:rgba(236,72,153,.08);color:#ec4899">${label}</span>` : ''}
+          </div>
+          <span style="color:var(--text3);font-size:10px">${p.Process || '—'} <span style="font-size:9px;opacity:.6">(${p.PID})</span></span>
+        </div>`;
+      }).join('');
+    } catch (e) { console.error('Ports fetch failed:', e); }
   }
 
   // === Fetch ARP Table ===

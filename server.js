@@ -1609,6 +1609,18 @@ app.get("/api/admin/vpn", requireAuth, (req, res) => {
   });
 });
 
+// GET /api/admin/ports — Listening ports
+app.get("/api/admin/ports", requireAuth, (req, res) => {
+  const { exec } = require("child_process");
+  exec('powershell -NoProfile -Command "Get-NetTCPConnection -State Listen | Select-Object LocalPort,OwningProcess | Sort-Object LocalPort -Unique | ForEach-Object { $proc = Get-Process -Id $_.OwningProcess -ErrorAction SilentlyContinue; [PSCustomObject]@{Port=$_.LocalPort;PID=$_.OwningProcess;Process=$proc.ProcessName} } | ConvertTo-Json -Compress"', { timeout: 8000 }, (err, stdout) => {
+    try {
+      let ports = JSON.parse(stdout || '[]');
+      if (!Array.isArray(ports)) ports = [ports];
+      res.json({ ports });
+    } catch { res.json({ ports: [] }); }
+  });
+});
+
 // GET /api/admin/arp — ARP table
 app.get("/api/admin/arp", requireAuth, (req, res) => {
   const { exec } = require("child_process");
