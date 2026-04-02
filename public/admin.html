@@ -619,6 +619,51 @@
     </div>
   </div>
 
+  <!-- VPN Status -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        VPN Status
+      </div>
+      <span class="card-badge" id="vpn-count" style="background:rgba(168,139,250,.15);color:#a78bfa">…</span>
+    </div>
+    <div id="vpn-list">
+      <div class="net-item"><span class="net-label" style="color:var(--text3)">Loading...</span></div>
+    </div>
+  </div>
+
+  <!-- ARP Table -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/><circle cx="12" cy="12" r="3"/></svg>
+        ARP Table
+      </div>
+      <span class="card-badge" id="arp-count" style="background:rgba(6,182,212,.15);color:#06b6d4">…</span>
+    </div>
+    <div id="arp-list" style="max-height:280px;overflow-y:auto">
+      <div class="net-item"><span class="net-label" style="color:var(--text3)">Loading...</span></div>
+    </div>
+  </div>
+
+  <!-- Routing Table -->
+  <div class="card card-full">
+    <div class="card-header">
+      <div class="card-title">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+        Routing Table
+      </div>
+      <span class="card-badge" id="routes-count" style="background:rgba(251,146,60,.15);color:#fb923c">…</span>
+    </div>
+    <div style="overflow-x:auto">
+      <table class="admin-table" id="routes-table">
+        <thead><tr><th style="width:35%">Destination</th><th style="width:25%">Next Hop</th><th style="width:15%">Metric</th><th style="width:25%">Interface</th></tr></thead>
+        <tbody id="routes-body"><tr><td colspan="4" style="text-align:center;color:var(--text3)">Loading...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
   <!-- Processes -->
   <div class="card card-full">
     <div class="card-header">
@@ -801,7 +846,7 @@
   async function refreshAll() {
     const btn = document.getElementById('refresh-btn');
     btn.classList.add('loading');
-    await Promise.all([fetchStatus(), fetchSessions(), fetchProcesses(), fetchLogs(), fetchServerInfo(), fetchClients(), fetchTailscale()]);
+    await Promise.all([fetchStatus(), fetchSessions(), fetchProcesses(), fetchLogs(), fetchServerInfo(), fetchClients(), fetchTailscale(), fetchVPN(), fetchARP(), fetchRoutes()]);
     btn.classList.remove('loading');
   }
 
@@ -900,6 +945,79 @@
     } catch (e) {
       console.error('Tailscale fetch failed:', e);
     }
+  }
+
+  // === Fetch VPN Status ===
+  async function fetchVPN() {
+    try {
+      const r = await fetch(API + '/api/admin/vpn');
+      const d = await r.json();
+      const list = document.getElementById('vpn-list');
+      if (!d.adapters.length) {
+        document.getElementById('vpn-count').textContent = '0';
+        list.innerHTML = '<div class="net-item"><span class="net-label" style="color:var(--text3)">No VPN adapters found</span></div>';
+        return;
+      }
+      document.getElementById('vpn-count').textContent = d.adapters.length;
+      list.innerHTML = d.adapters.map(a => {
+        const up = a.Status === 'Up';
+        const dot = `<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:${up ? '#4ade80' : '#ef4444'};margin-right:6px;box-shadow:0 0 4px ${up ? 'rgba(74,222,128,.4)' : 'rgba(239,68,68,.4)'}"></span>`;
+        return `<div style="padding:8px 0;border-bottom:1px solid var(--border)">
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <span style="display:flex;align-items:center;font-size:12px;color:var(--text)">${dot}${a.Name}</span>
+            <span style="font-size:10px;color:${up ? '#4ade80' : '#ef4444'};font-weight:600">${a.Status}</span>
+          </div>
+          <div style="display:flex;gap:12px;padding-left:12px;margin-top:3px;font-size:10px;color:var(--text3)">
+            <span>${a.InterfaceDescription || '—'}</span>
+            ${a.LinkSpeed ? `<span>${a.LinkSpeed}</span>` : ''}
+            ${a.MacAddress ? `<span style="font-family:'JetBrains Mono',monospace;font-size:9px">${a.MacAddress}</span>` : ''}
+          </div>
+        </div>`;
+      }).join('');
+    } catch (e) { console.error('VPN fetch failed:', e); }
+  }
+
+  // === Fetch ARP Table ===
+  async function fetchARP() {
+    try {
+      const r = await fetch(API + '/api/admin/arp');
+      const d = await r.json();
+      const list = document.getElementById('arp-list');
+      if (!d.entries.length) {
+        document.getElementById('arp-count').textContent = '0';
+        list.innerHTML = '<div class="net-item"><span class="net-label" style="color:var(--text3)">No ARP entries</span></div>';
+        return;
+      }
+      document.getElementById('arp-count').textContent = d.entries.length;
+      list.innerHTML = d.entries.map(e => {
+        const isGW = e.ip.endsWith('.1');
+        return `<div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.02);font-size:11px">
+          <span style="color:var(--text);font-family:'JetBrains Mono',monospace;min-width:110px">${e.ip}${isGW ? ' <span style="font-size:8px;color:#fbbf24">GW</span>' : ''}</span>
+          <span style="color:var(--text3);font-family:'JetBrains Mono',monospace;font-size:10px">${e.mac}</span>
+          <span style="font-size:9px;padding:1px 6px;border-radius:3px;${e.type === 'dynamic' ? 'color:#4ade80;background:rgba(74,222,128,.08)' : 'color:var(--text3);background:rgba(255,255,255,.03)'}">${e.type}</span>
+        </div>`;
+      }).join('');
+    } catch (e) { console.error('ARP fetch failed:', e); }
+  }
+
+  // === Fetch Routing Table ===
+  async function fetchRoutes() {
+    try {
+      const r = await fetch(API + '/api/admin/routes');
+      const d = await r.json();
+      document.getElementById('routes-count').textContent = d.routes.length;
+      const body = document.getElementById('routes-body');
+      if (!d.routes.length) { body.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--text3)">No routes</td></tr>'; return; }
+      body.innerHTML = d.routes.map(r => {
+        const isDefault = r.DestinationPrefix === '0.0.0.0/0';
+        return `<tr${isDefault ? ' style="background:rgba(108,99,255,.04)"' : ''}>
+          <td style="font-family:'JetBrains Mono',monospace;font-size:11px">${r.DestinationPrefix}${isDefault ? ' <span style="font-size:8px;color:#fbbf24;font-weight:600">DEFAULT</span>' : ''}</td>
+          <td style="font-family:'JetBrains Mono',monospace;font-size:11px;color:${r.NextHop === '0.0.0.0' ? 'var(--text3)' : '#60a5fa'}">${r.NextHop}</td>
+          <td style="font-size:11px;color:var(--text3)">${r.RouteMetric}</td>
+          <td style="font-size:10px">${r.InterfaceAlias}</td>
+        </tr>`;
+      }).join('');
+    } catch (e) { console.error('Routes fetch failed:', e); }
   }
 
   // === Tailscale Serve Management ===

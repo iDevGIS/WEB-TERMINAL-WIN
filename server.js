@@ -1597,6 +1597,47 @@ app.post("/api/admin/tailscale/serve", requireAuth, express.json(), (req, res) =
   }
 });
 
+// GET /api/admin/vpn — VPN/network adapter status
+app.get("/api/admin/vpn", requireAuth, (req, res) => {
+  const { exec } = require("child_process");
+  exec('powershell -NoProfile -Command "Get-NetAdapter | Where-Object { $_.InterfaceDescription -match \'TAP|VPN|WireGuard|Tailscale|OpenVPN|Cisco|Fortinet|GlobalProtect|AWS\' -or $_.Name -match \'VPN|Tailscale\' } | Select-Object Name,Status,InterfaceDescription,LinkSpeed,MacAddress | ConvertTo-Json -Compress"', { timeout: 8000 }, (err, stdout) => {
+    try {
+      let adapters = JSON.parse(stdout || '[]');
+      if (!Array.isArray(adapters)) adapters = [adapters];
+      res.json({ adapters });
+    } catch { res.json({ adapters: [] }); }
+  });
+});
+
+// GET /api/admin/arp — ARP table
+app.get("/api/admin/arp", requireAuth, (req, res) => {
+  const { exec } = require("child_process");
+  exec('arp -a', { timeout: 5000 }, (err, stdout) => {
+    const lines = (stdout || '').split('\n').filter(l => l.trim());
+    const entries = [];
+    let iface = '';
+    for (const line of lines) {
+      const ifMatch = line.match(/Interface:\s+([\d.]+)/);
+      if (ifMatch) { iface = ifMatch[1]; continue; }
+      const m = line.trim().match(/^([\d.]+)\s+([\w-]+)\s+(\w+)/);
+      if (m) entries.push({ ip: m[1], mac: m[2], type: m[3], iface });
+    }
+    res.json({ entries });
+  });
+});
+
+// GET /api/admin/routes — Routing table
+app.get("/api/admin/routes", requireAuth, (req, res) => {
+  const { exec } = require("child_process");
+  exec('powershell -NoProfile -Command "Get-NetRoute -AddressFamily IPv4 | Where-Object { $_.DestinationPrefix -ne \'255.255.255.255/32\' -and $_.DestinationPrefix -notmatch \'^ff\' } | Sort-Object -Property RouteMetric | Select-Object -First 25 DestinationPrefix,NextHop,RouteMetric,InterfaceAlias | ConvertTo-Json -Compress"', { timeout: 8000 }, (err, stdout) => {
+    try {
+      let routes = JSON.parse(stdout || '[]');
+      if (!Array.isArray(routes)) routes = [routes];
+      res.json({ routes });
+    } catch { res.json({ routes: [] }); }
+  });
+});
+
 // === VS Code serve-web auto-start + Proxy ===
 const VSCODE_PORT = parseInt(process.env.VSCODE_PORT) || 8080;
 
