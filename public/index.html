@@ -5978,7 +5978,6 @@
             }
             sess.tokenCount = Math.max(sess.tokenCount || 0, estTokens);
           }
-          console.log('[Chat] tokenCount updated:', sess.tokenCount, 'usage:', usage);
           tab._lastUsage = null;
           _updateTokenBadge(tabId, sess);
         }
