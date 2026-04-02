@@ -4799,6 +4799,7 @@
               <span>${msgCount} msg</span>
               <span>·</span><span class="cs-tokens">${tokenStr || 0}/${_chatMaxTokensStr()}</span>
             </div>
+            <div class="cs-meta" style="opacity:.4;font-size:8px">${s.id}</div>
           </div>
           <span class="cs-rename" onclick="event.stopPropagation();chatRenameSession('${tabId}','${s.id}',this.closest('.chat-session-item').querySelector('.cs-title'))" title="Rename">✏️</span>
           <span class="cs-delete" onclick="event.stopPropagation();chatDeleteSession('${tabId}','${s.id}')" title="Delete">✕</span>
