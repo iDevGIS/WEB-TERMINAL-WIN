@@ -4754,6 +4754,9 @@
       if (sess) { sess.messages = []; sess.tokenCount = 0; renderChatMessages(tabId); }
     }
 
+    function _chatMaxTokens() { return 200000; } // Claude context window
+    function _chatMaxTokensStr() { return (_chatMaxTokens() / 1000) + 'k'; }
+
     function _chatTimeAgo(ts) {
       const s = Math.floor((Date.now() - ts) / 1000);
       if (s < 60) return 'just now';
@@ -4787,7 +4790,7 @@
             </div>
             <div class="cs-meta">
               <span>${ago}</span>
-              ${tokens ? `<span class="cs-tokens">${tokenStr} tokens</span>` : `<span>${msgCount} msg</span>`}
+              ${tokens ? `<span class="cs-tokens">${tokenStr}/${_chatMaxTokensStr()} (${Math.min(100, Math.round(tokens / _chatMaxTokens() * 100))}%)</span>` : `<span>${msgCount} msg</span>`}
             </div>
           </div>
           <span class="cs-rename" onclick="event.stopPropagation();chatRenameSession('${tabId}','${s.id}',this.closest('.chat-session-item').querySelector('.cs-title'))" title="Rename">✏️</span>
