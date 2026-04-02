@@ -6237,8 +6237,15 @@
       const overlay = document.getElementById(tabId + '-sidebar-overlay');
       if (!sidebar) return;
       const isOpen = sidebar.classList.contains('mobile-open');
-      sidebar.classList.toggle('mobile-open', !isOpen);
-      if (overlay) overlay.classList.toggle('visible', !isOpen);
+      if (!isOpen) {
+        sidebar.classList.add('mobile-open');
+        if (overlay) overlay.classList.add('visible');
+        // Push history state so back button closes sidebar
+        history.pushState({ chatSidebar: tabId }, '');
+      } else {
+        sidebar.classList.remove('mobile-open');
+        if (overlay) overlay.classList.remove('visible');
+      }
     }
 
     function chatCloseMobileSidebar(tabId) {
@@ -6247,6 +6254,19 @@
       if (sidebar) sidebar.classList.remove('mobile-open');
       if (overlay) overlay.classList.remove('visible');
     }
+
+    // Back button → close chat sidebar instead of navigate back
+    window.addEventListener('popstate', (e) => {
+      if (e.state && e.state.chatSidebar) {
+        chatCloseMobileSidebar(e.state.chatSidebar);
+      }
+      // Also close any open mobile sidebar (snippets, activity)
+      document.querySelectorAll('.chat-sidebar.mobile-open').forEach(sb => {
+        sb.classList.remove('mobile-open');
+        const ov = sb.parentElement?.querySelector('.chat-sidebar-overlay.visible');
+        if (ov) ov.classList.remove('visible');
+      });
+    });
 
     // === Chat Feature: Keyboard Shortcuts ===
     document.addEventListener('keydown', (e) => {
