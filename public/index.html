@@ -9735,10 +9735,14 @@
 
     // === Terminal Search ===
     function openTermSearch() {
-      if (!searchAddon) { showToast('⚠️ Switch to a terminal tab first', 'error'); return; }
-      // Find active tab pane and show search bar inside it
       const activeTab = tabs.get(activeTabId);
       if (!activeTab || activeTab.type !== 'terminal') { showToast('⚠️ Search works on terminal tabs', 'error'); return; }
+      // Ensure searchAddon is set from active tab/pane
+      if (!searchAddon) {
+        const pane = (activeTab.panes && activeTab.panes.length > 1) ? activeTab.panes[activeTab.activePane || 0] : null;
+        searchAddon = pane ? pane.searchAddon : activeTab.searchAddon;
+      }
+      if (!searchAddon) { showToast('⚠️ No search addon available', 'error'); return; }
       let bar = activeTab.paneEl.querySelector('.term-search-bar');
       if (!bar) {
         bar = document.createElement('div');
