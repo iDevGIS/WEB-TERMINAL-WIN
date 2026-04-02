@@ -7379,6 +7379,16 @@
         xtextarea.setAttribute('data-form-type', 'other');
       }
 
+      // Ctrl+F inside terminal → open search (prevent xterm from eating it)
+      t.attachCustomKeyEventHandler((e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key === 'f' && e.type === 'keydown') {
+          e.preventDefault();
+          openTermSearch();
+          return false; // prevent xterm from processing
+        }
+        return true;
+      });
+
       const pane = { term: t, fitAddon: fa, searchAddon: sa, sessionId: null, wrapEl };
 
       t.onData((data) => {
