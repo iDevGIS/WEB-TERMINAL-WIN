@@ -4791,7 +4791,7 @@
             <div class="cs-meta">
               <span>${ago}</span>
               <span>${msgCount} msg</span>
-              ${tokens ? `<span>·</span><span class="cs-tokens">${tokenStr}/${_chatMaxTokensStr()} (${Math.min(100, Math.round(tokens / _chatMaxTokens() * 100))}%)</span>` : ''}
+              <span>·</span><span class="cs-tokens">${tokenStr || 0}/${_chatMaxTokensStr()}</span>
             </div>
           </div>
           <span class="cs-rename" onclick="event.stopPropagation();chatRenameSession('${tabId}','${s.id}',this.closest('.chat-session-item').querySelector('.cs-title'))" title="Rename">✏️</span>
