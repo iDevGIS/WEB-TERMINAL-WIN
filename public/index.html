@@ -10475,6 +10475,7 @@
           if (tab.type === 'chat' && tab.chatSessions) {
             entry.chatSessions = tab.chatSessions.map(cs => ({
               id: cs.id, title: cs.title, model: cs.model, systemPrompt: cs.systemPrompt,
+              tokenCount: cs.tokenCount || 0,
               messages: cs.messages.slice(-100) // Keep last 100 messages per session
             }));
             entry.activeChatSession = tab.activeChatSession;
