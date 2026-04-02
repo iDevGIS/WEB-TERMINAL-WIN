@@ -3050,6 +3050,42 @@
     .dpp-btn:hover { background: rgba(108,99,255,.1); color: var(--text1); }
     /* Docker logs area — fixed at bottom, persists across view switches */
     .docker-logs-area:empty { display: none; }
+    /* Docker Inspect Panel */
+    .docker-inspect-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,.3); z-index: 20; opacity: 0; transition: opacity .2s; }
+    .docker-inspect-overlay.open { opacity: 1; }
+    .docker-inspect-panel {
+      position: absolute; top: 0; right: 0; bottom: 0; width: 420px; max-width: 90%;
+      background: linear-gradient(180deg, rgba(15,15,30,.99), rgba(10,10,26,.99));
+      border-left: 1px solid rgba(108,99,255,.15); z-index: 21;
+      display: flex; flex-direction: column; transform: translateX(100%);
+      transition: transform .25s ease; overflow: hidden;
+    }
+    .docker-inspect-panel.open { transform: translateX(0); }
+    .dip-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 16px; border-bottom: 1px solid var(--glass-border);
+      background: rgba(108,99,255,.04);
+    }
+    .dip-header h3 { margin: 0; font-size: 14px; color: var(--text1); display: flex; align-items: center; gap: 8px; }
+    .dip-close { background: none; border: 1px solid rgba(255,255,255,.06); border-radius: 6px; color: var(--text3); cursor: pointer; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; transition: all .15s; }
+    .dip-close:hover { color: #ef4444; border-color: rgba(239,68,68,.2); background: rgba(239,68,68,.06); }
+    .dip-body { flex: 1; overflow-y: auto; padding: 12px 16px; }
+    .dip-section { margin-bottom: 16px; }
+    .dip-section-title {
+      font-size: 10px; text-transform: uppercase; letter-spacing: 1px;
+      color: var(--accent); margin-bottom: 8px; font-weight: 600;
+    }
+    .dip-row { display: flex; justify-content: space-between; align-items: flex-start; padding: 5px 0; border-bottom: 1px solid rgba(255,255,255,.03); font-size: 12px; }
+    .dip-key { color: var(--text3); flex-shrink: 0; width: 110px; }
+    .dip-val { color: var(--text1); text-align: right; word-break: break-all; font-family: 'JetBrains Mono', monospace; font-size: 11px; }
+    .dip-tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-family: 'JetBrains Mono', monospace; margin: 1px 2px; }
+    .dip-tag-env { background: rgba(96,165,250,.1); color: #60a5fa; }
+    .dip-tag-mount { background: rgba(74,222,128,.1); color: #4ade80; }
+    .dip-tag-label { background: rgba(168,139,250,.1); color: #a78bfa; }
+    .dip-tag-port { background: rgba(251,146,60,.1); color: #fb923c; }
+    @media (max-width: 1024px) {
+      .docker-inspect-panel { width: 100%; max-width: 100%; }
+    }
     /* Logs header buttons */
     .dlh-btn {
       display: flex; align-items: center; gap: 4px; padding: 4px 10px;
@@ -6287,7 +6323,7 @@
         const s = statsMap[c.id] || {};
         const sc = c.state === 'running' ? 'running' : c.state === 'paused' ? 'paused' : c.state === 'exited' ? 'exited' : 'created';
         html += `<tr>
-          <td><span class="status-dot ${sc}"></span>${escHtml(c.name)}<br><span style="font-size:10px;color:var(--text3)">${c.id}</span></td>
+          <td><span class="status-dot ${sc}"></span><a href="#" onclick="event.preventDefault();dockerInspect('${tabId}','${c.id}')" style="color:var(--text1);text-decoration:none;border-bottom:1px dashed rgba(108,99,255,.3)" onmouseenter="this.style.color='var(--accent)'" onmouseleave="this.style.color='var(--text1)'">${escHtml(c.name)}</a><br><span style="font-size:10px;color:var(--text3)">${c.id}</span></td>
           <td><span class="docker-image">${escHtml(c.image)}</span></td>
           <td><span style="font-size:10px;color:var(--text2);font-family:'JetBrains Mono',monospace">${escHtml(c.network || '—')}</span></td>
           <td style="white-space:nowrap"><span style="text-transform:capitalize;font-size:11px">${escHtml(c.status)}</span></td>
@@ -6663,6 +6699,141 @@
         else showToast('🗑️ Removed: ' + name, 'success');
         for (const [tabId, tab] of tabs) { if (tab.type === 'docker') dockerRefresh(tabId); }
       } catch (e) { showToast('Error: ' + e.message, 'error'); }
+    }
+
+    async function dockerInspect(tabId, containerId) {
+      const wrap = document.getElementById(tabId + '-docker');
+      if (!wrap) return;
+      // Remove existing
+      wrap.querySelectorAll('.docker-inspect-overlay,.docker-inspect-panel').forEach(e => e.remove());
+
+      const overlay = document.createElement('div');
+      overlay.className = 'docker-inspect-overlay';
+      overlay.onclick = () => _dipClose(wrap);
+
+      const panel = document.createElement('div');
+      panel.className = 'docker-inspect-panel';
+      panel.innerHTML = `
+        <div class="dip-header">
+          <h3><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> Container Details</h3>
+          <button class="dip-close" onclick="_dipClose(this.closest('.docker-wrap'))"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+        </div>
+        <div class="dip-body"><div style="text-align:center;padding:40px;color:var(--text3)">Loading...</div></div>`;
+      wrap.appendChild(overlay);
+      wrap.appendChild(panel);
+      requestAnimationFrame(() => { overlay.classList.add('open'); panel.classList.add('open'); });
+
+      try {
+        const r = await fetch('/api/docker/containers/' + containerId);
+        const d = await r.json();
+        const body = panel.querySelector('.dip-body');
+        if (!body) return;
+
+        const state = d.State || {};
+        const config = d.Config || {};
+        const hostConfig = d.HostConfig || {};
+        const netSettings = d.NetworkSettings || {};
+        const mounts = d.Mounts || [];
+        const labels = config.Labels || {};
+        const env = (config.Env || []);
+        const ports = netSettings.Ports || {};
+        const created = d.Created ? new Date(d.Created).toLocaleString() : '—';
+
+        // Status color
+        const stateColor = state.Running ? '#4ade80' : state.Paused ? '#fbbf24' : '#ef4444';
+        const stateName = state.Running ? 'Running' : state.Paused ? 'Paused' : state.Status || 'Stopped';
+
+        // Port bindings
+        const portList = Object.entries(ports).map(([k, v]) => {
+          if (!v || !v.length) return k + ' (not bound)';
+          return v.map(b => b.HostPort + ' → ' + k).join(', ');
+        });
+
+        // Mounts
+        const mountList = mounts.map(m => `${m.Source || m.Name || '?'} → ${m.Destination} (${m.Mode || 'rw'})`);
+
+        // Network
+        const nets = Object.entries(netSettings.Networks || {});
+
+        let html = '';
+        // General
+        html += `<div class="dip-section">
+          <div class="dip-section-title">General</div>
+          <div class="dip-row"><span class="dip-key">Name</span><span class="dip-val">${escHtml(d.Name?.replace(/^\//, '') || '—')}</span></div>
+          <div class="dip-row"><span class="dip-key">ID</span><span class="dip-val">${escHtml(d.Id?.slice(0, 12) || '—')}</span></div>
+          <div class="dip-row"><span class="dip-key">Image</span><span class="dip-val">${escHtml(config.Image || '—')}</span></div>
+          <div class="dip-row"><span class="dip-key">Status</span><span class="dip-val" style="color:${stateColor};font-weight:600">${escHtml(stateName)}</span></div>
+          <div class="dip-row"><span class="dip-key">Created</span><span class="dip-val">${escHtml(created)}</span></div>
+          <div class="dip-row"><span class="dip-key">Restart Policy</span><span class="dip-val">${escHtml((hostConfig.RestartPolicy?.Name || 'no') + (hostConfig.RestartPolicy?.MaximumRetryCount ? ' (max ' + hostConfig.RestartPolicy.MaximumRetryCount + ')' : ''))}</span></div>
+          <div class="dip-row"><span class="dip-key">Platform</span><span class="dip-val">${escHtml(d.Platform || '—')}</span></div>
+          <div class="dip-row"><span class="dip-key">Entrypoint</span><span class="dip-val">${escHtml((config.Entrypoint || []).join(' ') || '—')}</span></div>
+          <div class="dip-row"><span class="dip-key">Command</span><span class="dip-val">${escHtml((config.Cmd || []).join(' ') || '—')}</span></div>
+          <div class="dip-row"><span class="dip-key">Working Dir</span><span class="dip-val">${escHtml(config.WorkingDir || '/')}</span></div>
+        </div>`;
+
+        // Ports
+        if (portList.length) {
+          html += `<div class="dip-section"><div class="dip-section-title">Ports</div>
+            <div style="display:flex;flex-wrap:wrap;gap:4px">${portList.map(p => `<span class="dip-tag dip-tag-port">${escHtml(p)}</span>`).join('')}</div></div>`;
+        }
+
+        // Networks
+        if (nets.length) {
+          html += `<div class="dip-section"><div class="dip-section-title">Networks</div>`;
+          nets.forEach(([name, net]) => {
+            html += `<div class="dip-row"><span class="dip-key">${escHtml(name)}</span><span class="dip-val">${escHtml(net.IPAddress || '—')}</span></div>`;
+          });
+          html += `</div>`;
+        }
+
+        // Mounts
+        if (mountList.length) {
+          html += `<div class="dip-section"><div class="dip-section-title">Mounts</div>
+            <div style="display:flex;flex-direction:column;gap:4px">${mountList.map(m => `<span class="dip-tag dip-tag-mount" style="display:block;word-break:break-all">${escHtml(m)}</span>`).join('')}</div></div>`;
+        }
+
+        // Environment
+        if (env.length) {
+          html += `<div class="dip-section"><div class="dip-section-title">Environment (${env.length})</div>
+            <div style="display:flex;flex-direction:column;gap:3px">${env.map(e => {
+              const [k, ...v] = e.split('=');
+              return `<div class="dip-tag dip-tag-env" style="display:block;word-break:break-all"><strong>${escHtml(k)}</strong>=${escHtml(v.join('='))}</div>`;
+            }).join('')}</div></div>`;
+        }
+
+        // Labels
+        const labelEntries = Object.entries(labels);
+        if (labelEntries.length) {
+          html += `<div class="dip-section"><div class="dip-section-title">Labels (${labelEntries.length})</div>
+            <div style="display:flex;flex-direction:column;gap:3px">${labelEntries.map(([k, v]) =>
+              `<div class="dip-tag dip-tag-label" style="display:block;word-break:break-all"><strong>${escHtml(k)}</strong>=${escHtml(v)}</div>`
+            ).join('')}</div></div>`;
+        }
+
+        // Resource Limits
+        const mem = hostConfig.Memory;
+        const cpus = hostConfig.NanoCpus;
+        if (mem || cpus) {
+          html += `<div class="dip-section"><div class="dip-section-title">Resource Limits</div>
+            ${mem ? `<div class="dip-row"><span class="dip-key">Memory</span><span class="dip-val">${(mem / 1024 / 1024).toFixed(0)} MB</span></div>` : ''}
+            ${cpus ? `<div class="dip-row"><span class="dip-key">CPUs</span><span class="dip-val">${(cpus / 1e9).toFixed(2)}</span></div>` : ''}
+          </div>`;
+        }
+
+        body.innerHTML = html;
+      } catch (e) {
+        const body = panel.querySelector('.dip-body');
+        if (body) body.innerHTML = `<div style="text-align:center;padding:40px;color:#ef4444">Error: ${escHtml(e.message)}</div>`;
+      }
+    }
+
+    function _dipClose(wrap) {
+      if (!wrap) return;
+      const overlay = wrap.querySelector('.docker-inspect-overlay');
+      const panel = wrap.querySelector('.docker-inspect-panel');
+      if (panel) panel.classList.remove('open');
+      if (overlay) overlay.classList.remove('open');
+      setTimeout(() => { overlay?.remove(); panel?.remove(); }, 250);
     }
 
     async function dockerLogs(tabId, containerId, name) {
