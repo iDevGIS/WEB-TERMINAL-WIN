@@ -3062,27 +3062,56 @@
     }
     .docker-inspect-panel.open { transform: translateX(0); }
     .dip-header {
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 14px 16px; border-bottom: 1px solid var(--glass-border);
-      background: rgba(108,99,255,.04);
+      padding: 16px 20px; border-bottom: 1px solid var(--glass-border);
+      background: rgba(108,99,255,.03);
     }
-    .dip-header h3 { margin: 0; font-size: 14px; color: var(--text1); display: flex; align-items: center; gap: 8px; }
+    .dip-header-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+    .dip-header-name { display: flex; align-items: center; gap: 10px; }
+    .dip-header-name h3 { margin: 0; font-size: 16px; color: var(--text1); font-weight: 700; }
+    .dip-status-badge {
+      display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px;
+      border-radius: 12px; font-size: 11px; font-weight: 600;
+    }
+    .dip-status-badge.running { background: rgba(74,222,128,.12); color: #4ade80; }
+    .dip-status-badge.exited { background: rgba(239,68,68,.12); color: #ef4444; }
+    .dip-status-badge.paused { background: rgba(251,191,36,.12); color: #fbbf24; }
+    .dip-status-badge .dip-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
     .dip-close { background: none; border: 1px solid rgba(255,255,255,.06); border-radius: 6px; color: var(--text3); cursor: pointer; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; transition: all .15s; }
     .dip-close:hover { color: #ef4444; border-color: rgba(239,68,68,.2); background: rgba(239,68,68,.06); }
-    .dip-body { flex: 1; overflow-y: auto; padding: 12px 16px; }
-    .dip-section { margin-bottom: 16px; }
-    .dip-section-title {
-      font-size: 10px; text-transform: uppercase; letter-spacing: 1px;
-      color: var(--accent); margin-bottom: 8px; font-weight: 600;
+    .dip-header-meta { display: flex; gap: 16px; font-size: 11px; color: var(--text3); }
+    .dip-header-meta span { display: flex; align-items: center; gap: 4px; }
+    .dip-actions { display: flex; gap: 6px; margin-top: 10px; }
+    .dip-action-btn {
+      padding: 5px 12px; border-radius: 6px; font-size: 11px; font-weight: 500;
+      border: 1px solid rgba(255,255,255,.08); background: rgba(255,255,255,.03);
+      color: var(--text2); cursor: pointer; display: flex; align-items: center; gap: 4px;
+      transition: all .15s;
     }
-    .dip-row { display: flex; justify-content: space-between; align-items: flex-start; padding: 5px 0; border-bottom: 1px solid rgba(255,255,255,.03); font-size: 12px; }
+    .dip-action-btn:hover { background: rgba(108,99,255,.1); color: var(--accent); border-color: rgba(108,99,255,.2); }
+    .dip-action-btn.danger:hover { background: rgba(239,68,68,.1); color: #ef4444; border-color: rgba(239,68,68,.2); }
+    .dip-body { flex: 1; overflow-y: auto; padding: 0; }
+    .dip-section { padding: 14px 20px; border-bottom: 1px solid rgba(255,255,255,.04); }
+    .dip-section-title {
+      font-size: 10px; text-transform: uppercase; letter-spacing: 1.2px;
+      color: var(--accent); margin-bottom: 10px; font-weight: 600;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .dip-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .dip-card {
+      padding: 8px 12px; border-radius: 8px; background: rgba(255,255,255,.02);
+      border: 1px solid rgba(255,255,255,.04);
+    }
+    .dip-card-label { font-size: 9px; color: var(--text3); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 2px; }
+    .dip-card-value { font-size: 12px; color: var(--text1); font-family: 'JetBrains Mono', monospace; word-break: break-all; }
+    .dip-row { display: flex; justify-content: space-between; align-items: flex-start; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,.03); font-size: 12px; }
     .dip-key { color: var(--text3); flex-shrink: 0; width: 110px; }
     .dip-val { color: var(--text1); text-align: right; word-break: break-all; font-family: 'JetBrains Mono', monospace; font-size: 11px; }
-    .dip-tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-family: 'JetBrains Mono', monospace; margin: 1px 2px; }
-    .dip-tag-env { background: rgba(96,165,250,.1); color: #60a5fa; }
-    .dip-tag-mount { background: rgba(74,222,128,.1); color: #4ade80; }
-    .dip-tag-label { background: rgba(168,139,250,.1); color: #a78bfa; }
-    .dip-tag-port { background: rgba(251,146,60,.1); color: #fb923c; }
+    .dip-tag { display: inline-block; padding: 3px 10px; border-radius: 6px; font-size: 10px; font-family: 'JetBrains Mono', monospace; margin: 2px; }
+    .dip-tag-env { background: rgba(96,165,250,.08); color: #60a5fa; border: 1px solid rgba(96,165,250,.12); }
+    .dip-tag-mount { background: rgba(74,222,128,.08); color: #4ade80; border: 1px solid rgba(74,222,128,.12); }
+    .dip-tag-label { background: rgba(168,139,250,.08); color: #a78bfa; border: 1px solid rgba(168,139,250,.12); }
+    .dip-tag-port { background: rgba(251,146,60,.08); color: #fb923c; border: 1px solid rgba(251,146,60,.12); }
+    .dip-tag-net { background: rgba(6,182,212,.08); color: #06b6d4; border: 1px solid rgba(6,182,212,.12); }
     @media (max-width: 1024px) {
       .docker-inspect-panel { width: 100%; max-width: 100%; }
     }
@@ -6704,8 +6733,10 @@
     async function dockerInspect(tabId, containerId) {
       const wrap = document.getElementById(tabId + '-docker');
       if (!wrap) return;
-      // Remove existing
-      document.querySelectorAll('.docker-inspect-overlay,.docker-inspect-panel').forEach(e => e.remove());
+      // Close snippets/activity if open
+      document.querySelectorAll('.snippets-drawer.open,.snippets-overlay.open,.docker-inspect-overlay,.docker-inspect-panel').forEach(e => {
+        e.classList.remove('open'); e.remove();
+      });
 
       const overlay = document.createElement('div');
       overlay.className = 'docker-inspect-overlay';
@@ -6715,8 +6746,16 @@
       panel.className = 'docker-inspect-panel';
       panel.innerHTML = `
         <div class="dip-header">
-          <h3><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> Container Details</h3>
-          <button class="dip-close" onclick="_dipClose()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+          <div class="dip-header-top">
+            <div class="dip-header-name">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"><rect x="2" y="7" width="5" height="5" rx="1"/><rect x="9.5" y="7" width="5" height="5" rx="1"/><rect x="17" y="7" width="5" height="5" rx="1"/><rect x="9.5" y="14" width="5" height="5" rx="1"/></svg>
+              <h3 id="dip-name">Loading...</h3>
+            </div>
+            <button class="dip-close" onclick="_dipClose()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+          </div>
+          <div id="dip-status-row" style="display:flex;align-items:center;gap:8px;margin-bottom:8px"></div>
+          <div class="dip-header-meta" id="dip-meta"></div>
+          <div class="dip-actions" id="dip-actions"></div>
         </div>
         <div class="dip-body"><div style="text-align:center;padding:40px;color:var(--text3)">Loading...</div></div>`;
       document.body.appendChild(overlay);
@@ -6737,64 +6776,96 @@
         const labels = config.Labels || {};
         const env = (config.Env || []);
         const ports = netSettings.Ports || {};
+        const name = d.Name?.replace(/^\//, '') || '—';
         const created = d.Created ? new Date(d.Created).toLocaleString() : '—';
-
-        // Status color
-        const stateColor = state.Running ? '#4ade80' : state.Paused ? '#fbbf24' : '#ef4444';
+        const stateClass = state.Running ? 'running' : state.Paused ? 'paused' : 'exited';
         const stateName = state.Running ? 'Running' : state.Paused ? 'Paused' : state.Status || 'Stopped';
+
+        // Header
+        document.getElementById('dip-name').textContent = name;
+        document.getElementById('dip-status-row').innerHTML = `
+          <span class="dip-status-badge ${stateClass}"><span class="dip-dot"></span>${stateName}</span>
+          <span style="font-size:11px;color:var(--text3)">${escHtml(config.Image || '—')}</span>`;
+        document.getElementById('dip-meta').innerHTML = `
+          <span><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/></svg> ${escHtml(created)}</span>
+          <span><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> ${escHtml(d.Id?.slice(0, 12) || '—')}</span>`;
+
+        // Action buttons
+        const cid = d.Id;
+        document.getElementById('dip-actions').innerHTML = `
+          ${state.Running ? `
+            <button class="dip-action-btn" onclick="dockerAction('${cid}','stop');_dipClose()">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="1"/></svg> Stop
+            </button>
+            <button class="dip-action-btn" onclick="dockerAction('${cid}','restart');_dipClose()">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/></svg> Restart
+            </button>
+            <button class="dip-action-btn" onclick="dockerExec('${tabId}','${cid}','${escAttr(name)}');_dipClose()">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg> Exec
+            </button>
+            <button class="dip-action-btn" onclick="dockerLogs('${tabId}','${cid}','${escAttr(name)}');_dipClose()">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg> Logs
+            </button>
+          ` : `
+            <button class="dip-action-btn" onclick="dockerAction('${cid}','start');_dipClose()">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg> Start
+            </button>
+          `}
+          <button class="dip-action-btn danger" onclick="dockerRemove('${cid}');_dipClose()">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg> Remove
+          </button>`;
 
         // Port bindings
         const portList = Object.entries(ports).map(([k, v]) => {
           if (!v || !v.length) return k + ' (not bound)';
           return v.map(b => b.HostPort + ' → ' + k).join(', ');
         });
-
-        // Mounts
         const mountList = mounts.map(m => `${m.Source || m.Name || '?'} → ${m.Destination} (${m.Mode || 'rw'})`);
-
-        // Network
         const nets = Object.entries(netSettings.Networks || {});
 
         let html = '';
-        // General
+
+        // Overview grid
         html += `<div class="dip-section">
-          <div class="dip-section-title">General</div>
-          <div class="dip-row"><span class="dip-key">Name</span><span class="dip-val">${escHtml(d.Name?.replace(/^\//, '') || '—')}</span></div>
-          <div class="dip-row"><span class="dip-key">ID</span><span class="dip-val">${escHtml(d.Id?.slice(0, 12) || '—')}</span></div>
-          <div class="dip-row"><span class="dip-key">Image</span><span class="dip-val">${escHtml(config.Image || '—')}</span></div>
-          <div class="dip-row"><span class="dip-key">Status</span><span class="dip-val" style="color:${stateColor};font-weight:600">${escHtml(stateName)}</span></div>
-          <div class="dip-row"><span class="dip-key">Created</span><span class="dip-val">${escHtml(created)}</span></div>
-          <div class="dip-row"><span class="dip-key">Restart Policy</span><span class="dip-val">${escHtml((hostConfig.RestartPolicy?.Name || 'no') + (hostConfig.RestartPolicy?.MaximumRetryCount ? ' (max ' + hostConfig.RestartPolicy.MaximumRetryCount + ')' : ''))}</span></div>
-          <div class="dip-row"><span class="dip-key">Platform</span><span class="dip-val">${escHtml(d.Platform || '—')}</span></div>
-          <div class="dip-row"><span class="dip-key">Entrypoint</span><span class="dip-val">${escHtml((config.Entrypoint || []).join(' ') || '—')}</span></div>
-          <div class="dip-row"><span class="dip-key">Command</span><span class="dip-val">${escHtml((config.Cmd || []).join(' ') || '—')}</span></div>
-          <div class="dip-row"><span class="dip-key">Working Dir</span><span class="dip-val">${escHtml(config.WorkingDir || '/')}</span></div>
+          <div class="dip-section-title"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg> Overview</div>
+          <div class="dip-grid">
+            <div class="dip-card"><div class="dip-card-label">Entrypoint</div><div class="dip-card-value">${escHtml((config.Entrypoint || []).join(' ') || '—')}</div></div>
+            <div class="dip-card"><div class="dip-card-label">Command</div><div class="dip-card-value">${escHtml((config.Cmd || []).join(' ') || '—')}</div></div>
+            <div class="dip-card"><div class="dip-card-label">Working Dir</div><div class="dip-card-value">${escHtml(config.WorkingDir || '/')}</div></div>
+            <div class="dip-card"><div class="dip-card-label">Restart Policy</div><div class="dip-card-value">${escHtml(hostConfig.RestartPolicy?.Name || 'no')}</div></div>
+            <div class="dip-card"><div class="dip-card-label">Platform</div><div class="dip-card-value">${escHtml(d.Platform || '—')}</div></div>
+            ${hostConfig.Memory ? `<div class="dip-card"><div class="dip-card-label">Memory Limit</div><div class="dip-card-value">${(hostConfig.Memory / 1024 / 1024).toFixed(0)} MB</div></div>` : ''}
+          </div>
         </div>`;
 
         // Ports
         if (portList.length) {
-          html += `<div class="dip-section"><div class="dip-section-title">Ports</div>
+          html += `<div class="dip-section"><div class="dip-section-title"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/></svg> Ports (${portList.length})</div>
             <div style="display:flex;flex-wrap:wrap;gap:4px">${portList.map(p => `<span class="dip-tag dip-tag-port">${escHtml(p)}</span>`).join('')}</div></div>`;
         }
 
         // Networks
         if (nets.length) {
-          html += `<div class="dip-section"><div class="dip-section-title">Networks</div>`;
-          nets.forEach(([name, net]) => {
-            html += `<div class="dip-row"><span class="dip-key">${escHtml(name)}</span><span class="dip-val">${escHtml(net.IPAddress || '—')}</span></div>`;
+          html += `<div class="dip-section"><div class="dip-section-title"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg> Networks (${nets.length})</div>`;
+          nets.forEach(([n, net]) => {
+            html += `<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+              <span class="dip-tag dip-tag-net">${escHtml(n)}</span>
+              <span style="font-size:11px;color:var(--text2);font-family:'JetBrains Mono',monospace">${escHtml(net.IPAddress || 'no IP')}</span>
+              ${net.Gateway ? `<span style="font-size:9px;color:var(--text3)">GW: ${escHtml(net.Gateway)}</span>` : ''}
+            </div>`;
           });
           html += `</div>`;
         }
 
         // Mounts
         if (mountList.length) {
-          html += `<div class="dip-section"><div class="dip-section-title">Mounts</div>
+          html += `<div class="dip-section"><div class="dip-section-title"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg> Mounts (${mountList.length})</div>
             <div style="display:flex;flex-direction:column;gap:4px">${mountList.map(m => `<span class="dip-tag dip-tag-mount" style="display:block;word-break:break-all">${escHtml(m)}</span>`).join('')}</div></div>`;
         }
 
         // Environment
         if (env.length) {
-          html += `<div class="dip-section"><div class="dip-section-title">Environment (${env.length})</div>
+          html += `<div class="dip-section"><div class="dip-section-title"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> Environment (${env.length})</div>
             <div style="display:flex;flex-direction:column;gap:3px">${env.map(e => {
               const [k, ...v] = e.split('=');
               return `<div class="dip-tag dip-tag-env" style="display:block;word-break:break-all"><strong>${escHtml(k)}</strong>=${escHtml(v.join('='))}</div>`;
@@ -6804,20 +6875,10 @@
         // Labels
         const labelEntries = Object.entries(labels);
         if (labelEntries.length) {
-          html += `<div class="dip-section"><div class="dip-section-title">Labels (${labelEntries.length})</div>
+          html += `<div class="dip-section"><div class="dip-section-title"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg> Labels (${labelEntries.length})</div>
             <div style="display:flex;flex-direction:column;gap:3px">${labelEntries.map(([k, v]) =>
               `<div class="dip-tag dip-tag-label" style="display:block;word-break:break-all"><strong>${escHtml(k)}</strong>=${escHtml(v)}</div>`
             ).join('')}</div></div>`;
-        }
-
-        // Resource Limits
-        const mem = hostConfig.Memory;
-        const cpus = hostConfig.NanoCpus;
-        if (mem || cpus) {
-          html += `<div class="dip-section"><div class="dip-section-title">Resource Limits</div>
-            ${mem ? `<div class="dip-row"><span class="dip-key">Memory</span><span class="dip-val">${(mem / 1024 / 1024).toFixed(0)} MB</span></div>` : ''}
-            ${cpus ? `<div class="dip-row"><span class="dip-key">CPUs</span><span class="dip-val">${(cpus / 1e9).toFixed(2)}</span></div>` : ''}
-          </div>`;
         }
 
         body.innerHTML = html;
