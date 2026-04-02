@@ -2303,8 +2303,8 @@
     .chat-session-item.active { background: rgba(108,99,255,.1); color: var(--text); }
     .chat-session-item .cs-icon { opacity: .5; display: flex; align-items: center; }
     .chat-session-item .cs-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .chat-session-item .cs-meta { font-size: 9px; color: var(--text3); display: flex; gap: 6px; margin-top: 1px; font-family: 'JetBrains Mono', monospace; }
-    .chat-session-item .cs-meta .cs-tokens { color: var(--accent); }
+    .chat-session-item .cs-meta { font-size: 9px; color: var(--text3); margin-top: 2px; font-family: 'JetBrains Mono', monospace; display: flex; align-items: center; gap: 4px; }
+    .chat-session-item .cs-meta .cs-tokens { color: #fbbf24; font-weight: 500; }
     .chat-session-item .cs-rename, .chat-session-item .cs-delete {
       opacity: 0; font-size: 10px; padding: 2px 4px; border-radius: 4px; cursor: pointer;
       color: var(--text3); transition: opacity .15s;
@@ -4787,8 +4787,7 @@
             </div>
             <div class="cs-meta">
               <span>${ago}</span>
-              <span>${msgCount} msg</span>
-              ${tokens ? `<span class="cs-tokens">${tokenStr} tok</span>` : ''}
+              ${tokens ? `<span class="cs-tokens">${tokenStr} tokens</span>` : `<span>${msgCount} msg</span>`}
             </div>
           </div>
           <span class="cs-rename" onclick="event.stopPropagation();chatRenameSession('${tabId}','${s.id}',this.closest('.chat-session-item').querySelector('.cs-title'))" title="Rename">✏️</span>
