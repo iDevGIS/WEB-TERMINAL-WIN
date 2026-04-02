@@ -9740,7 +9740,7 @@
         activeTab.paneEl.style.position = 'relative';
         activeTab.paneEl.appendChild(bar);
         const input = bar.querySelector('input');
-        input.addEventListener('input', (e) => { if (searchAddon && e.target.value) searchAddon.findNext(e.target.value); });
+        input.addEventListener('input', (e) => { if (searchAddon && e.target.value) searchAddon.findNext(e.target.value, { decorations: _searchDecorations }); });
         input.addEventListener('keydown', (e) => {
           if (e.key === 'Enter') { e.preventDefault(); termSearchNext(e.shiftKey ? -1 : 1); }
           if (e.key === 'Escape') closeTermSearch();
@@ -9757,12 +9757,21 @@
         b.querySelector('input').value = '';
       });
     }
+    const _searchDecorations = {
+      matchBackground: '#c084fc40',
+      matchBorder: '#c084fc60',
+      matchOverviewRuler: '#c084fc',
+      activeMatchBackground: '#ec4899',
+      activeMatchBorder: '#ec489980',
+      activeMatchColorOverviewRuler: '#ec4899'
+    };
     function termSearchNext(dir) {
       const activeTab = tabs.get(activeTabId);
       const bar = activeTab?.paneEl?.querySelector('.term-search-bar input');
       const q = bar?.value;
       if (!q || !searchAddon) return;
-      if (dir > 0) searchAddon.findNext(q); else searchAddon.findPrevious(q);
+      if (dir > 0) searchAddon.findNext(q, { decorations: _searchDecorations });
+      else searchAddon.findPrevious(q, { decorations: _searchDecorations });
     }
 
     // === Command Snippets ===
