@@ -139,6 +139,10 @@
 - **Quick Actions** — New Shell, Kill All Sessions, Remote Desktop, Copy IP, Export Logs
 - **Connected Browsers** — track active browser sessions (IP, browser, OS, connected time)
 - **Tailscale Serve Management** — view/add/remove Tailscale serve rules directly from admin panel
+- **VPN Status** — detect VPN/Tailscale/WireGuard adapters with up/down status
+- **Listening Ports** — all TCP LISTEN ports with process name, PID, known service labels (CYBERFRAME, VNC, PostgreSQL...)
+- **ARP Table** — IP/MAC/type with gateway detection
+- **Routing Table** — destination, next hop, metric, interface with default route highlight
 - **Activity Log** — real-time server activity viewer
 
 ### 🐳 Docker Container Management
@@ -377,6 +381,10 @@ Open `http://localhost:3000` in your browser.
 |------------------------|-------------------|
 | ![Admin Tailscale](docs/images/admin-tailscale.png) | ![Add Tailscale Rule](docs/images/admin-tailscale-add.png) |
 
+| Admin — Network (VPN, Ports, ARP, Routing) |
+|--------------------------------------------|
+| ![Admin Network](docs/images/admin-network.png) |
+
 ### 📱 Mobile (iOS Safari)
 
 <table>
@@ -582,6 +590,10 @@ CYBERFRAME
 | GET | `/api/docker/networks` | List Docker networks |
 | GET | `/api/admin/tailscale` | Tailscale serve status |
 | POST | `/api/admin/tailscale/serve` | Add/remove Tailscale serve rule |
+| GET | `/api/admin/vpn` | VPN adapter status |
+| GET | `/api/admin/ports` | Listening TCP ports |
+| GET | `/api/admin/arp` | ARP table |
+| GET | `/api/admin/routes` | IPv4 routing table |
 
 ### WebSocket Messages
 
