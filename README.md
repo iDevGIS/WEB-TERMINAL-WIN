@@ -369,9 +369,9 @@ Open `http://localhost:3000` in your browser.
 |-----------|----------------------|
 | ![Docker Exec](docs/images/docker-exec.png) | ![Docker Port Popup](docs/images/docker-port-popup.png) |
 
-| Multi-Log Viewer (4 containers live) |
-|--------------------------------------|
-| ![Docker Multi-Logs](docs/images/docker-multi-logs.png) |
+| Multi-Log Viewer (4 containers live) | Container Inspect Panel |
+|--------------------------------------|------------------------|
+| ![Docker Multi-Logs](docs/images/docker-multi-logs.png) | ![Docker Inspect](docs/images/docker-inspect.png) |
 
 | Admin — Tailscale Serve | Add Tailscale Rule |
 |------------------------|-------------------|
