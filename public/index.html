@@ -4528,7 +4528,7 @@
       tabs.set(tabId, tabData);
       switchTab(tabId);
       // Init chat first session after tab is registered
-      if (type === 'chat') setTimeout(() => chatNewSessionQuick(tabId), 50);
+      if (type === 'chat' && !opts?.skipDefaultSession) setTimeout(() => chatNewSessionQuick(tabId), 50);
       return tabId;
     }
 
@@ -10980,7 +10980,7 @@
             window._pendingNewTerminals.push({ name: entry.name, icon: entry.icon });
             restoredAny = true;
           } else if (entry.type === 'chat') {
-            const tabId = createTab('chat', { name: entry.name || 'AI Chat', icon: entry.icon || '💬' });
+            const tabId = createTab('chat', { name: entry.name || 'AI Chat', icon: entry.icon || '💬', skipDefaultSession: true });
             // Restore chat sessions data
             if (entry.chatSessions) {
               const tab = tabs.get(tabId);
