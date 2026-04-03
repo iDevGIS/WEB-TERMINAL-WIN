@@ -4932,12 +4932,9 @@
       const tab = tabs.get(tabId);
       if (!tab) return;
       const agents = await _fetchAgents();
-      let agentId = 'main';
-      if (agents.length > 1) {
-        // Show agent picker
-        agentId = await _chatAgentPicker(agents);
-        if (!agentId) return; // cancelled
-      }
+      // Always show agent picker
+      const agentId = await _chatAgentPicker(agents);
+      if (!agentId) return; // cancelled
       _chatCounter++;
       const sess = { id: 'cs-' + Date.now(), title: 'Chat ' + _chatCounter, messages: [], systemPrompt: '', tokenCount: 0, agentId };
       tab.chatSessions.push(sess);
