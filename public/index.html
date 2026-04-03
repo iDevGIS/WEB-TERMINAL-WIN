@@ -4321,10 +4321,16 @@
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
                 New Chat
               </button>
-              <button class="chat-action-sm" style="margin-top:4px" onclick="chatRestoreSession('${tabId}')" title="Restore session by ID">
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 7h3a5 5 0 0 1 5 5 5 5 0 0 1-5 5h-3m-6 0H6a5 5 0 0 1-5-5 5 5 0 0 1 5-5h3"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
-                Restore Session
-              </button>
+              <div style="display:flex;gap:4px;margin-top:4px">
+                <button class="chat-action-sm" onclick="chatRestoreSession('${tabId}')" title="Restore session by ID">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 7h3a5 5 0 0 1 5 5 5 5 0 0 1-5 5h-3m-6 0H6a5 5 0 0 1-5-5 5 5 0 0 1 5-5h3"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+                  Restore
+                </button>
+                <button class="chat-action-sm" onclick="chatImportSessions('${tabId}')" title="Import sessions from JSON">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                  Import
+                </button>
+              </div>
             </div>
             <div class="chat-session-list" id="${tabId}-sessions"></div>
           </div>
