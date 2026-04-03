@@ -1036,8 +1036,10 @@ app.post("/api/chat", requireAuth, async (req, res) => {
   if (sessionId && sessionName) {
     _cyberframeNames[sessionId] = sessionName;
   }
+  // Gateway accepts 'openclaw' or 'openclaw/<agentId>' as model — not provider/model format
+  const gwModel = agentId && agentId !== 'main' ? 'openclaw/' + agentId : 'openclaw';
   const payload = {
-    model: model || undefined,
+    model: gwModel,
     messages,
     stream: true,
     user: sessionId ? "cyberframe-" + sessionId : "cyberframe-" + Date.now(),
