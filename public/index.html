@@ -4735,31 +4735,43 @@
       createTab('chat', { name: 'AI Chat', icon: '✦' });
     }
 
-    function chatRestoreSession(tabId) {
+    async function chatRestoreSession(tabId) {
       const tab = tabs.get(tabId);
       if (!tab) return;
-      const input = prompt('Enter session key or ID:\n(e.g. cs-1775152371952 or agent:main:openai-user:cyberframe-cs-1775152371952)');
+      const input = prompt('Enter session key or ID:\n(e.g. cs-1775152371952 or full key)');
       if (!input) return;
-      // Extract cs-xxx from full key or use as-is
       let sessId = input.trim();
       const match = sessId.match(/cyberframe-(cs-\d+)/);
       if (match) sessId = match[1];
       if (!sessId.startsWith('cs-')) sessId = 'cs-' + sessId;
-      // Check if already exists
       if (tab.chatSessions.find(s => s.id === sessId)) {
         tab.activeChatSession = sessId;
-        renderChatSessions(tabId);
-        renderChatMessages(tabId);
-        showToast('Session already exists — switched to it', 'info');
-        return;
+        renderChatSessions(tabId); renderChatMessages(tabId);
+        showToast('Session exists — switched', 'info'); return;
       }
+      const fullKey = 'agent:main:openai-user:cyberframe-' + sessId;
+      let msgs = [], title = 'Restored ' + sessId.slice(-6);
+      try {
+        showToast('Fetching transcript...', 'info');
+        const r = await fetch('/api/agent/sessions/preview?key=' + encodeURIComponent(fullKey));
+        if (r.ok) {
+          const d = await r.json();
+          for (const e of (d.messages || [])) {
+            if ((e.role === 'user' || e.role === 'assistant') && e.content) {
+              const c = typeof e.content === 'string' ? e.content : Array.isArray(e.content) ? e.content.map(x => x.text || '').join('') : JSON.stringify(e.content);
+              if (c) msgs.push({ role: e.role, content: c, ts: e.ts || Date.now() });
+            }
+          }
+          const fu = msgs.find(m => m.role === 'user');
+          if (fu) title = fu.content.slice(0, 40) + (fu.content.length > 40 ? '...' : '');
+        }
+      } catch (e) { console.warn('[Restore]', e); }
       _chatCounter++;
-      const sess = { id: sessId, title: 'Restored ' + sessId.slice(-6), messages: [], systemPrompt: '', tokenCount: 0 };
-      tab.chatSessions.push(sess);
-      tab.activeChatSession = sess.id;
-      renderChatSessions(tabId);
-      renderChatMessages(tabId);
-      showToast('\u2705 Session restored — send a message to continue the conversation', 'success');
+      const tokEst = msgs.reduce((s, m) => s + Math.round((m.content||'').split(/\s+/).length * 1.3), 0);
+      const sess = { id: sessId, title, messages: msgs, systemPrompt: '', tokenCount: tokEst };
+      tab.chatSessions.push(sess); tab.activeChatSession = sess.id;
+      renderChatSessions(tabId); renderChatMessages(tabId);
+      showToast('Restored ' + msgs.length + ' messages', 'success');
     }
 
     function chatExportSessions(tabId) {
