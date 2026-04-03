@@ -4527,7 +4527,7 @@
       tabs.set(tabId, tabData);
       switchTab(tabId);
       // Init chat first session after tab is registered
-      if (type === 'chat') chatNewSessionQuick(tabId);
+      if (type === 'chat') setTimeout(() => chatNewSessionQuick(tabId), 50);
       return tabId;
     }
 
