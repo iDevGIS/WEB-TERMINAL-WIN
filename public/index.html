@@ -2332,7 +2332,7 @@
     .chat-session-item .cs-rename:hover { opacity: 1; color: var(--accent); }
     .chat-session-item .cs-delete:hover { opacity: 1; color: var(--red); background: rgba(248,113,113,.1); }
     /* Chat main area */
-    .chat-main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+    .chat-main { flex: 1; display: flex; flex-direction: column; min-width: 0; position: relative; }
     .chat-header {
       display: flex; align-items: center; justify-content: space-between;
       padding: 8px 12px; border-bottom: 1px solid var(--glass-border);
@@ -2603,16 +2603,36 @@
     @keyframes tdBounce { from { opacity: .3; transform: translateY(0); } to { opacity: 1; transform: translateY(-5px); } }
     /* === Feature: Search Bar === */
     .chat-search-bar {
-      display: none; padding: 6px 16px; border-bottom: 1px solid var(--glass-border); background: var(--glass-bg);
+      display: none;
+      position: absolute;
+      top: 8px;
+      right: 16px;
+      z-index: 100;
+      background: var(--glass);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--glass-border);
+      border-radius: 10px;
+      padding: 6px 10px;
+      gap: 6px;
+      align-items: center;
+      box-shadow: 0 4px 20px rgba(0,0,0,.3);
     }
-    .chat-search-bar.visible { display: flex; align-items: center; gap: 8px; }
+    .chat-search-bar.visible { display: flex; }
     .chat-search-input {
-      flex: 1; padding: 5px 10px; border-radius: 8px; border: 1px solid var(--glass-border);
-      background: var(--glass-bg2); color: var(--text); font-size: 12px; font-family: 'Inter', sans-serif;
-      outline: none;
+      background: rgba(0,0,0,.3);
+      border: 1px solid var(--glass-border);
+      border-radius: 6px;
+      padding: 5px 10px;
+      color: var(--text); font-size: 12px; width: 200px;
+      outline: none; font-family: 'JetBrains Mono', monospace;
     }
-    .chat-search-input:focus { border-color: rgba(108,99,255,.5); }
-    .chat-search-close { background: none; border: none; color: var(--text3); cursor: pointer; font-size: 14px; padding: 2px 6px; }
+    .chat-search-input:focus { border-color: var(--accent); }
+    .chat-search-close {
+      background: none; border: none; color: var(--text2);
+      cursor: pointer; padding: 4px 6px; font-size: 14px;
+      border-radius: 4px; transition: all .15s;
+    }
+    .chat-search-close:hover { color: #ef4444; background: rgba(239,68,68,.1); }
     .chat-msg.search-dim { opacity: .15; }
     .chat-msg mark { background: rgba(108,99,255,.4); color: var(--text); border-radius: 2px; padding: 0 1px; }
     /* === Feature: Token Counter === */
