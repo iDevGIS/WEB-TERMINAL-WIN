@@ -1036,26 +1036,43 @@ app.post("/api/chat", requireAuth, async (req, res) => {
   if (sessionId && sessionName) {
     _cyberframeNames[sessionId] = sessionName;
   }
-  // Gateway accepts 'openclaw' or 'openclaw/<agentId>' as model — not provider/model format
-  const gwModel = agentId && agentId !== 'main' ? 'openclaw/' + agentId : 'openclaw';
-  const payload = {
-    model: gwModel,
-    messages,
-    stream: true,
-    user: sessionId ? "cyberframe-" + sessionId : "cyberframe-" + Date.now(),
-  };
+  // Determine if using OpenClaw Gateway or direct Ollama
+  const isOllama = model && model.startsWith('ollama/');
+  const ollamaModel = isOllama ? model.replace('ollama/', '') : null;
 
   try {
-    const url = OPENCLAW_GW + "/v1/chat/completions";
-    const upstream = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": "Bearer " + OPENCLAW_TOKEN,
-        "x-openclaw-agent-id": agentId || "main",
-      },
-      body: JSON.stringify(payload),
-    });
+    let upstream;
+    if (isOllama) {
+      // Direct Ollama proxy — bypass OpenClaw Gateway
+      const ollamaPayload = {
+        model: ollamaModel,
+        messages: messages.map(m => ({ role: m.role, content: m.content })),
+        stream: true,
+      };
+      upstream = await fetch('http://127.0.0.1:11434/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(ollamaPayload),
+      });
+    } else {
+      // OpenClaw Gateway
+      const gwModel = agentId && agentId !== 'main' ? 'openclaw/' + agentId : 'openclaw';
+      const payload = {
+        model: gwModel,
+        messages,
+        stream: true,
+        user: sessionId ? 'cyberframe-' + sessionId : 'cyberframe-' + Date.now(),
+      };
+      upstream = await fetch(OPENCLAW_GW + '/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + OPENCLAW_TOKEN,
+          'x-openclaw-agent-id': agentId || 'main',
+        },
+        body: JSON.stringify(payload),
+      });
+    }
 
     if (!upstream.ok) {
       const errText = await upstream.text();
