@@ -2652,9 +2652,23 @@
       background: linear-gradient(135deg, rgba(96,165,250,.06), rgba(108,99,255,.04)) !important;
       box-shadow: 0 0 8px rgba(96,165,250,.06) !important; font-size: 9px !important;
     }
-    .chat-session-badge:hover { border-color: rgba(96,165,250,.3) !important; box-shadow: 0 0 12px rgba(96,165,250,.1) !important; }
+    .chat-session-badge:hover { border-color: rgba(96,165,250,.3) !important; box-shadow: 0 0 12px rgba(96,165,250,.1) !important; cursor: pointer; }
     .chat-session-badge svg { stroke: #60a5fa !important; }
     @media (max-width: 1024px) { .chat-session-badge { display: none !important; } }
+    /* Session Info Modal */
+    .sess-info-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.5); backdrop-filter: blur(4px); z-index: 950; display: flex; align-items: center; justify-content: center; }
+    .sess-info-modal {
+      background: linear-gradient(145deg, rgba(20,20,36,.98), rgba(12,12,24,.99));
+      border: 1px solid rgba(255,255,255,.08); border-radius: 14px;
+      padding: 24px; width: 440px; max-width: 90vw; max-height: 80vh; overflow-y: auto;
+      box-shadow: 0 20px 60px rgba(0,0,0,.6);
+    }
+    .sess-info-modal h3 { margin: 0 0 16px; font-size: 16px; color: var(--text1); display: flex; align-items: center; justify-content: space-between; }
+    .si-row { display: flex; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,.04); font-size: 12px; }
+    .si-label { color: var(--text3); width: 110px; flex-shrink: 0; }
+    .si-value { color: var(--text1); font-family: 'JetBrains Mono', monospace; font-size: 11px; word-break: break-all; }
+    .si-badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 600; }
+    .si-badge-cf { background: rgba(251,191,36,.1); color: #fbbf24; }
     /* === Feature: System Prompt Popover === */
     .sysprompt-wrap { position: relative; }
     .sysprompt-popover {
@@ -4344,7 +4358,7 @@
                 </div>
               </div>
               <div class="chat-header-actions">
-                <span class="chat-token-badge chat-session-badge" id="${tabId}-session-badge" style="display:none;cursor:pointer" onclick="navigator.clipboard.writeText(this.title).then(()=>showToast('📋 Copied session key','success'))" title=""></span>
+                <span class="chat-token-badge chat-session-badge" id="${tabId}-session-badge" style="display:none;cursor:pointer" onclick="chatShowSessionInfo('${tabId}')" title=""></span>
                 <span class="chat-token-badge" id="${tabId}-token-badge" style="display:none"></span>
                 <select class="chat-model-select" id="${tabId}-model-select" onchange="chatModelChange('${tabId}')" style="display:none">
                   <option value="">Default (Auto)</option>
@@ -4747,6 +4761,57 @@
         }
       }
       createTab('chat', { name: 'AI Chat', icon: '✦' });
+    }
+
+    async function chatShowSessionInfo(tabId) {
+      const tab = tabs.get(tabId);
+      if (!tab) return;
+      const sess = tab.chatSessions.find(s => s.id === tab.activeChatSession);
+      if (!sess) return;
+      const fullKey = 'agent:main:openai-user:cyberframe-' + sess.id;
+      // Remove existing
+      document.querySelectorAll('.sess-info-overlay').forEach(e => e.remove());
+      const overlay = document.createElement('div');
+      overlay.className = 'sess-info-overlay';
+      overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+      overlay.innerHTML = `<div class="sess-info-modal">
+        <h3>Session Info <button class="dip-close" onclick="this.closest('.sess-info-overlay').remove()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></h3>
+        <div class="si-row"><span class="si-label">Key</span><span class="si-value">${escHtml(fullKey)}</span></div>
+        <div class="si-row"><span class="si-label">Session ID</span><span class="si-value" id="si-session-id">Loading...</span></div>
+        <div class="si-row"><span class="si-label">Type</span><span class="si-value" id="si-type">...</span></div>
+        <div class="si-row"><span class="si-label">Created</span><span class="si-value" id="si-created">...</span></div>
+        <div class="si-row"><span class="si-label">Last Updated</span><span class="si-value" id="si-updated">...</span></div>
+        <div class="si-row"><span class="si-label">Transcript</span><span class="si-value" id="si-file">...</span></div>
+        <div class="si-row"><span class="si-label">File Size</span><span class="si-value" id="si-size">...</span></div>
+        <div class="si-row"><span class="si-label">Messages</span><span class="si-value" id="si-msgs">...</span></div>
+        <div class="si-row"><span class="si-label">Compactions</span><span class="si-value" id="si-compact">...</span></div>
+        <div style="margin-top:12px;display:flex;gap:6px">
+          <button class="chat-action-sm" style="flex:1" onclick="navigator.clipboard.writeText('${escAttr(fullKey)}').then(()=>showToast('Copied','success'))"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy Key</button>
+        </div>
+      </div>`;
+      document.body.appendChild(overlay);
+      // Fetch info from API
+      try {
+        const r = await fetch('/api/agent/sessions/info?key=' + encodeURIComponent(fullKey));
+        if (r.ok) {
+          const d = await r.json();
+          const fmt = (ts) => ts ? new Date(ts).toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' }) : '\u2014';
+          document.getElementById('si-session-id').textContent = d.sessionId || '\u2014';
+          const typeEl = document.getElementById('si-type');
+          typeEl.innerHTML = `${d.chatType || 'direct'} <span class="si-badge si-badge-cf">\u26a1 CYBERFRAME</span>`;
+          document.getElementById('si-created').textContent = fmt(d.createdAt);
+          document.getElementById('si-updated').textContent = fmt(d.updatedAt);
+          document.getElementById('si-file').textContent = d.sessionFile || '\u2014';
+          const sizeKB = d.fileSize ? (d.fileSize / 1024).toFixed(1) + ' KB' : '\u2014';
+          document.getElementById('si-size').textContent = sizeKB;
+          document.getElementById('si-msgs').textContent = (d.msgCount || 0) + ' entries';
+          document.getElementById('si-compact').textContent = d.compactionCount || 0;
+        } else {
+          document.getElementById('si-session-id').textContent = 'Not found in store';
+        }
+      } catch (e) {
+        document.getElementById('si-session-id').textContent = 'Error: ' + e.message;
+      }
     }
 
     async function chatRestoreSession(tabId) {
