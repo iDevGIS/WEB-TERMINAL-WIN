@@ -4358,6 +4358,7 @@
                 </div>
               </div>
               <div class="chat-header-actions">
+                <span class="chat-token-badge" id="${tabId}-agent-badge" style="display:none;font-size:10px;background:rgba(74,222,128,.08) !important;color:#4ade80 !important;border-color:rgba(74,222,128,.15) !important"></span>
                 <span class="chat-token-badge chat-session-badge" id="${tabId}-session-badge" style="display:none;cursor:pointer" onclick="chatShowSessionInfo('${tabId}')" title=""></span>
                 <span class="chat-token-badge" id="${tabId}-token-badge" style="display:none"></span>
                 <select class="chat-model-select" id="${tabId}-model-select" onchange="chatModelChange('${tabId}')" style="display:none">
@@ -5263,9 +5264,11 @@
       // Update badges — hide if no active session
       const sessBadge = document.getElementById(tabId + '-session-badge');
       const tokBadge = document.getElementById(tabId + '-token-badge');
+      const agBadge = document.getElementById(tabId + '-agent-badge');
       if (!sess) {
         if (sessBadge) sessBadge.style.display = 'none';
         if (tokBadge) tokBadge.style.display = 'none';
+        if (agBadge) agBadge.style.display = 'none';
       } else {
         _updateTokenBadge(tabId, sess);
       }
@@ -6347,6 +6350,13 @@
           badge.style.display = 'none';
         }
       }
+      // Update agent badge
+      const agentBadge = document.getElementById(tabId + '-agent-badge');
+      if (agentBadge && sess) {
+        const aid = sess.agentId || 'main';
+        agentBadge.innerHTML = `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> ${aid}`;
+        agentBadge.style.display = '';
+      } else if (agentBadge) { agentBadge.style.display = 'none'; }
       // Update session key badge
       const sessBadge = document.getElementById(tabId + '-session-badge');
       if (sessBadge && sess) {
