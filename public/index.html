@@ -4756,11 +4756,17 @@
         const r = await fetch('/api/agent/sessions/preview?key=' + encodeURIComponent(fullKey));
         if (r.ok) {
           const d = await r.json();
-          for (const e of (d.messages || [])) {
-            if ((e.role === 'user' || e.role === 'assistant') && e.content) {
-              const c = typeof e.content === 'string' ? e.content : Array.isArray(e.content) ? e.content.map(x => x.text || '').join('') : JSON.stringify(e.content);
-              if (c) msgs.push({ role: e.role, content: c, ts: e.ts || Date.now() });
-            }
+          for (const entry of (d.messages || [])) {
+            // OpenClaw JSONL format: { type: 'message', message: { role, content: [{type:'text', text:'...'}] } }
+            const msg = entry.message || entry;
+            const role = msg.role;
+            if (role !== 'user' && role !== 'assistant') continue;
+            const raw = msg.content;
+            if (!raw) continue;
+            const c = typeof raw === 'string' ? raw
+              : Array.isArray(raw) ? raw.map(x => x.text || x.content || '').filter(Boolean).join('\n')
+              : JSON.stringify(raw);
+            if (c) msgs.push({ role, content: c, ts: msg.timestamp || entry.timestamp ? new Date(msg.timestamp || entry.timestamp).getTime() : Date.now() });
           }
           const fu = msgs.find(m => m.role === 'user');
           if (fu) title = fu.content.slice(0, 40) + (fu.content.length > 40 ? '...' : '');
@@ -4862,8 +4868,8 @@
       if (tab.activeChatSession === sessId) {
         tab.activeChatSession = tab.chatSessions.length ? tab.chatSessions[tab.chatSessions.length - 1].id : null;
       }
-      if (!tab.chatSessions.length) chatNewSession(tabId);
-      else { renderChatSessions(tabId); renderChatMessages(tabId); }
+      renderChatSessions(tabId);
+      renderChatMessages(tabId);
     }
 
     function chatRenameSession(tabId, sessId, titleEl) {
