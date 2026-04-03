@@ -4527,7 +4527,7 @@
       tabs.set(tabId, tabData);
       switchTab(tabId);
       // Init chat first session after tab is registered
-      if (type === 'chat') chatNewSession(tabId);
+      if (type === 'chat') chatNewSessionQuick(tabId);
       return tabId;
     }
 
@@ -4926,6 +4926,17 @@
       if (_agentData) return _agentData;
       try { const r = await fetch('/api/agents'); _agentData = await r.json(); } catch { _agentData = { agents: ['main'], models: [] }; }
       return _agentData;
+    }
+
+    function chatNewSessionQuick(tabId) {
+      const tab = tabs.get(tabId);
+      if (!tab) return;
+      _chatCounter++;
+      const sess = { id: 'cs-' + Date.now(), title: 'Chat ' + _chatCounter, messages: [], systemPrompt: '', tokenCount: 0, agentId: 'main', model: '' };
+      tab.chatSessions.push(sess);
+      tab.activeChatSession = sess.id;
+      renderChatSessions(tabId);
+      renderChatMessages(tabId);
     }
 
     async function chatNewSession(tabId) {
