@@ -6353,9 +6353,11 @@
       // Update agent badge
       const agentBadge = document.getElementById(tabId + '-agent-badge');
       if (agentBadge && sess) {
-        const aid = sess.agentId || 'main';
-        agentBadge.innerHTML = `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> ${aid}`;
-        agentBadge.style.display = '';
+        const isOllama = sess.model && sess.model.startsWith('ollama/');
+        const label = isOllama ? sess.model.replace('ollama/', '') : (sess.agentId || 'main');
+        const color = isOllama ? '#fbbf24' : '#4ade80';
+        agentBadge.style.cssText = `display:inline-flex;font-size:10px;background:${isOllama ? 'rgba(251,191,36,.08)' : 'rgba(74,222,128,.08)'} !important;color:${color} !important;border-color:${isOllama ? 'rgba(251,191,36,.15)' : 'rgba(74,222,128,.15)'} !important`;
+        agentBadge.innerHTML = `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round">${isOllama ? '<path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>' : '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>'}</svg> ${label}`;
       } else if (agentBadge) { agentBadge.style.display = 'none'; }
       // Update session key badge
       const sessBadge = document.getElementById(tabId + '-session-badge');
