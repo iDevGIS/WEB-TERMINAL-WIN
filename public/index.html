@@ -4332,8 +4332,7 @@
                 <span class="chat-token-badge" id="${tabId}-token-badge" style="display:none"></span>
                 <select class="chat-model-select" id="${tabId}-model-select" onchange="chatModelChange('${tabId}')">
                   <option value="">Default (Auto)</option>
-                  <option value="openclaw">openclaw</option>
-                  <option value="__custom__">Custom…</option>
+
                 </select>
                 <input class="chat-model-input" id="${tabId}-model-input" placeholder="model name" onchange="chatModelInputChange('${tabId}')" onkeydown="if(event.key==='Enter'){chatModelInputChange('${tabId}');event.target.blur();}">
                 <div class="sysprompt-wrap">
