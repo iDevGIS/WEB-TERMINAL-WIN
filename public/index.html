@@ -5050,8 +5050,21 @@
       if (sess) { sess.messages = []; sess.tokenCount = 0; renderChatMessages(tabId); }
     }
 
-    function _chatMaxTokens() { return 200000; } // Claude context window
-    function _chatMaxTokensStr() { return (_chatMaxTokens() / 1000) + 'k'; }
+    function _chatMaxTokens(model) {
+      if (!model) return 200000;
+      const m = model.replace('ollama/', '');
+      const ctx = {
+        'qwen3.5:35b': 32768, 'qwen3.5:27b': 32768,
+        'qwen2.5-coder:32b': 32768, 'qwen2.5:7b': 32768,
+        'nemotron-3-nano:30b': 32768, 'nemotron-mini': 4096,
+        'glm4:latest': 32768, 'glm4': 32768,
+      };
+      return ctx[m] || 200000;
+    }
+    function _chatMaxTokensStr(model) {
+      const t = _chatMaxTokens(model);
+      return t >= 1000 ? (t / 1000) + 'k' : t;
+    }
 
     function _chatTimeAgo(ts) {
       const s = Math.floor((Date.now() - ts) / 1000);
@@ -5087,7 +5100,7 @@
             <div class="cs-meta">
               <span>${ago}</span>
               <span>${msgCount} msg</span>
-              <span>·</span><span class="cs-tokens">${tokenStr || 0}/${_chatMaxTokensStr()}</span>
+              <span>·</span><span class="cs-tokens">${tokenStr || 0}/${_chatMaxTokensStr(s.model)}</span>
             </div>
             <div class="cs-meta" style="opacity:.4;font-size:8px">agent:${s.agentId || 'main'}:openai-user:cyberframe-${s.id}</div>
           </div>
