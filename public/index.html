@@ -4777,6 +4777,7 @@
       overlay.innerHTML = `<div class="sess-info-modal">
         <h3>Session Info <button class="dip-close" onclick="this.closest('.sess-info-overlay').remove()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></h3>
         <div class="si-row"><span class="si-label">Key</span><span class="si-value">${escHtml(fullKey)}</span></div>
+        <div class="si-row"><span class="si-label">Agent</span><span class="si-value"><span class="si-badge" style="background:rgba(74,222,128,.1);color:#4ade80">${escHtml(sess.agentId || 'main')}</span></span></div>
         <div class="si-row"><span class="si-label">Session ID</span><span class="si-value" id="si-session-id">Loading...</span></div>
         <div class="si-row"><span class="si-label">Type</span><span class="si-value" id="si-type">...</span></div>
         <div class="si-row"><span class="si-label">Created</span><span class="si-value" id="si-created">...</span></div>
@@ -4919,15 +4920,51 @@
       input.click();
     }
 
-    function chatNewSession(tabId) {
+    // Cache agent list
+    let _agentList = null;
+    async function _fetchAgents() {
+      if (_agentList) return _agentList;
+      try { const r = await fetch('/api/agents'); const d = await r.json(); _agentList = d.agents || ['main']; } catch { _agentList = ['main']; }
+      return _agentList;
+    }
+
+    async function chatNewSession(tabId) {
       const tab = tabs.get(tabId);
       if (!tab) return;
+      const agents = await _fetchAgents();
+      let agentId = 'main';
+      if (agents.length > 1) {
+        // Show agent picker
+        agentId = await _chatAgentPicker(agents);
+        if (!agentId) return; // cancelled
+      }
       _chatCounter++;
-      const sess = { id: 'cs-' + Date.now(), title: 'Chat ' + _chatCounter, messages: [], systemPrompt: '', tokenCount: 0 };
+      const sess = { id: 'cs-' + Date.now(), title: 'Chat ' + _chatCounter, messages: [], systemPrompt: '', tokenCount: 0, agentId };
       tab.chatSessions.push(sess);
       tab.activeChatSession = sess.id;
       renderChatSessions(tabId);
       renderChatMessages(tabId);
+    }
+
+    function _chatAgentPicker(agents) {
+      return new Promise(resolve => {
+        document.querySelectorAll('.sess-info-overlay').forEach(e => e.remove());
+        const overlay = document.createElement('div');
+        overlay.className = 'sess-info-overlay';
+        overlay.onclick = (e) => { if (e.target === overlay) { overlay.remove(); resolve(null); } };
+        overlay.innerHTML = `<div class="sess-info-modal" style="width:320px">
+          <h3 style="margin-bottom:12px">Select Agent <button class="dip-close" onclick="this.closest('.sess-info-overlay').remove()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></h3>
+          <div style="display:flex;flex-direction:column;gap:6px">
+            ${agents.map(a => `<button class="chat-action-sm" style="padding:10px;font-size:12px;justify-content:flex-start;gap:8px" onclick="this.closest('.sess-info-overlay')._resolve('${a}');this.closest('.sess-info-overlay').remove()">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="${a === 'main' ? '#4ade80' : '#60a5fa'}" stroke-width="2" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              <span style="font-weight:600">${a}</span>
+              ${a === 'main' ? '<span style="font-size:9px;color:#4ade80;background:rgba(74,222,128,.1);padding:1px 6px;border-radius:3px;margin-left:auto">default</span>' : ''}
+            </button>`).join('')}
+          </div>
+        </div>`;
+        overlay._resolve = resolve;
+        document.body.appendChild(overlay);
+      });
     }
 
     function chatSwitchSession(tabId, sessId) {
@@ -5025,7 +5062,7 @@
               <span>${msgCount} msg</span>
               <span>·</span><span class="cs-tokens">${tokenStr || 0}/${_chatMaxTokensStr()}</span>
             </div>
-            <div class="cs-meta" style="opacity:.4;font-size:8px">agent:main:openai-user:cyberframe-${s.id}</div>
+            <div class="cs-meta" style="opacity:.4;font-size:8px">agent:${s.agentId || 'main'}:openai-user:cyberframe-${s.id}</div>
           </div>
           <span class="cs-rename" onclick="event.stopPropagation();chatRenameSession('${tabId}','${s.id}',this.closest('.chat-session-item').querySelector('.cs-title'))" title="Rename">✏️</span>
           <span class="cs-delete" onclick="event.stopPropagation();chatDeleteSession('${tabId}','${s.id}')" title="Delete">✕</span>
@@ -6108,6 +6145,7 @@
           : [...sess.messages];
         const fetchBody = { messages: sendMsgs, sessionId: sess.id, sessionName: sess.title };
         if (sess.model) fetchBody.model = sess.model;
+        if (sess.agentId && sess.agentId !== 'main') fetchBody.agentId = sess.agentId;
 
         const res = await fetch('/api/chat', {
           method: 'POST',
@@ -10830,6 +10868,7 @@
             entry.chatSessions = tab.chatSessions.map(cs => ({
               id: cs.id, title: cs.title, model: cs.model, systemPrompt: cs.systemPrompt,
               tokenCount: cs.tokenCount || 0,
+              agentId: cs.agentId || 'main',
               messages: cs.messages.slice(-100) // Keep last 100 messages per session
             }));
             entry.activeChatSession = tab.activeChatSession;

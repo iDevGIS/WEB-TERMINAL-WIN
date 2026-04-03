@@ -1031,7 +1031,7 @@ app.post("/api/chat", requireAuth, async (req, res) => {
   if (!messages || !Array.isArray(messages)) return res.status(400).json({ error: "messages required" });
   if (!OPENCLAW_TOKEN) return res.status(500).json({ error: "OPENCLAW_TOKEN not configured" });
 
-  const { sessionId, sessionName } = req.body;
+  const { sessionId, sessionName, agentId } = req.body;
   // Store session name mapping for Agent Monitor display
   if (sessionId && sessionName) {
     _cyberframeNames[sessionId] = sessionName;
@@ -1050,7 +1050,7 @@ app.post("/api/chat", requireAuth, async (req, res) => {
       headers: {
         "Content-Type": "application/json",
         "Authorization": "Bearer " + OPENCLAW_TOKEN,
-        "x-openclaw-agent-id": "main",
+        "x-openclaw-agent-id": agentId || "main",
       },
       body: JSON.stringify(payload),
     });
@@ -1660,6 +1660,19 @@ app.get("/api/admin/routes", requireAuth, (req, res) => {
       res.json({ routes });
     } catch { res.json({ routes: [] }); }
   });
+});
+
+// GET /api/agents — list available agents
+app.get("/api/agents", requireAuth, (req, res) => {
+  try {
+    const agentsDir = path.join(process.env.USERPROFILE || process.env.HOME, '.openclaw', 'agents');
+    const agents = fs.readdirSync(agentsDir, { withFileTypes: true })
+      .filter(d => d.isDirectory())
+      .map(d => d.name);
+    res.json({ agents });
+  } catch (e) {
+    res.json({ agents: ['main'] });
+  }
 });
 
 // === VS Code serve-web auto-start + Proxy ===
