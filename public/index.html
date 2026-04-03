@@ -4920,47 +4920,65 @@
       input.click();
     }
 
-    // Cache agent list
-    let _agentList = null;
+    // Cache agent + model list
+    let _agentData = null;
     async function _fetchAgents() {
-      if (_agentList) return _agentList;
-      try { const r = await fetch('/api/agents'); const d = await r.json(); _agentList = d.agents || ['main']; } catch { _agentList = ['main']; }
-      return _agentList;
+      if (_agentData) return _agentData;
+      try { const r = await fetch('/api/agents'); _agentData = await r.json(); } catch { _agentData = { agents: ['main'], models: [] }; }
+      return _agentData;
     }
 
     async function chatNewSession(tabId) {
       const tab = tabs.get(tabId);
       if (!tab) return;
-      const agents = await _fetchAgents();
-      // Always show agent picker
-      const agentId = await _chatAgentPicker(agents);
-      if (!agentId) return; // cancelled
+      const data = await _fetchAgents();
+      const result = await _chatAgentPicker(data);
+      if (!result) return;
       _chatCounter++;
-      const sess = { id: 'cs-' + Date.now(), title: 'Chat ' + _chatCounter, messages: [], systemPrompt: '', tokenCount: 0, agentId };
+      const sess = { id: 'cs-' + Date.now(), title: 'Chat ' + _chatCounter, messages: [], systemPrompt: '', tokenCount: 0, agentId: result.agent, model: result.model || '' };
       tab.chatSessions.push(sess);
       tab.activeChatSession = sess.id;
       renderChatSessions(tabId);
       renderChatMessages(tabId);
     }
 
-    function _chatAgentPicker(agents) {
+    function _chatAgentPicker(data) {
+      const agents = data.agents || ['main'];
+      const models = data.models || [];
       return new Promise(resolve => {
         document.querySelectorAll('.sess-info-overlay').forEach(e => e.remove());
         const overlay = document.createElement('div');
         overlay.className = 'sess-info-overlay';
         overlay.onclick = (e) => { if (e.target === overlay) { overlay.remove(); resolve(null); } };
-        overlay.innerHTML = `<div class="sess-info-modal" style="width:320px">
-          <h3 style="margin-bottom:12px">Select Agent <button class="dip-close" onclick="this.closest('.sess-info-overlay').remove()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></h3>
-          <div style="display:flex;flex-direction:column;gap:6px">
-            ${agents.map(a => `<button class="chat-action-sm" style="padding:10px;font-size:12px;justify-content:flex-start;gap:8px" onclick="this.closest('.sess-info-overlay')._resolve('${a}');this.closest('.sess-info-overlay').remove()">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="${a === 'main' ? '#4ade80' : '#60a5fa'}" stroke-width="2" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        const formatSize = (b) => b > 1e9 ? (b/1e9).toFixed(1) + 'GB' : b > 1e6 ? (b/1e6).toFixed(0) + 'MB' : '';
+        overlay.innerHTML = `<div class="sess-info-modal" style="width:380px">
+          <h3 style="margin-bottom:14px">New Chat <button class="dip-close" onclick="this.closest('.sess-info-overlay').remove()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></h3>
+          <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Agent</div>
+          <div style="display:flex;gap:6px;margin-bottom:14px">
+            ${agents.map(a => `<button class="chat-action-sm" style="padding:8px 14px;font-size:11px;gap:6px;flex:1" id="agent-pick-${a}" onclick="document.querySelectorAll('[id^=agent-pick]').forEach(b=>{b.style.borderColor='';b.style.background=''});this.style.borderColor='rgba(108,99,255,.5)';this.style.background='rgba(108,99,255,.1)';this.closest('.sess-info-overlay')._selectedAgent='${a}'">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="${a === 'main' ? '#4ade80' : '#60a5fa'}" stroke-width="2" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
               <span style="font-weight:600">${a}</span>
-              ${a === 'main' ? '<span style="font-size:9px;color:#4ade80;background:rgba(74,222,128,.1);padding:1px 6px;border-radius:3px;margin-left:auto">default</span>' : ''}
             </button>`).join('')}
+          </div>
+          <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Model</div>
+          <div style="display:flex;flex-direction:column;gap:4px;max-height:240px;overflow-y:auto">
+            ${models.map(m => {
+              const color = m.provider === 'anthropic' ? '#c084fc' : '#fbbf24';
+              const provBadge = m.provider === 'anthropic' ? 'rgba(192,132,252,.1)' : 'rgba(251,191,36,.1)';
+              return `<button class="chat-action-sm" style="padding:8px 12px;font-size:11px;justify-content:flex-start;gap:8px" onclick="this.closest('.sess-info-overlay')._selectedModel='${m.id}';this.closest('.sess-info-overlay')._resolve({agent:this.closest('.sess-info-overlay')._selectedAgent||'main',model:'${m.id}'});this.closest('.sess-info-overlay').remove()">
+                <span style="font-size:8px;padding:1px 5px;border-radius:3px;background:${provBadge};color:${color};font-weight:600">${m.provider}</span>
+                <span style="font-weight:500">${m.name}</span>
+                ${m.size ? '<span style="font-size:9px;color:var(--text3);margin-left:auto">' + formatSize(m.size) + '</span>' : ''}
+                ${m.default ? '<span style="font-size:8px;color:#4ade80;background:rgba(74,222,128,.1);padding:1px 5px;border-radius:3px">default</span>' : ''}
+              </button>`;
+            }).join('')}
           </div>
         </div>`;
         overlay._resolve = resolve;
+        overlay._selectedAgent = 'main';
+        // Auto-select main agent
         document.body.appendChild(overlay);
+        setTimeout(() => { const mainBtn = document.getElementById('agent-pick-main'); if (mainBtn) mainBtn.click(); }, 50);
       });
     }
 

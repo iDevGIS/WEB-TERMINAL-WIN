@@ -1662,16 +1662,29 @@ app.get("/api/admin/routes", requireAuth, (req, res) => {
   });
 });
 
-// GET /api/agents — list available agents
-app.get("/api/agents", requireAuth, (req, res) => {
+// GET /api/agents — list available agents + models
+app.get("/api/agents", requireAuth, async (req, res) => {
   try {
     const agentsDir = path.join(process.env.USERPROFILE || process.env.HOME, '.openclaw', 'agents');
     const agents = fs.readdirSync(agentsDir, { withFileTypes: true })
       .filter(d => d.isDirectory())
       .map(d => d.name);
-    res.json({ agents });
+    // Also get available models from Ollama
+    let ollamaModels = [];
+    try {
+      const r = await fetch('http://127.0.0.1:11434/api/tags');
+      if (r.ok) {
+        const d = await r.json();
+        ollamaModels = (d.models || []).map(m => ({ id: 'ollama/' + m.name, name: m.name, size: m.size, provider: 'ollama' }));
+      }
+    } catch {}
+    const models = [
+      { id: 'anthropic/claude-opus-4-6', name: 'Claude Opus 4', provider: 'anthropic', default: true },
+      ...ollamaModels
+    ];
+    res.json({ agents, models });
   } catch (e) {
-    res.json({ agents: ['main'] });
+    res.json({ agents: ['main'], models: [] });
   }
 });
 
