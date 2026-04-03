@@ -5118,6 +5118,15 @@
       const messagesEl = document.getElementById(tabId + '-messages');
       if (!messagesEl) return;
       const sess = tab.chatSessions.find(s => s.id === tab.activeChatSession);
+      // Update badges — hide if no active session
+      const sessBadge = document.getElementById(tabId + '-session-badge');
+      const tokBadge = document.getElementById(tabId + '-token-badge');
+      if (!sess) {
+        if (sessBadge) sessBadge.style.display = 'none';
+        if (tokBadge) tokBadge.style.display = 'none';
+      } else {
+        _updateTokenBadge(tabId, sess);
+      }
       if (!sess || !sess.messages.length) {
         messagesEl.innerHTML = `<div class="chat-empty"><div class="chat-empty-icon"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div><div class="chat-empty-text">Start a conversation</div></div>`;
         return;
