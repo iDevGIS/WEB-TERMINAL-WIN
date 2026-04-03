@@ -2302,6 +2302,13 @@
       transition: all .2s; font-family: inherit; font-weight: 500; display: flex; align-items: center; gap: 6px; justify-content: center;
     }
     .chat-new-btn:hover { background: rgba(108,99,255,.15); border-color: rgba(108,99,255,.5); }
+    .chat-action-sm {
+      flex: 1; display: flex; align-items: center; justify-content: center; gap: 4px;
+      font-size: 9px; padding: 4px 6px; border-radius: 6px;
+      border: 1px solid rgba(255,255,255,.06); background: rgba(255,255,255,.02);
+      color: var(--text3); cursor: pointer; font-family: inherit; transition: all .15s;
+    }
+    .chat-action-sm:hover { background: rgba(108,99,255,.08); color: var(--accent); border-color: rgba(108,99,255,.2); }
     .chat-session-list { flex: 1; overflow-y: auto; padding: 6px; }
     .chat-session-list::-webkit-scrollbar { width: 4px; }
     .chat-session-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,.08); border-radius: 2px; }
@@ -4294,6 +4301,20 @@
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
                 New Chat
               </button>
+              <div style="display:flex;gap:4px;margin-top:4px">
+                <button class="chat-action-sm" onclick="chatRestoreSession('${tabId}')" title="Restore session by ID">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 7h3a5 5 0 0 1 5 5 5 5 0 0 1-5 5h-3m-6 0H6a5 5 0 0 1-5-5 5 5 0 0 1 5-5h3"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+                  Restore
+                </button>
+                <button class="chat-action-sm" onclick="chatExportSessions('${tabId}')" title="Export sessions">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                  Export
+                </button>
+                <button class="chat-action-sm" onclick="chatImportSessions('${tabId}')" title="Import sessions">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                  Import
+                </button>
+              </div>
             </div>
             <div class="chat-session-list" id="${tabId}-sessions"></div>
           </div>
@@ -4712,6 +4733,93 @@
         }
       }
       createTab('chat', { name: 'AI Chat', icon: '✦' });
+    }
+
+    function chatRestoreSession(tabId) {
+      const tab = tabs.get(tabId);
+      if (!tab) return;
+      const input = prompt('Enter session key or ID:\n(e.g. cs-1775152371952 or agent:main:openai-user:cyberframe-cs-1775152371952)');
+      if (!input) return;
+      // Extract cs-xxx from full key or use as-is
+      let sessId = input.trim();
+      const match = sessId.match(/cyberframe-(cs-\d+)/);
+      if (match) sessId = match[1];
+      if (!sessId.startsWith('cs-')) sessId = 'cs-' + sessId;
+      // Check if already exists
+      if (tab.chatSessions.find(s => s.id === sessId)) {
+        tab.activeChatSession = sessId;
+        renderChatSessions(tabId);
+        renderChatMessages(tabId);
+        showToast('Session already exists — switched to it', 'info');
+        return;
+      }
+      _chatCounter++;
+      const sess = { id: sessId, title: 'Restored ' + sessId.slice(-6), messages: [], systemPrompt: '', tokenCount: 0 };
+      tab.chatSessions.push(sess);
+      tab.activeChatSession = sess.id;
+      renderChatSessions(tabId);
+      renderChatMessages(tabId);
+      showToast('\u2705 Session restored — send a message to continue the conversation', 'success');
+    }
+
+    function chatExportSessions(tabId) {
+      const tab = tabs.get(tabId);
+      if (!tab || !tab.chatSessions.length) { showToast('No sessions to export', 'error'); return; }
+      const data = tab.chatSessions.map(s => ({
+        id: s.id,
+        key: 'agent:main:openai-user:cyberframe-' + s.id,
+        title: s.title,
+        model: s.model || '',
+        systemPrompt: s.systemPrompt || '',
+        tokenCount: s.tokenCount || 0,
+        messages: s.messages
+      }));
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'cyberframe-chat-' + new Date().toISOString().slice(0,10) + '.json';
+      a.click();
+      URL.revokeObjectURL(a.href);
+      showToast('\ud83d\udce6 Exported ' + data.length + ' sessions', 'success');
+    }
+
+    function chatImportSessions(tabId) {
+      const tab = tabs.get(tabId);
+      if (!tab) return;
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = '.json';
+      input.onchange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        try {
+          const text = await file.text();
+          const data = JSON.parse(text);
+          if (!Array.isArray(data)) throw new Error('Invalid format');
+          let imported = 0;
+          for (const s of data) {
+            if (!s.id || tab.chatSessions.find(x => x.id === s.id)) continue;
+            tab.chatSessions.push({
+              id: s.id,
+              title: s.title || 'Imported',
+              messages: s.messages || [],
+              systemPrompt: s.systemPrompt || '',
+              model: s.model || '',
+              tokenCount: s.tokenCount || 0
+            });
+            imported++;
+          }
+          if (imported) {
+            tab.activeChatSession = tab.chatSessions[tab.chatSessions.length - 1].id;
+            renderChatSessions(tabId);
+            renderChatMessages(tabId);
+          }
+          showToast('\ud83d\udce5 Imported ' + imported + ' sessions', 'success');
+        } catch (err) {
+          showToast('\u274c Import failed: ' + err.message, 'error');
+        }
+      };
+      input.click();
     }
 
     function chatNewSession(tabId) {
