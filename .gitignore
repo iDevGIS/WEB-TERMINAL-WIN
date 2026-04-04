@@ -12,7 +12,9 @@ Desktop.ini
 
 # Environment
 .env
-.env.*
+.env.local
+.env.production
+!.env.example
 
 # IDE
 .vscode/
