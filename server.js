@@ -1749,6 +1749,33 @@ app.get("/api/agents", requireAuth, async (req, res) => {
   }
 });
 
+// GET /api/docker/compose-file — read compose file for a network group
+app.get("/api/docker/compose-file", requireAuth, async (req, res) => {
+  const { network } = req.query;
+  if (!network) return res.status(400).json({ error: "network required" });
+  try {
+    const containers = await docker.listContainers({ all: true });
+    // Find a container in this network that has compose labels
+    let composePath = null;
+    for (const c of containers) {
+      const nets = Object.keys(c.NetworkSettings?.Networks || {});
+      if (!nets.includes(network)) continue;
+      const labels = c.Labels || {};
+      const cfgFile = labels['com.docker.compose.project.config_files'];
+      if (cfgFile) { composePath = cfgFile; break; }
+    }
+    if (!composePath) return res.status(404).json({ error: "No compose file found for this network" });
+    // Read the file
+    try {
+      const content = fs.readFileSync(composePath, 'utf8');
+      const project = composePath.match(/[\\/]([^\\/]+)[\\/][^\\/]*$/)?.[1] || '';
+      res.json({ path: composePath, project, content });
+    } catch (e) {
+      res.status(404).json({ error: "Cannot read: " + composePath });
+    }
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // === VS Code serve-web auto-start + Proxy ===
 const VSCODE_PORT = parseInt(process.env.VSCODE_PORT) || 8080;
 

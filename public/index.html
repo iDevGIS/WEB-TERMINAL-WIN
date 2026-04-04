@@ -6863,6 +6863,43 @@
       dockerRefresh(tabId);
     }
 
+    async function _dockerViewCompose(tabId, netName) {
+      try {
+        showToast('Loading compose file...', 'info');
+        const r = await fetch('/api/docker/compose-file?network=' + encodeURIComponent(netName));
+        const d = await r.json();
+        if (d.error) { showToast(d.error, 'error'); return; }
+        // Open in Monaco editor tab
+        const edTabId = createTab('editor', { name: '\ud83d\udc33 ' + (d.project || netName), icon: '\ud83d\udc33' });
+        const tab = tabs.get(edTabId);
+        if (tab && tab.paneEl) {
+          // Wait for Monaco to load
+          setTimeout(() => {
+            if (tab.monacoEditor) {
+              const model = monaco.editor.createModel(d.content, 'yaml');
+              tab.monacoEditor.setModel(model);
+            } else {
+              // Fallback: create Monaco
+              tab.monacoEditor = monaco.editor.create(tab.paneEl, {
+                value: d.content,
+                language: 'yaml',
+                theme: 'vs-dark',
+                readOnly: false,
+                minimap: { enabled: false },
+                fontSize: parseInt(localStorage.getItem('cyberframe-fontsize')) || 14,
+                automaticLayout: true,
+                scrollBeyondLastLine: false,
+              });
+            }
+            tab._dockerComposeFile = d.path;
+            tab._dockerComposeName = netName;
+          }, 200);
+        }
+        switchTab(edTabId);
+        showToast('\ud83d\udc33 ' + d.path, 'success');
+      } catch (e) { showToast('Error: ' + e.message, 'error'); }
+    }
+
     async function _dockerGroupAction(tabId, netName, action) {
       if (!confirm(`${action.toUpperCase()} all containers in network "${netName}"?`)) return;
       try {
@@ -6932,6 +6969,7 @@
                 <button class="docker-actions" style="width:24px;height:24px;border-radius:6px;border:1px solid rgba(74,222,128,.15);background:rgba(74,222,128,.05);color:#4ade80;cursor:pointer;display:flex;align-items:center;justify-content:center" onclick="_dockerGroupAction('${tabId}','${escAttr(netName)}','start')" title="Start all"><svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg></button>
                 <button style="width:24px;height:24px;border-radius:6px;border:1px solid rgba(239,68,68,.15);background:rgba(239,68,68,.05);color:#ef4444;cursor:pointer;display:flex;align-items:center;justify-content:center" onclick="_dockerGroupAction('${tabId}','${escAttr(netName)}','stop')" title="Stop all"><svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="1"/></svg></button>
                 <button style="width:24px;height:24px;border-radius:6px;border:1px solid rgba(251,191,36,.15);background:rgba(251,191,36,.05);color:#fbbf24;cursor:pointer;display:flex;align-items:center;justify-content:center" onclick="_dockerGroupAction('${tabId}','${escAttr(netName)}','restart')" title="Restart all"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/></svg></button>
+                <button style="width:24px;height:24px;border-radius:6px;border:1px solid rgba(96,165,250,.15);background:rgba(96,165,250,.05);color:#60a5fa;cursor:pointer;display:flex;align-items:center;justify-content:center" onclick="_dockerViewCompose('${tabId}','${escAttr(netName)}')" title="View Compose File"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></button>
               </div>
             </div>
             <div id="${gid}" style="${collapsed ? 'display:none' : ''}"><table class="docker-table"><thead><tr>
