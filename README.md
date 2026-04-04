@@ -310,11 +310,20 @@ Open `http://localhost:3000` in your browser.
 
 1. Install [TightVNC](https://www.tightvnc.com/download.php)
 2. Set a VNC password in TightVNC settings
-3. Enable loopback connections:
+3. Enable loopback connections (choose one method):
+
+   **Method A: Via TightVNC GUI** (recommended if service name varies)
+   - Open **TightVNC Server Configuration** from system tray or Start Menu
+   - Go to **Access Control** tab
+   - Check **☑ Allow loopback connections**
+   - Click **Apply** → **OK**
+
+   **Method B: Via PowerShell** (run as Admin)
    ```powershell
    Set-ItemProperty -Path "HKLM:\SOFTWARE\TightVNC\Server" -Name "AllowLoopback" -Value 1 -Type DWord
    Restart-Service tvnserver
    ```
+   > ⚠️ If `tvnserver` service not found, restart TightVNC from system tray instead.
 4. Click the 🖥️ button in CYBERFRAME toolbar
 
 ---
