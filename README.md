@@ -475,6 +475,7 @@ This is especially useful for Docker containers - forward container ports throug
 
 ### Option 1: Windows Task Scheduler (Recommended)
 
+**Normal mode** (shows console window):
 ```powershell
 $action = New-ScheduledTaskAction `
   -Execute "node.exe" `
@@ -493,6 +494,28 @@ Register-ScheduledTask `
   -User "$env:USERNAME" `
   -Description "CYBERFRAME Web Terminal"
 ```
+
+**Hidden mode** (no console window — runs silently in background):
+```powershell
+$action = New-ScheduledTaskAction `
+  -Execute "wscript.exe" `
+  -Argument "start-hidden.vbs" `
+  -WorkingDirectory "C:\path\to\WEB-TERMINAL-WIN"
+
+$trigger = New-ScheduledTaskTrigger -AtStartup
+$settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable
+
+Register-ScheduledTask `
+  -TaskName "CYBERFRAME" `
+  -Action $action `
+  -Trigger $trigger `
+  -Settings $settings `
+  -RunLevel Highest `
+  -User "$env:USERNAME" `
+  -Description "CYBERFRAME Web Terminal (Hidden)"
+```
+
+> 💡 **Tip:** Use `start-hidden.vbs` to run CYBERFRAME without a visible console window. You can also double-click `start-hidden.vbs` to start manually in hidden mode.
 
 ### Option 2: PM2 (Process Manager)
 
