@@ -326,6 +326,41 @@ Open `http://localhost:3000` in your browser.
    > ⚠️ If `tvnserver` service not found, restart TightVNC from system tray instead.
 4. Click the 🖥️ button in CYBERFRAME toolbar
 
+### VS Code serve-web (Optional)
+
+CYBERFRAME embeds VS Code as a tab via `code serve-web`. You can start it manually or auto-start on boot.
+
+**Manual start:**
+```powershell
+code serve-web --host 127.0.0.1 --port 8080 --without-connection-token --accept-server-license-terms
+```
+
+> 💡 Change port if 8080 is in use (e.g. `--port 7500`), then set `VSCODE_PORT=7500` in `.env`
+
+**Auto-start on boot (visible):**
+```powershell
+$action = New-ScheduledTaskAction `
+  -Execute "code.cmd" `
+  -Argument "serve-web --host 127.0.0.1 --port 8080 --without-connection-token --accept-server-license-terms"
+$trigger = New-ScheduledTaskTrigger -AtLogon
+$settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable
+Register-ScheduledTask -TaskName "VSCode-ServeWeb" -Action $action -Trigger $trigger -Settings $settings -User "$env:USERNAME" -Description "VS Code serve-web"
+```
+
+**Auto-start on boot (hidden — no console window):**
+
+Use the included `start-vscode-hidden.vbs` script:
+```powershell
+$action = New-ScheduledTaskAction `
+  -Execute "wscript.exe" `
+  -Argument "`"$((Get-Location).Path)\start-vscode-hidden.vbs`""
+$trigger = New-ScheduledTaskTrigger -AtLogon
+$settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable
+Register-ScheduledTask -TaskName "VSCode-ServeWeb" -Action $action -Trigger $trigger -Settings $settings -User "$env:USERNAME" -Description "VS Code serve-web (hidden)"
+```
+
+> ✏️ Edit `start-vscode-hidden.vbs` to change the port number if needed.
+
 ---
 
 ## 📸 Screenshots
