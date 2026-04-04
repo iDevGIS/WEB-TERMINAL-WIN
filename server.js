@@ -1166,7 +1166,9 @@ let _agentRefreshing = false;
 
 function _parseAgentStatus(raw) {
   const info = { status: "offline", model: "\u2014", sessions: 0, uptime: "\u2014", heartbeat: "\u2014", channels: [], sessionList: [], raw };
-  for (const line of raw.split("\n")) {
+  // Normalize Unicode box-drawing chars to ASCII pipes for regex matching
+  const normalized = raw.replace(/[\u2502\u2503\u2551]/g, '|').replace(/[\u2500-\u257F]/g, '-');
+  for (const line of normalized.split("\n")) {
     const l = line.trim();
     if (/reachable/i.test(l) && /Gateway/i.test(l)) info.status = "online";
     const agentSess = l.match(/sessions\s+(\d+)/i);
@@ -1174,17 +1176,17 @@ function _parseAgentStatus(raw) {
     // Model from "default claude-opus-4-6 (200k ctx)"
     const modelMatch = l.match(/default\s+([\w.:-]+)\s*\(/i);
     if (modelMatch && info.model === '\u2014') info.model = modelMatch[1];
-    // Heartbeat
+    // Heartbeat: "| Heartbeat | 1h (main) |"
     const hbMatch = l.match(/Heartbeat\s*\|\s*(.+?)(?:\s*\||$)/i);
     if (hbMatch) info.heartbeat = hbMatch[1].trim();
-    // Session lines
+    // Session lines: "| agent:main:... | group | 1h ago | claude-opus-4-6 | 293k/1000k |"
     const sessLine = l.match(/\|\s*(agent:\S+)\s*\|\s*(\w+)\s*\|\s*(.+?)\s*\|\s*([\w.:-]+)\s*\|\s*(.+?)\s*\|/);
     if (sessLine) {
       info.sessionList.push({ key: sessLine[1], kind: sessLine[2], age: sessLine[3].trim(), model: sessLine[4], tokens: sessLine[5].trim() });
       if (info.model === '\u2014') info.model = sessLine[4];
     }
-    // Channel lines (match known channel names)
-    const chanLine = l.match(/\|\s*(discord|telegram|slack|whatsapp|signal|irc|line|webchat)\s*\|\s*(ON|OFF)\s*\|\s*(\w+)\s*\|/i);
+    // Channel lines: "| Discord | ON | OK | ..."
+    const chanLine = l.match(/\|\s*(discord|telegram|slack|whatsapp|signal|irc|line|webchat|mattermost)\s*\|\s*(ON|OFF)\s*\|\s*(\w+)\s*\|/i);
     if (chanLine) info.channels.push({ name: chanLine[1], enabled: chanLine[2] === 'ON', state: chanLine[3] });
   }
   return info;
