@@ -6863,6 +6863,26 @@
       dockerRefresh(tabId);
     }
 
+    async function _dockerGroupAction(tabId, netName, action) {
+      if (!confirm(`${action.toUpperCase()} all containers in network "${netName}"?`)) return;
+      try {
+        const containers = await fetch('/api/docker/containers').then(r => r.json());
+        const targets = containers.filter(c => (c.network || '').split(', ').includes(netName));
+        let done = 0;
+        for (const c of targets) {
+          // Skip if already in desired state
+          if (action === 'start' && c.state === 'running') continue;
+          if (action === 'stop' && c.state !== 'running') continue;
+          try {
+            await fetch('/api/docker/containers/' + c.id + '/' + action, { method: 'POST' });
+            done++;
+          } catch {}
+        }
+        showToast(`${action} ${done}/${targets.length} containers in ${netName}`, 'success');
+        setTimeout(() => dockerRefresh(tabId), 1000);
+      } catch (e) { showToast('Error: ' + e.message, 'error'); }
+    }
+
     function _dockerToggleNetGroup(tabId, gid) {
       const tab = tabs.get(tabId);
       if (!tab) return;
@@ -6908,6 +6928,11 @@
               <span style="font-weight:600;color:var(--text1);font-size:13px">${escHtml(netName)}</span>
               <span style="font-size:10px;padding:1px 6px;border-radius:4px;background:rgba(108,99,255,.08);color:var(--accent)">${cs.length}</span>
               <span style="font-size:10px;color:#4ade80">${running} running</span>
+              <div style="display:flex;gap:4px;margin-left:auto" onclick="event.stopPropagation()">
+                <button class="docker-actions" style="width:24px;height:24px;border-radius:6px;border:1px solid rgba(74,222,128,.15);background:rgba(74,222,128,.05);color:#4ade80;cursor:pointer;display:flex;align-items:center;justify-content:center" onclick="_dockerGroupAction('${tabId}','${escAttr(netName)}','start')" title="Start all"><svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg></button>
+                <button style="width:24px;height:24px;border-radius:6px;border:1px solid rgba(239,68,68,.15);background:rgba(239,68,68,.05);color:#ef4444;cursor:pointer;display:flex;align-items:center;justify-content:center" onclick="_dockerGroupAction('${tabId}','${escAttr(netName)}','stop')" title="Stop all"><svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="1"/></svg></button>
+                <button style="width:24px;height:24px;border-radius:6px;border:1px solid rgba(251,191,36,.15);background:rgba(251,191,36,.05);color:#fbbf24;cursor:pointer;display:flex;align-items:center;justify-content:center" onclick="_dockerGroupAction('${tabId}','${escAttr(netName)}','restart')" title="Restart all"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/></svg></button>
+              </div>
             </div>
             <div id="${gid}" style="${collapsed ? 'display:none' : ''}"><table class="docker-table"><thead><tr>
               <th>Container</th><th>Image</th><th>Status</th>
