@@ -1033,6 +1033,27 @@ app.post("/api/stt", requireAuth, _sttUpload.single("audio"), async (req, res) =
   }
 });
 
+// Load workspace context files for chat system prompt
+function _loadWorkspaceContext() {
+  const wsDir = process.env.WORKSPACE_DIR || path.join(process.env.USERPROFILE || process.env.HOME || '', _clawdDir, 'workspace');
+  const files = ['SOUL.md', 'USER.md', 'IDENTITY.md'];
+  let ctx = '';
+  for (const f of files) {
+    try {
+      const content = fs.readFileSync(path.join(wsDir, f), 'utf8').trim();
+      if (content) ctx += `\n\n--- ${f} ---\n${content}`;
+    } catch {}
+  }
+  return ctx;
+}
+let _wsContext = null;
+function _getWorkspaceContext() {
+  if (_wsContext === null) _wsContext = _loadWorkspaceContext();
+  return _wsContext;
+}
+// Invalidate cache every 5 min
+setInterval(() => { _wsContext = null; }, 300000);
+
 app.post("/api/chat", requireAuth, async (req, res) => {
   const { messages, model } = req.body;
   if (!messages || !Array.isArray(messages)) return res.status(400).json({ error: "messages required" });
@@ -1043,6 +1064,12 @@ app.post("/api/chat", requireAuth, async (req, res) => {
   if (sessionId && sessionName) {
     _cyberframeNames[sessionId] = sessionName;
   }
+  // Inject workspace context as system message (SOUL.md, USER.md, IDENTITY.md)
+  const wsCtx = _getWorkspaceContext();
+  const augMessages = wsCtx
+    ? [{ role: 'system', content: 'You are an AI assistant. Here is your identity and context:' + wsCtx }, ...messages]
+    : messages;
+
   // Determine if using OpenClaw Gateway or direct Ollama
   const isOllama = model && model.startsWith('ollama/');
   const ollamaModel = isOllama ? model.replace('ollama/', '') : null;
@@ -1053,7 +1080,7 @@ app.post("/api/chat", requireAuth, async (req, res) => {
       // Direct Ollama proxy — bypass OpenClaw Gateway
       const ollamaPayload = {
         model: ollamaModel,
-        messages: messages.map(m => ({ role: m.role, content: m.content })),
+        messages: augMessages.map(m => ({ role: m.role, content: m.content })),
         stream: true,
       };
       upstream = await fetch('http://127.0.0.1:11434/v1/chat/completions', {
@@ -1066,7 +1093,7 @@ app.post("/api/chat", requireAuth, async (req, res) => {
       const gwModel = agentId && agentId !== 'main' ? 'openclaw/' + agentId : 'openclaw';
       const payload = {
         model: gwModel,
-        messages,
+        messages: augMessages,
         stream: true,
         user: sessionId ? 'cyberframe-' + sessionId : 'cyberframe-' + Date.now(),
       };
