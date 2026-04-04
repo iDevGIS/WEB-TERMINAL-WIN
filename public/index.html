@@ -6857,9 +6857,21 @@
       const tab = tabs.get(tabId);
       if (!tab) return;
       tab._dockerGroupByNetwork = !tab._dockerGroupByNetwork;
+      if (!tab._dockerCollapsed) tab._dockerCollapsed = {};
       const btn = document.getElementById(tabId + '-group-btn');
       if (btn) btn.classList.toggle('active', tab._dockerGroupByNetwork);
       dockerRefresh(tabId);
+    }
+
+    function _dockerToggleNetGroup(tabId, gid) {
+      const tab = tabs.get(tabId);
+      if (!tab) return;
+      if (!tab._dockerCollapsed) tab._dockerCollapsed = {};
+      tab._dockerCollapsed[gid] = !tab._dockerCollapsed[gid];
+      const el = document.getElementById(gid);
+      const chev = el?.previousElementSibling?.querySelector('.dng-chev');
+      if (el) el.style.display = tab._dockerCollapsed[gid] ? 'none' : '';
+      if (chev) chev.style.transform = tab._dockerCollapsed[gid] ? 'rotate(-90deg)' : 'rotate(0)';
     }
 
     function _dockerRenderContainers(tabId, containers, statsMap) {
@@ -6888,15 +6900,16 @@
           const cs = groups[netName];
           const running = cs.filter(c => c.state === 'running').length;
           const gid = 'dng-' + netName.replace(/[^a-zA-Z0-9]/g, '_');
+          const collapsed = tab._dockerCollapsed && tab._dockerCollapsed[gid];
           html += `<div style="margin-bottom:12px">
-            <div onclick="const t=document.getElementById('${gid}');const c=this.querySelector('.dng-chev');if(t.style.display==='none'){t.style.display='';c.style.transform='rotate(0)'}else{t.style.display='none';c.style.transform='rotate(-90deg)'}" style="display:flex;align-items:center;gap:8px;padding:8px 4px;border-bottom:2px solid rgba(108,99,255,.15);cursor:pointer;user-select:none" onmouseenter="this.style.background='rgba(108,99,255,.04)'" onmouseleave="this.style.background=''">
-              <svg class="dng-chev" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2" stroke-linecap="round" style="transition:transform .2s;flex-shrink:0"><path d="M6 9l6 6 6-6"/></svg>
+            <div onclick="_dockerToggleNetGroup('${tabId}','${gid}')" style="display:flex;align-items:center;gap:8px;padding:8px 4px;border-bottom:2px solid rgba(108,99,255,.15);cursor:pointer;user-select:none" onmouseenter="this.style.background='rgba(108,99,255,.04)'" onmouseleave="this.style.background=''">
+              <svg class="dng-chev" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2" stroke-linecap="round" style="transition:transform .2s;flex-shrink:0;transform:rotate(${collapsed ? '-90deg' : '0'})"><path d="M6 9l6 6 6-6"/></svg>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
               <span style="font-weight:600;color:var(--text1);font-size:13px">${escHtml(netName)}</span>
               <span style="font-size:10px;padding:1px 6px;border-radius:4px;background:rgba(108,99,255,.08);color:var(--accent)">${cs.length}</span>
               <span style="font-size:10px;color:#4ade80">${running} running</span>
             </div>
-            <div id="${gid}"><table class="docker-table"><thead><tr>
+            <div id="${gid}" style="${collapsed ? 'display:none' : ''}"><table class="docker-table"><thead><tr>
               <th>Container</th><th>Image</th><th>Status</th>
               <th>Ports</th><th>CPU / MEM</th><th>Actions</th>
             </tr></thead><tbody>`;
