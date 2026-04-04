@@ -12,7 +12,7 @@
 ### 🖥️ Multi-Shell Terminal
 - **Persistent sessions** - tmux-like architecture; disconnect without killing the process, reconnect and resume exactly where you left off
 - **7 shell profiles** - PowerShell (⚡), PowerShell Admin (🛡️), Windows PowerShell (🔵), CMD (⬛), CMD Admin (🛡️), Git Bash (🟠), WSL Ubuntu (🐧)
-- **🛡️ Admin shells** - run as administrator via [gsudo](https://github.com/gerardog/gsudo) — install with `winget install gerardog.gsudo` (sudo for Windows), UAC prompt on first use then cached
+- **🛡️ Admin shells** - run as administrator via [gsudo](https://github.com/gerardog/gsudo) - install with `winget install gerardog.gsudo` (sudo for Windows), UAC prompt on first use then cached
 - **Auto-detect** available shells at startup - only shows what's actually installed
 - **Scrollback buffer** - 50,000 characters retained per session
 - **Session idle timeout** - auto-cleanup after 30 minutes of inactivity
@@ -159,8 +159,11 @@
 - **Port Popup** - click port to Open in Browser / Open in CYBERFRAME Tab / Copy URL / Forward via Tailscale
 - **Images/Volumes/Networks** - browse Docker images, volumes (with mount paths), and networks
 - **Stats Cache** - CPU/MEM stats cached for flicker-free refresh
-- **Container Inspect Panel** - slide-in detail view with env vars, mounts, labels, ports, networks, action buttons
-- **Persist Across Refresh** - Docker tab survives page reload via workspace state
+- **Container Inspect Panel** — slide-in detail view with env vars, mounts, labels, ports, networks, action buttons
+- **Group by Network** — toggle view to group containers by Docker network, collapsible sections
+- **Network Group Actions** — Start All / Stop All / Restart All per network group
+- **View Compose File** — open `docker-compose.yml` in Monaco editor directly from network group header
+- **Persist Across Refresh** — Docker tab survives page reload via workspace state
 
 ### 💬 AI Chat (OpenClaw)
 - **SSE streaming** - real-time token-by-token response via Server-Sent Events
@@ -304,7 +307,7 @@ WORKSPACE_DIR=C:\Users\YourName\.openclaw\workspace
 | `TERM_PASS` | `changeme` | Login password |
 | `PORT` | `3000` | CYBERFRAME server port |
 | `VSCODE_PORT` | `8080` | VS Code serve-web port |
-| `OPENCLAW_TOKEN` | — | Gateway auth token |
+| `OPENCLAW_TOKEN` | - | Gateway auth token |
 | `OPENCLAW_GATEWAY` | `http://127.0.0.1:18789` | Gateway URL |
 | `OPENCLAW_CLI` | `openclaw` | CLI command (`clawdbot`, `moltbot`) |
 | `OPENCLAW_DIR` | `.openclaw` | Config directory (`.clawdbot`, `.moltbot`) |
@@ -367,7 +370,7 @@ $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoi
 Register-ScheduledTask -TaskName "VSCode-ServeWeb" -Action $action -Trigger $trigger -Settings $settings -User "$env:USERNAME" -Description "VS Code serve-web"
 ```
 
-**Auto-start on boot (hidden — no console window):**
+**Auto-start on boot (hidden - no console window):**
 
 Use the included `start-vscode-hidden.vbs` script:
 ```powershell
@@ -440,6 +443,10 @@ Register-ScheduledTask -TaskName "VSCode-ServeWeb" -Action $action -Trigger $tri
 | Multi-Log Viewer (4 containers live) | Container Inspect Panel |
 |--------------------------------------|------------------------|
 | ![Docker Multi-Logs](docs/images/docker-multi-logs.png) | ![Docker Inspect](docs/images/docker-inspect.png) |
+
+| Group by Network | Compose File Editor |
+|-----------------|--------------------|
+| ![Docker Network Group](docs/images/docker-network-group.png) | ![Docker Compose Editor](docs/images/docker-compose-editor.png) |
 
 | Admin - Tailscale Serve | Add Tailscale Rule |
 |------------------------|-------------------|
@@ -559,7 +566,7 @@ Register-ScheduledTask `
   -Description "CYBERFRAME Web Terminal"
 ```
 
-**Hidden mode** (no console window — runs silently in background):
+**Hidden mode** (no console window - runs silently in background):
 ```powershell
 $action = New-ScheduledTaskAction `
   -Execute "wscript.exe" `
@@ -675,6 +682,7 @@ CYBERFRAME
 | GET | `/api/docker/volumes/:name/cat` | Read file from volume |
 | GET | `/api/docker/volumes/:name/download` | Download file from volume |
 | GET | `/api/docker/networks` | List Docker networks |
+| GET | `/api/docker/compose-file` | Read compose file for a network group |
 | GET | `/api/admin/tailscale` | Tailscale serve status |
 | POST | `/api/admin/tailscale/serve` | Add/remove Tailscale serve rule |
 | GET | `/api/admin/vpn` | VPN adapter status |
