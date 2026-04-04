@@ -6870,30 +6870,16 @@
         const d = await r.json();
         if (d.error) { showToast(d.error, 'error'); return; }
         // Open in Monaco editor tab
-        const edTabId = createTab('editor', { name: '\ud83d\udc33 ' + (d.project || netName), icon: '\ud83d\udc33' });
+        const edTabId = createTab('editor', {
+          name: '\ud83d\udc33 ' + (d.project || netName),
+          icon: '\ud83d\udc33',
+          filePath: d.path,
+          content: d.content
+        });
         const tab = tabs.get(edTabId);
-        if (tab && tab.paneEl) {
-          // Wait for Monaco to load
-          setTimeout(() => {
-            if (tab.monacoEditor) {
-              const model = monaco.editor.createModel(d.content, 'yaml');
-              tab.monacoEditor.setModel(model);
-            } else {
-              // Fallback: create Monaco
-              tab.monacoEditor = monaco.editor.create(tab.paneEl, {
-                value: d.content,
-                language: 'yaml',
-                theme: 'vs-dark',
-                readOnly: false,
-                minimap: { enabled: false },
-                fontSize: parseInt(localStorage.getItem('cyberframe-fontsize')) || 14,
-                automaticLayout: true,
-                scrollBeyondLastLine: false,
-              });
-            }
-            tab._dockerComposeFile = d.path;
-            tab._dockerComposeName = netName;
-          }, 200);
+        if (tab) {
+          tab._dockerComposeFile = d.path;
+          tab._dockerComposeName = netName;
         }
         switchTab(edTabId);
         showToast('\ud83d\udc33 ' + d.path, 'success');
