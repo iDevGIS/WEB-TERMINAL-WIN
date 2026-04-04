@@ -49,7 +49,7 @@ function getAvailableShells() {
 }
 const SESSION_SECRET = process.env.SESSION_SECRET || crypto.randomBytes(32).toString("hex");
 const USERNAME = process.env.TERM_USER || "admin";
-const PASSWORD = process.env.TERM_PASS || "rog2025!";
+const PASSWORD = process.env.TERM_PASS || "changeme";
 
 // === Session Manager ===
 const SCROLLBACK_LIMIT = 50000; // chars to keep in buffer
@@ -2137,7 +2137,7 @@ vncWss.on("connection", (ws) => {
 
 server.listen(PORT, "0.0.0.0", () => {
   console.log(`⚡ CYBERFRAME running at http://127.0.0.1:${PORT}`);
-  console.log(`🔐 Login: ${USERNAME} / ${"*".repeat(PASSWORD.length)}`);
+  console.log(`🔐 Login: ${USERNAME} / ****`);
   console.log(`🖥️  VNC proxy: ws://127.0.0.1:${PORT}/vnc-ws → localhost:${VNC_PORT}`);
   console.log(`⏰ Session timeout: ${SESSION_TIMEOUT_MS / 1000}s`);
   // Pre-warm agent status cache on startup
