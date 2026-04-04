@@ -870,6 +870,7 @@ app.get("/api/admin/server", requireAuth, (req, res) => {
 // === OpenClaw Chat Proxy (SSE streaming) ===
 const OPENCLAW_GW = process.env.OPENCLAW_GATEWAY || "http://127.0.0.1:18789";
 const OPENCLAW_TOKEN = process.env.OPENCLAW_TOKEN || "";
+const OPENCLAW_CLI = process.env.OPENCLAW_CLI || "openclaw"; // e.g. "clawdbot" or "moltbot"
 const _cyberframeNames = {}; // sessionId → display name
 
 // === TTS (Edge Neural Voices) ===
@@ -1209,7 +1210,7 @@ async function _refreshAgentStatusBg() {
   try {
     const { exec } = require("child_process");
     const raw = await new Promise((resolve, reject) => {
-      exec("openclaw status", { encoding: "utf8", timeout: 8000 }, (err, stdout) => {
+      exec(OPENCLAW_CLI + " status", { encoding: "utf8", timeout: 8000 }, (err, stdout) => {
         if (err) reject(err); else resolve(stdout);
       });
     });
@@ -1690,7 +1691,7 @@ app.get("/api/admin/routes", requireAuth, (req, res) => {
 // GET /api/agents — list available agents + models
 app.get("/api/agents", requireAuth, async (req, res) => {
   try {
-    const agentsDir = path.join(process.env.USERPROFILE || process.env.HOME, '.openclaw', 'agents');
+    const agentsDir = path.join(process.env.USERPROFILE || process.env.HOME, _clawdDir, 'agents');
     const agents = fs.readdirSync(agentsDir, { withFileTypes: true })
       .filter(d => d.isDirectory())
       .map(d => d.name);
@@ -1810,7 +1811,8 @@ app.get("/api/vscode-url", (req, res) => {
 // (VS Code proxy moved above requireAuth)
 
 // === OpenClaw Session Management ===
-const SESSIONS_STORE = path.join(process.env.USERPROFILE || process.env.HOME || '', '.openclaw', 'agents', 'main', 'sessions', 'sessions.json');
+const _clawdDir = process.env.OPENCLAW_DIR || '.openclaw'; // e.g. '.clawdbot' or '.moltbot'
+const SESSIONS_STORE = path.join(process.env.USERPROFILE || process.env.HOME || '', _clawdDir, 'agents', 'main', 'sessions', 'sessions.json');
 
 app.get("/api/agent/sessions", requireAuth, (req, res) => {
   try {
