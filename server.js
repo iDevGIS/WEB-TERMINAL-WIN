@@ -870,7 +870,7 @@ app.get("/api/admin/server", requireAuth, (req, res) => {
 // === OpenClaw Chat Proxy (SSE streaming) ===
 const OPENCLAW_GW = process.env.OPENCLAW_GATEWAY || "http://127.0.0.1:18789";
 const OPENCLAW_TOKEN = process.env.OPENCLAW_TOKEN || "";
-const OPENCLAW_CLI = process.env.OPENCLAW_CLI || "openclaw"; // e.g. "clawdbot" or "moltbot"
+const OPENCLAW_CLI = process.env.CYBERFRAME_CLI || process.env.AGENT_CLI || "openclaw"; // e.g. "clawdbot" or "moltbot"
 const _cyberframeNames = {}; // sessionId → display name
 
 // === TTS (Edge Neural Voices) ===
@@ -1844,7 +1844,7 @@ app.get("/api/vscode-url", (req, res) => {
 // (VS Code proxy moved above requireAuth)
 
 // === OpenClaw Session Management ===
-const _clawdDir = process.env.OPENCLAW_DIR || '.openclaw'; // e.g. '.clawdbot' or '.moltbot'
+const _clawdDir = process.env.CYBERFRAME_AGENT_DIR || process.env.AGENT_DIR || '.openclaw'; // e.g. '.clawdbot' or '.moltbot'
 const SESSIONS_STORE = path.join(process.env.USERPROFILE || process.env.HOME || '', _clawdDir, 'agents', 'main', 'sessions', 'sessions.json');
 
 app.get("/api/agent/sessions", requireAuth, (req, res) => {
