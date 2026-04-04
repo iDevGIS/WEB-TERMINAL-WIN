@@ -1,6 +1,6 @@
 # ⚡ CYBERFRAME
 
-**Neural Shell Interface** — Web-based terminal with AI chat, voice I/O, agent monitoring, remote desktop, file manager, workspace management, and cyberpunk UI.
+**Neural Shell Interface** - Web-based terminal with AI chat, voice I/O, agent monitoring, remote desktop, file manager, workspace management, and cyberpunk UI.
 
 ![Node.js](https://img.shields.io/badge/Node.js-18+-339933?logo=nodedotjs&logoColor=white)
 ![Platform](https://img.shields.io/badge/Platform-Windows-0078D6?logo=windows&logoColor=white)
@@ -10,251 +10,251 @@
 ## ✨ Features
 
 ### 🖥️ Multi-Shell Terminal
-- **Persistent sessions** — tmux-like architecture; disconnect without killing the process, reconnect and resume exactly where you left off
-- **7 shell profiles** — PowerShell (⚡), PowerShell Admin (🛡️), Windows PowerShell (🔵), CMD (⬛), CMD Admin (🛡️), Git Bash (🟠), WSL Ubuntu (🐧)
-- **🛡️ Admin shells** — run as administrator via [gsudo](https://github.com/gerardog/gsudo) (sudo for Windows), UAC prompt on first use then cached
-- **Auto-detect** available shells at startup — only shows what's actually installed
-- **Scrollback buffer** — 50,000 characters retained per session
-- **Session idle timeout** — auto-cleanup after 30 minutes of inactivity
-- **Session rename** — double-click session name to rename
-- **Multiple concurrent sessions** — run as many shells as you need simultaneously
+- **Persistent sessions** - tmux-like architecture; disconnect without killing the process, reconnect and resume exactly where you left off
+- **7 shell profiles** - PowerShell (⚡), PowerShell Admin (🛡️), Windows PowerShell (🔵), CMD (⬛), CMD Admin (🛡️), Git Bash (🟠), WSL Ubuntu (🐧)
+- **🛡️ Admin shells** - run as administrator via [gsudo](https://github.com/gerardog/gsudo) — install with `winget install gerardog.gsudo` (sudo for Windows), UAC prompt on first use then cached
+- **Auto-detect** available shells at startup - only shows what's actually installed
+- **Scrollback buffer** - 50,000 characters retained per session
+- **Session idle timeout** - auto-cleanup after 30 minutes of inactivity
+- **Session rename** - double-click session name to rename
+- **Multiple concurrent sessions** - run as many shells as you need simultaneously
 
 ### 📑 Multi-Tab Interface
-- **Tab bar** — each session opens in its own tab with dedicated terminal instance
-- **Mixed tabs** — terminal, editor (Monaco), preview, admin, AI chat, agent monitor, VS Code, VNC
-- **`+` button** — spawn new shell tab from tab bar
-- **Tab drag reorder** — drag tabs to rearrange, purple indicator line shows drop position
-- **Keyboard shortcuts** — `Ctrl+S` save editor tab, `Ctrl+W` close active tab
-- **Per-tab xterm** — no more detach/attach; switch tabs instantly
-- **Auto-fit** — terminal resizes on tab switch and window resize
+- **Tab bar** - each session opens in its own tab with dedicated terminal instance
+- **Mixed tabs** - terminal, editor (Monaco), preview, admin, AI chat, agent monitor, VS Code, VNC
+- **`+` button** - spawn new shell tab from tab bar
+- **Tab drag reorder** - drag tabs to rearrange, purple indicator line shows drop position
+- **Keyboard shortcuts** - `Ctrl+S` save editor tab, `Ctrl+W` close active tab
+- **Per-tab xterm** - no more detach/attach; switch tabs instantly
+- **Auto-fit** - terminal resizes on tab switch and window resize
 
 ### ⫿ Split Pane
-- **Horizontal split** — side-by-side terminals (⫿ button)
-- **Vertical split** — top/bottom terminals (⫻ button)
-- **Nested splits** — split the active pane again for 3–4 pane layouts
-- **Drag & drop split** — drag a session card from sidebar onto the terminal area; drop on Left/Right/Top/Bottom zones to create a split with that session
-- **Per-pane drop zones** — when already split, each pane shows its own drop zones for targeted nested splits
-- **Drag header to swap** — drag a pane's header bar onto another pane's header to swap their positions
-- **Draggable resize handle** — smooth `requestAnimationFrame` animation
-- **Active pane highlight** — purple border + centered title with accent color
-- **Sidebar sync** — click a session in sidebar to focus its pane
-- **Buffer preservation** — text content survives split and swap operations
-- **Session guard** — prevents the same session from being opened in multiple tabs
-- **Desktop only** — hidden on mobile (< 1024px)
+- **Horizontal split** - side-by-side terminals (⫿ button)
+- **Vertical split** - top/bottom terminals (⫻ button)
+- **Nested splits** - split the active pane again for 3-4 pane layouts
+- **Drag & drop split** - drag a session card from sidebar onto the terminal area; drop on Left/Right/Top/Bottom zones to create a split with that session
+- **Per-pane drop zones** - when already split, each pane shows its own drop zones for targeted nested splits
+- **Drag header to swap** - drag a pane's header bar onto another pane's header to swap their positions
+- **Draggable resize handle** - smooth `requestAnimationFrame` animation
+- **Active pane highlight** - purple border + centered title with accent color
+- **Sidebar sync** - click a session in sidebar to focus its pane
+- **Buffer preservation** - text content survives split and swap operations
+- **Session guard** - prevents the same session from being opened in multiple tabs
+- **Desktop only** - hidden on mobile (< 1024px)
 
 ### 🔍 Terminal Search
-- **Ctrl+F** to search — intercepts browser search, uses xterm's built-in search addon
-- **Navigate results** — ▲ Previous / ▼ Next buttons or Enter/Shift+Enter
-- **Real-time highlight** — matches highlighted as you type
-- **Esc to close** — returns focus to terminal
+- **Ctrl+F** to search - intercepts browser search, uses xterm's built-in search addon
+- **Navigate results** - ▲ Previous / ▼ Next buttons or Enter/Shift+Enter
+- **Real-time highlight** - matches highlighted as you type
+- **Esc to close** - returns focus to terminal
 
 ### ⚡ Command Snippets
-- **Save frequently used commands** — name, command, and optional category
-- **One-click execute** — click a snippet to run it in the active terminal session
-- **Persistent storage** — saved to `snippets.json`, survives server restarts
-- **Categories** — organize snippets with tags (e.g. `git`, `docker`, `system`)
-- **Slide-in drawer** — accessible from toolbar, doesn't block terminal view
+- **Save frequently used commands** - name, command, and optional category
+- **One-click execute** - click a snippet to run it in the active terminal session
+- **Persistent storage** - saved to `snippets.json`, survives server restarts
+- **Categories** - organize snippets with tags (e.g. `git`, `docker`, `system`)
+- **Slide-in drawer** - accessible from toolbar, doesn't block terminal view
 
 ### 📥 Export Terminal Output
-- **Download as .txt** — click the export button in toolbar
-- **ANSI stripped** — clean plain text, no escape codes
-- **HTML export** — preserves terminal styling (dark background, monospace font)
-- **Named files** — exported with session name as filename
+- **Download as .txt** - click the export button in toolbar
+- **ANSI stripped** - clean plain text, no escape codes
+- **HTML export** - preserves terminal styling (dark background, monospace font)
+- **Named files** - exported with session name as filename
 
 ### 🖼️ Remote Desktop
-- **TightVNC + noVNC** integration — full remote desktop in your browser
-- **In-tab VNC** — opens as a CYBERFRAME tab (iframe), not a separate window
-- **WebSocket proxy** — no extra ports needed, VNC traffic tunneled through the same server on `/vnc-ws`
-- **View & control** your desktop from any device — mouse, keyboard, clipboard sharing
-- **One-click connect** — toolbar button or welcome card opens VNC tab instantly
-- **Reuse tab** — clicking again switches to existing VNC tab
+- **TightVNC + noVNC** integration - full remote desktop in your browser
+- **In-tab VNC** - opens as a CYBERFRAME tab (iframe), not a separate window
+- **WebSocket proxy** - no extra ports needed, VNC traffic tunneled through the same server on `/vnc-ws`
+- **View & control** your desktop from any device - mouse, keyboard, clipboard sharing
+- **One-click connect** - toolbar button or welcome card opens VNC tab instantly
+- **Reuse tab** - clicking again switches to existing VNC tab
 
 ### 💻 VS Code Integration
-- **VS Code serve-web** — full VS Code editor running as a CYBERFRAME tab
-- **Reverse proxy** — proxied through `/vscode/` on same port, no extra port needed
-- **Asset proxying** — `/stable-*` paths transparently proxied to VS Code server
-- **WebSocket support** — VS Code's WS connections proxied for full functionality
-- **CYBERFRAME theme injection** — deep purple theme matching CYBERFRAME aesthetic, auto-injected via retry loop
-- **CYBERFRAME auth** — protected by same login session, no separate VS Code auth needed
-- **Multiple tabs** — open multiple VS Code tabs simultaneously
+- **VS Code serve-web** - full VS Code editor running as a CYBERFRAME tab
+- **Reverse proxy** - proxied through `/vscode/` on same port, no extra port needed
+- **Asset proxying** - `/stable-*` paths transparently proxied to VS Code server
+- **WebSocket support** - VS Code's WS connections proxied for full functionality
+- **CYBERFRAME theme injection** - deep purple theme matching CYBERFRAME aesthetic, auto-injected via retry loop
+- **CYBERFRAME auth** - protected by same login session, no separate VS Code auth needed
+- **Multiple tabs** - open multiple VS Code tabs simultaneously
 
 ### 📁 File Manager
 - **Browse, upload, download** files from any drive on the system
-- **Drive selector** — switch between C:, D:, etc. with free space indicators
-- **Drag & drop upload** — drop zone at bottom of file list with visual feedback (purple highlight)
-- **New File / New Folder** — create directly from the file manager toolbar
-- **Rename** — click to select a file, then rename with one click
-- **File type icons** — visual indicators for 30+ file types (folders 📁, images 🖼️, code 📄, etc.)
-- **System files hidden** — automatically filters out `$Recycle.Bin`, `NTUSER.DAT`, `.sys`, `.tmp`, `.blf`, `.regtrans-ms`, junction points, etc.
-- **Breadcrumb navigation** — click any path segment to jump directly
-- **File info panel** — select a file and click ℹ️ to see full path, type, size, and modified date
-- **Favorites** — ★ star files/folders for quick access, persisted in `localStorage`
-- **Refresh button** — reload current directory without navigating away
+- **Drive selector** - switch between C:, D:, etc. with free space indicators
+- **Drag & drop upload** - drop zone at bottom of file list with visual feedback (purple highlight)
+- **New File / New Folder** - create directly from the file manager toolbar
+- **Rename** - click to select a file, then rename with one click
+- **File type icons** - visual indicators for 30+ file types (folders 📁, images 🖼️, code 📄, etc.)
+- **System files hidden** - automatically filters out `$Recycle.Bin`, `NTUSER.DAT`, `.sys`, `.tmp`, `.blf`, `.regtrans-ms`, junction points, etc.
+- **Breadcrumb navigation** - click any path segment to jump directly
+- **File info panel** - select a file and click i️ to see full path, type, size, and modified date
+- **Favorites** - ★ star files/folders for quick access, persisted in `localStorage`
+- **Refresh button** - reload current directory without navigating away
 
 ### 👁️ File Preview
-- **Code viewer** — syntax highlighting for 25+ languages powered by [highlight.js](https://highlightjs.org/) with Tokyo Night Dark theme
-- **Line numbers** — separate scrollable column, synced with code view
-- **Markdown preview** — GitHub-style rendering via [marked.js](https://marked.js.org/) with syntax-highlighted code blocks and copy buttons
-- **HTML web preview** — render `.html` files as live webpages in iframe
-- **Toggle view** — switch between code/preview mode with one click (for `.md` and `.html` files)
-- **Image viewer** — full zoom support (scroll wheel, drag to pan, double-click toggle, controls)
-- **PDF viewer** — inline iframe, native browser PDF rendering
-- **JSON formatter** — auto pretty-print with indentation
+- **Code viewer** - syntax highlighting for 25+ languages powered by [highlight.js](https://highlightjs.org/) with Tokyo Night Dark theme
+- **Line numbers** - separate scrollable column, synced with code view
+- **Markdown preview** - GitHub-style rendering via [marked.js](https://marked.js.org/) with syntax-highlighted code blocks and copy buttons
+- **HTML web preview** - render `.html` files as live webpages in iframe
+- **Toggle view** - switch between code/preview mode with one click (for `.md` and `.html` files)
+- **Image viewer** - full zoom support (scroll wheel, drag to pan, double-click toggle, controls)
+- **PDF viewer** - inline iframe, native browser PDF rendering
+- **JSON formatter** - auto pretty-print with indentation
 
 ### ✏️ Text Editor (Monaco / VS Code)
-- **Monaco Editor** — the same editor that powers VS Code, running in your browser
-- **Syntax highlighting** — 25+ languages with bracket pair colorization
-- **Minimap** — code overview panel on the right
-- **Ctrl+S to save** — saves directly to the server filesystem
-- **Unsaved indicator** — purple "● Modified" badge when content differs
-- **JSON auto-format** — pretty-prints JSON files on open
+- **Monaco Editor** - the same editor that powers VS Code, running in your browser
+- **Syntax highlighting** - 25+ languages with bracket pair colorization
+- **Minimap** - code overview panel on the right
+- **Ctrl+S to save** - saves directly to the server filesystem
+- **Unsaved indicator** - purple "● Modified" badge when content differs
+- **JSON auto-format** - pretty-prints JSON files on open
 
 ### 🎨 Themes
 8 built-in terminal color schemes, persisted in `localStorage`:
-- 🔮 **Cyberframe** (default) — deep purple cyberpunk
-- 🌃 **Tokyo Night** — soft blue city lights
-- 🧛 **Dracula** — classic dark with vibrant accents
-- 🐱 **Catppuccin Mocha** — warm pastel tones
-- 🍂 **Gruvbox Dark** — retro warm earth tones
-- ❄️ **Nord** — arctic cool blue palette
-- 🌆 **Synthwave** — neon retrowave
-- ☀️ **Solarized Dark** — precision-engineered contrast
+- 🔮 **Cyberframe** (default) - deep purple cyberpunk
+- 🌃 **Tokyo Night** - soft blue city lights
+- 🧛 **Dracula** - classic dark with vibrant accents
+- 🐱 **Catppuccin Mocha** - warm pastel tones
+- 🍂 **Gruvbox Dark** - retro warm earth tones
+- ❄️ **Nord** - arctic cool blue palette
+- 🌆 **Synthwave** - neon retrowave
+- ☀️ **Solarized Dark** - precision-engineered contrast
 
 ### 📱 Mobile Ready
-- **Special keys bar** — horizontal scrollable bar with: Esc, Tab, Ctrl, Alt, Fn, ▲▼◀▶ arrows, PgUp/PgDn, Del, Home, End, `|`, `/`, `.`, `~`, `_`, `-`
-- **One-shot modifier toggle** — tap Ctrl (turns purple) → type any key → sends combo (e.g. Ctrl+C) → auto-clears
-- **Clipboard integration** — 📋 Copy / 📥 Paste buttons
-- **Font size controls** — A- / A+ buttons, range 8–32px, persisted in `localStorage`
-- **Responsive sidebar** — hidden by default, hamburger ☰ toggle with backdrop overlay
-- **iOS Safari support** — `100dvh` viewport fix, safe area insets, `touch-action: manipulation`
-- **Touch-friendly** — minimum 44px tap targets, no hover-dependent UI
+- **Special keys bar** - horizontal scrollable bar with: Esc, Tab, Ctrl, Alt, Fn, ▲▼◀▶ arrows, PgUp/PgDn, Del, Home, End, `|`, `/`, `.`, `~`, `_`, `-`
+- **One-shot modifier toggle** - tap Ctrl (turns purple) → type any key → sends combo (e.g. Ctrl+C) → auto-clears
+- **Clipboard integration** - 📋 Copy / 📥 Paste buttons
+- **Font size controls** - A- / A+ buttons, range 8-32px, persisted in `localStorage`
+- **Responsive sidebar** - hidden by default, hamburger ☰ toggle with backdrop overlay
+- **iOS Safari support** - `100dvh` viewport fix, safe area insets, `touch-action: manipulation`
+- **Touch-friendly** - minimum 44px tap targets, no hover-dependent UI
 
 ### 🛡️ Admin Panel
-- **System Monitor** — real-time CPU%, RAM%, Disk (all drives), GPU (nvidia-smi), Uptime with progress bars (auto refresh 5s)
-- **GPU Monitoring** — utilization %, temperature, power draw, VRAM usage
-- **Session Manager** — view all active sessions, kill remotely
-- **Process Manager** — top 20 processes by memory, kill by PID
-- **Network Info** — hostname, local IP, Tailscale IP, Node version, platform
-- **Server Info** — PID, memory (RSS + heap), server uptime, shell profile count
-- **Quick Actions** — New Shell, Kill All Sessions, Remote Desktop, Copy IP, Export Logs
-- **Connected Browsers** — track active browser sessions (IP, browser, OS, connected time)
-- **Tailscale Serve Management** — view/add/remove Tailscale serve rules directly from admin panel
-- **VPN Status** — detect VPN/Tailscale/WireGuard adapters with up/down status
-- **Listening Ports** — all TCP LISTEN ports with process name, PID, known service labels (CYBERFRAME, VNC, PostgreSQL...)
-- **ARP Table** — IP/MAC/type with gateway detection
-- **Routing Table** — destination, next hop, metric, interface with default route highlight
-- **Activity Log** — real-time server activity viewer
+- **System Monitor** - real-time CPU%, RAM%, Disk (all drives), GPU (nvidia-smi), Uptime with progress bars (auto refresh 5s)
+- **GPU Monitoring** - utilization %, temperature, power draw, VRAM usage
+- **Session Manager** - view all active sessions, kill remotely
+- **Process Manager** - top 20 processes by memory, kill by PID
+- **Network Info** - hostname, local IP, Tailscale IP, Node version, platform
+- **Server Info** - PID, memory (RSS + heap), server uptime, shell profile count
+- **Quick Actions** - New Shell, Kill All Sessions, Remote Desktop, Copy IP, Export Logs
+- **Connected Browsers** - track active browser sessions (IP, browser, OS, connected time)
+- **Tailscale Serve Management** - view/add/remove Tailscale serve rules directly from admin panel
+- **VPN Status** - detect VPN/Tailscale/WireGuard adapters with up/down status
+- **Listening Ports** - all TCP LISTEN ports with process name, PID, known service labels (CYBERFRAME, VNC, PostgreSQL...)
+- **ARP Table** - IP/MAC/type with gateway detection
+- **Routing Table** - destination, next hop, metric, interface with default route highlight
+- **Activity Log** - real-time server activity viewer
 
 ### 🐳 Docker Container Management
-- **Container Dashboard** — list all containers with status, image, network, ports, CPU/MEM stats
-- **Container Actions** — start, stop, restart, pause, unpause, remove with one click
-- **Multi-Log Viewer** — open logs from multiple containers simultaneously, color-coded panels, resizable
-- **Live Log Streaming** — real-time log viewer via SSE with Follow/Clear/Download controls
-- **File Browser** — tree-view filesystem browser for running containers (expandable directories, lazy-load)
-- **Volume Browser** — browse Docker volume files via temporary alpine container
-- **Open in Editor** — click text files to open in Monaco Editor with syntax highlighting (60+ file types)
-- **Save Back to Container** — edit files and Ctrl+S to write back via `docker cp`
-- **Download Files** — download any file from container or volume
-- **Exec Shell** — open terminal shell inside running container
-- **Port Popup** — click port to Open in Browser / Open in CYBERFRAME Tab / Copy URL / Forward via Tailscale
-- **Images/Volumes/Networks** — browse Docker images, volumes (with mount paths), and networks
-- **Stats Cache** — CPU/MEM stats cached for flicker-free refresh
-- **Container Inspect Panel** — slide-in detail view with env vars, mounts, labels, ports, networks, action buttons
-- **Persist Across Refresh** — Docker tab survives page reload via workspace state
+- **Container Dashboard** - list all containers with status, image, network, ports, CPU/MEM stats
+- **Container Actions** - start, stop, restart, pause, unpause, remove with one click
+- **Multi-Log Viewer** - open logs from multiple containers simultaneously, color-coded panels, resizable
+- **Live Log Streaming** - real-time log viewer via SSE with Follow/Clear/Download controls
+- **File Browser** - tree-view filesystem browser for running containers (expandable directories, lazy-load)
+- **Volume Browser** - browse Docker volume files via temporary alpine container
+- **Open in Editor** - click text files to open in Monaco Editor with syntax highlighting (60+ file types)
+- **Save Back to Container** - edit files and Ctrl+S to write back via `docker cp`
+- **Download Files** - download any file from container or volume
+- **Exec Shell** - open terminal shell inside running container
+- **Port Popup** - click port to Open in Browser / Open in CYBERFRAME Tab / Copy URL / Forward via Tailscale
+- **Images/Volumes/Networks** - browse Docker images, volumes (with mount paths), and networks
+- **Stats Cache** - CPU/MEM stats cached for flicker-free refresh
+- **Container Inspect Panel** - slide-in detail view with env vars, mounts, labels, ports, networks, action buttons
+- **Persist Across Refresh** - Docker tab survives page reload via workspace state
 
 ### 💬 AI Chat (OpenClaw)
-- **SSE streaming** — real-time token-by-token response via Server-Sent Events
-- **Multi-session** — sidebar with session list, create/rename/delete/switch sessions
-- **Auto-title** — session automatically titled from first message
-- **Markdown rendering** — full GitHub-style markdown via [marked.js](https://marked.js.org/)
-- **Syntax highlighting** — code blocks with language badge, copy button, Tokyo Night Dark theme
-- **Model selector** — switch between models (Default/OpenClaw/Custom) per session
-- **System prompt presets** — Default, Code Expert, Thai Teacher, Creative Writer, Concise, or Custom
-- **Stop / Regenerate** — abort streaming mid-response or re-send for a new answer
-- **File & image attachments** — paste or drag images, attach text files (60+ types)
-- **Chat search** — `Ctrl+F` to search messages with highlight
-- **Export** — download conversation as `.md` file
-- **Token counter** — live estimate of tokens used per message
-- **Timestamps** — HH:MM on each message
-- **Keyboard shortcuts** — `Enter` to send, `Shift+Enter` for new line, `Ctrl+F` search
+- **SSE streaming** - real-time token-by-token response via Server-Sent Events
+- **Multi-session** - sidebar with session list, create/rename/delete/switch sessions
+- **Auto-title** - session automatically titled from first message
+- **Markdown rendering** - full GitHub-style markdown via [marked.js](https://marked.js.org/)
+- **Syntax highlighting** - code blocks with language badge, copy button, Tokyo Night Dark theme
+- **Model selector** - switch between models (Default/OpenClaw/Custom) per session
+- **System prompt presets** - Default, Code Expert, Thai Teacher, Creative Writer, Concise, or Custom
+- **Stop / Regenerate** - abort streaming mid-response or re-send for a new answer
+- **File & image attachments** - paste or drag images, attach text files (60+ types)
+- **Chat search** - `Ctrl+F` to search messages with highlight
+- **Export** - download conversation as `.md` file
+- **Token counter** - live estimate of tokens used per message
+- **Timestamps** - HH:MM on each message
+- **Keyboard shortcuts** - `Enter` to send, `Shift+Enter` for new line, `Ctrl+F` search
 
 ### 🎤 Voice Input (STT)
-- **Dual engine** — Mobile uses native Web Speech API (real-time), Desktop uses server-side [faster-whisper](https://github.com/SYSTRAN/faster-whisper) (accurate)
-- **Server-side Whisper** — `medium` model (1.5GB, CPU int8), accurate Thai + English transcription
-- **Recording waveform UI** — real-time audio visualization with 35 waveform bars, timer, send/cancel buttons
-- **Animated transcribing bar** — gradient wave bars + shimmer text while processing
-- **Thai default** — `initial_prompt` hint for accurate Thai script output (not romanized)
-- **iOS Safari MIME fallback** — `audio/webm` → `audio/mp4` → `audio/ogg` → default
+- **Dual engine** - Mobile uses native Web Speech API (real-time), Desktop uses server-side [faster-whisper](https://github.com/SYSTRAN/faster-whisper) (accurate)
+- **Server-side Whisper** - `medium` model (1.5GB, CPU int8), accurate Thai + English transcription
+- **Recording waveform UI** - real-time audio visualization with 35 waveform bars, timer, send/cancel buttons
+- **Animated transcribing bar** - gradient wave bars + shimmer text while processing
+- **Thai default** - `initial_prompt` hint for accurate Thai script output (not romanized)
+- **iOS Safari MIME fallback** - `audio/webm` → `audio/mp4` → `audio/ogg` → default
 
 ### 🔊 Text-to-Speech (TTS)
-- **Edge Neural Voices** — server-side `msedge-tts`, works on ALL browsers
-- **Auto language detect** — Thai (`PremwadeeNeural`) + English (`JennyNeural`)
-- **Per-message TTS** — speaker icon on each assistant message
-- **Streaming MP3** — low latency audio playback
+- **Edge Neural Voices** - server-side `msedge-tts`, works on ALL browsers
+- **Auto language detect** - Thai (`PremwadeeNeural`) + English (`JennyNeural`)
+- **Per-message TTS** - speaker icon on each assistant message
+- **Streaming MP3** - low latency audio playback
 
 ### 🎵 Voice Message Player
-- **Persistent audio** — voice recordings uploaded to server (`/api/voice-upload`), survive browser refresh
-- **Real waveform** — audio decoded via `AudioContext.decodeAudioData()`, amplitude-based bar heights
-- **Animated playback** — progress bars light up left-to-right, current bar glows + scales, near bars pulse
-- **Gradient play button** — purple→violet gradient, pink→purple glow when playing
-- **Duration display** — elapsed time counter (JetBrains Mono font)
-- **One-at-a-time** — playing a new message auto-stops the previous one
+- **Persistent audio** - voice recordings uploaded to server (`/api/voice-upload`), survive browser refresh
+- **Real waveform** - audio decoded via `AudioContext.decodeAudioData()`, amplitude-based bar heights
+- **Animated playback** - progress bars light up left-to-right, current bar glows + scales, near bars pulse
+- **Gradient play button** - purple→violet gradient, pink→purple glow when playing
+- **Duration display** - elapsed time counter (JetBrains Mono font)
+- **One-at-a-time** - playing a new message auto-stops the previous one
 
 ### 🤖 Agent Monitor
-- **Real-time status** — online/offline indicator with pulsing dot animation
-- **Status cards** — Model, Sessions count, Heartbeat interval, Channel status
-- **Active Sessions list** — all OpenClaw sessions with source badges:
-  - ⚡ **CYBERFRAME** (yellow) — sessions from this app
-  - 💬 **Discord** (blue) — Discord channel sessions
-  - 🤖 **Sub-Agent** (purple) — spawned sub-agents
-  - 🏠 **Main** (green) — main agent session
-- **Session management** — Preview transcript, Restore to chat, Info metadata, Delete
-- **Async & non-blocking** — `openclaw status` runs asynchronously, never blocks event loop
-- **Smart caching** — 30-second cache TTL, pre-warmed on server start
+- **Real-time status** - online/offline indicator with pulsing dot animation
+- **Status cards** - Model, Sessions count, Heartbeat interval, Channel status
+- **Active Sessions list** - all OpenClaw sessions with source badges:
+  - ⚡ **CYBERFRAME** (yellow) - sessions from this app
+  - 💬 **Discord** (blue) - Discord channel sessions
+  - 🤖 **Sub-Agent** (purple) - spawned sub-agents
+  - 🏠 **Main** (green) - main agent session
+- **Session management** - Preview transcript, Restore to chat, Info metadata, Delete
+- **Async & non-blocking** - `openclaw status` runs asynchronously, never blocks event loop
+- **Smart caching** - 30-second cache TTL, pre-warmed on server start
 
 ### 💾 Workspace Save/Load
-- **Save to server** — current tab layout + chat history + editor state saved as JSON on server
-- **Workspace list** — collapsible sidebar section showing all saved workspaces
-- **Cross-browser restore** — load a workspace from any browser/device on the same server
-- **Smart terminal handling** — saved terminal sessions create fresh shells on different browsers
-- **One-click load** — select workspace → writes to localStorage → page reload → full restore
-- **Delete workspaces** — hover to reveal delete button with confirmation
+- **Save to server** - current tab layout + chat history + editor state saved as JSON on server
+- **Workspace list** - collapsible sidebar section showing all saved workspaces
+- **Cross-browser restore** - load a workspace from any browser/device on the same server
+- **Smart terminal handling** - saved terminal sessions create fresh shells on different browsers
+- **One-click load** - select workspace → writes to localStorage → page reload → full restore
+- **Delete workspaces** - hover to reveal delete button with confirmation
 
 ### 💾 Auto State Persistence
-- **Tabs survive refresh** — all open tabs saved to `localStorage` every 10 seconds + on page close
-- **Terminal reattach** — terminal sessions reconnect to the same PTY process after browser refresh
-- **Chat history preserved** — AI Chat messages (last 100 per session), model selection, system prompts, and voice messages restored
-- **VS Code workspace** — opened folder/project restored automatically
-- **Tab order & active tab** — exact tab layout remembered
-- **Works for all tab types** — terminal, chat, VS Code, VNC, admin, agent monitor, editor, file manager
+- **Tabs survive refresh** - all open tabs saved to `localStorage` every 10 seconds + on page close
+- **Terminal reattach** - terminal sessions reconnect to the same PTY process after browser refresh
+- **Chat history preserved** - AI Chat messages (last 100 per session), model selection, system prompts, and voice messages restored
+- **VS Code workspace** - opened folder/project restored automatically
+- **Tab order & active tab** - exact tab layout remembered
+- **Works for all tab types** - terminal, chat, VS Code, VNC, admin, agent monitor, editor, file manager
 
 ### 🎨 Visual Effects
-- **Animated gradient top bar** — indigo → violet → purple → pink → orange gradient line with smooth animation
-- **Neon scrollbar** — 3px ultra-slim scrollbar with animated gradient and glow effect
-- **Consistent across iframes** — scrollbar style applied to main UI, admin panel, and noVNC
+- **Animated gradient top bar** - indigo → violet → purple → pink → orange gradient line with smooth animation
+- **Neon scrollbar** - 3px ultra-slim scrollbar with animated gradient and glow effect
+- **Consistent across iframes** - scrollbar style applied to main UI, admin panel, and noVNC
 
 ### 💓 Heartbeat Monitor
-- **Neon blue ECG** — 3D waveform with 4-layer glow, grid overlay, gradient mask fade edges
-- **Animated heart** — pulses with each successful ping, neon blue glow
-- **BPM display** — calculated from actual ping frequency
-- **Latency readout** — exact millisecond round-trip time
-- **Bitrate indicator** — live WebSocket throughput
+- **Neon blue ECG** - 3D waveform with 4-layer glow, grid overlay, gradient mask fade edges
+- **Animated heart** - pulses with each successful ping, neon blue glow
+- **BPM display** - calculated from actual ping frequency
+- **Latency readout** - exact millisecond round-trip time
+- **Bitrate indicator** - live WebSocket throughput
 
 ### 🔔 Notifications
-- **Browser notifications** — alerts when commands complete in background tabs
-- **Toast notifications** — in-app popups for file operations, connections, errors
-- **Auto-dismiss** — toasts disappear after 4 seconds
+- **Browser notifications** - alerts when commands complete in background tabs
+- **Toast notifications** - in-app popups for file operations, connections, errors
+- **Auto-dismiss** - toasts disappear after 4 seconds
 
 ### 🔄 Auto-Reconnect
-- **Automatic WebSocket reconnection** — reconnects every 2 seconds when connection drops
-- **Session re-attach** — automatically re-attaches to previous terminal session
-- **Visual feedback** — "↻ Reconnecting…" with pulse animation
+- **Automatic WebSocket reconnection** - reconnects every 2 seconds when connection drops
+- **Session re-attach** - automatically re-attaches to previous terminal session
+- **Visual feedback** - "↻ Reconnecting..." with pulse animation
 
 ### 🔒 Security
-- **Session-based authentication** — Express session with 24-hour cookie lifetime
-- **WebSocket auth check** — every WS upgrade validates session cookie
-- **Credentials in `.env`** — never committed to git
-- **File delete with double confirm** — custom glassmorphism confirmation dialog
+- **Session-based authentication** - Express session with 24-hour cookie lifetime
+- **WebSocket auth check** - every WS upgrade validates session cookie
+- **Credentials in `.env`** - never committed to git
+- **File delete with double confirm** - custom glassmorphism confirmation dialog
 
 ---
 
@@ -266,7 +266,7 @@
 - **Python 3.10+** (optional, for voice STT)
 - **TightVNC** (optional, for Remote Desktop)
 - **Docker Desktop** (optional, for Docker Management)
-- **gsudo** (optional, for Admin shells) — `winget install gerardog.gsudo`
+- **gsudo** (optional, for Admin shells) - `winget install gerardog.gsudo` (enables PowerShell Admin & CMD Admin profiles)
 
 ### Install
 
@@ -377,11 +377,11 @@ Open `http://localhost:3000` in your browser.
 |--------------------------------------|------------------------|
 | ![Docker Multi-Logs](docs/images/docker-multi-logs.png) | ![Docker Inspect](docs/images/docker-inspect.png) |
 
-| Admin — Tailscale Serve | Add Tailscale Rule |
+| Admin - Tailscale Serve | Add Tailscale Rule |
 |------------------------|-------------------|
 | ![Admin Tailscale](docs/images/admin-tailscale.png) | ![Add Tailscale Rule](docs/images/admin-tailscale-add.png) |
 
-| Admin — Network (VPN, Ports, ARP, Routing) |
+| Admin - Network (VPN, Ports, ARP, Routing) |
 |--------------------------------------------|
 | ![Admin Network](docs/images/admin-network.png) |
 
@@ -449,7 +449,7 @@ Now access from any device on your tailnet:
 https://your-machine-name.your-tailnet.ts.net:3443
 ```
 
-### 3. (Optional) Funnel — Public Internet Access
+### 3. (Optional) Funnel - Public Internet Access
 
 ```powershell
 # Expose to the public internet (no tailnet required)
@@ -460,14 +460,14 @@ tailscale funnel --bg --https 443 http://127.0.0.1:3000
 
 ### 4. Manage Serve Rules from Admin Panel
 
-You can also add/remove Tailscale serve rules directly from the CYBERFRAME Admin panel — no CLI needed!
+You can also add/remove Tailscale serve rules directly from the CYBERFRAME Admin panel - no CLI needed!
 
 - Navigate to **Admin** → **Tailscale Serve** card
 - Click **+** to add a new HTTPS port forwarding rule
 - Click **✕** to remove an existing rule
 - Click **Open** to visit the served URL
 
-This is especially useful for Docker containers — forward container ports through Tailscale with one click from the Docker port popup menu.
+This is especially useful for Docker containers - forward container ports through Tailscale with one click from the Docker port popup menu.
 
 ---
 
@@ -623,21 +623,21 @@ CYBERFRAME
 ## 🚧 Roadmap
 
 ### 🔜 Next Up
-- **⌨️ Command Palette** — `Ctrl+K` quick access to all actions
-- **🐳 Docker Compose** — detect compose projects, up/down/restart, per-service logs
+- **⌨️ Command Palette** - `Ctrl+K` quick access to all actions
+- **🐳 Docker Compose** - detect compose projects, up/down/restart, per-service logs
 
 ### 📋 Planned
-- **Terminal built-in commands** — `!status`, `!sessions`, `!kill`
-- **2FA / TOTP** — two-factor authentication
-- **Terminal Sharing** — read-only collaboration links
-- **Session Recording** — asciinema-style playback
-- **Custom Keybindings** — user-configurable shortcuts
+- **Terminal built-in commands** - `!status`, `!sessions`, `!kill`
+- **2FA / TOTP** - two-factor authentication
+- **Terminal Sharing** - read-only collaboration links
+- **Session Recording** - asciinema-style playback
+- **Custom Keybindings** - user-configurable shortcuts
 
 ### 🔮 Future
-- **Multi-user support** — currently single user
-- **HTTPS built-in** — currently relies on Tailscale
-- **Docker image** — one-click deploy CYBERFRAME itself
-- **Linux support** — currently Windows-only
+- **Multi-user support** - currently single user
+- **HTTPS built-in** - currently relies on Tailscale
+- **Docker image** - one-click deploy CYBERFRAME itself
+- **Linux support** - currently Windows-only
 
 ---
 
