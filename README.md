@@ -288,7 +288,27 @@ TERM_USER=admin
 TERM_PASS=your-secure-password
 SESSION_SECRET=your-random-secret
 PORT=3000
+VSCODE_PORT=8080
+
+# OpenClaw / AI Chat
+OPENCLAW_TOKEN=your-gateway-token
+OPENCLAW_GATEWAY=http://127.0.0.1:18789
+OPENCLAW_CLI=openclaw
+OPENCLAW_DIR=.openclaw
+WORKSPACE_DIR=C:\Users\YourName\.openclaw\workspace
 ```
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `TERM_USER` | `admin` | Login username |
+| `TERM_PASS` | `changeme` | Login password |
+| `PORT` | `3000` | CYBERFRAME server port |
+| `VSCODE_PORT` | `8080` | VS Code serve-web port |
+| `OPENCLAW_TOKEN` | — | Gateway auth token |
+| `OPENCLAW_GATEWAY` | `http://127.0.0.1:18789` | Gateway URL |
+| `OPENCLAW_CLI` | `openclaw` | CLI command (`clawdbot`, `moltbot`) |
+| `OPENCLAW_DIR` | `.openclaw` | Config directory (`.clawdbot`, `.moltbot`) |
+| `WORKSPACE_DIR` | `~/<OPENCLAW_DIR>/workspace` | Agent workspace (SOUL.md, USER.md) |
 
 ### Voice STT (Optional)
 
