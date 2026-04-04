@@ -6887,14 +6887,16 @@
         sortedNets.forEach(netName => {
           const cs = groups[netName];
           const running = cs.filter(c => c.state === 'running').length;
-          html += `<div style="margin-bottom:16px">
-            <div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:2px solid rgba(108,99,255,.15)">
+          const gid = 'dng-' + netName.replace(/[^a-zA-Z0-9]/g, '_');
+          html += `<div style="margin-bottom:12px">
+            <div onclick="const t=document.getElementById('${gid}');const c=this.querySelector('.dng-chev');if(t.style.display==='none'){t.style.display='';c.style.transform='rotate(0)'}else{t.style.display='none';c.style.transform='rotate(-90deg)'}" style="display:flex;align-items:center;gap:8px;padding:8px 4px;border-bottom:2px solid rgba(108,99,255,.15);cursor:pointer;user-select:none" onmouseenter="this.style.background='rgba(108,99,255,.04)'" onmouseleave="this.style.background=''">
+              <svg class="dng-chev" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2" stroke-linecap="round" style="transition:transform .2s;flex-shrink:0"><path d="M6 9l6 6 6-6"/></svg>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
               <span style="font-weight:600;color:var(--text1);font-size:13px">${escHtml(netName)}</span>
-              <span style="font-size:10px;color:var(--text3)">${cs.length} container${cs.length>1?'s':''}</span>
+              <span style="font-size:10px;padding:1px 6px;border-radius:4px;background:rgba(108,99,255,.08);color:var(--accent)">${cs.length}</span>
               <span style="font-size:10px;color:#4ade80">${running} running</span>
             </div>
-            <table class="docker-table"><thead><tr>
+            <div id="${gid}"><table class="docker-table"><thead><tr>
               <th>Container</th><th>Image</th><th>Status</th>
               <th>Ports</th><th>CPU / MEM</th><th>Actions</th>
             </tr></thead><tbody>`;
@@ -6912,7 +6914,7 @@
               </div></td>
             </tr>`;
           });
-          html += '</tbody></table></div>';
+          html += '</tbody></table></div></div>';
         });
         content.innerHTML = html;
         return;
