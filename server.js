@@ -351,6 +351,12 @@ app.get("/api/logout", (req, res) => {
   res.redirect("/login");
 });
 
+// Graceful shutdown endpoint
+app.post("/api/admin/shutdown", requireAuth, (req, res) => {
+  res.json({ ok: true, message: "Shutting down..." });
+  setTimeout(() => process.exit(0), 500);
+});
+
 // === File Manager API ===
 const fs = require("fs");
 const MAX_UPLOAD_SIZE = 50 * 1024 * 1024; // 50MB

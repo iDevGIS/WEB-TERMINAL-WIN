@@ -567,6 +567,10 @@
         <span class="qa-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></span>
         <span class="qa-label">Export Logs</span>
       </button>
+      <button class="qa-btn" onclick="shutdownServer()">
+        <span class="qa-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg></span>
+        <span class="qa-label">Shutdown</span>
+      </button>
     </div>
   </div>
 
@@ -1162,6 +1166,14 @@
     a.download = 'cyberframe-logs-' + new Date().toISOString().slice(0,10) + '.txt';
     a.click();
     URL.revokeObjectURL(a.href);
+  }
+
+  async function shutdownServer() {
+    if (!confirm('Shutdown CYBERFRAME server? You will lose access until it restarts.')) return;
+    try {
+      await fetch(API + '/api/admin/shutdown', { method: 'POST' });
+      document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;color:#ef4444;font-size:18px;font-family:Inter,sans-serif">Server shut down. Restart with start-hidden.vbs or node server.js</div>';
+    } catch (e) { alert('Shutdown failed: ' + e.message); }
   }
 
   // === Auto Refresh ===
