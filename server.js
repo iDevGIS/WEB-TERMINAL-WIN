@@ -1247,8 +1247,11 @@ async function _refreshAgentStatusBg() {
     const raw = await new Promise((resolve, reject) => {
       // Inherit PATH so clawdbot/openclaw/moltbot is found even when spawned without shell PATH
       const execEnv = { ...process.env, PATH: process.env.PATH + ';' + require('os').homedir() + '/AppData/Roaming/npm;C:/Program Files/nodejs;C:/Windows/System32' };
-      exec(OPENCLAW_CLI + " status", { encoding: "utf8", timeout: 8000, env: execEnv, shell: true }, (err, stdout) => {
-        if (err) reject(err); else resolve(stdout);
+      exec(OPENCLAW_CLI + " status", { encoding: "utf8", timeout: 8000, env: execEnv, shell: true }, (err, stdout, stderr) => {
+        // Use stdout even if exit code != 0 (e.g. clawdbot may exit non-zero with valid output)
+        if (stdout && stdout.trim()) resolve(stdout);
+        else if (err) reject(new Error(err.message + (stderr ? ' :: ' + stderr.slice(0,200) : '')));
+        else resolve('');
       });
     });
     const info = _parseAgentStatus(stripAnsi(raw));
