@@ -1245,7 +1245,9 @@ async function _refreshAgentStatusBg() {
   try {
     const { exec } = require("child_process");
     const raw = await new Promise((resolve, reject) => {
-      exec(OPENCLAW_CLI + " status", { encoding: "utf8", timeout: 8000 }, (err, stdout) => {
+      // Inherit PATH so clawdbot/openclaw/moltbot is found even when spawned without shell PATH
+      const execEnv = { ...process.env, PATH: process.env.PATH + ';' + require('os').homedir() + '/AppData/Roaming/npm;C:/Program Files/nodejs;C:/Windows/System32' };
+      exec(OPENCLAW_CLI + " status", { encoding: "utf8", timeout: 8000, env: execEnv, shell: true }, (err, stdout) => {
         if (err) reject(err); else resolve(stdout);
       });
     });
