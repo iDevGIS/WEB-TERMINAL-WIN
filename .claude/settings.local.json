@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git -C /c/Users/BudToZai/.openclaw/workspace/SCRIPT-TOOLS/WEB-TERMINAL log --oneline)"
+    ]
+  }
+}

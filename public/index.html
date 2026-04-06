@@ -7893,6 +7893,11 @@
       if (!tab) return;
       try {
         const res = await fetch('/api/agent/status');
+        if (res.status === 401 || res.redirected || res.headers.get('content-type')?.includes('text/html')) {
+          const rawEl = document.getElementById(tabId + '-raw');
+          if (rawEl) rawEl.textContent = 'Session expired — please reload and login again.';
+          return;
+        }
         const data = await res.json();
 
         const dotEl = document.getElementById(tabId + '-status-dot');
