@@ -2258,7 +2258,7 @@
       #sidebar-header { padding: 0 16px; height: 42px; }
       #sidebar-header h1 { font-size: 14px; }
       #sidebar-footer { padding: 10px 16px; }
-    .res-card { background: rgba(255,255,255,.02); border: 1px solid rgba(255,255,255,.04); border-radius: 6px; padding: 5px 7px; }
+    .res-card { background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.05); border-radius: 8px; padding: 5px 8px; }
     .res-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 3px; }
     .res-lbl { font-size: 9px; color: var(--text3); text-transform: uppercase; letter-spacing: .5px; }
     .res-bar-wrap { height: 3px; background: rgba(255,255,255,.06); border-radius: 2px; overflow: hidden; }
@@ -3645,7 +3645,13 @@
     </div>
 
     <!-- Resource Monitor Cards -->
-    <div id="res-monitor" style="padding:6px 12px 8px;border-bottom:1px solid var(--glass-border)">
+    <div id="res-monitor" style="margin:0 12px 8px;padding:10px 12px;border-radius:14px;background:linear-gradient(180deg,#020208 0%,#050510 50%,#020208 100%);border:1px solid rgba(108,99,255,.1);box-shadow:0 4px 16px rgba(0,0,0,.4)">
+      <!-- Header -->
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6c63ff" stroke-width="2" stroke-linecap="round"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/></svg>
+        <span style="font-size:11px;font-weight:700;color:#7c74ff;letter-spacing:.5px">SYSTEM</span>
+        <span id="res-status-dot" style="width:6px;height:6px;border-radius:50%;background:#4ade80;box-shadow:0 0 6px rgba(74,222,128,.5);margin-left:auto"></span>
+      </div>
       <!-- Row: CPU + MEM -->
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:5px">
         <div class="res-card">
