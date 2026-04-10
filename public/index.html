@@ -6283,6 +6283,8 @@
               // Capture usage + model if present
               if (parsed.usage) { tab._lastUsage = parsed.usage; }
               if (parsed.model) { tab._lastModel = parsed.model; }
+              // Capture resource stats injected by server
+              if (parsed.type === 'resource_stats') { tab._lastResStats = parsed; continue; }
               const delta = parsed.choices?.[0]?.delta?.content;
               if (delta) {
                 if (firstDelta) { firstDelta = false; } // dots replaced by content below
@@ -6333,7 +6335,9 @@
             let modelName = tab._lastModel || sess.model || 'auto';
             if (modelName === 'openclaw' && window._agentActualModel) modelName = window._agentActualModel;
             const shortModel = modelName.includes('/') ? modelName.split('/').pop() : modelName;
-            tsDiv.innerHTML = `${aiTimeStr} · <span style="color:var(--accent);font-weight:500">${outTokens} tokens</span> · <span style="color:var(--text3);font-size:9px">${escHtml(shortModel)}</span>`;
+            const rs = tab._lastResStats;
+            const resHtml = rs ? ` · <span style="color:var(--text3);font-size:9px" title="Peak during inference">CPU ${rs.cpu}% MEM ${rs.mem}%${rs.gpu ? ' GPU ' + rs.gpu + '%' : ''}${rs.gpuMem ? ' ' + rs.gpuMem + 'MB' : ''}</span>` : '';
+            tsDiv.innerHTML = `${aiTimeStr} · <span style="color:var(--accent);font-weight:500">${outTokens} tokens</span> · <span style="color:var(--text3);font-size:9px">${escHtml(shortModel)}</span>${resHtml}`;
             bubbleWrap.appendChild(tsDiv);
             sess.messages[sess.messages.length - 1].tokens = outTokens;
             sess.messages[sess.messages.length - 1].model = shortModel;
@@ -6351,6 +6355,7 @@
             sess.tokenCount = Math.max(sess.tokenCount || 0, estTokens);
           }
           tab._lastUsage = null;
+          tab._lastResStats = null;
           _updateTokenBadge(tabId, sess);
         }
 

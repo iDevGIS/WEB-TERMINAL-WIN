@@ -1125,6 +1125,27 @@ app.post("/api/chat", requireAuth, async (req, res) => {
       if (!res.writableEnded) res.write(': keepalive\n\n');
     }, 15000);
 
+    // Sample resource stats during inference
+    const os = require('os');
+    let maxCpu = 0, maxMem = 0, maxGpu = 0, maxGpuMem = 0;
+    const sampleResources = () => {
+      const cpus = os.cpus();
+      const cpuPct = Math.round(cpus.map(c => { const t = Object.values(c.times).reduce((a,b)=>a+b,0); return (t-c.times.idle)/t*100; }).reduce((a,b)=>a+b,0)/cpus.length);
+      const memPct = Math.round((os.totalmem()-os.freemem())/os.totalmem()*100);
+      if (cpuPct > maxCpu) maxCpu = cpuPct;
+      if (memPct > maxMem) maxMem = memPct;
+      // GPU via nvidia-smi
+      try {
+        const { execSync } = require('child_process');
+        const gpuOut = execSync('nvidia-smi --query-gpu=utilization.gpu,memory.used --format=csv,noheader,nounits', { encoding:'utf8', timeout:500 }).trim();
+        const [util, memMB] = gpuOut.split(',').map(s => parseInt(s.trim()));
+        if (!isNaN(util) && util > maxGpu) maxGpu = util;
+        if (!isNaN(memMB) && memMB > maxGpuMem) maxGpuMem = memMB;
+      } catch {}
+    };
+    const statInterval = setInterval(sampleResources, 500);
+    sampleResources();
+
     // Convert Web ReadableStream to Node stream and pipe
     const { Readable } = require("stream");
     const nodeStream = Readable.fromWeb(upstream.body);
@@ -1135,17 +1156,23 @@ app.post("/api/chat", requireAuth, async (req, res) => {
     });
     nodeStream.on("end", () => {
       clearInterval(keepalive);
+      clearInterval(statInterval);
       if (!gotData) console.warn("[Chat proxy] stream ended with no data");
+      // Inject resource stats as special SSE event
+      if (!res.writableEnded) {
+        const stats = { cpu: maxCpu, mem: maxMem, gpu: maxGpu, gpuMem: maxGpuMem };
+        res.write(`data: {"type":"resource_stats","cpu":${stats.cpu},"mem":${stats.mem},"gpu":${stats.gpu},"gpuMem":${stats.gpuMem}}\n\n`);
+      }
       res.end();
     });
     nodeStream.on("error", (err) => {
-      clearInterval(keepalive);
+      clearInterval(keepalive); clearInterval(statInterval);
       console.error("[Chat proxy] stream error:", err.message);
       if (!res.writableEnded) res.write(`data: {"error":"${err.message}"}\n\n`);
       res.end();
     });
     req.on("close", () => {
-      clearInterval(keepalive);
+      clearInterval(keepalive); clearInterval(statInterval);
       nodeStream.destroy();
     });
   } catch (e) {
