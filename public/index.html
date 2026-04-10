@@ -3672,7 +3672,7 @@
       <!-- GPU bar -->
       <div style="padding:0 2px;margin-bottom:8px">
         <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:3px">
-          <span style="font-size:9px;color:var(--text3)">GPU</span>
+          <span style="font-size:9px;color:var(--text3)">GPU <span id="res-gpu-name" style="opacity:.5"></span></span>
           <span id="res-gpu-val" style="font-size:11px;font-weight:700;color:#4ade80;font-family:'JetBrains Mono',monospace">—</span>
         </div>
         <div style="height:2px;background:rgba(255,255,255,.06);border-radius:1px;overflow:hidden"><div id="res-gpu-bar" style="height:100%;border-radius:1px;width:0%;background:linear-gradient(90deg,#10b981,#4ade80);transition:width .5s ease"></div></div>
@@ -10977,6 +10977,8 @@
         if (gpu) {
           if (gpuBar) gpuBar.style.width = Math.min(100, gpu.util || 0) + '%';
           if (gpuVal) gpuVal.textContent = (gpu.util || 0) + '%' + (gpu.temp ? ' \u00b7 ' + gpu.temp + '\u00b0C' : '') + (gpu.memUsed ? ' \u00b7 ' + gpu.memUsed + 'MB' : '');
+          const gpuName = document.getElementById('res-gpu-name');
+          if (gpuName && gpu.name) gpuName.textContent = gpu.name.replace('NVIDIA GeForce ', '').replace('NVIDIA ', '').split(' ').slice(0,3).join(' ');
         } else {
           if (gpuBar) gpuBar.style.width = '0%';
           if (gpuVal) gpuVal.textContent = 'N/A';
