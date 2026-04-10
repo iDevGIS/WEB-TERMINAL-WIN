@@ -3647,33 +3647,40 @@
     <!-- Resource Monitor Cards -->
     <div id="res-monitor" style="margin:0 12px 8px;padding:10px 12px;border-radius:14px;background:linear-gradient(180deg,#020208 0%,#050510 50%,#020208 100%);border:1px solid rgba(108,99,255,.1);box-shadow:0 4px 16px rgba(0,0,0,.4)">
       <!-- Header -->
-      <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6c63ff" stroke-width="2" stroke-linecap="round"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/></svg>
-        <span style="font-size:11px;font-weight:700;color:#7c74ff;letter-spacing:.5px">SYSTEM</span>
-        <span id="res-status-dot" style="width:6px;height:6px;border-radius:50%;background:#4ade80;box-shadow:0 0 6px rgba(74,222,128,.5);margin-left:auto"></span>
+      <div style="display:flex;align-items:center;gap:6px;padding:0 2px;margin-bottom:8px">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#6c63ff" stroke-width="2" stroke-linecap="round"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/></svg>
+        <span style="font-size:10px;font-weight:700;color:#7c74ff;letter-spacing:1px">SYSTEM</span>
+        <span id="res-status-dot" style="width:5px;height:5px;border-radius:50%;background:#4ade80;box-shadow:0 0 5px rgba(74,222,128,.6);margin-left:auto"></span>
       </div>
-      <!-- Row: CPU + MEM -->
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:5px">
-        <div class="res-card">
-          <div class="res-row"><span class="res-lbl">CPU</span><span class="res-val" id="res-cpu-val">—</span></div>
-          <div class="res-bar-wrap"><div class="res-bar" id="res-cpu-bar" style="background:linear-gradient(90deg,#6c63ff,#8b5cf6)"></div></div>
+      <!-- CPU + MEM bars -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:0 2px;margin-bottom:6px">
+        <div>
+          <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:3px">
+            <span style="font-size:9px;color:var(--text3)">CPU</span>
+            <span id="res-cpu-val" style="font-size:11px;font-weight:700;color:#9f95ff;font-family:'JetBrains Mono',monospace">—</span>
+          </div>
+          <div style="height:2px;background:rgba(255,255,255,.06);border-radius:1px;overflow:hidden"><div id="res-cpu-bar" style="height:100%;border-radius:1px;width:0%;background:linear-gradient(90deg,#6c63ff,#a78bfa);transition:width .5s ease"></div></div>
         </div>
-        <div class="res-card">
-          <div class="res-row"><span class="res-lbl">MEM</span><span class="res-val" id="res-mem-val">—</span></div>
-          <div class="res-bar-wrap"><div class="res-bar" id="res-mem-bar" style="background:linear-gradient(90deg,#06b6d4,#3b82f6)"></div></div>
+        <div>
+          <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:3px">
+            <span style="font-size:9px;color:var(--text3)">MEM</span>
+            <span id="res-mem-val" style="font-size:11px;font-weight:700;color:#67e8f9;font-family:'JetBrains Mono',monospace">—</span>
+          </div>
+          <div style="height:2px;background:rgba(255,255,255,.06);border-radius:1px;overflow:hidden"><div id="res-mem-bar" style="height:100%;border-radius:1px;width:0%;background:linear-gradient(90deg,#06b6d4,#3b82f6);transition:width .5s ease"></div></div>
         </div>
       </div>
-      <!-- Row: GPU -->
-      <div class="res-card" style="margin-bottom:5px">
-        <div class="res-row"><span class="res-lbl">GPU</span><span class="res-val" id="res-gpu-val">—</span></div>
-        <div class="res-bar-wrap"><div class="res-bar" id="res-gpu-bar" style="background:linear-gradient(90deg,#10b981,#4ade80)"></div></div>
-      </div>
-      <!-- Row: Network IPs -->
-      <div class="res-card">
-        <div class="res-row" style="font-size:9px">
-          <span style="color:#4ade80">🏠<span id="res-net-up" style="margin-left:3px;color:var(--text2)">—</span></span>
-          <span style="color:#60a5fa">🔒<span id="res-net-down" style="margin-left:3px;color:var(--text2)">—</span></span>
+      <!-- GPU bar -->
+      <div style="padding:0 2px;margin-bottom:8px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:3px">
+          <span style="font-size:9px;color:var(--text3)">GPU</span>
+          <span id="res-gpu-val" style="font-size:11px;font-weight:700;color:#4ade80;font-family:'JetBrains Mono',monospace">—</span>
         </div>
+        <div style="height:2px;background:rgba(255,255,255,.06);border-radius:1px;overflow:hidden"><div id="res-gpu-bar" style="height:100%;border-radius:1px;width:0%;background:linear-gradient(90deg,#10b981,#4ade80);transition:width .5s ease"></div></div>
+      </div>
+      <!-- Network IPs -->
+      <div style="padding:0 2px;display:flex;align-items:center;justify-content:space-between">
+        <span style="font-size:9px;color:#4ade80">• <span id="res-net-up" style="color:var(--text3);font-family:'JetBrains Mono',monospace">—</span></span>
+        <span style="font-size:9px;color:#60a5fa">🔒 <span id="res-net-down" style="color:var(--text3);font-family:'JetBrains Mono',monospace">—</span></span>
       </div>
     </div>
 
