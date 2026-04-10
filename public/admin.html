@@ -624,6 +624,23 @@
     </div>
   </div>
 
+  <!-- Tailscale Funnel -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+        Tailscale Funnel
+      </div>
+      <div style="display:flex;align-items:center;gap:4px">
+        <button onclick="tfAddPrompt()" style="width:20px;height:20px;border-radius:10px;border:1px solid rgba(251,191,36,.2);background:rgba(251,191,36,.08);color:#fbbf24;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;transition:all .15s;font-weight:600;line-height:1" onmouseenter="this.style.background='rgba(251,191,36,.15)'" onmouseleave="this.style.background='rgba(251,191,36,.08)'" title="Add funnel rule">+</button>
+        <span class="card-badge" id="tf-count" style="background:rgba(251,191,36,.15);color:#fbbf24">…</span>
+      </div>
+    </div>
+    <div id="tf-list">
+      <div class="net-item"><span class="net-label" style="color:var(--text3)">Loading...</span></div>
+    </div>
+  </div>
+
   <!-- VPN Status -->
   <div class="card">
     <div class="card-header">
@@ -841,15 +858,54 @@
 
   // === Actions ===
   async function killSession(id) {
-    if (!confirm('Kill session ' + id.slice(0,6) + '?')) return;
+    if (!await showModal('Kill session ' + id.slice(0,6) + '?', {danger:true, confirmText:'Kill'})) return;
     await fetch(API + '/api/sessions/' + id, { method: 'DELETE' });
     fetchSessions();
   }
 
   async function killProcess(pid) {
-    if (!confirm('Kill process PID ' + pid + '?')) return;
+    if (!await showModal('Kill process PID ' + pid + '?', {danger:true, confirmText:'Kill'})) return;
     await fetch(API + '/api/admin/kill-process', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({pid}) });
     setTimeout(fetchProcesses, 1000);
+  }
+
+  // === Modal Dialog Utility ===
+  function showModal(msg, {type = 'confirm', confirmText = 'OK', cancelText = 'Cancel', danger = false} = {}) {
+    return new Promise(resolve => {
+      const overlay = document.createElement('div');
+      overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;z-index:9999';
+      const accent = danger ? '#ef4444' : '#60a5fa';
+      const accentBg = danger ? 'linear-gradient(135deg,#ef4444,#dc2626)' : 'linear-gradient(135deg,#60a5fa,#3b82f6)';
+      const iconSvg = type === 'alert'
+        ? (danger
+          ? '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>'
+          : '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>')
+        : (danger
+          ? '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>'
+          : '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4"/></svg>');
+      const lines = msg.split('\n').map(l => `<div>${l}</div>`).join('');
+      const buttons = type === 'alert'
+        ? `<button id="_modal-ok" style="padding:8px 24px;background:${accentBg};border:none;border-radius:8px;color:#fff;cursor:pointer;font-size:12px;font-family:inherit;font-weight:600;transition:all .15s">${confirmText}</button>`
+        : `<button id="_modal-cancel" style="padding:8px 20px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:8px;color:var(--text3);cursor:pointer;font-size:12px;font-family:inherit;transition:all .15s">${cancelText}</button>
+           <button id="_modal-ok" style="padding:8px 20px;background:${accentBg};border:none;border-radius:8px;color:#fff;cursor:pointer;font-size:12px;font-family:inherit;font-weight:600;transition:all .15s">${confirmText}</button>`;
+      overlay.innerHTML = `<div style="width:380px;background:linear-gradient(145deg,rgba(15,15,30,.98),rgba(10,10,26,.99));border:1px solid ${danger ? 'rgba(239,68,68,.15)' : 'rgba(96,165,250,.15)'};border-radius:14px;padding:20px;box-shadow:0 20px 60px rgba(0,0,0,.5)">
+        <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:16px">
+          ${iconSvg}
+          <div style="font-size:13px;color:var(--text);line-height:1.6">${lines}</div>
+        </div>
+        <div style="display:flex;gap:8px;justify-content:flex-end">${buttons}</div>
+      </div>`;
+      const close = (val) => { overlay.remove(); resolve(val); };
+      overlay.querySelector('#_modal-ok').onclick = () => close(true);
+      if (type !== 'alert') overlay.querySelector('#_modal-cancel').onclick = () => close(false);
+      overlay.onclick = (e) => { if (e.target === overlay) close(type === 'alert' ? true : false); };
+      overlay.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') close(true);
+        if (e.key === 'Escape') close(type === 'alert' ? true : false);
+      });
+      document.body.appendChild(overlay);
+      overlay.querySelector('#_modal-ok').focus();
+    });
   }
 
   // === Utils ===
@@ -865,7 +921,7 @@
   async function refreshAll() {
     const btn = document.getElementById('refresh-btn');
     btn.classList.add('loading');
-    await Promise.all([fetchStatus(), fetchSessions(), fetchProcesses(), fetchLogs(), fetchServerInfo(), fetchClients(), fetchTailscale(), fetchVPN(), fetchPorts(), fetchARP(), fetchRoutes()]);
+    await Promise.all([fetchStatus(), fetchSessions(), fetchProcesses(), fetchLogs(), fetchServerInfo(), fetchClients(), fetchTailscale(), fetchFunnel(), fetchVPN(), fetchPorts(), fetchARP(), fetchRoutes()]);
     btn.classList.remove('loading');
   }
 
@@ -963,6 +1019,55 @@
       }).join('');
     } catch (e) {
       console.error('Tailscale fetch failed:', e);
+    }
+  }
+
+  // === Fetch Tailscale Funnel ===
+  async function fetchFunnel() {
+    try {
+      const r = await fetch(API + '/api/admin/tailscale/funnel-status');
+      const d = await r.json();
+      const list = document.getElementById('tf-list');
+      if (!d.available || !d.entries.length) {
+        document.getElementById('tf-count').textContent = '0';
+        list.innerHTML = '<div class="net-item"><span class="net-label" style="color:var(--text3)">No funnel rules</span></div>';
+        return;
+      }
+      document.getElementById('tf-count').textContent = d.entries.length;
+      list.innerHTML = d.entries.map(e => {
+        const port = e.url.match(/:(\d+)$/)?.[1] || '443';
+        const isPublic = e.scope && e.scope.toLowerCase().includes('funnel');
+        const target = e.routes[0]?.target || '';
+        const statusBadge = isPublic
+          ? `<span style="font-size:9px;color:#4ade80;background:rgba(74,222,128,.1);padding:2px 6px;border-radius:4px;border:1px solid rgba(74,222,128,.15)">● public</span>`
+          : `<span style="font-size:9px;color:var(--text3);background:rgba(255,255,255,.05);padding:2px 6px;border-radius:4px">tailnet only</span>`;
+        const toggleBtn = isPublic
+          ? `<button onclick="tfToggle('${port}','off')" style="display:inline-flex;align-items:center;gap:3px;font-size:9px;color:#ef4444;padding:2px 6px;border-radius:4px;border:1px solid rgba(239,68,68,.15);background:rgba(239,68,68,.05);cursor:pointer;transition:all .15s" onmouseenter="this.style.background='rgba(239,68,68,.12)'" onmouseleave="this.style.background='rgba(239,68,68,.05)'">Disable</button>`
+          : `<button onclick="tfToggle('${port}','on','${target.replace(/'/g,"\\'")}')" style="display:inline-flex;align-items:center;gap:3px;font-size:9px;color:#fbbf24;padding:2px 6px;border-radius:4px;border:1px solid rgba(251,191,36,.15);background:rgba(251,191,36,.05);cursor:pointer;transition:all .15s" onmouseenter="this.style.background='rgba(251,191,36,.12)'" onmouseleave="this.style.background='rgba(251,191,36,.05)'">Enable Public</button>`;
+        return `<div style="padding:10px 0;border-bottom:1px solid var(--border)">
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <span style="font-size:13px;color:var(--text);font-weight:600;font-family:'JetBrains Mono',monospace">:${port}</span>
+            <div style="display:flex;align-items:center;gap:6px">
+              ${statusBadge}
+              ${toggleBtn}
+              <a href="${e.url}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:3px;font-size:9px;color:#fbbf24;text-decoration:none;padding:2px 6px;border-radius:4px;border:1px solid rgba(251,191,36,.15);background:rgba(251,191,36,.05);transition:all .15s" onmouseenter="this.style.background='rgba(251,191,36,.12)'" onmouseleave="this.style.background='rgba(251,191,36,.05)'">
+                <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                Open
+              </a>
+              <button onclick="tfRemove('${port}')" style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;background:none;border:1px solid rgba(255,255,255,.05);border-radius:4px;color:var(--text3);cursor:pointer;transition:all .15s" onmouseenter="this.style.color='#ef4444';this.style.borderColor='rgba(239,68,68,.2)';this.style.background='rgba(239,68,68,.06)'" onmouseleave="this.style.color='var(--text3)';this.style.borderColor='rgba(255,255,255,.05)';this.style.background='none'" title="Remove">
+                <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+          </div>
+          ${e.routes.map(r => `<div style="display:flex;align-items:center;gap:5px;padding:4px 0 0 12px">
+            <span style="color:var(--text3);font-size:10px">${r.path}</span>
+            <span style="color:var(--text3);font-size:10px">→</span>
+            <span style="color:#fbbf24;font-size:11px;font-family:'JetBrains Mono',monospace">${r.target}</span>
+          </div>`).join('')}
+        </div>`;
+      }).join('');
+    } catch (e) {
+      console.error('Funnel fetch failed:', e);
     }
   }
 
@@ -1102,7 +1207,7 @@
   async function tsAdd() {
     const port = document.getElementById('ts-port')?.value;
     const target = document.getElementById('ts-target')?.value;
-    if (!port || !target) return alert('Port and target required');
+    if (!port || !target) return showModal('Port and target required', {type:'alert', danger:true});
     document.querySelector('.ts-dialog')?.remove();
     try {
       const r = await fetch(API + '/api/admin/tailscale/serve', {
@@ -1110,27 +1215,116 @@
         body: JSON.stringify({ action: 'add', port, target })
       });
       const d = await r.json();
-      if (d.error) alert('Error: ' + d.error);
+      if (d.error) showModal('Error: ' + d.error, {type:'alert', danger:true});
       fetchTailscale();
-    } catch (e) { alert('Error: ' + e.message); }
+    } catch (e) { showModal('Error: ' + e.message, {type:'alert', danger:true}); }
   }
 
   async function tsRemove(port) {
-    if (!confirm('Remove Tailscale serve rule for port :' + port + '?')) return;
+    if (!await showModal('Remove Tailscale serve rule for port :' + port + '?', {danger:true, confirmText:'Remove'})) return;
     try {
       const r = await fetch(API + '/api/admin/tailscale/serve', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'remove', port })
       });
       const d = await r.json();
-      if (d.error) alert('Error: ' + d.error);
+      if (d.error) showModal('Error: ' + d.error, {type:'alert', danger:true});
       fetchTailscale();
-    } catch (e) { alert('Error: ' + e.message); }
+    } catch (e) { showModal('Error: ' + e.message, {type:'alert', danger:true}); }
+  }
+
+  // === Tailscale Funnel Management ===
+  async function tfToggle(port, mode, target) {
+    if (mode === 'on') {
+      if (!await showModal('Enable public funnel for port :' + port + '?\nThis will expose it to the internet.', {danger:true, confirmText:'Enable Public'})) return;
+      try {
+        const r = await fetch(API + '/api/admin/tailscale/funnel', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'add', port, target })
+        });
+        const d = await r.json();
+        if (d.error) showModal('Error: ' + d.error, {type:'alert', danger:true});
+        fetchFunnel();
+      } catch (e) { showModal('Error: ' + e.message, {type:'alert', danger:true}); }
+    } else {
+      if (!await showModal('Disable public funnel for port :' + port + '?\nIt will remain accessible within your tailnet via serve.', {confirmText:'Disable'})) return;
+      try {
+        const r = await fetch(API + '/api/admin/tailscale/funnel', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'remove', port })
+        });
+        const d = await r.json();
+        if (d.error) showModal('Error: ' + d.error, {type:'alert', danger:true});
+        fetchFunnel();
+      } catch (e) { showModal('Error: ' + e.message, {type:'alert', danger:true}); }
+    }
+  }
+
+  function tfAddPrompt() {
+    const existing = document.querySelector('.tf-dialog');
+    if (existing) { existing.remove(); return; }
+    const dialog = document.createElement('div');
+    dialog.className = 'tf-dialog';
+    dialog.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;z-index:9999';
+    dialog.onclick = (e) => { if (e.target === dialog) dialog.remove(); };
+    dialog.innerHTML = `<div style="width:380px;background:linear-gradient(145deg,rgba(15,15,30,.98),rgba(10,10,26,.99));border:1px solid rgba(251,191,36,.15);border-radius:14px;padding:20px;box-shadow:0 20px 60px rgba(0,0,0,.5)">
+      <h3 style="margin:0 0 14px;font-size:14px;color:var(--text);display:flex;align-items:center;gap:8px">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fbbf24" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+        Add Tailscale Funnel Rule
+      </h3>
+      <div style="margin-bottom:6px;padding:6px 10px;background:rgba(251,191,36,.06);border:1px solid rgba(251,191,36,.12);border-radius:8px">
+        <span style="font-size:10px;color:#fbbf24">⚠ Funnel exposes this port to the public internet</span>
+      </div>
+      <div style="margin:10px 0">
+        <label style="font-size:11px;color:var(--text3);margin-bottom:4px;display:block">HTTPS Port</label>
+        <input id="tf-port" type="number" placeholder="e.g. 8888" style="width:100%;padding:8px 12px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:8px;color:var(--text);font-size:13px;font-family:'JetBrains Mono',monospace;box-sizing:border-box" />
+      </div>
+      <div style="margin-bottom:14px">
+        <label style="font-size:11px;color:var(--text3);margin-bottom:4px;display:block">Proxy Target</label>
+        <input id="tf-target" type="text" placeholder="http://localhost:8888" style="width:100%;padding:8px 12px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:8px;color:var(--text);font-size:13px;font-family:'JetBrains Mono',monospace;box-sizing:border-box" />
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button onclick="this.closest('.tf-dialog').remove()" style="padding:7px 16px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:8px;color:var(--text3);cursor:pointer;font-size:12px;font-family:inherit">Cancel</button>
+        <button onclick="tfAdd()" style="padding:7px 16px;background:linear-gradient(135deg,#fbbf24,#f59e0b);border:none;border-radius:8px;color:#000;cursor:pointer;font-size:12px;font-family:inherit;font-weight:600">Add Funnel</button>
+      </div>
+    </div>`;
+    document.body.appendChild(dialog);
+    setTimeout(() => document.getElementById('tf-port')?.focus(), 100);
+    dialog.addEventListener('keydown', (e) => { if (e.key === 'Enter') tfAdd(); if (e.key === 'Escape') dialog.remove(); });
+  }
+
+  async function tfAdd() {
+    const port = document.getElementById('tf-port')?.value;
+    const target = document.getElementById('tf-target')?.value;
+    if (!port || !target) return showModal('Port and target required', {type:'alert', danger:true});
+    document.querySelector('.tf-dialog')?.remove();
+    try {
+      const r = await fetch(API + '/api/admin/tailscale/funnel', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'add', port, target })
+      });
+      const d = await r.json();
+      if (d.error) showModal('Error: ' + d.error, {type:'alert', danger:true});
+      fetchFunnel();
+    } catch (e) { showModal('Error: ' + e.message, {type:'alert', danger:true}); }
+  }
+
+  async function tfRemove(port) {
+    if (!await showModal('Remove Tailscale funnel rule for port :' + port + '?', {danger:true, confirmText:'Remove'})) return;
+    try {
+      const r = await fetch(API + '/api/admin/tailscale/funnel', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'remove', port })
+      });
+      const d = await r.json();
+      if (d.error) showModal('Error: ' + d.error, {type:'alert', danger:true});
+      fetchFunnel();
+    } catch (e) { showModal('Error: ' + e.message, {type:'alert', danger:true}); }
   }
 
   // === Quick Action Helpers ===
   async function killAllSessions() {
-    if (!confirm('Kill ALL active sessions?')) return;
+    if (!await showModal('Kill ALL active sessions?', {danger:true, confirmText:'Kill All'})) return;
     try {
       const r = await fetch(API + '/api/sessions');
       const sessions = await r.json();
@@ -1138,7 +1332,7 @@
         await fetch(API + '/api/sessions/' + s.id, { method: 'DELETE' });
       }
       fetchSessions();
-    } catch (e) { alert('Error: ' + e.message); }
+    } catch (e) { showModal('Error: ' + e.message, {type:'alert', danger:true}); }
   }
 
   function openVNC() {
@@ -1169,11 +1363,11 @@
   }
 
   async function shutdownServer() {
-    if (!confirm('Shutdown CYBERFRAME server? You will lose access until it restarts.')) return;
+    if (!await showModal('Shutdown CYBERFRAME server?\nYou will lose access until it restarts.', {danger:true, confirmText:'Shutdown'})) return;
     try {
       await fetch(API + '/api/admin/shutdown', { method: 'POST' });
       document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;color:#ef4444;font-size:18px;font-family:Inter,sans-serif">Server shut down. Restart with start-hidden.vbs or node server.js</div>';
-    } catch (e) { alert('Shutdown failed: ' + e.message); }
+    } catch (e) { showModal('Shutdown failed: ' + e.message, {type:'alert', danger:true}); }
   }
 
   // === Auto Refresh ===

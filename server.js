@@ -1703,6 +1703,48 @@ app.post("/api/admin/tailscale/serve", requireAuth, express.json(), (req, res) =
   }
 });
 
+// GET /api/admin/tailscale/funnel-status — tailscale funnel status
+app.get("/api/admin/tailscale/funnel-status", requireAuth, (req, res) => {
+  const { exec } = require("child_process");
+  exec("tailscale funnel status", { timeout: 5000 }, (err, stdout) => {
+    if (err) return res.json({ available: false, error: err.message });
+    const entries = [];
+    let current = null;
+    stdout.split("\n").forEach(line => {
+      const hostMatch = line.match(/^(https?:\/\/\S+?)(?:\s+\((.+?)\))?$/);
+      if (hostMatch) {
+        current = { url: hostMatch[1], scope: hostMatch[2] || '', routes: [] };
+        entries.push(current);
+      } else if (current && line.includes("|--")) {
+        const routeMatch = line.match(/\|--\s+(\S+)\s+proxy\s+(\S+)/);
+        if (routeMatch) current.routes.push({ path: routeMatch[1], target: routeMatch[2] });
+      }
+    });
+    res.json({ available: true, entries });
+  });
+});
+
+// POST /api/admin/tailscale/funnel — add/remove tailscale funnel rule
+app.post("/api/admin/tailscale/funnel", requireAuth, express.json(), (req, res) => {
+  const { action, port, target } = req.body;
+  const { exec } = require("child_process");
+  if (action === "add") {
+    if (!port || !target) return res.status(400).json({ error: "port and target required" });
+    exec(`tailscale funnel --bg --https ${port} ${target}`, { timeout: 10000 }, (err, stdout, stderr) => {
+      if (err) return res.status(500).json({ error: stderr || err.message });
+      res.json({ ok: true, output: stdout });
+    });
+  } else if (action === "remove") {
+    if (!port) return res.status(400).json({ error: "port required" });
+    exec(`tailscale funnel --https=${port} off`, { timeout: 10000 }, (err, stdout, stderr) => {
+      if (err) return res.status(500).json({ error: stderr || err.message });
+      res.json({ ok: true, output: stdout });
+    });
+  } else {
+    res.status(400).json({ error: "action must be add or remove" });
+  }
+});
+
 // GET /api/admin/vpn — VPN/network adapter status
 app.get("/api/admin/vpn", requireAuth, (req, res) => {
   const { exec } = require("child_process");
