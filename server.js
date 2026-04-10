@@ -1312,7 +1312,8 @@ app.get("/api/agent/status", requireAuth, async (req, res) => {
 
 // === Docker Container Management ===
 const Docker = require("dockerode");
-const docker = new Docker({ socketPath: process.platform === "win32" ? "//./pipe/docker_engine" : "/var/run/docker.sock" });
+const _dockerSocket = process.env.DOCKER_SOCKET || (process.platform === "win32" ? "//./pipe/docker_engine" : "/var/run/docker.sock");
+const docker = new Docker({ socketPath: _dockerSocket });
 
 // Docker availability check
 let _dockerAvailable = null;
