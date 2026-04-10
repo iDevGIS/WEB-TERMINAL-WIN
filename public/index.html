@@ -6769,11 +6769,16 @@
     }
 
     // === Docker Container Management ===
-    function openDockerTab() {
+    async function openDockerTab() {
       for (const [tabId, tab] of tabs) {
         if (tab.type === 'docker') { switchTab(tabId); return; }
       }
-      createTab('docker', { name: 'Docker', icon: '🐳' });
+      // Check Docker availability before creating tab
+      try {
+        const r = await fetch('/api/docker/info');
+        if (r.status === 503) { showToast('Docker is not running on this machine', 'error'); return; }
+      } catch { showToast('Cannot reach Docker API', 'error'); return; }
+      createTab('docker', { name: 'Docker', icon: '\u{1F433}' });
     }
 
     async function dockerRefreshInfo(tabId) {
