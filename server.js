@@ -2047,7 +2047,13 @@ server.on("upgrade", (req, socket, head) => {
       const wsPath = req.url.startsWith("/vscode") ? (req.url.replace(/^\/vscode/, '') || '/') : req.url;
       const target = `ws://127.0.0.1:${VSCODE_PORT}${wsPath}`;
       const ws2 = require("ws");
-      const upstream = new ws2(target, { headers: { host: '127.0.0.1:' + VSCODE_PORT } });
+      const upstream = new ws2(target, {
+        headers: {
+          host: '127.0.0.1:' + VSCODE_PORT,
+          origin: 'http://127.0.0.1:' + VSCODE_PORT,
+          'x-forwarded-for': req.socket.remoteAddress || '127.0.0.1',
+        }
+      });
       upstream.on("open", () => {
         wss.handleUpgrade(req, socket, head, (client) => {
           client.on("message", (d) => { try { upstream.send(d); } catch {} });
