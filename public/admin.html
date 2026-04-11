@@ -708,6 +708,26 @@
     </div>
   </div>
 
+  <!-- Startup Programs -->
+  <div class="card card-full">
+    <div class="card-header">
+      <div class="card-title">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        Startup Programs
+      </div>
+      <div style="display:flex;align-items:center;gap:4px">
+        <button onclick="startupAddPrompt()" style="width:20px;height:20px;border-radius:10px;border:1px solid rgba(251,146,60,.2);background:rgba(251,146,60,.08);color:#fb923c;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;transition:all .15s;font-weight:600;line-height:1" onmouseenter="this.style.background='rgba(251,146,60,.15)'" onmouseleave="this.style.background='rgba(251,146,60,.08)'" title="Add startup item">+</button>
+        <span class="card-badge" id="startup-count" style="background:rgba(251,146,60,.15);color:#fb923c">…</span>
+      </div>
+    </div>
+    <div style="overflow-x:auto">
+      <table class="admin-table" id="startup-table" style="table-layout:fixed;width:100%">
+        <thead><tr><th style="width:18%">Name</th><th style="width:8%">Source</th><th class="hide-mobile" style="width:7%">Scope</th><th class="hide-mobile" style="width:35%">Command</th><th style="width:8%">Status</th><th style="width:24%;text-align:right">Controls</th></tr></thead>
+        <tbody id="startup-body"><tr><td colspan="6" style="text-align:center;color:var(--text3)">Loading...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
   <!-- Routing Table -->
   <div class="card card-full">
     <div class="card-header">
@@ -946,7 +966,7 @@
   async function refreshAll() {
     const btn = document.getElementById('refresh-btn');
     btn.classList.add('loading');
-    await Promise.all([fetchStatus(), fetchSessions(), fetchProcesses(), fetchLogs(), fetchServerInfo(), fetchClients(), fetchTailscale(), fetchFunnel(), fetchVPN(), fetchPorts(), fetchARP(), fetchRoutes(), fetchScheduledTasks()]);
+    await Promise.all([fetchStatus(), fetchSessions(), fetchProcesses(), fetchLogs(), fetchServerInfo(), fetchClients(), fetchTailscale(), fetchFunnel(), fetchVPN(), fetchPorts(), fetchARP(), fetchRoutes(), fetchScheduledTasks(), fetchStartup()]);
     btn.classList.remove('loading');
   }
 
@@ -1195,6 +1215,106 @@
         </tr>`;
       }).join('');
     } catch (e) { console.error('Routes fetch failed:', e); }
+  }
+
+  // === Fetch Startup Programs ===
+  async function fetchStartup() {
+    try {
+      const r = await fetch(API + '/api/admin/startup');
+      const d = await r.json();
+      const body = document.getElementById('startup-body');
+      if (!d.available || !d.items?.length) {
+        document.getElementById('startup-count').textContent = '0';
+        body.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text3)">No startup items</td></tr>';
+        return;
+      }
+      document.getElementById('startup-count').textContent = d.items.length;
+      body.innerHTML = d.items.map(item => {
+        const eName = item.Name.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+        const srcColor = item.Source === 'Registry' ? '#60a5fa' : item.Source === 'UWP' ? '#a78bfa' : '#fb923c';
+        const scopeColor = item.Scope === 'System' ? '#a78bfa' : 'var(--text3)';
+        const statusColor = item.Enabled ? '#4ade80' : '#ef4444';
+        const statusText = item.Enabled ? 'Enabled' : 'Disabled';
+        const itemData = JSON.stringify(JSON.stringify({Name:item.Name,Scope:item.Scope,Source:item.Source,Command:item.Command}));
+        const canToggle = item.Source === 'Registry' || item.Source === 'UWP';
+        const toggleBtn = canToggle
+          ? (item.Enabled
+            ? `<button onclick="startupAction('disable',${itemData})" style="font-size:9px;padding:2px 6px;border-radius:4px;border:1px solid rgba(239,68,68,.15);background:rgba(239,68,68,.05);color:#ef4444;cursor:pointer;transition:all .15s">Disable</button>`
+            : `<button onclick="startupAction('enable',${itemData})" style="font-size:9px;padding:2px 6px;border-radius:4px;border:1px solid rgba(74,222,128,.15);background:rgba(74,222,128,.05);color:#4ade80;cursor:pointer;transition:all .15s">Enable</button>`)
+          : '';
+        const delBtn = item.Source !== 'UWP' ? `<button onclick="startupDelete(${itemData})" style="font-size:9px;padding:2px 6px;border-radius:4px;border:1px solid rgba(239,68,68,.15);background:rgba(239,68,68,.05);color:#ef4444;cursor:pointer;transition:all .15s">Delete</button>` : '';
+        return `<tr>
+          <td style="font-size:11px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:0" title="${item.Name}"><div style="display:flex;align-items:center;gap:6px">${item.Icon ? '<img src="'+item.Icon+'" width="16" height="16" style="flex-shrink:0;border-radius:2px" />' : '<div style="width:16px;height:16px;flex-shrink:0;background:rgba(255,255,255,.05);border-radius:2px"></div>'}<span style="overflow:hidden;text-overflow:ellipsis">${item.Name}</span></div></td>
+          <td><span style="font-size:9px;color:${srcColor};background:${srcColor}15;padding:2px 6px;border-radius:4px">${item.Source}</span></td>
+          <td class="hide-mobile"><span style="font-size:9px;color:${scopeColor}">${item.Scope}</span></td>
+          <td class="hide-mobile" style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:0" title="${(item.Command||'').replace(/"/g,'&quot;')}">${item.Command || '—'}</td>
+          <td><span style="font-size:9px;color:${statusColor}">${statusText}</span></td>
+          <td style="text-align:right"><div style="display:flex;gap:4px;justify-content:flex-end">${toggleBtn}${delBtn}</div></td>
+        </tr>`;
+      }).join('');
+    } catch (e) { console.error('Startup fetch failed:', e); }
+  }
+
+  async function startupAction(action, dataJson) {
+    const data = JSON.parse(dataJson);
+    try {
+      const r = await fetch(API + '/api/admin/startup', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, data })
+      });
+      const d = await r.json();
+      if (d.error) showModal('Error: ' + d.error, { type: 'alert', danger: true });
+      fetchStartup();
+    } catch (e) { showModal('Error: ' + e.message, { type: 'alert', danger: true }); }
+  }
+
+  async function startupDelete(dataJson) {
+    const data = JSON.parse(dataJson);
+    if (!await showModal('Delete startup item "' + data.Name + '"?\nThis cannot be undone.', { danger: true, confirmText: 'Delete' })) return;
+    await startupAction('delete', dataJson);
+  }
+
+  function startupAddPrompt() {
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;z-index:9999';
+    overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+    overlay.innerHTML = `<div style="width:440px;background:linear-gradient(145deg,rgba(15,15,30,.98),rgba(10,10,26,.99));border:1px solid rgba(251,146,60,.15);border-radius:14px;padding:20px;box-shadow:0 20px 60px rgba(0,0,0,.5)">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fb923c" stroke-width="2" stroke-linecap="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        <span style="font-size:14px;font-weight:600;color:var(--text)">Add Startup Item</span>
+      </div>
+      <div style="margin-bottom:8px"><label style="${_labelStyle}">Name *</label><input id="_su-name" style="${_inputStyle}" placeholder="My App" /></div>
+      <div style="margin-bottom:8px"><label style="${_labelStyle}">Command / Path *</label><input id="_su-cmd" style="${_inputStyle}" placeholder='C:\\Program Files\\App\\app.exe' /></div>
+      <div style="margin-bottom:8px"><label style="${_labelStyle}">Arguments</label><input id="_su-args" style="${_inputStyle}" placeholder="--silent" /></div>
+      <div style="display:flex;gap:8px;margin-bottom:14px">
+        <div style="flex:1"><label style="${_labelStyle}">Source</label><select id="_su-source" style="${_inputStyle}"><option value="Registry">Registry</option><option value="Folder">Startup Folder</option></select></div>
+        <div style="flex:1"><label style="${_labelStyle}">Scope</label><select id="_su-scope" style="${_inputStyle}"><option value="User">User</option><option value="System">System</option></select></div>
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button onclick="this.closest('div[style*=fixed]').remove()" style="padding:7px 16px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:8px;color:var(--text3);cursor:pointer;font-size:12px;font-family:inherit">Cancel</button>
+        <button id="_su-save" style="padding:7px 16px;background:linear-gradient(135deg,#fb923c,#f97316);border:none;border-radius:8px;color:#000;cursor:pointer;font-size:12px;font-family:inherit;font-weight:600">Add</button>
+      </div>
+    </div>`;
+    document.body.appendChild(overlay);
+    overlay.querySelector('#_su-save').onclick = async () => {
+      const name = overlay.querySelector('#_su-name').value.trim();
+      const cmd = overlay.querySelector('#_su-cmd').value.trim();
+      if (!name || !cmd) return showModal('Name and Command are required', { type: 'alert', danger: true });
+      const args = overlay.querySelector('#_su-args').value.trim();
+      const source = overlay.querySelector('#_su-source').value;
+      const scope = overlay.querySelector('#_su-scope').value;
+      const data = { Name: name, Source: source, Scope: scope };
+      if (source === 'Folder') {
+        data.Command = cmd;
+        if (args) data.Arguments = args;
+      } else {
+        data.Command = args ? cmd + ' ' + args : cmd;
+      }
+      overlay.remove();
+      await startupAction('add', JSON.stringify(data));
+    };
+    overlay.addEventListener('keydown', (e) => { if (e.key === 'Escape') overlay.remove(); if (e.key === 'Enter') overlay.querySelector('#_su-save').click(); });
+    setTimeout(() => overlay.querySelector('#_su-name')?.focus(), 100);
   }
 
   // === Fetch Scheduled Tasks ===

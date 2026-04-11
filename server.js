@@ -1803,6 +1803,34 @@ app.get("/api/admin/scheduled-tasks/detail", requireAuth, (req, res) => {
   });
 });
 
+// GET /api/admin/startup — Windows startup programs
+app.get("/api/admin/startup", requireAuth, (req, res) => {
+  const { execFile } = require("child_process");
+  const psFile = require("path").join(__dirname, "_startup.ps1");
+  execFile("powershell", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", psFile], { timeout: 15000 }, (err, stdout) => {
+    if (err) return res.json({ available: false, error: err.message });
+    try {
+      let items = JSON.parse(stdout || "[]");
+      if (!Array.isArray(items)) items = [items];
+      res.json({ available: true, items });
+    } catch (e) { res.json({ available: false, error: "parse error" }); }
+  });
+});
+
+// POST /api/admin/startup — add/enable/disable/delete startup item
+app.post("/api/admin/startup", requireAuth, express.json(), (req, res) => {
+  const { execFile } = require("child_process");
+  const { action, data } = req.body;
+  if (!action || !data) return res.status(400).json({ error: "action and data required" });
+  const psFile = require("path").join(__dirname, "_startup_edit.ps1");
+  const jsonB64 = Buffer.from(JSON.stringify(data)).toString("base64");
+  execFile("powershell", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", psFile, "-Action", action, "-JsonData", jsonB64], { timeout: 15000 }, (err, stdout, stderr) => {
+    if (err) return res.status(500).json({ error: stderr || err.message });
+    try { res.json(JSON.parse(stdout)); }
+    catch (e) { res.json({ ok: true, output: stdout }); }
+  });
+});
+
 // GET /api/admin/vpn — VPN/network adapter status
 app.get("/api/admin/vpn", requireAuth, (req, res) => {
   const { exec } = require("child_process");
