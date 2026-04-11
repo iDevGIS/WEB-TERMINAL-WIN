@@ -1831,6 +1831,20 @@ app.post("/api/admin/startup", requireAuth, express.json(), (req, res) => {
   });
 });
 
+// === Spy: Camera & Audio Streaming ===
+// GET /api/spy/devices — list available cameras and mics
+app.get("/api/spy/devices", requireAuth, (req, res) => {
+  const { execFile } = require("child_process");
+  const psFile = require("path").join(__dirname, "_devices.ps1");
+  execFile("powershell", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", psFile], { timeout: 10000 }, (err, stdout) => {
+    if (err) return res.json({ video: [], audio: [], error: err.message });
+    try { res.json(JSON.parse(stdout)); }
+    catch (e) { res.json({ video: [], audio: [] }); }
+  });
+});
+
+// Spy WebSocket streams are handled in the upgrade handler below
+
 // GET /api/admin/vpn — VPN/network adapter status
 app.get("/api/admin/vpn", requireAuth, (req, res) => {
   const { exec } = require("child_process");
@@ -2161,6 +2175,56 @@ app.get("/api/agent/sessions/info", requireAuth, (req, res) => {
 const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true });
 const vncWss = new WebSocketServer({ noServer: true });
+const spyWss = new WebSocketServer({ noServer: true });
+
+// Spy WebSocket: camera (MJPEG frames) and audio (PCM) via binary WS
+spyWss.on("connection", (ws, req) => {
+  const { spawn } = require("child_process");
+  const url = new URL(req.url, "http://localhost");
+  const type = url.searchParams.get("type"); // "camera" or "audio"
+  const device = url.searchParams.get("device");
+  if (!device || !type) { ws.close(1008, "device and type required"); return; }
+
+  let ff;
+  if (type === "camera") {
+    ff = spawn("ffmpeg", [
+      "-f", "dshow", "-framerate", "30", "-video_size", "1280x720",
+      "-rtbufsize", "100M", "-i", `video=${device}`,
+      "-f", "mjpeg", "-q:v", "3", "-r", "24",
+      "-an", "pipe:1"
+    ], { stdio: ["ignore", "pipe", "pipe"] });
+    let buffer = Buffer.alloc(0);
+    const SOI = Buffer.from([0xFF, 0xD8]);
+    const EOI = Buffer.from([0xFF, 0xD9]);
+    ff.stdout.on("data", (chunk) => {
+      buffer = Buffer.concat([buffer, chunk]);
+      let start, end;
+      while ((start = buffer.indexOf(SOI)) !== -1 && (end = buffer.indexOf(EOI, start)) !== -1) {
+        const frame = buffer.subarray(start, end + 2);
+        buffer = buffer.subarray(end + 2);
+        if (ws.readyState === 1) ws.send(frame);
+      }
+    });
+  } else if (type === "audio") {
+    ff = spawn("ffmpeg", [
+      "-f", "dshow", "-i", `audio=${device}`,
+      "-acodec", "pcm_f32le", "-ar", "16000", "-ac", "1",
+      "-f", "f32le", "pipe:1"
+    ], { stdio: ["ignore", "pipe", "pipe"] });
+    ff.stdout.on("data", (chunk) => {
+      if (ws.readyState === 1) ws.send(chunk);
+    });
+  } else {
+    ws.close(1008, "type must be camera or audio");
+    return;
+  }
+
+  ff.stderr.on("data", () => {}); // suppress ffmpeg logs
+  ff.on("close", () => { if (ws.readyState === 1) ws.close(); });
+  ff.on("error", () => { if (ws.readyState === 1) ws.close(); });
+  ws.on("close", () => { ff.kill("SIGKILL"); });
+  ws.on("error", () => { ff.kill("SIGKILL"); });
+});
 const VNC_PORT = parseInt(process.env.VNC_PORT) || 5900;
 
 // Upgrade with session check — route terminal vs VNC
@@ -2197,6 +2261,10 @@ server.on("upgrade", (req, socket, head) => {
     if (req.url === "/vnc-ws") {
       vncWss.handleUpgrade(req, socket, head, (ws) => {
         vncWss.emit("connection", ws, req);
+      });
+    } else if (req.url.startsWith("/spy-ws")) {
+      spyWss.handleUpgrade(req, socket, head, (ws) => {
+        spyWss.emit("connection", ws, req);
       });
     } else {
       wss.handleUpgrade(req, socket, head, (ws) => {
