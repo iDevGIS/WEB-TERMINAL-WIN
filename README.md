@@ -139,6 +139,7 @@
 - **Quick Actions** - New Shell, Kill All Sessions, Remote Desktop, Copy IP, Export Logs
 - **Connected Browsers** - track active browser sessions (IP, browser, OS, connected time)
 - **Tailscale Serve Management** - view/add/remove Tailscale serve rules directly from admin panel
+- **Tailscale Funnel Management** - expose ports to the public internet with enable/disable toggle, real-time status badges (`● public` / `tailnet only`)
 - **VPN Status** - detect VPN/Tailscale/WireGuard adapters with up/down status
 - **Listening Ports** - all TCP LISTEN ports with process name, PID, known service labels (CYBERFRAME, VNC, PostgreSQL...)
 - **ARP Table** - IP/MAC/type with gateway detection
@@ -529,14 +530,24 @@ tailscale funnel --bg --https 443 http://127.0.0.1:3000
 
 ⚠️ **Warning:** Funnel exposes your terminal to the internet. Make sure you use a strong password!
 
-### 4. Manage Serve Rules from Admin Panel
+### 4. Manage from Admin Panel
 
-You can also add/remove Tailscale serve rules directly from the CYBERFRAME Admin panel - no CLI needed!
+You can manage both Tailscale Serve and Funnel directly from the CYBERFRAME Admin panel - no CLI needed!
 
+**Tailscale Serve** (tailnet only):
 - Navigate to **Admin** → **Tailscale Serve** card
 - Click **+** to add a new HTTPS port forwarding rule
 - Click **✕** to remove an existing rule
 - Click **Open** to visit the served URL
+
+**Tailscale Funnel** (public internet):
+- Navigate to **Admin** → **Tailscale Funnel** card
+- Click **+** to add a new funnel rule
+- Click **Enable Public** to expose a serve rule to the internet
+- Click **Disable** to revoke public access (serve rule remains)
+- Status badges show real-time state: `● public` or `tailnet only`
+
+> **Note:** Funnel only supports ports `443`, `8443`, and `10000`. Other ports will be accepted by the CLI but won't route traffic from the public internet.
 
 This is especially useful for Docker containers - forward container ports through Tailscale with one click from the Docker port popup menu.
 
@@ -685,6 +696,8 @@ CYBERFRAME
 | GET | `/api/docker/compose-file` | Read compose file for a network group |
 | GET | `/api/admin/tailscale` | Tailscale serve status |
 | POST | `/api/admin/tailscale/serve` | Add/remove Tailscale serve rule |
+| GET | `/api/admin/tailscale/funnel-status` | Tailscale funnel status |
+| POST | `/api/admin/tailscale/funnel` | Add/remove Tailscale funnel rule |
 | GET | `/api/admin/vpn` | VPN adapter status |
 | GET | `/api/admin/ports` | Listening TCP ports |
 | GET | `/api/admin/arp` | ARP table |
