@@ -140,6 +140,8 @@
 - **Connected Browsers** - track active browser sessions (IP, browser, OS, connected time)
 - **Tailscale Serve Management** - view/add/remove Tailscale serve rules directly from admin panel
 - **Tailscale Funnel Management** - expose ports to the public internet with enable/disable toggle, real-time status badges (`● public` / `tailnet only`)
+- **Scheduled Tasks Management** - view/edit/create/delete Windows scheduled tasks with trigger editor (Boot, Logon, Daily, Weekly, Once), action editor, settings toggles, Next Run countdown with urgency-based blink animation
+- **Startup Programs** - manage Windows startup items from Registry (HKCU/HKLM), Startup Folders, and UWP Store apps with app icons, enable/disable toggle, add/delete support
 - **VPN Status** - detect VPN/Tailscale/WireGuard adapters with up/down status
 - **Listening Ports** - all TCP LISTEN ports with process name, PID, known service labels (CYBERFRAME, VNC, PostgreSQL...)
 - **ARP Table** - IP/MAC/type with gateway detection
@@ -698,6 +700,12 @@ CYBERFRAME
 | POST | `/api/admin/tailscale/serve` | Add/remove Tailscale serve rule |
 | GET | `/api/admin/tailscale/funnel-status` | Tailscale funnel status |
 | POST | `/api/admin/tailscale/funnel` | Add/remove Tailscale funnel rule |
+| GET | `/api/admin/scheduled-tasks` | List scheduled tasks (non-Microsoft) |
+| POST | `/api/admin/scheduled-tasks` | Enable/disable/run/stop task |
+| PUT | `/api/admin/scheduled-tasks` | Create/update/delete task |
+| GET | `/api/admin/scheduled-tasks/detail` | Single task detail |
+| GET | `/api/admin/startup` | Startup programs (Registry, Folder, UWP) |
+| POST | `/api/admin/startup` | Add/enable/disable/delete startup item |
 | GET | `/api/admin/vpn` | VPN adapter status |
 | GET | `/api/admin/ports` | Listening TCP ports |
 | GET | `/api/admin/arp` | ARP table |
