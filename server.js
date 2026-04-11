@@ -1776,6 +1776,20 @@ app.post("/api/admin/scheduled-tasks", requireAuth, express.json(), (req, res) =
   });
 });
 
+// PUT /api/admin/scheduled-tasks — create/update/delete scheduled task
+app.put("/api/admin/scheduled-tasks", requireAuth, express.json(), (req, res) => {
+  const { execFile } = require("child_process");
+  const { action, data } = req.body;
+  if (!action || !data) return res.status(400).json({ error: "action and data required" });
+  const psFile = require("path").join(__dirname, "_schtask_edit.ps1");
+  const jsonB64 = Buffer.from(JSON.stringify(data)).toString("base64");
+  execFile("powershell", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", psFile, "-Action", action, "-JsonData", jsonB64], { timeout: 30000 }, (err, stdout, stderr) => {
+    if (err) return res.status(500).json({ error: stderr || err.message });
+    try { res.json(JSON.parse(stdout)); }
+    catch (e) { res.json({ ok: true, output: stdout }); }
+  });
+});
+
 // GET /api/admin/scheduled-tasks/detail — single task detail
 app.get("/api/admin/scheduled-tasks/detail", requireAuth, (req, res) => {
   const { execFile } = require("child_process");

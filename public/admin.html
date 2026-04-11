@@ -336,6 +336,11 @@
   .refresh-btn:hover { color: var(--text); border-color: var(--border-light); }
   .refresh-btn.loading svg { animation: spin 1s linear infinite; }
   @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+  select, select option { background:rgba(15,15,30,.98);color:var(--text); }
+  select option:checked { background:rgba(168,139,250,.3); }
+  select option:hover { background:rgba(168,139,250,.15); }
+  input[type="datetime-local"]::-webkit-calendar-picker-indicator { filter:invert(1) brightness(.7); cursor:pointer; }
+  input[type="number"]::-webkit-inner-spin-button { filter:invert(1) brightness(.7); }
 
   /* === Section Title === */
   .section-title {
@@ -690,7 +695,10 @@
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
         Scheduled Tasks
       </div>
-      <span class="card-badge" id="schtask-count" style="background:rgba(45,212,191,.15);color:#2dd4bf">…</span>
+      <div style="display:flex;align-items:center;gap:4px">
+        <button onclick="schTaskCreate()" style="width:20px;height:20px;border-radius:10px;border:1px solid rgba(45,212,191,.2);background:rgba(45,212,191,.08);color:#2dd4bf;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;transition:all .15s;font-weight:600;line-height:1" onmouseenter="this.style.background='rgba(45,212,191,.15)'" onmouseleave="this.style.background='rgba(45,212,191,.08)'" title="Create new task">+</button>
+        <span class="card-badge" id="schtask-count" style="background:rgba(45,212,191,.15);color:#2dd4bf">…</span>
+      </div>
     </div>
     <div style="overflow-x:auto">
       <table class="admin-table" id="schtask-table">
@@ -1340,7 +1348,7 @@
               <span style="font-size:9px;padding:2px 6px;border-radius:4px;color:${stc};background:${stc}15;display:inline-block;margin-top:4px">${st}</span>
             </div>
           </div>
-          <button onclick="this.closest('div[style*=fixed]').remove()" style="width:24px;height:24px;border-radius:6px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);color:var(--text3);cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;flex-shrink:0">&times;</button>
+          <div style="display:flex;gap:4px;flex-shrink:0" id="_task-header-btns"></div>
         </div>
         ${d.Description ? '<div style="font-size:11px;color:var(--text3);margin-bottom:12px;padding:8px 10px;background:rgba(255,255,255,.02);border-radius:8px;line-height:1.5">' + d.Description + '</div>' : ''}
         <div style="margin-bottom:12px">
@@ -1376,7 +1384,211 @@
           <div style="font-size:10px;color:#a78bfa;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;font-weight:600">Actions</div>
           ${actionsHtml}
         </div>`;
+      // Wire up header buttons with closure reference to data
+      const hdrBtns = overlay.querySelector('#_task-header-btns');
+      const editBtn = document.createElement('button');
+      editBtn.innerHTML = '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>Edit';
+      editBtn.style.cssText = 'padding:4px 10px;border-radius:6px;border:1px solid rgba(168,139,250,.2);background:rgba(168,139,250,.08);color:#a78bfa;cursor:pointer;font-size:11px;display:flex;align-items:center;gap:4px';
+      editBtn.onclick = () => { overlay.remove(); schTaskEditDialog(d); };
+      const delBtn = document.createElement('button');
+      delBtn.innerHTML = '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>Delete';
+      delBtn.style.cssText = 'padding:4px 10px;border-radius:6px;border:1px solid rgba(239,68,68,.2);background:rgba(239,68,68,.08);color:#ef4444;cursor:pointer;font-size:11px;display:flex;align-items:center;gap:4px';
+      delBtn.onclick = async () => { overlay.remove(); await schTaskDelete(d.Name, d.Path); };
+      const closeBtn = document.createElement('button');
+      closeBtn.innerHTML = '&times;';
+      closeBtn.style.cssText = 'width:24px;height:24px;border-radius:6px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);color:var(--text3);cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center';
+      closeBtn.onclick = () => overlay.remove();
+      hdrBtns.append(editBtn, delBtn, closeBtn);
     } catch (e) { overlay.remove(); showModal('Error: ' + e.message, {type:'alert',danger:true}); }
+  }
+
+  // === Task Editor Form Helpers ===
+  const TRIGGER_TYPES = ['Boot','Logon','Daily','Weekly','Once'];
+  const DAYS_OF_WEEK = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const _inputStyle = 'width:100%;padding:6px 10px;background:rgba(15,15,30,.95);border:1px solid rgba(255,255,255,.1);border-radius:6px;color:var(--text);font-size:12px;font-family:"JetBrains Mono",monospace;box-sizing:border-box';
+  const _labelStyle = 'font-size:10px;color:var(--text3);margin-bottom:3px;display:block';
+  const _sectionStyle = 'font-size:10px;color:#a78bfa;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;font-weight:600';
+  const _addBtnStyle = 'font-size:10px;padding:4px 10px;border-radius:6px;border:1px dashed rgba(168,139,250,.3);background:none;color:#a78bfa;cursor:pointer;width:100%;margin-top:6px';
+  const _removeBtnStyle = 'font-size:9px;padding:2px 6px;border-radius:4px;border:1px solid rgba(239,68,68,.15);background:rgba(239,68,68,.05);color:#ef4444;cursor:pointer;flex-shrink:0';
+
+  function buildTriggerFields(type) {
+    if (type === 'Boot') return '<div style="margin-top:6px"><label style="' + _labelStyle + '">Delay (e.g. PT30S)</label><input class="tr-delay" style="' + _inputStyle + '" placeholder="PT0S" /></div>';
+    if (type === 'Logon') return '<div style="margin-top:6px"><label style="' + _labelStyle + '">User (blank = any)</label><input class="tr-userid" style="' + _inputStyle + '" placeholder="" /></div><div style="margin-top:6px"><label style="' + _labelStyle + '">Delay</label><input class="tr-delay" style="' + _inputStyle + '" placeholder="PT0S" /></div>';
+    if (type === 'Daily') return '<div style="margin-top:6px"><label style="' + _labelStyle + '">Start Time</label><input type="datetime-local" class="tr-start" style="' + _inputStyle + '" /></div><div style="margin-top:6px"><label style="' + _labelStyle + '">Days Interval</label><input type="number" class="tr-interval" style="' + _inputStyle + '" value="1" min="1" /></div>';
+    if (type === 'Weekly') return '<div style="margin-top:6px"><label style="' + _labelStyle + '">Start Time</label><input type="datetime-local" class="tr-start" style="' + _inputStyle + '" /></div><div style="margin-top:6px"><label style="' + _labelStyle + '">Weeks Interval</label><input type="number" class="tr-weeks" style="' + _inputStyle + '" value="1" min="1" /></div><div style="margin-top:6px"><label style="' + _labelStyle + '">Days of Week</label><div class="tr-days" style="display:flex;flex-wrap:wrap;gap:4px">' + DAYS_OF_WEEK.map(day => '<label style="font-size:10px;color:var(--text);display:flex;align-items:center;gap:3px;cursor:pointer"><input type="checkbox" value="' + day + '" style="accent-color:#a78bfa" />' + day.slice(0,3) + '</label>').join('') + '</div></div>';
+    if (type === 'Once') return '<div style="margin-top:6px"><label style="' + _labelStyle + '">Date/Time</label><input type="datetime-local" class="tr-start" style="' + _inputStyle + '" /></div>';
+    return '';
+  }
+
+  function renderTriggerRow(container, tr) {
+    const div = document.createElement('div');
+    div.style.cssText = 'padding:8px;margin-bottom:6px;background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.06);border-radius:8px';
+    div.innerHTML = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px"><select class="tr-type" style="' + _inputStyle + ';width:auto">' + TRIGGER_TYPES.map(t => '<option value="' + t + '"' + (tr && tr.Type === t ? ' selected' : '') + '>' + t + '</option>').join('') + '</select><button class="tr-remove" style="' + _removeBtnStyle + '">Remove</button></div><div class="tr-fields">' + buildTriggerFields(tr ? tr.Type : 'Boot') + '</div>';
+    div.querySelector('.tr-type').onchange = function() { div.querySelector('.tr-fields').innerHTML = buildTriggerFields(this.value); };
+    div.querySelector('.tr-remove').onclick = () => div.remove();
+    container.appendChild(div);
+    // Fill values if editing
+    if (tr) {
+      if (tr.StartBoundary) { const inp = div.querySelector('.tr-start'); if (inp) inp.value = (tr.StartBoundary || '').slice(0, 16); }
+      if (tr.Delay) { const inp = div.querySelector('.tr-delay'); if (inp) inp.value = tr.Delay; }
+      if (tr.UserId) { const inp = div.querySelector('.tr-userid'); if (inp) inp.value = tr.UserId; }
+      if (tr.DaysInterval) { const inp = div.querySelector('.tr-interval'); if (inp) inp.value = tr.DaysInterval; }
+      if (tr.WeeksInterval) { const inp = div.querySelector('.tr-weeks'); if (inp) inp.value = tr.WeeksInterval; }
+      if (tr.DaysOfWeek) { const checks = div.querySelectorAll('.tr-days input'); checks.forEach(c => { if (tr.DaysOfWeek.includes(c.value)) c.checked = true; }); }
+    }
+    return div;
+  }
+
+  function renderActionRow(container, a) {
+    const div = document.createElement('div');
+    div.style.cssText = 'padding:8px;margin-bottom:6px;background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.06);border-radius:8px';
+    div.innerHTML = '<div style="display:flex;justify-content:flex-end;margin-bottom:4px"><button class="act-remove" style="' + _removeBtnStyle + '">Remove</button></div>' +
+      '<div style="margin-bottom:6px"><label style="' + _labelStyle + '">Execute</label><input class="act-exe" style="' + _inputStyle + '" value="' + ((a && a.Execute) || '').replace(/"/g,'&quot;') + '" placeholder="e.g. powershell.exe" /></div>' +
+      '<div style="margin-bottom:6px"><label style="' + _labelStyle + '">Arguments</label><input class="act-args" style="' + _inputStyle + '" value="' + ((a && a.Arguments) || '').replace(/"/g,'&quot;') + '" /></div>' +
+      '<div><label style="' + _labelStyle + '">Working Directory</label><input class="act-cwd" style="' + _inputStyle + '" value="' + ((a && a.WorkingDirectory) || '').replace(/"/g,'&quot;') + '" /></div>';
+    div.querySelector('.act-remove').onclick = () => div.remove();
+    container.appendChild(div);
+    return div;
+  }
+
+  function collectFormData(container) {
+    const triggers = [...container.querySelectorAll('#_ed-triggers > div')].map(div => {
+      const type = div.querySelector('.tr-type')?.value;
+      const obj = { Type: type, Enabled: true };
+      const start = div.querySelector('.tr-start');
+      if (start && start.value) obj.StartBoundary = start.value + ':00';
+      const delay = div.querySelector('.tr-delay');
+      if (delay && delay.value) obj.Delay = delay.value;
+      const userid = div.querySelector('.tr-userid');
+      if (userid && userid.value) obj.UserId = userid.value;
+      const interval = div.querySelector('.tr-interval');
+      if (interval) obj.DaysInterval = parseInt(interval.value) || 1;
+      const weeks = div.querySelector('.tr-weeks');
+      if (weeks) obj.WeeksInterval = parseInt(weeks.value) || 1;
+      const dayCbs = div.querySelectorAll('.tr-days input:checked');
+      if (dayCbs.length) obj.DaysOfWeek = [...dayCbs].map(c => c.value);
+      return obj;
+    });
+    const actions = [...container.querySelectorAll('#_ed-actions > div')].map(div => ({
+      Execute: div.querySelector('.act-exe')?.value || '',
+      Arguments: div.querySelector('.act-args')?.value || '',
+      WorkingDirectory: div.querySelector('.act-cwd')?.value || ''
+    })).filter(a => a.Execute);
+    const s = {};
+    container.querySelectorAll('#_ed-settings input[type=checkbox]').forEach(cb => { s[cb.dataset.key] = cb.checked; });
+    const etl = container.querySelector('#_ed-etl');
+    if (etl) s.ExecutionTimeLimit = etl.value || undefined;
+    const pri = container.querySelector('#_ed-priority');
+    if (pri) s.Priority = parseInt(pri.value) || 7;
+    return { Triggers: triggers, Actions: actions, Settings: s };
+  }
+
+  async function saveTaskData(action, data) {
+    try {
+      const r = await fetch(API + '/api/admin/scheduled-tasks', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, data })
+      });
+      const d = await r.json();
+      if (d.error) { showModal('Error: ' + d.error, { type: 'alert', danger: true }); return false; }
+      fetchScheduledTasks();
+      return true;
+    } catch (e) { showModal('Error: ' + e.message, { type: 'alert', danger: true }); return false; }
+  }
+
+  function buildSettingsForm(d) {
+    const flags = [
+      ['Enabled', d.Enabled],
+      ['Hidden', d.Hidden],
+      ['StartWhenAvailable', d.StartWhenAvailable],
+      ['AllowStartIfOnBatteries', d.AllowStartIfOnBatteries],
+      ['DontStopIfGoingOnBatteries', d.DontStopIfGoingOnBatteries],
+      ['RunOnlyIfNetworkAvailable', d.RunOnlyIfNetworkAvailable]
+    ];
+    return '<div id="_ed-settings">' + flags.map(([key, val]) =>
+      '<label style="display:flex;align-items:center;gap:8px;padding:5px 0;cursor:pointer;font-size:11px;color:var(--text)"><input type="checkbox" data-key="' + key + '"' + (val ? ' checked' : '') + ' style="accent-color:#a78bfa" />' + key.replace(/([A-Z])/g, ' $1').trim() + '</label>'
+    ).join('') +
+    '<div style="display:flex;gap:8px;margin-top:6px"><div style="flex:1"><label style="' + _labelStyle + '">Execution Time Limit</label><input id="_ed-etl" style="' + _inputStyle + '" value="' + (d.ExecutionTimeLimit || '') + '" placeholder="PT72H" /></div>' +
+    '<div style="flex:1"><label style="' + _labelStyle + '">Priority</label><input type="number" id="_ed-priority" style="' + _inputStyle + '" value="' + (d.Priority ?? 7) + '" min="0" max="10" /></div></div></div>';
+  }
+
+  // === Task Edit Dialog ===
+  function schTaskEditDialog(d) {
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;z-index:9999';
+    overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+    overlay.innerHTML = '<div style="width:560px;max-height:85vh;overflow-y:auto;background:linear-gradient(145deg,rgba(15,15,30,.98),rgba(10,10,26,.99));border:1px solid rgba(168,139,250,.15);border-radius:14px;padding:20px;box-shadow:0 20px 60px rgba(0,0,0,.5)">' +
+      '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px"><div style="display:flex;align-items:center;gap:8px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" stroke-width="2" stroke-linecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg><span style="font-size:14px;font-weight:600;color:var(--text)">Edit: ' + d.Name + '</span></div><button onclick="this.closest(\'div[style*=fixed]\').remove()" style="width:24px;height:24px;border-radius:6px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);color:var(--text3);cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center">&times;</button></div>' +
+      '<div style="margin-bottom:16px"><div style="' + _sectionStyle + '">Triggers</div><div id="_ed-triggers"></div><button id="_ed-add-trigger" style="' + _addBtnStyle + '">+ Add Trigger</button></div>' +
+      '<div style="margin-bottom:16px"><div style="' + _sectionStyle + '">Actions</div><div id="_ed-actions"></div><button id="_ed-add-action" style="' + _addBtnStyle + '">+ Add Action</button></div>' +
+      '<div style="margin-bottom:16px"><div style="' + _sectionStyle + '">Settings</div>' + buildSettingsForm(d) + '</div>' +
+      '<div style="display:flex;gap:8px;justify-content:flex-end"><button id="_ed-cancel" style="padding:8px 20px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:8px;color:var(--text3);cursor:pointer;font-size:12px">Cancel</button><button id="_ed-save" style="padding:8px 20px;background:linear-gradient(135deg,#a78bfa,#8b5cf6);border:none;border-radius:8px;color:#fff;cursor:pointer;font-size:12px;font-weight:600">Save Changes</button></div>' +
+      '</div>';
+    document.body.appendChild(overlay);
+    // Populate triggers
+    const trigCont = overlay.querySelector('#_ed-triggers');
+    (d.Triggers || []).forEach(tr => renderTriggerRow(trigCont, tr));
+    overlay.querySelector('#_ed-add-trigger').onclick = () => renderTriggerRow(trigCont, null);
+    // Populate actions
+    const actCont = overlay.querySelector('#_ed-actions');
+    (d.Actions || []).forEach(a => renderActionRow(actCont, a));
+    overlay.querySelector('#_ed-add-action').onclick = () => renderActionRow(actCont, null);
+    // Buttons
+    overlay.querySelector('#_ed-cancel').onclick = () => overlay.remove();
+    overlay.querySelector('#_ed-save').onclick = async () => {
+      const formData = collectFormData(overlay);
+      formData.TaskName = d.Name;
+      formData.TaskPath = d.Path;
+      const ok = await saveTaskData('update', formData);
+      if (ok) overlay.remove();
+    };
+    overlay.addEventListener('keydown', (e) => { if (e.key === 'Escape') overlay.remove(); });
+  }
+
+  // === Task Create Dialog ===
+  function schTaskCreate() {
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;z-index:9999';
+    overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+    overlay.innerHTML = '<div style="width:560px;max-height:85vh;overflow-y:auto;background:linear-gradient(145deg,rgba(15,15,30,.98),rgba(10,10,26,.99));border:1px solid rgba(45,212,191,.15);border-radius:14px;padding:20px;box-shadow:0 20px 60px rgba(0,0,0,.5)">' +
+      '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px"><div style="display:flex;align-items:center;gap:8px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2dd4bf" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg><span style="font-size:14px;font-weight:600;color:var(--text)">Create Scheduled Task</span></div><button onclick="this.closest(\'div[style*=fixed]\').remove()" style="width:24px;height:24px;border-radius:6px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);color:var(--text3);cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center">&times;</button></div>' +
+      '<div style="margin-bottom:12px"><div style="' + _sectionStyle + '">General</div>' +
+      '<div style="margin-bottom:8px"><label style="' + _labelStyle + '">Task Name *</label><input id="_cr-name" style="' + _inputStyle + '" placeholder="My Task" /></div>' +
+      '<div style="margin-bottom:8px"><label style="' + _labelStyle + '">Description</label><input id="_cr-desc" style="' + _inputStyle + '" placeholder="" /></div>' +
+      '<div style="display:flex;gap:8px;margin-bottom:8px"><div style="flex:1"><label style="' + _labelStyle + '">Run As</label><input id="_cr-runas" style="' + _inputStyle + '" value="' + (typeof USERNAME !== 'undefined' ? USERNAME : '') + '" /></div><div style="flex:1"><label style="' + _labelStyle + '">Run Level</label><select id="_cr-runlevel" style="' + _inputStyle + '"><option value="Limited">Limited</option><option value="Highest">Highest (Admin)</option></select></div></div></div>' +
+      '<div style="margin-bottom:16px"><div style="' + _sectionStyle + '">Triggers</div><div id="_ed-triggers"></div><button id="_ed-add-trigger" style="' + _addBtnStyle + '">+ Add Trigger</button></div>' +
+      '<div style="margin-bottom:16px"><div style="' + _sectionStyle + '">Actions</div><div id="_ed-actions"></div><button id="_ed-add-action" style="' + _addBtnStyle + '">+ Add Action</button></div>' +
+      '<div style="margin-bottom:16px"><div style="' + _sectionStyle + '">Settings</div>' + buildSettingsForm({Enabled:true,StartWhenAvailable:true,AllowStartIfOnBatteries:true,DontStopIfGoingOnBatteries:true,Priority:7}) + '</div>' +
+      '<div style="display:flex;gap:8px;justify-content:flex-end"><button id="_ed-cancel" style="padding:8px 20px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:8px;color:var(--text3);cursor:pointer;font-size:12px">Cancel</button><button id="_ed-save" style="padding:8px 20px;background:linear-gradient(135deg,#2dd4bf,#14b8a6);border:none;border-radius:8px;color:#000;cursor:pointer;font-size:12px;font-weight:600">Create Task</button></div>' +
+      '</div>';
+    document.body.appendChild(overlay);
+    // Init with one empty action
+    const trigCont = overlay.querySelector('#_ed-triggers');
+    const actCont = overlay.querySelector('#_ed-actions');
+    renderActionRow(actCont, null);
+    overlay.querySelector('#_ed-add-trigger').onclick = () => renderTriggerRow(trigCont, null);
+    overlay.querySelector('#_ed-add-action').onclick = () => renderActionRow(actCont, null);
+    overlay.querySelector('#_ed-cancel').onclick = () => overlay.remove();
+    overlay.querySelector('#_ed-save').onclick = async () => {
+      const name = overlay.querySelector('#_cr-name').value.trim();
+      if (!name) return showModal('Task name is required', {type:'alert',danger:true});
+      const formData = collectFormData(overlay);
+      formData.TaskName = name;
+      formData.TaskPath = '\\';
+      formData.Description = overlay.querySelector('#_cr-desc').value.trim();
+      formData.RunAs = overlay.querySelector('#_cr-runas').value.trim() || undefined;
+      formData.RunLevel = overlay.querySelector('#_cr-runlevel').value;
+      const ok = await saveTaskData('create', formData);
+      if (ok) overlay.remove();
+    };
+    overlay.addEventListener('keydown', (e) => { if (e.key === 'Escape') overlay.remove(); });
+    setTimeout(() => overlay.querySelector('#_cr-name')?.focus(), 100);
+  }
+
+  // === Task Delete ===
+  async function schTaskDelete(name, path) {
+    if (!await showModal('Delete task "' + name + '"?\nThis cannot be undone.', {danger:true, confirmText:'Delete'})) return;
+    await saveTaskData('delete', { TaskName: name, TaskPath: path });
   }
 
   // === Tailscale Serve Management ===

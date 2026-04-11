@@ -3,7 +3,15 @@ $t = Get-ScheduledTask -TaskName $TaskName -TaskPath $TaskPath
 $info = $t | Get-ScheduledTaskInfo
 $triggers = @($t.Triggers | ForEach-Object {
   $type = $_.CimClass.CimClassName -replace 'MSFT_Task','' -replace 'Trigger',''
-  [PSCustomObject]@{ Type=$type; Enabled=$_.Enabled; Value=$_.ToString() }
+  $obj = @{ Type=$type; Enabled=$_.Enabled }
+  switch ($type) {
+    'Daily'   { $obj.StartBoundary=$_.StartBoundary; $obj.DaysInterval=$_.DaysInterval }
+    'Weekly'  { $obj.StartBoundary=$_.StartBoundary; $obj.DaysOfWeek=@($_.DaysOfWeek); $obj.WeeksInterval=$_.WeeksInterval }
+    'Time'    { $obj.Type='Once'; $obj.StartBoundary=$_.StartBoundary; $obj.RandomDelay=$_.RandomDelay }
+    'Boot'    { $obj.Delay=$_.Delay }
+    'Logon'   { $obj.UserId=$_.UserId; $obj.Delay=$_.Delay }
+  }
+  [PSCustomObject]$obj
 })
 $actions = @($t.Actions | ForEach-Object {
   [PSCustomObject]@{ Execute=$_.Execute; Arguments=$_.Arguments; WorkingDirectory=$_.WorkingDirectory }
@@ -21,6 +29,7 @@ $actions = @($t.Actions | ForEach-Object {
   Enabled=$t.Settings.Enabled
   Hidden=$t.Settings.Hidden
   AllowStartIfOnBatteries=$t.Settings.AllowStartIfOnBatteries
+  DontStopIfGoingOnBatteries=$t.Settings.DontStopIfGoingOnBatteries
   RunOnlyIfNetworkAvailable=$t.Settings.RunOnlyIfNetworkAvailable
   StartWhenAvailable=$t.Settings.StartWhenAvailable
   ExecutionTimeLimit=$t.Settings.ExecutionTimeLimit
