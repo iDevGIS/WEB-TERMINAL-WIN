@@ -1745,6 +1745,50 @@ app.post("/api/admin/tailscale/funnel", requireAuth, express.json(), (req, res) 
   }
 });
 
+// GET /api/admin/scheduled-tasks — Windows scheduled tasks (non-Microsoft)
+app.get("/api/admin/scheduled-tasks", requireAuth, (req, res) => {
+  const { execFile } = require("child_process");
+  const psFile = require("path").join(__dirname, "_schtasks.ps1");
+  execFile("powershell", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", psFile], { timeout: 15000 }, (err, stdout) => {
+    if (err) return res.json({ available: false, error: err.message });
+    try {
+      let tasks = JSON.parse(stdout || "[]");
+      if (!Array.isArray(tasks)) tasks = [tasks];
+      res.json({ available: true, tasks });
+    } catch (e) { res.json({ available: false, error: "parse error: " + (stdout || "").slice(0, 200) }); }
+  });
+});
+
+// POST /api/admin/scheduled-tasks — enable/disable/run/stop scheduled task
+app.post("/api/admin/scheduled-tasks", requireAuth, express.json(), (req, res) => {
+  const { action, name, path } = req.body;
+  const { exec } = require("child_process");
+  const taskId = path ? `-TaskPath '${path}' -TaskName '${name}'` : `-TaskName '${name}'`;
+  let cmd;
+  if (action === "enable") cmd = `Enable-ScheduledTask ${taskId}`;
+  else if (action === "disable") cmd = `Disable-ScheduledTask ${taskId}`;
+  else if (action === "run") cmd = `Start-ScheduledTask ${taskId}`;
+  else if (action === "stop") cmd = `Stop-ScheduledTask ${taskId}`;
+  else return res.status(400).json({ error: "action must be enable, disable, run, or stop" });
+  exec(`powershell -NoProfile -Command "${cmd} | Out-Null; Write-Output 'ok'"`, { timeout: 10000 }, (err, stdout, stderr) => {
+    if (err) return res.status(500).json({ error: stderr || err.message });
+    res.json({ ok: true });
+  });
+});
+
+// GET /api/admin/scheduled-tasks/detail — single task detail
+app.get("/api/admin/scheduled-tasks/detail", requireAuth, (req, res) => {
+  const { execFile } = require("child_process");
+  const { name, path } = req.query;
+  if (!name) return res.status(400).json({ error: "name required" });
+  const psFile = require("path").join(__dirname, "_schtask_detail.ps1");
+  execFile("powershell", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", psFile, "-TaskName", name, "-TaskPath", path || "\\"], { timeout: 10000 }, (err, stdout) => {
+    if (err) return res.json({ error: err.message });
+    try { res.json(JSON.parse(stdout)); }
+    catch (e) { res.json({ error: "parse error" }); }
+  });
+});
+
 // GET /api/admin/vpn — VPN/network adapter status
 app.get("/api/admin/vpn", requireAuth, (req, res) => {
   const { exec } = require("child_process");

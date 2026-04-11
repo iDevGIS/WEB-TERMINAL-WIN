@@ -683,6 +683,23 @@
     </div>
   </div>
 
+  <!-- Scheduled Tasks -->
+  <div class="card card-full">
+    <div class="card-header">
+      <div class="card-title">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        Scheduled Tasks
+      </div>
+      <span class="card-badge" id="schtask-count" style="background:rgba(45,212,191,.15);color:#2dd4bf">…</span>
+    </div>
+    <div style="overflow-x:auto">
+      <table class="admin-table" id="schtask-table">
+        <thead><tr><th style="width:20%">Name</th><th style="width:10%">State</th><th style="width:15%">Last Run</th><th style="width:15%">Next Run</th><th style="width:25%">Action</th><th style="width:15%;text-align:right">Controls</th></tr></thead>
+        <tbody id="schtask-body"><tr><td colspan="6" style="text-align:center;color:var(--text3)">Loading...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
   <!-- Routing Table -->
   <div class="card card-full">
     <div class="card-header">
@@ -921,7 +938,7 @@
   async function refreshAll() {
     const btn = document.getElementById('refresh-btn');
     btn.classList.add('loading');
-    await Promise.all([fetchStatus(), fetchSessions(), fetchProcesses(), fetchLogs(), fetchServerInfo(), fetchClients(), fetchTailscale(), fetchFunnel(), fetchVPN(), fetchPorts(), fetchARP(), fetchRoutes()]);
+    await Promise.all([fetchStatus(), fetchSessions(), fetchProcesses(), fetchLogs(), fetchServerInfo(), fetchClients(), fetchTailscale(), fetchFunnel(), fetchVPN(), fetchPorts(), fetchARP(), fetchRoutes(), fetchScheduledTasks()]);
     btn.classList.remove('loading');
   }
 
@@ -1170,6 +1187,196 @@
         </tr>`;
       }).join('');
     } catch (e) { console.error('Routes fetch failed:', e); }
+  }
+
+  // === Fetch Scheduled Tasks ===
+  const TASK_STATES = { 0:'Unknown', 1:'Disabled', 2:'Queued', 3:'Ready', 4:'Running' };
+  const TASK_STATE_COLORS = { 0:'var(--text3)', 1:'#ef4444', 2:'#fbbf24', 3:'#4ade80', 4:'#60a5fa' };
+
+  async function fetchScheduledTasks() {
+    try {
+      const r = await fetch(API + '/api/admin/scheduled-tasks');
+      const d = await r.json();
+      const body = document.getElementById('schtask-body');
+      if (!d.available || !d.tasks?.length) {
+        document.getElementById('schtask-count').textContent = '0';
+        body.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text3)">No tasks</td></tr>';
+        return;
+      }
+      document.getElementById('schtask-count').textContent = d.tasks.length;
+      body.innerHTML = d.tasks.map(t => {
+        const state = TASK_STATES[t.State] || 'Unknown';
+        const stateColor = TASK_STATE_COLORS[t.State] || 'var(--text3)';
+        const lastRun = t.LastRun ? formatTaskDate(t.LastRun) : '—';
+        const nextRunTs = parseTaskDate(t.NextRun);
+        const nextRun = nextRunTs ? formatCountdown(nextRunTs) : '—';
+        const action = (t.Actions || '').replace(/\s+$/, '');
+        const shortAction = action.length > 60 ? action.slice(0, 57) + '...' : action;
+        const eName = t.Name.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+        const ePath = t.Path.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+        const isDisabled = t.State === 1;
+        const isRunning = t.State === 4;
+        const toggleBtn = isDisabled
+          ? `<button onclick="schTaskAction('enable','${eName}','${ePath}')" style="font-size:9px;padding:2px 6px;border-radius:4px;border:1px solid rgba(74,222,128,.15);background:rgba(74,222,128,.05);color:#4ade80;cursor:pointer;transition:all .15s" title="Enable">Enable</button>`
+          : `<button onclick="schTaskAction('disable','${eName}','${ePath}')" style="font-size:9px;padding:2px 6px;border-radius:4px;border:1px solid rgba(239,68,68,.15);background:rgba(239,68,68,.05);color:#ef4444;cursor:pointer;transition:all .15s" title="Disable">Disable</button>`;
+        const runBtn = isRunning
+          ? `<button onclick="schTaskAction('stop','${eName}','${ePath}')" style="font-size:9px;padding:2px 6px;border-radius:4px;border:1px solid rgba(251,191,36,.15);background:rgba(251,191,36,.05);color:#fbbf24;cursor:pointer;transition:all .15s" title="Stop">Stop</button>`
+          : `<button onclick="schTaskAction('run','${eName}','${ePath}')" style="font-size:9px;padding:2px 6px;border-radius:4px;border:1px solid rgba(96,165,250,.15);background:rgba(96,165,250,.05);color:#60a5fa;cursor:pointer;transition:all .15s" title="Run now">Run</button>`;
+        return `<tr>
+          <td style="font-size:11px;font-weight:600" title="${t.Description || ''}">${t.Name}</td>
+          <td><span style="font-size:9px;color:${stateColor};background:${stateColor}15;padding:2px 6px;border-radius:4px">${state}</span></td>
+          <td style="font-size:10px;color:var(--text3)">${lastRun}</td>
+          <td style="font-size:10px;color:var(--text3)">${nextRun}</td>
+          <td style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text3)" title="${action}">${shortAction}</td>
+          <td style="text-align:right"><div style="display:flex;gap:4px;justify-content:flex-end">${toggleBtn}${runBtn}<button onclick="schTaskInfo('${eName}','${ePath}')" style="font-size:9px;padding:2px 6px;border-radius:4px;border:1px solid rgba(168,139,250,.15);background:rgba(168,139,250,.05);color:#a78bfa;cursor:pointer;transition:all .15s" title="Details">Info</button></div></td>
+        </tr>`;
+      }).join('');
+    } catch (e) { console.error('Scheduled tasks fetch failed:', e); }
+  }
+
+  function parseTaskDate(d) {
+    if (!d) return null;
+    const m = String(d).match(/Date\((\d+)\)/);
+    const date = m ? new Date(parseInt(m[1])) : new Date(d);
+    if (isNaN(date.getTime()) || date.getFullYear() < 2000) return null;
+    return date;
+  }
+
+  function formatTaskDate(d) {
+    const date = parseTaskDate(d);
+    if (!date) return '—';
+    const now = new Date();
+    const diff = now - date;
+    if (diff >= 0 && diff < 86400000) return date.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+    return date.toLocaleDateString([], {month:'short',day:'numeric'}) + ' ' + date.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+  }
+
+  function formatCountdown(date) {
+    const now = new Date();
+    const diff = date - now;
+    if (diff <= 0) return '<span style="color:#4ade80;animation:pulse .3s infinite">now</span>';
+    const s = Math.floor(diff / 1000);
+    const m = Math.floor(s / 60);
+    const h = Math.floor(m / 60);
+    const d = Math.floor(h / 24);
+    const timeStr = date.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+    let countdown;
+    if (d > 0) countdown = d + 'd ' + (h % 24) + 'h';
+    else if (h > 0) countdown = h + 'h ' + (m % 60) + 'm';
+    else countdown = m + 'm ' + (s % 60) + 's';
+    let color, blink;
+    if (diff < 60000)       { color = '#4ade80'; blink = 'animation:pulse .4s infinite'; }   // < 1m — เขียว กระพริบเร็วมาก
+    else if (diff < 300000) { color = '#4ade80'; blink = 'animation:pulse .8s infinite'; }   // < 5m — เขียว กระพริบเร็ว
+    else if (diff < 1800000){ color = '#fbbf24'; blink = 'animation:pulse 1.5s infinite'; }  // < 30m — เหลือง กระพริบปานกลาง
+    else if (diff < 3600000){ color = '#fbbf24'; blink = 'animation:pulse 3s infinite'; }    // < 1h — เหลือง กระพริบช้า
+    else                    { color = 'var(--text3)'; blink = ''; }                          // > 1h — เทา ไม่กระพริบ
+    return `<span style="color:${color};${blink}">${countdown}</span><br><span style="font-size:9px;color:var(--text3)">${timeStr}</span>`;
+  }
+
+  async function schTaskAction(action, name, path) {
+    const labels = { enable:'Enable', disable:'Disable', run:'Run', stop:'Stop' };
+    const isDanger = action === 'disable' || action === 'stop';
+    if (!await showModal(`${labels[action]} task "${name}"?`, { danger: isDanger, confirmText: labels[action] })) return;
+    try {
+      const r = await fetch(API + '/api/admin/scheduled-tasks', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, name, path })
+      });
+      const d = await r.json();
+      if (d.error) showModal('Error: ' + d.error, { type: 'alert', danger: true });
+      fetchScheduledTasks();
+    } catch (e) { showModal('Error: ' + e.message, { type: 'alert', danger: true }); }
+  }
+
+  async function schTaskInfo(name, path) {
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;z-index:9999';
+    overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+    overlay.innerHTML = `<div style="width:520px;max-height:80vh;overflow-y:auto;background:linear-gradient(145deg,rgba(15,15,30,.98),rgba(10,10,26,.99));border:1px solid rgba(168,139,250,.15);border-radius:14px;padding:20px;box-shadow:0 20px 60px rgba(0,0,0,.5)">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+        <span style="font-size:14px;font-weight:600;color:var(--text)">Loading...</span>
+      </div>
+    </div>`;
+    overlay.addEventListener('keydown', (e) => { if (e.key === 'Escape') overlay.remove(); });
+    document.body.appendChild(overlay);
+    overlay.focus();
+    try {
+      const r = await fetch(API + '/api/admin/scheduled-tasks/detail?name=' + encodeURIComponent(name) + '&path=' + encodeURIComponent(path));
+      const d = await r.json();
+      if (d.error) { overlay.remove(); showModal('Error: ' + d.error, {type:'alert',danger:true}); return; }
+      const states = { 0:'Unknown', 1:'Disabled', 2:'Queued', 3:'Ready', 4:'Running' };
+      const stateColors = { 0:'var(--text3)', 1:'#ef4444', 2:'#fbbf24', 3:'#4ade80', 4:'#60a5fa' };
+      const st = states[d.State] || 'Unknown';
+      const stc = stateColors[d.State] || 'var(--text3)';
+      const lastRun = formatTaskDate(d.LastRun);
+      const nextRunTs = parseTaskDate(d.NextRun);
+      const nextRun = nextRunTs ? formatCountdown(nextRunTs) : '—';
+      const resultHex = d.LastResult !== null ? '0x' + (d.LastResult >>> 0).toString(16).toUpperCase() : '—';
+      const resultOk = d.LastResult === 0;
+      const row = (label, val, mono) => `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.04)">
+        <span style="font-size:11px;color:var(--text3)">${label}</span>
+        <span style="font-size:11px;color:var(--text);${mono ? "font-family:'JetBrains Mono',monospace;" : ''}text-align:right;max-width:320px;word-break:break-all">${val}</span>
+      </div>`;
+      const flag = (label, val) => row(label, val ? '<span style="color:#4ade80">Yes</span>' : '<span style="color:var(--text3)">No</span>');
+      const triggersHtml = (d.Triggers && d.Triggers.length) ? d.Triggers.map(tr =>
+        `<div style="display:flex;align-items:center;gap:6px;padding:4px 0">
+          <span style="font-size:9px;padding:2px 6px;border-radius:4px;background:rgba(168,139,250,.1);color:#a78bfa">${tr.Type}</span>
+          <span style="font-size:10px;color:${tr.Enabled ? '#4ade80' : '#ef4444'}">${tr.Enabled ? 'Enabled' : 'Disabled'}</span>
+        </div>`
+      ).join('') : '<span style="font-size:10px;color:var(--text3)">None</span>';
+      const actionsHtml = (d.Actions && d.Actions.length) ? d.Actions.map(a =>
+        `<div style="padding:4px 0;border-bottom:1px solid rgba(255,255,255,.03)">
+          <div style="font-size:10px;color:#60a5fa;font-family:'JetBrains Mono',monospace;word-break:break-all">${a.Execute || ''} ${a.Arguments || ''}</div>
+          ${a.WorkingDirectory ? '<div style="font-size:9px;color:var(--text3);margin-top:2px">cwd: ' + a.WorkingDirectory + '</div>' : ''}
+        </div>`
+      ).join('') : '<span style="font-size:10px;color:var(--text3)">None</span>';
+      overlay.querySelector('div > div').innerHTML = `
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:16px">
+          <div style="display:flex;align-items:flex-start;gap:8px;flex:1;min-width:0">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" stroke-width="2" stroke-linecap="round" style="flex-shrink:0;margin-top:2px"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            <div style="min-width:0">
+              <div style="font-size:14px;font-weight:600;color:var(--text);word-break:break-all;line-height:1.4">${d.Name}</div>
+              <span style="font-size:9px;padding:2px 6px;border-radius:4px;color:${stc};background:${stc}15;display:inline-block;margin-top:4px">${st}</span>
+            </div>
+          </div>
+          <button onclick="this.closest('div[style*=fixed]').remove()" style="width:24px;height:24px;border-radius:6px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);color:var(--text3);cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;flex-shrink:0">&times;</button>
+        </div>
+        ${d.Description ? '<div style="font-size:11px;color:var(--text3);margin-bottom:12px;padding:8px 10px;background:rgba(255,255,255,.02);border-radius:8px;line-height:1.5">' + d.Description + '</div>' : ''}
+        <div style="margin-bottom:12px">
+          <div style="font-size:10px;color:#a78bfa;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;font-weight:600">General</div>
+          ${row('Path', d.Path, true)}
+          ${row('Author', d.Author || '—')}
+          ${row('Run As', d.RunAs || '—')}
+          ${row('Run Level', d.RunLevel || '—')}
+          ${row('URI', d.URI || '—', true)}
+        </div>
+        <div style="margin-bottom:12px">
+          <div style="font-size:10px;color:#a78bfa;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;font-weight:600">Schedule</div>
+          ${row('Last Run', lastRun)}
+          ${row('Next Run', nextRun)}
+          ${row('Last Result', '<span style="color:' + (resultOk ? '#4ade80' : '#fbbf24') + '">' + resultHex + (resultOk ? ' (OK)' : '') + '</span>')}
+          ${row('Execution Time Limit', d.ExecutionTimeLimit || '—')}
+          ${row('Priority', d.Priority !== null ? d.Priority : '—')}
+        </div>
+        <div style="margin-bottom:12px">
+          <div style="font-size:10px;color:#a78bfa;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;font-weight:600">Settings</div>
+          ${flag('Enabled', d.Enabled)}
+          ${flag('Hidden', d.Hidden)}
+          ${flag('Start When Available', d.StartWhenAvailable)}
+          ${flag('Allow Start If On Batteries', d.AllowStartIfOnBatteries)}
+          ${flag('Run Only If Network Available', d.RunOnlyIfNetworkAvailable)}
+          ${row('Restart Count', d.RestartCount !== null ? d.RestartCount : '—')}
+        </div>
+        <div style="margin-bottom:12px">
+          <div style="font-size:10px;color:#a78bfa;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;font-weight:600">Triggers</div>
+          ${triggersHtml}
+        </div>
+        <div>
+          <div style="font-size:10px;color:#a78bfa;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;font-weight:600">Actions</div>
+          ${actionsHtml}
+        </div>`;
+    } catch (e) { overlay.remove(); showModal('Error: ' + e.message, {type:'alert',danger:true}); }
   }
 
   // === Tailscale Serve Management ===
