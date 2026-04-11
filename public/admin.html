@@ -701,8 +701,8 @@
       </div>
     </div>
     <div style="overflow-x:auto">
-      <table class="admin-table" id="schtask-table">
-        <thead><tr><th style="width:20%">Name</th><th style="width:10%">State</th><th style="width:15%">Last Run</th><th style="width:15%">Next Run</th><th style="width:25%">Action</th><th style="width:15%;text-align:right">Controls</th></tr></thead>
+      <table class="admin-table" id="schtask-table" style="table-layout:fixed;width:100%">
+        <thead><tr><th style="width:18%">Name</th><th style="width:8%">State</th><th class="hide-mobile" style="width:12%">Last Run</th><th class="hide-mobile" style="width:12%">Next Run</th><th class="hide-mobile" style="width:28%">Action</th><th style="width:22%;text-align:right">Controls</th></tr></thead>
         <tbody id="schtask-body"><tr><td colspan="6" style="text-align:center;color:var(--text3)">Loading...</td></tr></tbody>
       </table>
     </div>
@@ -1231,11 +1231,11 @@
           ? `<button onclick="schTaskAction('stop','${eName}','${ePath}')" style="font-size:9px;padding:2px 6px;border-radius:4px;border:1px solid rgba(251,191,36,.15);background:rgba(251,191,36,.05);color:#fbbf24;cursor:pointer;transition:all .15s" title="Stop">Stop</button>`
           : `<button onclick="schTaskAction('run','${eName}','${ePath}')" style="font-size:9px;padding:2px 6px;border-radius:4px;border:1px solid rgba(96,165,250,.15);background:rgba(96,165,250,.05);color:#60a5fa;cursor:pointer;transition:all .15s" title="Run now">Run</button>`;
         return `<tr>
-          <td style="font-size:11px;font-weight:600" title="${t.Description || ''}">${t.Name}</td>
+          <td style="font-size:11px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:0" title="${t.Name}${t.Description ? ' — '+t.Description : ''}">${t.Name}</td>
           <td><span style="font-size:9px;color:${stateColor};background:${stateColor}15;padding:2px 6px;border-radius:4px">${state}</span></td>
-          <td style="font-size:10px;color:var(--text3)">${lastRun}</td>
-          <td style="font-size:10px;color:var(--text3)">${nextRun}</td>
-          <td style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text3)" title="${action}">${shortAction}</td>
+          <td class="hide-mobile" style="font-size:10px;color:var(--text3)">${lastRun}</td>
+          <td class="hide-mobile" style="font-size:10px;color:var(--text3)">${nextRun}</td>
+          <td class="hide-mobile" style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:0" title="${action}">${shortAction}</td>
           <td style="text-align:right"><div style="display:flex;gap:4px;justify-content:flex-end">${toggleBtn}${runBtn}<button onclick="schTaskInfo('${eName}','${ePath}')" style="font-size:9px;padding:2px 6px;border-radius:4px;border:1px solid rgba(168,139,250,.15);background:rgba(168,139,250,.05);color:#a78bfa;cursor:pointer;transition:all .15s" title="Details">Info</button></div></td>
         </tr>`;
       }).join('');
