@@ -195,6 +195,7 @@
 - **Chat search** - `Ctrl+F` to search messages with highlight
 - **Export** - download conversation as `.md` file
 - **Token counter** - live estimate of tokens used per message
+- **Resource metrics** - peak CPU/MEM/GPU usage during inference, sampled every 500ms and displayed per message
 - **Timestamps** - HH:MM on each message
 - **Keyboard shortcuts** - `Enter` to send, `Shift+Enter` for new line, `Ctrl+F` search
 
