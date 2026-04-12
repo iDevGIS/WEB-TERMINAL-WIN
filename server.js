@@ -371,6 +371,22 @@ app.post("/api/admin/lock-pc", requireAuth, (req, res) => {
   });
 });
 
+app.post("/api/admin/unlock-pc", requireAuth, (req, res) => {
+  const { exec } = require("child_process");
+  // Check if locked first
+  exec('powershell -NoProfile -Command "if(Get-Process LogonUI -EA SilentlyContinue){\'locked\'}else{\'unlocked\'}"', (err, stdout) => {
+    if (!stdout.trim().includes("locked")) return res.json({ ok: true, message: "Already unlocked" });
+    // Get session ID and reconnect to console (bypasses lock screen)
+    exec('powershell -NoProfile -Command "(Get-Process -Id $PID).SessionId"', (err2, sid) => {
+      const sessionId = (sid || "1").trim();
+      exec(`tscon ${sessionId} /dest:console`, { timeout: 5000 }, (err3, out, stderr) => {
+        if (err3) return res.status(500).json({ error: stderr || err3.message });
+        res.json({ ok: true, message: "PC unlocked" });
+      });
+    });
+  });
+});
+
 // === File Manager API ===
 const fs = require("fs");
 const MAX_UPLOAD_SIZE = 50 * 1024 * 1024; // 50MB
