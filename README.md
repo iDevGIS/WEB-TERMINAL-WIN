@@ -153,6 +153,7 @@
 - **Live Camera** - real-time webcam feed via WebSocket binary MJPEG streaming (~50-100ms latency)
 - **Live Audio** - real-time microphone listening via WebSocket PCM streaming with AudioContext playback
 - **Screen Capture** - screenshot any monitor via ffmpeg gdigrab, DPI-aware for scaled displays
+- **Live Screen** - real-time screen streaming via WebSocket MJPEG (15fps), multi-monitor support, with zoom/pan
 - **Multi-device** - dropdown selectors for cameras, microphones, and monitors with refresh button
 - **Audio Visualizer** - waveform bars with purple gradient glow, matching AI Chat voice style
 - **Volume Control** - playback volume slider (GainNode) + mic gain slider (0.5x-4.0x PCM amplification)

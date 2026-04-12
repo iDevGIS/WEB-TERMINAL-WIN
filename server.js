@@ -2228,9 +2228,10 @@ const spyWss = new WebSocketServer({ noServer: true });
 spyWss.on("connection", (ws, req) => {
   const { spawn } = require("child_process");
   const url = new URL(req.url, "http://localhost");
-  const type = url.searchParams.get("type"); // "camera" or "audio"
+  const type = url.searchParams.get("type"); // "camera", "audio", or "screen"
   const device = url.searchParams.get("device");
-  if (!device || !type) { ws.close(1008, "device and type required"); return; }
+  if (!type) { ws.close(1008, "type required"); return; }
+  if ((type === "camera" || type === "audio") && !device) { ws.close(1008, "device required"); return; }
 
   let ff;
   if (type === "camera") {
@@ -2261,8 +2262,41 @@ spyWss.on("connection", (ws, req) => {
     ff.stdout.on("data", (chunk) => {
       if (ws.readyState === 1) ws.send(chunk);
     });
+  } else if (type === "screen") {
+    // Live screen streaming via gdigrab
+    const monitorIdx = parseInt(url.searchParams.get("monitor") || "0");
+    const fps = parseInt(url.searchParams.get("fps") || "10");
+    const quality = parseInt(url.searchParams.get("quality") || "8");
+    // Get monitor info for multi-monitor support
+    _getMonitors(monitors => {
+      const m = monitors[monitorIdx] || monitors[0] || null;
+      const ffArgs = ["-f", "gdigrab", "-framerate", String(Math.min(fps, 30)), "-draw_mouse", "1"];
+      if (m && monitors.length > 1) {
+        ffArgs.push("-offset_x", String(m.X), "-offset_y", String(m.Y), "-video_size", `${m.W}x${m.H}`);
+      }
+      ffArgs.push("-i", "desktop", "-f", "mjpeg", "-q:v", String(quality), "-r", String(Math.min(fps, 30)), "-an", "pipe:1");
+      ff = spawn("ffmpeg", ffArgs, { stdio: ["ignore", "pipe", "pipe"] });
+      let buffer = Buffer.alloc(0);
+      const SOI = Buffer.from([0xFF, 0xD8]);
+      const EOI = Buffer.from([0xFF, 0xD9]);
+      ff.stdout.on("data", (chunk) => {
+        buffer = Buffer.concat([buffer, chunk]);
+        let start, end;
+        while ((start = buffer.indexOf(SOI)) !== -1 && (end = buffer.indexOf(EOI, start)) !== -1) {
+          const frame = buffer.subarray(start, end + 2);
+          buffer = buffer.subarray(end + 2);
+          if (ws.readyState === 1) ws.send(frame);
+        }
+      });
+      ff.stderr.on("data", () => {});
+      ff.on("close", () => { if (ws.readyState === 1) ws.close(); });
+      ff.on("error", () => { if (ws.readyState === 1) ws.close(); });
+      ws.on("close", () => { ff.kill("SIGKILL"); });
+      ws.on("error", () => { ff.kill("SIGKILL"); });
+    });
+    return; // early return — event handlers set inside callback
   } else {
-    ws.close(1008, "type must be camera or audio");
+    ws.close(1008, "type must be camera, audio, or screen");
     return;
   }
 
