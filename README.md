@@ -147,6 +147,20 @@
 - **ARP Table** - IP/MAC/type with gateway detection
 - **Routing Table** - destination, next hop, metric, interface with default route highlight
 - **Activity Log** - real-time server activity viewer
+- **Glassmorphic Modal Dialogs** - all confirm/alert dialogs replaced with themed modals (danger states, keyboard support, contextual labels)
+
+### 👁 Spy (Camera & Audio Monitor)
+- **Live Camera** - real-time webcam feed via WebSocket binary MJPEG streaming (~50-100ms latency)
+- **Live Audio** - real-time microphone listening via WebSocket PCM streaming with AudioContext playback
+- **Screen Capture** - screenshot any monitor via ffmpeg gdigrab, DPI-aware for scaled displays
+- **Multi-device** - dropdown selectors for cameras, microphones, and monitors with refresh button
+- **Audio Visualizer** - waveform bars with purple gradient glow, matching AI Chat voice style
+- **Volume Control** - playback volume slider (GainNode) + mic gain slider (0.5x-4.0x PCM amplification)
+- **Zoom & Pan** - scroll wheel zoom (toward cursor), drag pan, pinch zoom (mobile), double-click toggle 100%/300%
+- **Download** - save camera feed or screenshot as JPEG with timestamp
+- **FPS Counter** - real-time frame rate display on camera feed
+- **dB Meter** - audio level monitoring in decibels
+- **Mobile Responsive** - controls wrap, volume slider in audio footer, touch-optimized
 
 ### 🐳 Docker Container Management
 - **Container Dashboard** - list all containers with status, image, network, ports, CPU/MEM stats
@@ -706,6 +720,9 @@ CYBERFRAME
 | GET | `/api/admin/scheduled-tasks/detail` | Single task detail |
 | GET | `/api/admin/startup` | Startup programs (Registry, Folder, UWP) |
 | POST | `/api/admin/startup` | Add/enable/disable/delete startup item |
+| GET | `/api/spy/devices` | List cameras and microphones (DirectShow) |
+| GET | `/api/spy/monitors` | List monitors with native resolution |
+| GET | `/api/spy/screenshot` | Capture screen as JPEG (DPI-aware) |
 | GET | `/api/admin/vpn` | VPN adapter status |
 | GET | `/api/admin/ports` | Listening TCP ports |
 | GET | `/api/admin/arp` | ARP table |
@@ -720,6 +737,8 @@ CYBERFRAME
 `attached`, `output`, `sessions`, `session-died`, `detached`, `pong`, `error`
 
 **VNC Proxy:** `ws://host:port/vnc-ws` (binary, proxied to VNC port 5900)
+
+**Spy Streams:** `ws://host:port/spy-ws?type=camera&device=...` (binary MJPEG frames) / `ws://host:port/spy-ws?type=audio&device=...` (binary PCM f32le)
 
 ---
 
