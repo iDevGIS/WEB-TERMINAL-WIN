@@ -357,6 +357,20 @@ app.post("/api/admin/shutdown", requireAuth, (req, res) => {
   setTimeout(() => process.exit(0), 500);
 });
 
+app.post("/api/admin/restart-pc", requireAuth, (req, res) => {
+  const { exec } = require("child_process");
+  res.json({ ok: true, message: "Restarting PC..." });
+  setTimeout(() => exec("shutdown /r /t 3 /f"), 500);
+});
+
+app.post("/api/admin/lock-pc", requireAuth, (req, res) => {
+  const { exec } = require("child_process");
+  exec("rundll32.exe user32.dll,LockWorkStation", (err) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json({ ok: true, message: "PC locked" });
+  });
+});
+
 // === File Manager API ===
 const fs = require("fs");
 const MAX_UPLOAD_SIZE = 50 * 1024 * 1024; // 50MB
