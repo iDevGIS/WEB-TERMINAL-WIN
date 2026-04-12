@@ -4602,9 +4602,14 @@
               <select id="${tabId}-mic-select" style="padding:3px 6px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:5px;color:#e2e8f0;font-size:10px;min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis"><option value="">Loading...</option></select>
               <button id="${tabId}-mic-btn" onclick="spyToggleAudio('${tabId}')" style="padding:3px 10px;border-radius:5px;border:1px solid rgba(74,222,128,.2);background:rgba(74,222,128,.1);color:#4ade80;cursor:pointer;font-size:10px;font-weight:600;white-space:nowrap;flex-shrink:0">Listen</button>
             </div>
-            <div class="spy-vol-group" style="display:flex;align-items:center;gap:4px;flex-shrink:0">
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.4)" stroke-width="2" stroke-linecap="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/></svg>
-              <input id="${tabId}-vol" type="range" min="0" max="100" value="80" oninput="spySetVolume('${tabId}',this.value)" style="width:60px;height:3px;accent-color:#a78bfa;cursor:pointer" title="Volume" />
+            <div class="spy-vol-group" style="display:flex;align-items:center;gap:3px;flex-shrink:0;border-left:1px solid rgba(255,255,255,.06);padding-left:8px">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="2" stroke-linecap="round" title="Mic Gain"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg>
+              <input id="${tabId}-mic-gain" type="range" min="50" max="400" value="100" oninput="spySetMicGain('${tabId}',this.value)" style="width:50px;height:3px;accent-color:#4ade80;cursor:pointer" title="Mic Gain" />
+              <span id="${tabId}-mic-gain-label" style="font-size:8px;color:rgba(255,255,255,.3);font-family:'JetBrains Mono',monospace;min-width:22px">1.0x</span>
+            </div>
+            <div class="spy-vol-group" style="display:flex;align-items:center;gap:3px;flex-shrink:0">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" stroke-width="2" stroke-linecap="round" title="Playback Volume"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/></svg>
+              <input id="${tabId}-vol" type="range" min="0" max="100" value="80" oninput="spySetVolume('${tabId}',this.value)" style="width:50px;height:3px;accent-color:#a78bfa;cursor:pointer" title="Playback Volume" />
               <span id="${tabId}-vol-label" style="font-size:8px;color:rgba(255,255,255,.3);font-family:'JetBrains Mono',monospace;min-width:22px">80%</span>
             </div>
             <button onclick="spyLoadDevices('${tabId}')" style="padding:3px 8px;border-radius:5px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);color:rgba(255,255,255,.4);cursor:pointer;font-size:10px;display:flex;align-items:center;gap:3px;flex-shrink:0;transition:all .15s" onmouseenter="this.style.color='#e2e8f0';this.style.borderColor='rgba(255,255,255,.15)'" onmouseleave="this.style.color='rgba(255,255,255,.4)';this.style.borderColor='rgba(255,255,255,.08)'" title="Refresh device list"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg></button>
@@ -4635,6 +4640,25 @@
                 <span style="letter-spacing:.5px">LISTENING</span>
               </div>
               <div id="${tabId}-audio-db" style="display:none;position:absolute;top:6px;right:12px;font-size:9px;color:rgba(255,255,255,.35);font-family:'JetBrains Mono',monospace">-∞ dB</div>
+            </div>
+            <!-- Audio controls footer -->
+            <div id="${tabId}-audio-sliders" style="display:none;flex-direction:column;gap:4px;padding:6px 12px;background:rgba(5,5,20,.95);border-top:1px solid rgba(255,255,255,.06)">
+              <div style="display:flex;align-items:center;gap:6px">
+                <div style="display:flex;align-items:center;gap:4px;min-width:42px">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="2" stroke-linecap="round" style="flex-shrink:0"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg>
+                  <span style="font-size:8px;color:#4ade80;white-space:nowrap">MIC</span>
+                </div>
+                <input id="${tabId}-mic-gain2" type="range" min="50" max="400" value="100" oninput="spySetMicGain('${tabId}',this.value);document.getElementById('${tabId}-mic-gain').value=this.value" style="flex:1;height:20px;accent-color:#4ade80;cursor:pointer" title="Mic Gain" />
+                <span id="${tabId}-mic-gain-label2" style="font-size:9px;color:rgba(255,255,255,.4);font-family:'JetBrains Mono',monospace;min-width:30px;text-align:right">1.0x</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:6px">
+                <div style="display:flex;align-items:center;gap:4px;min-width:42px">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" stroke-width="2" stroke-linecap="round" style="flex-shrink:0"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/></svg>
+                  <span style="font-size:8px;color:#a78bfa;white-space:nowrap">VOL</span>
+                </div>
+                <input id="${tabId}-vol2" type="range" min="0" max="100" value="80" oninput="spySetVolume('${tabId}',this.value);document.getElementById('${tabId}-vol').value=this.value" style="flex:1;height:20px;accent-color:#a78bfa;cursor:pointer" title="Volume" />
+                <span id="${tabId}-vol-label2" style="font-size:9px;color:rgba(255,255,255,.4);font-family:'JetBrains Mono',monospace;min-width:30px;text-align:right">80%</span>
+              </div>
             </div>
           </div>
         </div>`;
@@ -6875,9 +6899,15 @@
 
     function spySetVolume(tabId, val) {
       const state = _spyState[tabId];
-      const label = document.getElementById(tabId + '-vol-label');
-      if (label) label.textContent = val + '%';
+      ['-vol-label', '-vol-label2'].forEach(s => { const el = document.getElementById(tabId + s); if (el) el.textContent = val + '%'; });
       if (state && state.gainNode) state.gainNode.gain.value = val / 100;
+    }
+
+    function spySetMicGain(tabId, val) {
+      const state = _spyState[tabId];
+      const g = val / 100;
+      ['-mic-gain-label', '-mic-gain-label2'].forEach(s => { const el = document.getElementById(tabId + s); if (el) el.textContent = g.toFixed(1) + 'x'; });
+      if (state) state.micGainVal = g;
     }
 
     function _spyWsUrl(type, device) {
@@ -6951,6 +6981,8 @@
         recLabel.style.display = 'none';
         const dbEl = document.getElementById(tabId + '-audio-db');
         if (dbEl) dbEl.style.display = 'none';
+        const sliders2 = document.getElementById(tabId + '-audio-sliders');
+        if (sliders2) sliders2.style.display = 'none';
         btn.textContent = 'Listen';
         btn.style.color = '#4ade80'; btn.style.borderColor = 'rgba(74,222,128,.2)'; btn.style.background = 'rgba(74,222,128,.1)';
         state.audioActive = false;
@@ -6966,16 +6998,19 @@
         analyser.connect(gainNode);
         gainNode.connect(audioCtx.destination);
         state.gainNode = gainNode;
-        // ScriptProcessor to play PCM from WebSocket
+        // ScriptProcessor to play PCM from WebSocket with mic gain
         const bufferSize = 4096;
         const processor = audioCtx.createScriptProcessor(bufferSize, 1, 1);
         let pcmQueue = [];
+        const micGainSlider = document.getElementById(tabId + '-mic-gain');
+        state.micGainVal = micGainSlider ? micGainSlider.value / 100 : 1.0;
         processor.onaudioprocess = (e) => {
           const output = e.outputBuffer.getChannelData(0);
+          const gain = state.micGainVal || 1.0;
           if (pcmQueue.length > 0) {
             const chunk = pcmQueue.shift();
             const len = Math.min(output.length, chunk.length);
-            for (let i = 0; i < len; i++) output[i] = chunk[i];
+            for (let i = 0; i < len; i++) output[i] = chunk[i] * gain;
             for (let i = len; i < output.length; i++) output[i] = 0;
           } else {
             for (let i = 0; i < output.length; i++) output[i] = 0;
@@ -6996,6 +7031,8 @@
           recLabel.style.display = 'flex';
           const dbEl2 = document.getElementById(tabId + '-audio-db');
           if (dbEl2) dbEl2.style.display = 'block';
+          const sliders2 = document.getElementById(tabId + '-audio-sliders');
+          if (sliders2) sliders2.style.display = 'flex';
         };
         ws.onclose = () => { if (state.audioActive) spyToggleAudio(tabId); };
         state.audioWs = ws;
