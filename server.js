@@ -1870,12 +1870,15 @@ app.get("/api/spy/screenshot", requireAuth, (req, res) => {
   const os = require("os");
   const outFile = path.join(os.tmpdir(), `cyberframe_ss_${Date.now()}.jpg`);
   _getMonitors(monitors => {
-    const m = monitors[monitorIdx] || monitors[0] || { X:0, Y:0, W:1920, H:1080 };
-    execFile("ffmpeg", [
-      "-f", "gdigrab", "-framerate", "1", "-offset_x", String(m.X), "-offset_y", String(m.Y),
-      "-video_size", `${m.W}x${m.H}`, "-i", "desktop",
-      "-frames:v", "1", "-q:v", "3", "-update", "1", "-y", outFile
-    ], { timeout: 8000 }, (err2) => {
+    const m = monitors[monitorIdx] || monitors[0] || null;
+    // For single monitor or primary, capture full desktop (ffmpeg is DPI-aware)
+    // For multi-monitor with offset, specify region
+    const ffArgs = ["-f", "gdigrab", "-framerate", "1", "-draw_mouse", "1"];
+    if (m && monitors.length > 1) {
+      ffArgs.push("-offset_x", String(m.X), "-offset_y", String(m.Y), "-video_size", `${m.W}x${m.H}`);
+    }
+    ffArgs.push("-i", "desktop", "-frames:v", "1", "-q:v", "3", "-update", "1", "-y", outFile);
+    execFile("ffmpeg", ffArgs, { timeout: 8000 }, (err2) => {
       if (err2) return res.status(500).json({ error: err2.message });
       const fs = require("fs");
       res.setHeader("Content-Type", "image/jpeg");
