@@ -5,6 +5,109 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [2.5.0] — 2026-04-12
+
+### Added
+- **Spy Tab** — real-time camera, microphone, and screen capture monitoring
+  - Live camera feed via WebSocket binary MJPEG streaming (~50-100ms latency)
+  - Live audio listening via WebSocket PCM streaming with AudioContext playback
+  - Screen capture via ffmpeg gdigrab with multi-monitor + DPI-aware support
+  - Multi-device dropdowns for cameras, microphones, and monitors with refresh
+  - Waveform bar visualizer (purple gradient glow, matching AI Chat voice style)
+  - Volume control (GainNode) + mic gain slider (0.5x-4.0x PCM amplification)
+  - Zoom & pan: scroll wheel (toward cursor), drag pan, pinch zoom (mobile), double-click toggle
+  - Download capture as JPEG, FPS counter, dB meter
+  - Mobile responsive controls with audio footer sliders
+
+### Changed
+- Native `confirm()`/`alert()` dialogs replaced with glassmorphic modals across Admin panel
+
+---
+
+## [2.4.0] — 2026-04-11
+
+### Added
+- **Startup Programs** — manage Windows startup items in Admin panel
+  - Sources: Registry Run (HKCU/HKLM), Startup Folders, UWP Store apps
+  - App icons extracted from .exe (System.Drawing) and UWP manifest logos (29/31 coverage)
+  - Enable/disable toggle for Registry and UWP items, add/delete support
+  - Color-coded source badges: Registry (blue), Folder (orange), UWP (purple)
+  - Mobile responsive: hides Scope and Command columns
+- **Scheduled Tasks Management** — full CRUD for Windows scheduled tasks
+  - Table view with Name, State (color badges), Last Run, Next Run (countdown), Action, Controls
+  - Next Run countdown with urgency-based blink animation (< 1min fast, < 5min medium, < 1hr slow)
+  - Info modal with General, Schedule, Settings, Triggers, Actions sections
+  - Edit dialog: modify Triggers (Boot/Logon/Daily/Weekly/Once), Actions, Settings
+  - Create dialog: full task creation with triggers, actions, run level
+  - Delete with confirmation, Enable/Disable/Run/Stop controls
+  - PowerShell scripts (`_schtasks.ps1`, `_schtask_detail.ps1`, `_schtask_edit.ps1`) for reliable execution
+- **Tailscale Funnel Management** — Admin card for public internet exposure
+  - Enable/disable public toggle with real-time status badges (`● public` / `tailnet only`)
+  - Port restriction note (443, 8443, 10000 only)
+- Dark theme styling for all select dropdowns and datetime inputs in Admin
+
+---
+
+## [2.3.0] — 2026-04-08
+
+### Added
+- **Sidebar Resource Monitor** — CPU/Memory/GPU bars + Network IPs, polling every 3s
+  - GPU model name display (e.g. "RTX 4090")
+  - Compact 2-column layout matching heartbeat card style
+- **Chat Resource Metrics** — peak CPU/MEM/GPU during inference per message
+  - Sampled every 500ms, injected as SSE event, displayed in message timestamp
+- **Docker Network Groups** — toggle view to group containers by Docker network
+  - Collapsible sections with chevron animation, state persists across refresh
+  - Network group actions: Start All / Stop All / Restart All
+  - View Compose file per network group (opens in Monaco editor)
+- **Docker Socket Override** — `DOCKER_SOCKET` env var for docker_desktop, WSL2, Linux
+- **Agent Auto-Context** — auto-inject SOUL.md + USER.md + IDENTITY.md as system context
+- **Agent/Model Selector** — pick agent + model (Anthropic/Ollama) per chat session
+  - Dual routing: Ollama direct, OpenClaw via Gateway
+  - Per-model context window display (Ollama 32k, Claude 200k)
+- **Chat Session Enhancements**
+  - Session sidebar shows time ago, message count, token usage ratio
+  - Session key badge in header (click to copy)
+  - Session Info modal (key, UUID, dates, transcript file, messages, compactions)
+  - Restore/Export/Import sessions (fetch transcript from OpenClaw .jsonl)
+- **Mobile Chat UX** — smooth swipe sidebar (finger follow + spring animation), left-edge swipe gesture
+- **Shutdown API** — `POST /api/admin/shutdown` + Admin button + stop.bat
+
+### Fixed
+- VS Code WS proxy adds origin header for host validation
+- Docker tab checks availability before creating (toast if Docker not running)
+- Docker logs flex layout (no longer overlaps container table)
+- Docker compose editor proper YAML detection
+- Agent status parser: Unicode box-drawing normalization, extended PATH, non-zero exit handling
+- Chat SSE keepalive ping 15s + 45s timeout watchdog
+- Chat token count persists in workspace state
+- Security: removed hardcoded password fallback
+
+### Changed
+- Tailscale private network icon: lock emoji → shield SVG
+- Agent env vars renamed: `OPENCLAW_CLI/DIR` → `CYBERFRAME_CLI/AGENT_DIR`
+
+---
+
+## [2.2.0] — 2026-04-03
+
+### Added
+- **Chat Session Token Tracking** — golden gradient badge, token ratio (e.g. 25k/200k 13%)
+- **Chat Mobile Back Button** — opens sidebar instead of browser back
+- **Chat Search Bar** — floating glassmorphism pill (matching terminal search style)
+- **Docker Font Size** — Docker tab responds to A+/A- controls
+
+### Fixed
+- Admin cards scrollbar + text overflow
+- AI Chat empty response detection + 60s timeout watchdog
+- Chat sidebar token count updates after each response
+- Docker logs font-size inherit from parent
+
+### Changed
+- Docker Images nav icon: layers/stack instead of photo frame
+
+---
+
 ## [2.1.0] — 2026-04-02
 
 ### Added
