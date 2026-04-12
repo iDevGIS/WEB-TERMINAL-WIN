@@ -379,8 +379,8 @@ app.post("/api/admin/unlock-pc", requireAuth, (req, res) => {
     // Get session ID and reconnect to console (bypasses lock screen)
     execFile("powershell", ["-NoProfile", "-Command", "(Get-Process -Id $PID).SessionId"], (err2, sid) => {
       const sessionId = (sid || "1").trim();
-      execFile("C:/Windows/System32/tscon.exe", [sessionId, "/dest:console"], { timeout: 5000 }, (err3, out, stderr) => {
-        if (err3) return res.status(500).json({ error: stderr || err3.message });
+      execFile("powershell", ["-NoProfile", "-Command", "& tscon " + sessionId + " /dest:console 2>&1"], { timeout: 5000 }, (err3, out, stderr) => {
+        if (err3) return res.status(500).json({ error: (out || stderr || err3.message).trim() });
         res.json({ ok: true, message: "PC unlocked" });
       });
     });
