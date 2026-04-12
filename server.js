@@ -1843,6 +1843,50 @@ app.get("/api/spy/devices", requireAuth, (req, res) => {
   });
 });
 
+// GET /api/spy/monitors — list available monitors
+app.get("/api/spy/monitors", requireAuth, (req, res) => {
+  const { execFile } = require("child_process");
+  execFile("powershell", ["-NoProfile", "-Command",
+    "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.Screen]::AllScreens | ForEach-Object { [PSCustomObject]@{ Name=$_.DeviceName; Primary=$_.Primary; W=$_.Bounds.Width; H=$_.Bounds.Height; X=$_.Bounds.X; Y=$_.Bounds.Y } } | ConvertTo-Json -Compress"
+  ], { timeout: 5000 }, (err, stdout) => {
+    if (err) return res.json([]);
+    try {
+      let monitors = JSON.parse(stdout);
+      if (!Array.isArray(monitors)) monitors = [monitors];
+      res.json(monitors);
+    } catch (e) { res.json([]); }
+  });
+});
+
+// GET /api/spy/screenshot — capture screen as JPEG
+app.get("/api/spy/screenshot", requireAuth, (req, res) => {
+  const { execFile } = require("child_process");
+  const monitorIdx = parseInt(req.query.monitor) || 0;
+  const path = require("path");
+  const os = require("os");
+  const outFile = path.join(os.tmpdir(), `cyberframe_ss_${Date.now()}.jpg`);
+  // Get monitor offset for multi-monitor
+  execFile("powershell", ["-NoProfile", "-Command",
+    "Add-Type -AssemblyName System.Windows.Forms; $s=[System.Windows.Forms.Screen]::AllScreens; if(" + monitorIdx + " -lt $s.Length){$m=$s[" + monitorIdx + "]}else{$m=$s[0]}; Write-Output \"$($m.Bounds.X),$($m.Bounds.Y),$($m.Bounds.Width),$($m.Bounds.Height)\""
+  ], { timeout: 3000 }, (err, stdout) => {
+    const parts = (stdout || "0,0,1920,1080").trim().split(",");
+    const [ox, oy, w, h] = parts.map(Number);
+    execFile("ffmpeg", [
+      "-f", "gdigrab", "-framerate", "1", "-offset_x", String(ox), "-offset_y", String(oy),
+      "-video_size", `${w}x${h}`, "-i", "desktop",
+      "-frames:v", "1", "-q:v", "5", "-update", "1", "-y", outFile
+    ], { timeout: 8000 }, (err2) => {
+      if (err2) return res.status(500).json({ error: err2.message });
+      const fs = require("fs");
+      res.setHeader("Content-Type", "image/jpeg");
+      res.setHeader("Cache-Control", "no-cache");
+      const stream = fs.createReadStream(outFile);
+      stream.pipe(res);
+      stream.on("end", () => { try { fs.unlinkSync(outFile); } catch(e) {} });
+    });
+  });
+});
+
 // Spy WebSocket streams are handled in the upgrade handler below
 
 // GET /api/admin/vpn — VPN/network adapter status
