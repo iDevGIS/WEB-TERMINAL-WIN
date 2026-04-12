@@ -12,7 +12,8 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
   - Live camera feed via WebSocket binary MJPEG streaming (~50-100ms latency)
   - Live audio listening via WebSocket PCM streaming with AudioContext playback
   - Screen capture (screenshot) via ffmpeg gdigrab with multi-monitor + DPI-aware support
-  - Live screen streaming via WebSocket MJPEG (15fps, configurable quality), multi-monitor
+  - Live screen streaming via WebSocket MJPEG, multi-monitor, configurable presets:
+    - High: q:5 15fps ~627KB/frame ~77Mbps | Medium: q:8 15fps ~389KB/frame ~48Mbps | Low: q:12 10fps ~337KB/frame ~28Mbps (at 3440x1440)
   - Multi-device dropdowns for cameras, microphones, and monitors with refresh
   - Waveform bar visualizer (purple gradient glow, matching AI Chat voice style)
   - Volume control (GainNode) + mic gain slider (0.5x-4.0x PCM amplification)
