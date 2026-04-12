@@ -10312,6 +10312,9 @@
           if (tab.type === 'admin') { closeTab(tabId); break; }
         }
       }
+      if (e.data && e.data.type === 'cyberframe-action') {
+        if (e.data.action === 'newShell') createSession();
+      }
     });
 
     // === File Manager ===
