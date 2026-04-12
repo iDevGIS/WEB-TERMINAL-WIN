@@ -359,7 +359,7 @@ Open `http://localhost:3000` in your browser.
 
 ### Remote Desktop (Optional)
 
-1. Install [TightVNC](https://www.tightvnc.com/download.php)
+1. Install [TightVNC](https://www.tightvnc.com/download.php) or `winget install GlavSoft.TightVNC`
 2. Set a VNC password in TightVNC settings
 3. Enable loopback connections (choose one method):
 
@@ -376,6 +376,44 @@ Open `http://localhost:3000` in your browser.
    ```
    > ⚠️ If `tvnserver` service not found, restart TightVNC from system tray instead.
 4. Click the 🖥️ button in CYBERFRAME toolbar
+
+#### Recommended: Run TightVNC as Windows Service
+
+By default TightVNC runs as a **user application** which cannot see the Windows Lock Screen or UAC prompts. To enable full remote access including lock/unlock:
+
+```powershell
+# Run as Administrator:
+
+# 1. Register TightVNC as Windows Service
+& "C:\Program Files\TightVNC\tvnserver.exe" -install -silent
+
+# 2. Enable loopback connections
+Set-ItemProperty -Path "HKLM:\SOFTWARE\TightVNC\Server" -Name "AllowLoopback" -Value 1 -Type DWord
+
+# 3. Set password via GUI (required for service mode)
+& "C:\Program Files\TightVNC\tvnserver.exe" -controlservice
+# → Set Primary Password → Apply → OK
+
+# 4. Start service and set auto-start
+Start-Service tvnserver
+Set-Service tvnserver -StartupType Automatic
+
+# 5. Disable TightVNC from Startup Programs (app mode)
+# Go to Admin → Startup Programs → Disable TightVNC entry
+```
+
+**Verify:**
+```powershell
+Get-Service tvnserver | Format-Table Name,Status,StartType
+# Expected: tvnserver  Running  Automatic
+```
+
+| Mode | Lock Screen | UAC | Session |
+|------|-------------|-----|---------|
+| App (user) | ❌ Black screen | ❌ | Session 1 |
+| **Service (SYSTEM)** | **✅ Visible** | **✅ Visible** | **Session 0** |
+
+> ⚠️ **Common issue:** If both app and service are running, the app (Session 1) grabs port 5900 first and the service can't bind. **Solution:** Disable TightVNC from Startup Programs in Admin panel, then restart. Only the service should run.
 
 ### VS Code serve-web (Optional)
 
