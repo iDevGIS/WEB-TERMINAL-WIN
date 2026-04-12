@@ -4615,6 +4615,12 @@
             <div style="display:flex;align-items:center;gap:5px;min-width:0;flex:1 1 200px">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fb923c" stroke-width="2" stroke-linecap="round" style="flex-shrink:0"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
               <select id="${tabId}-monitor-select" style="padding:3px 6px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:5px;color:#e2e8f0;font-size:10px;min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis"><option value="0">Loading...</option></select>
+              <select id="${tabId}-screen-quality" style="padding:3px 6px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:5px;color:#e2e8f0;font-size:9px;flex-shrink:0" title="Stream quality">
+                <option value="5,15" selected>High (15fps)</option>
+                <option value="8,15">Medium (15fps)</option>
+                <option value="12,10">Low (10fps)</option>
+                <option value="3,24">Ultra (24fps)</option>
+              </select>
               <button id="${tabId}-ss-btn" onclick="spyScreenshot('${tabId}')" style="padding:3px 10px;border-radius:5px;border:1px solid rgba(251,146,60,.2);background:rgba(251,146,60,.1);color:#fb923c;cursor:pointer;font-size:10px;font-weight:600;white-space:nowrap;flex-shrink:0;display:flex;align-items:center;gap:4px"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>Capture</button>
               <button id="${tabId}-live-btn" onclick="spyToggleLiveScreen('${tabId}')" style="padding:3px 10px;border-radius:5px;border:1px solid rgba(239,68,68,.2);background:rgba(239,68,68,.1);color:#ef4444;cursor:pointer;font-size:10px;font-weight:600;white-space:nowrap;flex-shrink:0;display:flex;align-items:center;gap:4px"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3" fill="currentColor"/></svg>Live</button>
             </div>
@@ -7128,7 +7134,9 @@
         // Start
         const monSel = document.getElementById(tabId + '-monitor-select');
         const monitor = monSel ? monSel.value : '0';
-        const ws = new WebSocket(_spyWsUrl('screen', 'desktop') + '&monitor=' + monitor + '&fps=15&quality=5');
+        const qualSel = document.getElementById(tabId + '-screen-quality');
+        const [quality, fps] = (qualSel ? qualSel.value : '5,15').split(',');
+        const ws = new WebSocket(_spyWsUrl('screen', 'desktop') + '&monitor=' + monitor + '&fps=' + fps + '&quality=' + quality);
         ws.binaryType = 'blob';
         let _fpsCount = 0, _fpsLast = performance.now();
         ws.onmessage = (e) => {
