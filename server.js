@@ -1836,10 +1836,10 @@ app.post("/api/admin/startup", requireAuth, express.json(), (req, res) => {
 app.get("/api/spy/devices", requireAuth, (req, res) => {
   const { execFile } = require("child_process");
   const psFile = require("path").join(__dirname, "_devices.ps1");
-  execFile("powershell", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", psFile], { timeout: 10000 }, (err, stdout) => {
-    if (err) return res.json({ video: [], audio: [], error: err.message });
+  execFile("powershell", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", psFile], { timeout: 15000 }, (err, stdout, stderr) => {
+    if (err) return res.json({ video: [], audio: [], error: err.message, stderr: (stderr||"").slice(0,300) });
     try { res.json(JSON.parse(stdout)); }
-    catch (e) { res.json({ video: [], audio: [] }); }
+    catch (e) { res.json({ video: [], audio: [], error: "parse error", raw: (stdout||"").slice(0,300) }); }
   });
 });
 

@@ -2572,6 +2572,13 @@
     .chat-model-select option {
       background: #1a1a2e; color: var(--text); padding: 8px 12px;
     }
+    .spy-wrap select { background: rgba(15,15,30,.95) !important; }
+    .spy-wrap select option { background: rgba(15,15,30,.98); color: #e2e8f0; }
+    .spy-wrap select option:checked { background: rgba(96,165,250,.3); }
+    @media (max-width: 768px) {
+      .spy-vol-group { display: none !important; }
+      .spy-controls { gap: 6px !important; padding: 6px 10px !important; }
+    }
     .chat-model-input {
       background: var(--glass-bg2); border: 1px solid var(--glass-border); border-radius: 6px;
       color: var(--text2); font-size: 11px; padding: 3px 8px; outline: none; width: 140px;
@@ -4584,34 +4591,50 @@
             <span style="font-weight:600;font-size:14px">Spy</span>
             <span style="font-size:11px;color:rgba(255,255,255,.4)">Camera & Audio Monitor</span>
           </div>
-          <div style="display:flex;gap:12px;padding:12px 16px;flex-wrap:wrap;align-items:center;border-bottom:1px solid rgba(255,255,255,.06)">
-            <div style="display:flex;align-items:center;gap:6px">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2" stroke-linecap="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-              <select id="${tabId}-cam-select" style="padding:4px 8px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:6px;color:#e2e8f0;font-size:11px"><option value="">Loading...</option></select>
-              <button id="${tabId}-cam-btn" onclick="spyToggleCamera('${tabId}')" style="padding:4px 12px;border-radius:6px;border:1px solid rgba(96,165,250,.2);background:rgba(96,165,250,.1);color:#60a5fa;cursor:pointer;font-size:11px;font-weight:600">Start</button>
+          <div class="spy-controls" style="display:flex;gap:8px;padding:8px 12px;flex-wrap:wrap;align-items:center;border-bottom:1px solid rgba(255,255,255,.06)">
+            <div style="display:flex;align-items:center;gap:5px;min-width:0;flex:1 1 200px">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2" stroke-linecap="round" style="flex-shrink:0"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+              <select id="${tabId}-cam-select" style="padding:3px 6px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:5px;color:#e2e8f0;font-size:10px;min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis"><option value="">Loading...</option></select>
+              <button id="${tabId}-cam-btn" onclick="spyToggleCamera('${tabId}')" style="padding:3px 10px;border-radius:5px;border:1px solid rgba(96,165,250,.2);background:rgba(96,165,250,.1);color:#60a5fa;cursor:pointer;font-size:10px;font-weight:600;white-space:nowrap;flex-shrink:0">Start</button>
             </div>
-            <div style="display:flex;align-items:center;gap:6px">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="2" stroke-linecap="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
-              <select id="${tabId}-mic-select" style="padding:4px 8px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:6px;color:#e2e8f0;font-size:11px"><option value="">Loading...</option></select>
-              <button id="${tabId}-mic-btn" onclick="spyToggleAudio('${tabId}')" style="padding:4px 12px;border-radius:6px;border:1px solid rgba(74,222,128,.2);background:rgba(74,222,128,.1);color:#4ade80;cursor:pointer;font-size:11px;font-weight:600">Listen</button>
+            <div style="display:flex;align-items:center;gap:5px;min-width:0;flex:1 1 200px">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="2" stroke-linecap="round" style="flex-shrink:0"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg>
+              <select id="${tabId}-mic-select" style="padding:3px 6px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:5px;color:#e2e8f0;font-size:10px;min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis"><option value="">Loading...</option></select>
+              <button id="${tabId}-mic-btn" onclick="spyToggleAudio('${tabId}')" style="padding:3px 10px;border-radius:5px;border:1px solid rgba(74,222,128,.2);background:rgba(74,222,128,.1);color:#4ade80;cursor:pointer;font-size:10px;font-weight:600;white-space:nowrap;flex-shrink:0">Listen</button>
             </div>
+            <div class="spy-vol-group" style="display:flex;align-items:center;gap:4px;flex-shrink:0">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.4)" stroke-width="2" stroke-linecap="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/></svg>
+              <input id="${tabId}-vol" type="range" min="0" max="100" value="80" oninput="spySetVolume('${tabId}',this.value)" style="width:60px;height:3px;accent-color:#a78bfa;cursor:pointer" title="Volume" />
+              <span id="${tabId}-vol-label" style="font-size:8px;color:rgba(255,255,255,.3);font-family:'JetBrains Mono',monospace;min-width:22px">80%</span>
+            </div>
+            <button onclick="spyLoadDevices('${tabId}')" style="padding:3px 8px;border-radius:5px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);color:rgba(255,255,255,.4);cursor:pointer;font-size:10px;display:flex;align-items:center;gap:3px;flex-shrink:0;transition:all .15s" onmouseenter="this.style.color='#e2e8f0';this.style.borderColor='rgba(255,255,255,.15)'" onmouseleave="this.style.color='rgba(255,255,255,.4)';this.style.borderColor='rgba(255,255,255,.08)'" title="Refresh device list"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg></button>
           </div>
-          <div style="flex:1;display:flex;gap:0;min-height:0;overflow:hidden">
-            <div style="flex:1;display:flex;align-items:center;justify-content:center;background:#000;position:relative;min-width:0">
-              <div id="${tabId}-cam-placeholder" style="display:flex;flex-direction:column;align-items:center;gap:8px;color:rgba(255,255,255,.2)">
-                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-                <span style="font-size:11px">Camera Off</span>
+          <div style="flex:1;display:flex;flex-direction:column;min-height:0;overflow:hidden">
+            <!-- Camera viewport -->
+            <div style="flex:1;display:flex;align-items:center;justify-content:center;background:#000;position:relative;min-height:0">
+              <div id="${tabId}-cam-placeholder" style="display:flex;flex-direction:column;align-items:center;gap:12px;color:rgba(255,255,255,.15)">
+                <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                <span style="font-size:12px;letter-spacing:2px;text-transform:uppercase">No Signal</span>
               </div>
-              <img id="${tabId}-cam-feed" style="display:none;max-width:100%;max-height:100%;object-fit:contain" />
-              <div id="${tabId}-cam-rec" style="display:none;position:absolute;top:10px;right:10px;width:10px;height:10px;background:#ef4444;border-radius:50%;animation:pulse .8s infinite"></div>
+              <img id="${tabId}-cam-feed" style="display:none;width:100%;height:100%;object-fit:contain" />
+              <div id="${tabId}-cam-rec" style="display:none;position:absolute;top:12px;left:12px;display:flex;align-items:center;gap:6px;padding:4px 10px;background:rgba(0,0,0,.6);border-radius:6px;backdrop-filter:blur(4px)">
+                <div style="width:8px;height:8px;background:#ef4444;border-radius:50%;animation:pulse .8s infinite"></div>
+                <span style="font-size:10px;color:#ef4444;font-weight:600;letter-spacing:1px">REC</span>
+              </div>
+              <div id="${tabId}-cam-fps" style="display:none;position:absolute;bottom:12px;right:12px;padding:3px 8px;background:rgba(0,0,0,.6);border-radius:4px;font-size:9px;color:rgba(255,255,255,.5);font-family:'JetBrains Mono',monospace;backdrop-filter:blur(4px)">0 fps</div>
             </div>
-            <div id="${tabId}-audio-panel" style="width:200px;border-left:1px solid rgba(255,255,255,.06);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;background:rgba(0,0,0,.3)">
-              <div id="${tabId}-mic-placeholder" style="display:flex;flex-direction:column;align-items:center;gap:8px;color:rgba(255,255,255,.2)">
-                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg>
-                <span style="font-size:11px">Mic Off</span>
+            <!-- Audio visualizer bar -->
+            <div id="${tabId}-audio-panel" style="height:72px;border-top:1px solid rgba(255,255,255,.06);position:relative;background:linear-gradient(180deg,rgba(10,10,30,.8),rgba(5,5,20,.9));overflow:hidden;display:flex;align-items:center">
+              <div id="${tabId}-mic-placeholder" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:10px;color:rgba(255,255,255,.12)">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg>
+                <span style="font-size:11px;letter-spacing:1px;text-transform:uppercase">Audio Off</span>
               </div>
-              <canvas id="${tabId}-audio-viz" width="160" height="200" style="display:none"></canvas>
-              <div id="${tabId}-mic-rec" style="display:none;display:flex;align-items:center;gap:4px;font-size:10px;color:#4ade80"><div style="width:8px;height:8px;background:#4ade80;border-radius:50%;animation:pulse .8s infinite"></div>Listening</div>
+              <div id="${tabId}-audio-viz" style="display:none;flex:1;height:100%;align-items:center;justify-content:center;gap:2px;padding:0 16px"></div>
+              <div id="${tabId}-mic-rec" style="display:none;position:absolute;top:6px;left:12px;align-items:center;gap:5px;font-size:9px;color:#4ade80">
+                <div style="width:6px;height:6px;background:#4ade80;border-radius:50%;animation:pulse .8s infinite;display:inline-block"></div>
+                <span style="letter-spacing:.5px">LISTENING</span>
+              </div>
+              <div id="${tabId}-audio-db" style="display:none;position:absolute;top:6px;right:12px;font-size:9px;color:rgba(255,255,255,.35);font-family:'JetBrains Mono',monospace">-∞ dB</div>
             </div>
           </div>
         </div>`;
@@ -6850,6 +6873,13 @@
       } catch (e) { console.error('Failed to load spy devices:', e); }
     }
 
+    function spySetVolume(tabId, val) {
+      const state = _spyState[tabId];
+      const label = document.getElementById(tabId + '-vol-label');
+      if (label) label.textContent = val + '%';
+      if (state && state.gainNode) state.gainNode.gain.value = val / 100;
+    }
+
     function _spyWsUrl(type, device) {
       const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
       return `${proto}//${location.host}/spy-ws?type=${type}&device=${encodeURIComponent(device)}`;
@@ -6868,6 +6898,8 @@
         feed.style.display = 'none';
         placeholder.style.display = 'flex';
         rec.style.display = 'none';
+        const fpsEl = document.getElementById(tabId + '-cam-fps');
+        if (fpsEl) fpsEl.style.display = 'none';
         btn.textContent = 'Start';
         btn.style.color = '#60a5fa'; btn.style.borderColor = 'rgba(96,165,250,.2)'; btn.style.background = 'rgba(96,165,250,.1)';
         state.camActive = false;
@@ -6876,15 +6908,24 @@
         if (!device) return;
         const ws = new WebSocket(_spyWsUrl('camera', device));
         ws.binaryType = 'blob';
+        let _fpsCount = 0, _fpsLast = performance.now();
+        const fpsEl = document.getElementById(tabId + '-cam-fps');
         ws.onmessage = (e) => {
           if (state.camUrl) URL.revokeObjectURL(state.camUrl);
           state.camUrl = URL.createObjectURL(e.data);
           feed.src = state.camUrl;
+          _fpsCount++;
+          const now = performance.now();
+          if (now - _fpsLast >= 1000) {
+            if (fpsEl) fpsEl.textContent = _fpsCount + ' fps';
+            _fpsCount = 0; _fpsLast = now;
+          }
         };
         ws.onopen = () => {
           feed.style.display = 'block';
           placeholder.style.display = 'none';
-          rec.style.display = 'block';
+          rec.style.display = 'flex';
+          if (fpsEl) fpsEl.style.display = 'block';
         };
         ws.onclose = () => { if (state.camActive) spyToggleCamera(tabId); };
         state.camWs = ws;
@@ -6908,6 +6949,8 @@
         placeholder.style.display = 'flex';
         viz.style.display = 'none';
         recLabel.style.display = 'none';
+        const dbEl = document.getElementById(tabId + '-audio-db');
+        if (dbEl) dbEl.style.display = 'none';
         btn.textContent = 'Listen';
         btn.style.color = '#4ade80'; btn.style.borderColor = 'rgba(74,222,128,.2)'; btn.style.background = 'rgba(74,222,128,.1)';
         state.audioActive = false;
@@ -6917,7 +6960,12 @@
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
         const analyser = audioCtx.createAnalyser();
         analyser.fftSize = 64;
-        analyser.connect(audioCtx.destination);
+        const gainNode = audioCtx.createGain();
+        const volSlider = document.getElementById(tabId + '-vol');
+        gainNode.gain.value = volSlider ? volSlider.value / 100 : 0.8;
+        analyser.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+        state.gainNode = gainNode;
         // ScriptProcessor to play PCM from WebSocket
         const bufferSize = 4096;
         const processor = audioCtx.createScriptProcessor(bufferSize, 1, 1);
@@ -6943,30 +6991,58 @@
           while (pcmQueue.length > 4) pcmQueue.shift();
         };
         ws.onopen = () => {
-          viz.style.display = 'block';
+          viz.style.display = 'flex';
           placeholder.style.display = 'none';
           recLabel.style.display = 'flex';
+          const dbEl2 = document.getElementById(tabId + '-audio-db');
+          if (dbEl2) dbEl2.style.display = 'block';
         };
         ws.onclose = () => { if (state.audioActive) spyToggleAudio(tabId); };
         state.audioWs = ws;
         state.audioCtx = audioCtx;
-        // Visualization
+        // Waveform bar visualization
+        analyser.fftSize = 256;
         const bufLen = analyser.frequencyBinCount;
         const dataArr = new Uint8Array(bufLen);
-        const canvas = viz;
-        const cctx = canvas.getContext('2d');
+        const dbEl = document.getElementById(tabId + '-audio-db');
+        // Create waveform bars
+        const barCount = 80;
+        const vizContainer = viz;
+        vizContainer.innerHTML = '';
+        const barEls = [];
+        for (let i = 0; i < barCount; i++) {
+          const bar = document.createElement('div');
+          bar.style.cssText = 'width:3px;min-height:3px;border-radius:2px;background:rgba(108,99,255,.25);transition:height 60ms ease,background 150ms,box-shadow 150ms';
+          vizContainer.appendChild(bar);
+          barEls.push(bar);
+        }
         function drawViz() {
           state.vizAnim = requestAnimationFrame(drawViz);
           analyser.getByteFrequencyData(dataArr);
-          cctx.fillStyle = 'rgba(0,0,0,.3)';
-          cctx.fillRect(0, 0, canvas.width, canvas.height);
-          const barW = canvas.width / bufLen;
-          for (let i = 0; i < bufLen; i++) {
-            const h = (dataArr[i] / 255) * canvas.height;
-            const hue = (i / bufLen) * 120 + 120;
-            cctx.fillStyle = `hsla(${hue},80%,60%,.8)`;
-            cctx.fillRect(i * barW, canvas.height - h, barW - 1, h);
+          const step = Math.floor(bufLen / barCount);
+          let rms = 0;
+          for (let i = 0; i < barCount; i++) {
+            let sum = 0;
+            for (let j = 0; j < step; j++) sum += dataArr[i * step + j];
+            const val = sum / step / 255;
+            rms += val * val;
+            const h = Math.max(3, val * 50);
+            const bar = barEls[i];
+            bar.style.height = h + 'px';
+            if (val > 0.6) {
+              bar.style.background = 'linear-gradient(to top, #c084fc, #e879f9)';
+              bar.style.boxShadow = '0 0 8px rgba(192,132,252,.5)';
+            } else if (val > 0.25) {
+              bar.style.background = 'linear-gradient(to top, #6c63ff, #a78bfa)';
+              bar.style.boxShadow = '0 0 4px rgba(108,99,255,.3)';
+            } else {
+              bar.style.background = 'rgba(108,99,255,.3)';
+              bar.style.boxShadow = 'none';
+            }
           }
+          rms = Math.sqrt(rms / barCount);
+          const db = rms > 0 ? Math.round(20 * Math.log10(rms)) : -Infinity;
+          if (dbEl) dbEl.textContent = isFinite(db) ? db + ' dB' : '-∞ dB';
         }
         drawViz();
         btn.textContent = 'Stop';
