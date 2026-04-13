@@ -514,6 +514,14 @@ Register-ScheduledTask -TaskName "VSCode-ServeWeb" -Action $action -Trigger $tri
 |-----------------|--------------------|
 | ![Docker Network Group](docs/images/docker-network-group.png) | ![Docker Compose Editor](docs/images/docker-compose-editor.png) |
 
+| Admin - Scheduled Tasks | Admin - Startup Programs |
+|------------------------|-------------------------|
+| ![Scheduled Tasks](docs/images/admin-scheduled-tasks.png) | ![Startup Programs](docs/images/admin-startup-programs.png) |
+
+| Spy - Live Screen & Audio | Spy - Mobile View |
+|--------------------------|-------------------|
+| ![Spy Desktop](docs/images/spy-desktop.png) | ![Spy Mobile](docs/images/spy-mobile.png) |
+
 | Admin - Tailscale Serve | Add Tailscale Rule |
 |------------------------|-------------------|
 | ![Admin Tailscale](docs/images/admin-tailscale.png) | ![Add Tailscale Rule](docs/images/admin-tailscale-add.png) |
