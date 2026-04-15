@@ -8350,28 +8350,137 @@
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                   <span>Download</span>
                 </button>
+                <button onclick="_popoutToggleSearch(this)" style="${_dlhBtn}" title="Search (Ctrl+F)">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                  <span>Search</span>
+                </button>
                 <button onclick="this.closest('[data-logpane]').querySelector('pre').style.fontSize=(parseInt(getComputedStyle(this.closest('[data-logpane]').querySelector('pre')).fontSize)-1)+'px'" style="${_dlhBtnSm}" title="Decrease font">A-</button>
                 <button onclick="this.closest('[data-logpane]').querySelector('pre').style.fontSize=(parseInt(getComputedStyle(this.closest('[data-logpane]').querySelector('pre')).fontSize)+1)+'px'" style="${_dlhBtnSm}" title="Increase font">A+</button>
               </div>
             </div>
-            <pre style="flex:1;overflow:auto;padding:12px;margin:0;font-family:'JetBrains Mono',monospace;font-size:${initFs}px;line-height:1.5;color:var(--text2);white-space:pre-wrap"></pre>
+            <div class="popout-search-bar" style="display:none;padding:6px 12px;border-bottom:1px solid var(--glass-border);display:none;align-items:center;gap:8px">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <input class="popout-search-input" type="text" placeholder="Search logs..." oninput="_popoutSearch(this)" style="flex:1;padding:4px 8px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:6px;color:var(--text);font-size:12px;font-family:'JetBrains Mono',monospace;outline:none" />
+              <span class="popout-search-count" style="font-size:10px;color:var(--text3);font-family:'JetBrains Mono',monospace;min-width:40px">0 / 0</span>
+              <button onclick="_popoutSearchNav(this,-1)" style="${_dlhBtnSm}" title="Previous">▲</button>
+              <button onclick="_popoutSearchNav(this,1)" style="${_dlhBtnSm}" title="Next">▼</button>
+              <button onclick="this.closest('.popout-search-bar').style.display='none';_popoutSearchClear(this)" style="${_dlhBtnSm}" title="Close">✕</button>
+            </div>
+            <div class="popout-log-body" style="flex:1;overflow:auto;position:relative">
+              <pre style="padding:12px;margin:0;font-family:'JetBrains Mono',monospace;font-size:${initFs}px;line-height:1.5;color:var(--text2);white-space:pre-wrap"></pre>
+            </div>
           </div>`;
-          const _pre = pane.querySelector('pre');
+          const _logPane = pane.querySelector('[data-logpane]');
+          const _pre = _logPane.querySelector('pre');
+          const _scrollBody = _logPane.querySelector('.popout-log-body');
           _pre.textContent = logContent;
+          _logPane._origText = logContent;
           let _autoFollow = true;
           // Continue streaming into the new tab
           const sse = new EventSource('/api/docker/containers/' + containerId + '/logs?follow=true&tail=0');
           sse.onmessage = (e) => {
-            if (_pre) { try { _pre.textContent += JSON.parse(e.data) + '\n'; } catch { _pre.textContent += e.data + '\n'; } if (_autoFollow) _pre.scrollTop = _pre.scrollHeight; }
+            let line; try { line = JSON.parse(e.data); } catch { line = e.data; }
+            // If search is active, update origText only
+            if (_logPane._origText !== undefined && _logPane._searchMatches?.length > 0) {
+              _logPane._origText += line + '\n';
+            } else {
+              _pre.textContent += line + '\n';
+              if (_logPane._origText !== undefined) _logPane._origText = _pre.textContent;
+            }
+            if (_autoFollow && _scrollBody) _scrollBody.scrollTop = _scrollBody.scrollHeight;
           };
-          // Store state for button handlers
-          pane._autoFollow = true;
-          pane._toggleFollow = (v) => { _autoFollow = v; pane._autoFollow = v; };
+          // Ctrl+F shortcut
+          pane.addEventListener('keydown', (e) => { if ((e.ctrlKey || e.metaKey) && e.key === 'f') { e.preventDefault(); _popoutToggleSearch(pane.querySelector('[title="Search (Ctrl+F)"]')); } });
+          // Store state
+          _logPane._toggleFollow = (v) => { _autoFollow = v; };
           // Store sse for cleanup
           const tab = tabs.get(tabId);
           if (tab) tab._sse = sse;
         }
       }, 100);
+    }
+
+    function _popoutToggleSearch(btn) {
+      const pane = btn.closest('[data-logpane]');
+      if (!pane) return;
+      const bar = pane.querySelector('.popout-search-bar');
+      if (!bar) return;
+      if (bar.style.display === 'flex') {
+        bar.style.display = 'none';
+        _popoutSearchClear(bar.querySelector('.popout-search-input'));
+      } else {
+        bar.style.display = 'flex';
+        setTimeout(() => bar.querySelector('.popout-search-input')?.focus(), 50);
+      }
+    }
+
+    function _popoutSearch(input) {
+      const pane = input.closest('[data-logpane]');
+      if (!pane) return;
+      const pre = pane.querySelector('pre');
+      const countEl = pane.querySelector('.popout-search-count');
+      const query = input.value.trim();
+      // Restore original text
+      if (pane._origText === undefined) pane._origText = pre.textContent;
+      if (!query) {
+        pre.innerHTML = '';
+        pre.textContent = pane._origText;
+        if (countEl) countEl.textContent = '0 / 0';
+        pane._searchMatches = [];
+        pane._searchIdx = -1;
+        return;
+      }
+      // Highlight matches
+      const text = pane._origText;
+      const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp('(' + escaped + ')', 'gi');
+      let matchCount = 0;
+      const html = text.replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c])).replace(regex, (m) => {
+        matchCount++;
+        return '<mark class="log-hl" data-idx="' + (matchCount - 1) + '" style="background:#c084fc;color:#000;border-radius:2px;padding:0 1px">' + m + '</mark>';
+      });
+      pre.innerHTML = html;
+      pane._searchMatches = pre.querySelectorAll('mark.log-hl');
+      pane._searchIdx = matchCount > 0 ? 0 : -1;
+      if (countEl) countEl.textContent = matchCount > 0 ? '1 / ' + matchCount : '0 / 0';
+      if (pane._searchMatches.length > 0) _popoutHighlightCurrent(pane);
+    }
+
+    function _popoutSearchNav(btn, dir) {
+      const pane = btn.closest('[data-logpane]');
+      if (!pane || !pane._searchMatches?.length) return;
+      pane._searchIdx = (pane._searchIdx + dir + pane._searchMatches.length) % pane._searchMatches.length;
+      _popoutHighlightCurrent(pane);
+      const countEl = pane.querySelector('.popout-search-count');
+      if (countEl) countEl.textContent = (pane._searchIdx + 1) + ' / ' + pane._searchMatches.length;
+    }
+
+    function _popoutHighlightCurrent(pane) {
+      pane._searchMatches.forEach((m, i) => {
+        if (i === pane._searchIdx) {
+          m.style.background = '#ec4899';
+          m.style.boxShadow = '0 0 6px rgba(236,72,153,.5)';
+          m.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        } else {
+          m.style.background = '#c084fc';
+          m.style.boxShadow = 'none';
+        }
+      });
+    }
+
+    function _popoutSearchClear(el) {
+      const pane = el?.closest('[data-logpane]');
+      if (!pane) return;
+      const pre = pane.querySelector('pre');
+      if (pane._origText !== undefined) {
+        pre.innerHTML = '';
+        pre.textContent = pane._origText;
+        delete pane._origText;
+      }
+      pane._searchMatches = [];
+      pane._searchIdx = -1;
+      const countEl = pane.querySelector('.popout-search-count');
+      if (countEl) countEl.textContent = '0 / 0';
     }
 
     function _popoutToggleFollow(btn) {
