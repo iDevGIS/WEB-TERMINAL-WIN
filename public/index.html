@@ -8360,9 +8360,9 @@
           _pre.textContent = logContent;
           let _autoFollow = true;
           // Continue streaming into the new tab
-          const sse = new EventSource('/api/docker/containers/' + containerId + '/logs-stream');
+          const sse = new EventSource('/api/docker/containers/' + containerId + '/logs?follow=true&tail=0');
           sse.onmessage = (e) => {
-            if (_pre) { _pre.textContent += e.data + '\n'; if (_autoFollow) _pre.scrollTop = _pre.scrollHeight; }
+            if (_pre) { try { _pre.textContent += JSON.parse(e.data) + '\n'; } catch { _pre.textContent += e.data + '\n'; } if (_autoFollow) _pre.scrollTop = _pre.scrollHeight; }
           };
           // Store state for button handlers
           pane._autoFollow = true;
