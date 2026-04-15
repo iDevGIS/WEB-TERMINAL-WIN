@@ -2677,6 +2677,7 @@
       box-shadow: 0 20px 60px rgba(0,0,0,.6);
     }
     .sess-info-modal h3 { margin: 0 0 16px; font-size: 16px; color: var(--text1); display: flex; align-items: center; justify-content: space-between; }
+    .sess-info-modal div::-webkit-scrollbar { height: 0; width: 0; }
     .si-row { display: flex; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,.04); font-size: 12px; }
     .si-label { color: var(--text3); width: 110px; flex-shrink: 0; }
     .si-value { color: var(--text1); font-family: 'JetBrains Mono', monospace; font-size: 11px; word-break: break-all; }
@@ -4776,6 +4777,8 @@
       if (tab.type === 'docker' && tab._dockerInterval) {
         clearInterval(tab._dockerInterval);
       }
+      // Clean up SSE streams (popout logs)
+      if (tab._sse) { tab._sse.close(); }
       // Clean up spy streams
       if (tab.type === 'spy') {
         const state = _spyState[tabId];
@@ -5144,8 +5147,8 @@
         overlay.innerHTML = `<div class="sess-info-modal" style="width:380px">
           <h3 style="margin-bottom:14px">New Chat <button class="dip-close" onclick="this.closest('.sess-info-overlay').remove()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></h3>
           <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Agent</div>
-          <div style="display:flex;gap:6px;margin-bottom:14px">
-            ${agents.map(a => `<button class="chat-action-sm" style="padding:8px 14px;font-size:11px;gap:6px;flex:1" id="agent-pick-${a}" onclick="document.querySelectorAll('[id^=agent-pick]').forEach(b=>{b.style.borderColor='';b.style.background=''});this.style.borderColor='rgba(108,99,255,.5)';this.style.background='rgba(108,99,255,.1)';this.closest('.sess-info-overlay')._selectedAgent='${a}'">
+          <div style="display:flex;gap:6px;margin-bottom:14px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;-ms-overflow-style:none">
+            ${agents.map(a => `<button class="chat-action-sm" style="padding:8px 14px;font-size:11px;gap:6px;flex-shrink:0" id="agent-pick-${a}" onclick="document.querySelectorAll('[id^=agent-pick]').forEach(b=>{b.style.borderColor='';b.style.background=''});this.style.borderColor='rgba(108,99,255,.5)';this.style.background='rgba(108,99,255,.1)';this.closest('.sess-info-overlay')._selectedAgent='${a}'">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="${a === 'main' ? '#4ade80' : '#60a5fa'}" stroke-width="2" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
               <span style="font-weight:600">${a}</span>
             </button>`).join('')}
@@ -5166,8 +5169,18 @@
         </div>`;
         overlay._resolve = resolve;
         overlay._selectedAgent = 'main';
-        // Auto-select main agent
         document.body.appendChild(overlay);
+        // Drag scroll for agent pills
+        const agentRow = overlay.querySelector('[style*="overflow-x"]');
+        if (agentRow) {
+          let _dragging = false, _startX, _scrollL;
+          agentRow.addEventListener('mousedown', (e) => { _dragging = true; _startX = e.pageX; _scrollL = agentRow.scrollLeft; agentRow.style.cursor = 'grabbing'; agentRow.style.userSelect = 'none'; });
+          agentRow.addEventListener('mousemove', (e) => { if (!_dragging) return; agentRow.scrollLeft = _scrollL - (e.pageX - _startX); });
+          agentRow.addEventListener('mouseup', () => { _dragging = false; agentRow.style.cursor = 'grab'; });
+          agentRow.addEventListener('mouseleave', () => { _dragging = false; agentRow.style.cursor = 'grab'; });
+          agentRow.style.cursor = 'grab';
+        }
+        // Auto-select main agent
         setTimeout(() => { const mainBtn = document.getElementById('agent-pick-main'); if (mainBtn) mainBtn.click(); }, 50);
       });
     }
@@ -8231,6 +8244,12 @@
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
               <span>Download</span>
             </button>
+            <button class="dlh-btn" onclick="_dockerToggleExpandLogs(this)" title="Expand / Collapse">
+              <svg class="expand-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+            </button>
+            <button class="dlh-btn" onclick="_dockerPopoutLogs(this,'${containerId}','${escAttr(name)}')" title="Open in new tab">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+            </button>
             <button class="dlh-btn dlh-close" onclick="const p=this.closest('.docker-logs-panel');if(p._sse)p._sse.close();p.remove()" title="Close">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
             </button>
@@ -8272,6 +8291,65 @@
         const body = document.getElementById(bodyId);
         if (body) body.textContent = 'Error loading logs: ' + e.message;
       }
+    }
+
+    function _dockerToggleExpandLogs(btn) {
+      const panel = btn.closest('.docker-logs-panel');
+      if (!panel) return;
+      const icon = btn.querySelector('.expand-icon');
+      if (panel._expanded) {
+        // Collapse back
+        panel.style.height = panel._origHeight || '200px';
+        panel.style.position = '';
+        panel.style.inset = '';
+        panel.style.zIndex = '';
+        panel.style.borderRadius = '';
+        panel._expanded = false;
+        if (icon) icon.innerHTML = '<polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/>';
+      } else {
+        // Expand to fill docker area
+        panel._origHeight = panel.style.height || '200px';
+        panel.style.height = '100%';
+        panel.style.position = 'absolute';
+        panel.style.inset = '0';
+        panel.style.zIndex = '50';
+        panel.style.borderRadius = '0';
+        panel._expanded = true;
+        if (icon) icon.innerHTML = '<polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/><line x1="14" y1="10" x2="21" y2="3"/><line x1="3" y1="21" x2="10" y2="14"/>';
+      }
+    }
+
+    function _dockerPopoutLogs(btn, containerId, name) {
+      const panel = btn.closest('.docker-logs-panel');
+      if (!panel) return;
+      const body = panel.querySelector('.docker-logs-body');
+      if (!body) return;
+      const logContent = body.textContent;
+      // Open logs in a new CYBERFRAME tab as preview
+      const tabId = createTab('preview', { name: '📋 ' + name + ' logs' });
+      setTimeout(() => {
+        const pane = document.getElementById(tabId + '-pane');
+        if (pane) {
+          pane.innerHTML = `<div style="height:100%;display:flex;flex-direction:column;background:var(--bg)">
+            <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--glass-border);font-size:12px">
+              <span style="color:var(--accent);font-weight:600">${escHtml(name)}</span>
+              <span style="color:var(--text3)">Container Logs</span>
+              <span style="margin-left:auto;font-size:9px;color:var(--text3)">${containerId.slice(0,12)}</span>
+            </div>
+            <pre style="flex:1;overflow:auto;padding:12px;margin:0;font-family:'JetBrains Mono',monospace;font-size:inherit;line-height:1.5;color:var(--text2);white-space:pre-wrap"></pre>
+          </div>`;
+          pane.querySelector('pre').textContent = logContent;
+          // Continue streaming into the new tab
+          const sse = new EventSource('/api/docker/containers/' + containerId + '/logs-stream');
+          sse.onmessage = (e) => {
+            const pre = pane.querySelector('pre');
+            if (pre) { pre.textContent += e.data + '\n'; pre.scrollTop = pre.scrollHeight; }
+          };
+          // Store sse for cleanup
+          const tab = tabs.get(tabId);
+          if (tab) tab._sse = sse;
+        }
+      }, 100);
     }
 
     function _dockerToggleAutoScroll(btn) {
