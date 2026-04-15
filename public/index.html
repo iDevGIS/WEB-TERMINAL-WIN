@@ -8331,31 +8331,74 @@
         const pane = document.getElementById(tabId + '-pane');
         if (pane) {
           const initFs = localStorage.getItem('cyberframe-fontsize') || 14;
-          pane.innerHTML = `<div style="height:100%;display:flex;flex-direction:column;background:var(--bg)">
-            <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--glass-border);font-size:12px">
+          const _dlhBtn = 'padding:4px 10px;border-radius:6px;border:1px solid rgba(108,99,255,.2);background:rgba(108,99,255,.06);color:var(--accent);cursor:pointer;font-size:11px;display:flex;align-items:center;gap:4px;font-family:inherit';
+          const _dlhBtnSm = 'width:22px;height:22px;border-radius:4px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);color:var(--text3);cursor:pointer;font-size:11px;display:flex;align-items:center;justify-content:center';
+          pane.innerHTML = `<div data-logpane="1" style="height:100%;display:flex;flex-direction:column;background:var(--bg)">
+            <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--glass-border);font-size:12px;flex-wrap:wrap">
               <span style="color:var(--accent);font-weight:600">${escHtml(name)}</span>
-              <span style="color:var(--text3)">Container Logs</span>
+              <span style="color:var(--text3);font-size:10px">${containerId.slice(0,12)}</span>
               <div style="margin-left:auto;display:flex;align-items:center;gap:6px">
-                <button onclick="this.closest('[data-logpane]').querySelector('pre').style.fontSize=(parseInt(getComputedStyle(this.closest('[data-logpane]').querySelector('pre')).fontSize)-1)+'px'" style="width:22px;height:22px;border-radius:4px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);color:var(--text3);cursor:pointer;font-size:11px;display:flex;align-items:center;justify-content:center" title="Decrease font">A-</button>
-                <button onclick="this.closest('[data-logpane]').querySelector('pre').style.fontSize=(parseInt(getComputedStyle(this.closest('[data-logpane]').querySelector('pre')).fontSize)+1)+'px'" style="width:22px;height:22px;border-radius:4px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);color:var(--text3);cursor:pointer;font-size:11px;display:flex;align-items:center;justify-content:center" title="Increase font">A+</button>
-                <span style="font-size:9px;color:var(--text3)">${containerId.slice(0,12)}</span>
+                <button data-follow="1" onclick="_popoutToggleFollow(this)" style="${_dlhBtn};border-color:rgba(108,99,255,.4);background:rgba(108,99,255,.12)" title="Auto-scroll">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14"/><path d="M19 12l-7 7-7-7"/></svg>
+                  <span>Follow</span>
+                </button>
+                <button onclick="_popoutClear(this)" style="${_dlhBtn}" title="Clear">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+                  <span>Clear</span>
+                </button>
+                <button onclick="_popoutDownload(this,'${escAttr(name)}')" style="${_dlhBtn}" title="Download">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                  <span>Download</span>
+                </button>
+                <button onclick="this.closest('[data-logpane]').querySelector('pre').style.fontSize=(parseInt(getComputedStyle(this.closest('[data-logpane]').querySelector('pre')).fontSize)-1)+'px'" style="${_dlhBtnSm}" title="Decrease font">A-</button>
+                <button onclick="this.closest('[data-logpane]').querySelector('pre').style.fontSize=(parseInt(getComputedStyle(this.closest('[data-logpane]').querySelector('pre')).fontSize)+1)+'px'" style="${_dlhBtnSm}" title="Increase font">A+</button>
               </div>
             </div>
             <pre style="flex:1;overflow:auto;padding:12px;margin:0;font-family:'JetBrains Mono',monospace;font-size:${initFs}px;line-height:1.5;color:var(--text2);white-space:pre-wrap"></pre>
           </div>`;
-          pane.querySelector('div[style*="flex-direction"]').dataset.logpane = '1';
-          pane.querySelector('pre').textContent = logContent;
+          const _pre = pane.querySelector('pre');
+          _pre.textContent = logContent;
+          let _autoFollow = true;
           // Continue streaming into the new tab
           const sse = new EventSource('/api/docker/containers/' + containerId + '/logs-stream');
           sse.onmessage = (e) => {
-            const pre = pane.querySelector('pre');
-            if (pre) { pre.textContent += e.data + '\n'; pre.scrollTop = pre.scrollHeight; }
+            if (_pre) { _pre.textContent += e.data + '\n'; if (_autoFollow) _pre.scrollTop = _pre.scrollHeight; }
           };
+          // Store state for button handlers
+          pane._autoFollow = true;
+          pane._toggleFollow = (v) => { _autoFollow = v; pane._autoFollow = v; };
           // Store sse for cleanup
           const tab = tabs.get(tabId);
           if (tab) tab._sse = sse;
         }
       }, 100);
+    }
+
+    function _popoutToggleFollow(btn) {
+      const pane = btn.closest('[data-logpane]')?.closest('.tab-pane') || btn.closest('[data-logpane]');
+      if (!pane) return;
+      const active = btn.dataset.follow === '1';
+      btn.dataset.follow = active ? '0' : '1';
+      btn.style.borderColor = active ? 'rgba(108,99,255,.2)' : 'rgba(108,99,255,.4)';
+      btn.style.background = active ? 'rgba(108,99,255,.06)' : 'rgba(108,99,255,.12)';
+      if (pane._toggleFollow) pane._toggleFollow(!active);
+      if (!active) { const pre = pane.querySelector('pre'); if (pre) pre.scrollTop = pre.scrollHeight; }
+    }
+
+    function _popoutClear(btn) {
+      const pre = btn.closest('[data-logpane]')?.querySelector('pre');
+      if (pre) pre.textContent = '';
+    }
+
+    function _popoutDownload(btn, name) {
+      const pre = btn.closest('[data-logpane]')?.querySelector('pre');
+      if (!pre) return;
+      const blob = new Blob([pre.textContent], { type: 'text/plain' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = name + '-logs-' + new Date().toISOString().slice(0, 10) + '.txt';
+      a.click();
+      URL.revokeObjectURL(a.href);
     }
 
     function _dockerToggleAutoScroll(btn) {
