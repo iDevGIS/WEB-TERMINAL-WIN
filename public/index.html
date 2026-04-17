@@ -2290,6 +2290,134 @@
       .session-item { padding: 14px; gap: 14px; }
       input { padding: 14px 16px; font-size: 16px; } /* prevent iOS zoom */
     }
+    /* === Claude Code Tab === */
+    .cc-wrap { display:flex; height:100%; background:transparent; font-family:'Inter','Segoe UI',sans-serif; flex-direction:column; font-size:14px !important; --cc-fs:14px; }
+    /* Top Bar */
+    .cc-topbar { display:flex; align-items:center; gap:8px; padding:7px 14px; background:rgba(17,17,40,.97); border-bottom:1px solid rgba(255,255,255,.08); flex-shrink:0; flex-wrap:wrap; }
+    .cc-topbar-icon { width:28px; height:28px; border-radius:6px; background:linear-gradient(135deg,#f97316,#ea580c); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+    .cc-topbar-title { font-size:13px; font-weight:600; white-space:nowrap; color:#e4e4ef; }
+    .cc-model-picker { font-size:12px; padding:5px 10px; border-radius:5px; cursor:pointer; position:relative; background:rgba(249,115,22,.1); color:#f97316; border:1px solid rgba(249,115,22,.2); display:flex; align-items:center; gap:5px; font-weight:500; }
+    .cc-model-picker:hover { background:rgba(249,115,22,.2); }
+    .cc-model-picker .cc-chevron { font-size:8px; opacity:.6; }
+    .cc-model-dropdown { position:absolute; top:100%; left:0; margin-top:4px; min-width:200px; background:#1a1a35; border:1px solid rgba(255,255,255,.1); border-radius:8px; padding:4px; z-index:200; display:none; box-shadow:0 8px 32px rgba(0,0,0,.6); }
+    .cc-model-picker:hover .cc-model-dropdown { display:block; }
+    .cc-model-opt { padding:8px 12px; border-radius:6px; font-size:12px; cursor:pointer; display:flex; align-items:center; justify-content:space-between; gap:8px; color:#9d9db5; }
+    .cc-model-opt:hover { background:rgba(255,255,255,.06); }
+    .cc-model-opt.active { background:rgba(249,115,22,.1); color:#f97316; }
+    .cc-perm-badge { font-size:11px; padding:4px 10px; border-radius:5px; cursor:pointer; display:flex; align-items:center; gap:5px; font-weight:500; }
+    .cc-perm-badge.auto { background:rgba(74,222,128,.08); color:#4ade80; border:1px solid rgba(74,222,128,.2); }
+    .cc-perm-badge.plan { background:rgba(96,165,250,.08); color:#60a5fa; border:1px solid rgba(96,165,250,.2); }
+    .cc-perm-badge.default { background:rgba(255,255,255,.04); color:#7a7a9a; border:1px solid rgba(255,255,255,.08); }
+    .cc-perm-badge.acceptEdits { background:rgba(251,191,36,.08); color:#fbbf24; border:1px solid rgba(251,191,36,.2); }
+    .cc-cwd-badge { font-size:10px; padding:4px 8px; border-radius:5px; cursor:pointer; display:flex; align-items:center; gap:5px; background:rgba(251,191,36,.06); color:#fbbf24; border:1px solid rgba(251,191,36,.12); font-family:'JetBrains Mono',monospace; max-width:200px; }
+    .cc-cwd-badge:hover { background:rgba(251,191,36,.12); }
+    .cc-ctx-bar { display:flex; align-items:center; gap:8px; padding:3px 8px; font-size:10px; color:#7a7a9a; }
+    .cc-ctx-meter { width:70px; height:4px; background:#0a0a1a; border-radius:2px; overflow:hidden; }
+    .cc-ctx-fill { height:100%; border-radius:2px; transition:width .3s; }
+    .cc-ctx-fill.low { background:#4ade80; } .cc-ctx-fill.mid { background:#fbbf24; } .cc-ctx-fill.high { background:#f97316; } .cc-ctx-fill.critical { background:#ef4444; }
+    .cc-topbar-right { display:flex; gap:6px; margin-left:auto; }
+    .cc-topbar-btn { background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); border-radius:6px; color:#7a7a9a; font-size:11px; padding:5px 10px; cursor:pointer; display:flex; align-items:center; gap:4px; white-space:nowrap; transition:all .15s; }
+    .cc-topbar-btn:hover { background:rgba(108,99,255,.12); border-color:rgba(108,99,255,.3); color:#e4e4ef; }
+    .cc-topbar-btn.danger { color:#ef4444; border-color:rgba(239,68,68,.2); }
+    .cc-topbar-btn.danger:hover { background:rgba(239,68,68,.12); }
+    .cc-main { flex:1; display:flex; overflow:hidden; min-height:0; }
+    /* Left Sidebar */
+    .cc-sidebar { width:240px; background:rgba(17,17,40,.97); border-right:1px solid rgba(255,255,255,.08); display:flex; flex-direction:column; overflow:hidden; flex-shrink:0; }
+    .cc-session-header { padding:8px 10px; font-size:10px; color:#7a7a9a; text-transform:uppercase; letter-spacing:1px; border-bottom:1px solid rgba(255,255,255,.08); display:flex; align-items:center; justify-content:space-between; }
+    .cc-session-header button { background:rgba(108,99,255,.12); border:1px solid rgba(108,99,255,.25); color:#6c63ff; font-size:10px; padding:3px 8px; border-radius:4px; cursor:pointer; font-weight:500; }
+    .cc-session-header button:hover { background:rgba(108,99,255,.25); }
+    .cc-session-list { overflow-y:auto; flex-shrink:0; max-height:150px; }
+    .cc-session-item { display:flex; align-items:center; gap:8px; padding:7px 10px; cursor:pointer; font-size:12px; color:#9d9db5; border-left:2px solid transparent; transition:all .1s; }
+    .cc-session-item:hover { background:rgba(255,255,255,.04); }
+    .cc-session-item.active { background:rgba(108,99,255,.08); border-left-color:#6c63ff; color:#e4e4ef; }
+    .cc-session-item .cc-time { font-size:10px; color:#5a5a7a; margin-left:auto; }
+    .cc-sidebar-tabs { display:flex; border-bottom:1px solid rgba(255,255,255,.08); flex-shrink:0; }
+    .cc-sidebar-tab { flex:1; padding:7px 0; text-align:center; font-size:10px; color:#7a7a9a; cursor:pointer; border-bottom:2px solid transparent; text-transform:uppercase; letter-spacing:.5px; font-weight:500; }
+    .cc-sidebar-tab:hover { color:#9d9db5; background:rgba(255,255,255,.03); }
+    .cc-sidebar-tab.active { color:#f97316; border-bottom-color:#f97316; }
+    .cc-file-tree { flex:1; overflow-y:auto; padding:4px 0; font-size:12px; }
+    .cc-file-item { display:flex; align-items:center; gap:6px; padding:4px 10px; cursor:pointer; color:#9d9db5; transition:background .1s; }
+    .cc-file-item:hover { background:rgba(255,255,255,.04); }
+    .cc-file-badge { font-size:9px; padding:2px 5px; border-radius:3px; margin-left:auto; font-weight:600; text-transform:uppercase; }
+    .cc-file-badge.m { background:rgba(251,191,36,.12); color:#fbbf24; } .cc-file-badge.c { background:rgba(74,222,128,.12); color:#4ade80; } .cc-file-badge.d { background:rgba(239,68,68,.12); color:#ef4444; }
+    .cc-cost-panel { padding:8px 10px; border-top:1px solid rgba(255,255,255,.08); flex-shrink:0; font-size:11px; color:#7a7a9a; }
+    .cc-cost-row { display:flex; justify-content:space-between; margin-bottom:3px; }
+    .cc-cost-value { color:#b0b0c8; font-family:'JetBrains Mono',monospace; font-size:11px; }
+    /* Chat Area */
+    .cc-chat-area { flex:1; display:flex; flex-direction:column; min-width:0; }
+    .cc-messages { flex:1; overflow-y:auto; padding:16px 20px; display:flex; flex-direction:column; gap:12px; }
+    .cc-messages::-webkit-scrollbar { width:5px; } .cc-messages::-webkit-scrollbar-thumb { background:rgba(255,255,255,.1); border-radius:3px; }
+    .cc-msg { display:flex; gap:10px; max-width:100%; }
+    .cc-msg-avatar { width:28px; height:28px; border-radius:6px; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:12px; }
+    .cc-msg-avatar.user { background:rgba(108,99,255,.15); color:#6c63ff; }
+    .cc-msg-avatar.ai { background:rgba(249,115,22,.15); color:#f97316; }
+    .cc-msg-body { flex:1; min-width:0; }
+    .cc-msg-header { font-size:11px; color:#7a7a9a; margin-bottom:4px; display:flex; gap:8px; align-items:center; }
+    .cc-msg-name { font-weight:600; color:#b0b0c8; }
+    .cc-msg-content { font-size:var(--cc-fs,14px); line-height:1.7; color:#e4e4ef; }
+    .cc-msg-content p { margin-bottom:8px; }
+    .cc-msg-content code { font-family:'JetBrains Mono',monospace; font-size:12px; background:rgba(255,255,255,.07); padding:2px 6px; border-radius:4px; }
+    .cc-msg-content pre { background:rgba(0,0,0,.35); border:1px solid rgba(255,255,255,.08); border-radius:8px; padding:12px 14px; overflow-x:auto; margin:8px 0; position:relative; }
+    .cc-msg-content pre code { background:none; padding:0; font-size:13px; }
+    .cc-copy-btn { position:absolute; top:6px; right:6px; background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.1); border-radius:4px; color:#7a7a9a; font-size:10px; padding:3px 8px; cursor:pointer; }
+    .cc-copy-btn:hover { background:rgba(255,255,255,.15); color:#e4e4ef; }
+    /* Tool blocks */
+    .cc-tool-block { margin:8px 0; border:1px solid rgba(255,255,255,.08); border-radius:8px; overflow:hidden; background:rgba(10,10,26,.7); }
+    .cc-tool-header { display:flex; align-items:center; gap:8px; padding:8px 12px; background:rgba(255,255,255,.03); border-bottom:1px solid rgba(255,255,255,.06); font-size:12px; cursor:pointer; }
+    .cc-tool-icon { font-size:13px; }
+    .cc-tool-name { font-weight:600; color:#b0b0c8; font-family:'JetBrains Mono',monospace; font-size:12px; }
+    .cc-tool-file { color:#60a5fa; font-size:11px; }
+    .cc-tool-status { margin-left:auto; font-size:10px; padding:2px 7px; border-radius:4px; }
+    .cc-tool-status.done { background:rgba(74,222,128,.12); color:#4ade80; }
+    .cc-tool-status.running { background:rgba(251,191,36,.12); color:#fbbf24; animation:pulse 1.5s infinite; }
+    .cc-tool-status.error { background:rgba(239,68,68,.12); color:#ef4444; }
+    .cc-tool-body { padding:10px 12px; font-family:'JetBrains Mono',monospace; font-size:12px; color:#9d9db5; max-height:200px; overflow-y:auto; line-height:1.6; display:none; }
+    .cc-tool-body.open { display:block; }
+    .cc-tool-body .line-add { color:#4ade80; } .cc-tool-body .line-del { color:#ef4444; text-decoration:line-through; opacity:.6; }
+    .cc-tool-body .line-num { color:#5a5a7a; user-select:none; display:inline-block; width:32px; text-align:right; margin-right:8px; }
+    /* Turn separator */
+    .cc-turn-sep { display:flex; align-items:center; gap:10px; padding:4px 0; font-size:10px; color:#5a5a7a; text-transform:uppercase; letter-spacing:1px; }
+    .cc-turn-sep::before, .cc-turn-sep::after { content:''; flex:1; height:1px; background:rgba(255,255,255,.06); }
+    /* Permission prompt */
+    .cc-perm-prompt { margin:10px 0; padding:14px 16px; border-radius:10px; background:rgba(251,191,36,.05); border:1px solid rgba(251,191,36,.2); }
+    .cc-perm-prompt-title { font-size:13px; font-weight:600; color:#fbbf24; margin-bottom:8px; display:flex; align-items:center; gap:8px; }
+    .cc-perm-prompt-detail { font-size:12px; color:#9d9db5; margin-bottom:10px; font-family:'JetBrains Mono',monospace; }
+    .cc-perm-btns { display:flex; gap:8px; }
+    .cc-perm-btn { padding:6px 16px; border-radius:6px; font-size:12px; font-weight:500; cursor:pointer; border:none; }
+    .cc-perm-btn.allow { background:rgba(74,222,128,.15); color:#4ade80; }
+    .cc-perm-btn.allow:hover { background:rgba(74,222,128,.3); }
+    .cc-perm-btn.deny { background:rgba(239,68,68,.1); color:#ef4444; }
+    .cc-perm-btn.deny:hover { background:rgba(239,68,68,.2); }
+    /* Streaming bar */
+    .cc-streaming-bar { display:none; align-items:center; gap:10px; padding:8px 20px; background:rgba(249,115,22,.04); border-top:1px solid rgba(249,115,22,.12); font-size:12px; color:#f97316; flex-shrink:0; }
+    .cc-streaming-bar.active { display:flex; }
+    .cc-streaming-dots { display:flex; gap:4px; }
+    .cc-streaming-dots span { width:5px; height:5px; border-radius:50%; background:#f97316; animation:dotPulse .8s ease-in-out infinite; }
+    .cc-streaming-dots span:nth-child(2) { animation-delay:.15s; } .cc-streaming-dots span:nth-child(3) { animation-delay:.3s; }
+    .cc-stop-btn { margin-left:auto; background:rgba(239,68,68,.1); border:1px solid rgba(239,68,68,.2); color:#ef4444; font-size:11px; padding:4px 12px; border-radius:5px; cursor:pointer; display:flex; align-items:center; gap:4px; }
+    .cc-stop-btn:hover { background:rgba(239,68,68,.25); }
+    /* Input area */
+    .cc-input-area { padding:10px 16px; border-top:1px solid rgba(255,255,255,.08); background:rgba(17,17,40,.97); flex-shrink:0; position:relative; }
+    .cc-input-box { display:flex; align-items:flex-end; gap:8px; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:10px 14px; transition:border-color .2s; }
+    .cc-input-box:focus-within { border-color:rgba(249,115,22,.4); box-shadow:0 0 0 2px rgba(249,115,22,.08); }
+    .cc-input-box textarea { flex:1; background:none; border:none; outline:none; color:#e4e4ef; font-family:'Inter',sans-serif; font-size:var(--cc-fs,14px); resize:none; min-height:22px; max-height:120px; line-height:1.5; }
+    .cc-input-box textarea::placeholder { color:#5a5a7a; }
+    .cc-send-btn { width:34px; height:34px; border-radius:8px; border:none; background:linear-gradient(135deg,#f97316,#ea580c); color:white; cursor:pointer; display:flex; align-items:center; justify-content:center; flex-shrink:0; transition:transform .1s; }
+    .cc-send-btn:hover { transform:scale(1.08); }
+    /* Slash command dropdown */
+    .cc-slash-dropdown { position:absolute; bottom:100%; left:16px; right:16px; margin-bottom:4px; background:#1a1a35; border:1px solid rgba(255,255,255,.1); border-radius:10px; padding:6px; display:none; box-shadow:0 -8px 32px rgba(0,0,0,.5); max-height:220px; overflow-y:auto; z-index:200; }
+    .cc-slash-dropdown.show { display:block; }
+    .cc-slash-item { display:flex; align-items:center; gap:10px; padding:7px 10px; border-radius:6px; cursor:pointer; font-size:12px; }
+    .cc-slash-item:hover, .cc-slash-item.active { background:rgba(108,99,255,.1); }
+    .cc-slash-cmd { color:#6c63ff; font-weight:600; font-family:'JetBrains Mono',monospace; min-width:80px; }
+    .cc-slash-desc { color:#7a7a9a; font-size:11px; }
+    /* Empty state */
+    .cc-empty { display:flex; flex-direction:column; align-items:center; justify-content:center; flex:1; color:#5a5a7a; gap:10px; }
+    .cc-empty-icon { opacity:.3; }
+    .cc-empty-text { font-size:16px; font-weight:500; }
+    .cc-empty-sub { font-size:12px; }
+    @keyframes dotPulse { 0%,100% { opacity:.2;transform:scale(.8); } 50% { opacity:1;transform:scale(1.2); } }
+
     /* === AI Chat Tab === */
     .chat-tab-wrap {
       display: flex; height: 100%; background: transparent;
@@ -3865,6 +3993,11 @@
               <span class="feat-label">Docker</span>
               <span class="feat-sub">Containers</span>
             </div>
+            <div class="feature" onclick="openClaudeCodeTab()" title="Claude Code — AI Coding Agent">
+              <span class="fi"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#f97316" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg></span>
+              <span class="feat-label">Claude Code</span>
+              <span class="feat-sub">AI Agent</span>
+            </div>
           </div>
 
         </div>
@@ -4056,9 +4189,10 @@
       const tabEl = document.createElement('div');
       tabEl.className = 'tab-item';
       tabEl.dataset.tabId = tabId;
-      const icon = opts.icon || (type === 'terminal' ? '⚡' : type === 'editor' ? '📝' : type === 'preview' ? '👁' : type === 'admin' ? '🛡️' : type === 'chat' ? '💬' : type === 'agent-monitor' ? '🤖' : type === 'vscode' ? '💻' : type === 'vnc' ? '🖥️' : type === 'docker' ? '🐳' : type === 'spy' ? '👁' : '📂');
-      const label = opts.name || (type === 'terminal' ? 'Shell' : type === 'editor' ? 'Editor' : type === 'preview' ? 'Preview' : type === 'admin' ? 'Admin' : type === 'chat' ? 'AI Chat' : type === 'agent-monitor' ? 'Agent Monitor' : type === 'vscode' ? 'VS Code' : type === 'vnc' ? 'Remote Desktop' : type === 'docker' ? 'Docker' : type === 'spy' ? 'Spy' : 'Files');
+      const icon = opts.icon || (type === 'terminal' ? '⚡' : type === 'editor' ? '📝' : type === 'preview' ? '👁' : type === 'admin' ? '🛡️' : type === 'chat' ? '💬' : type === 'agent-monitor' ? '🤖' : type === 'vscode' ? '💻' : type === 'vnc' ? '🖥️' : type === 'docker' ? '🐳' : type === 'spy' ? '👁' : type === 'claude-code' ? '⚡' : '📂');
+      const label = opts.name || (type === 'terminal' ? 'Shell' : type === 'editor' ? 'Editor' : type === 'preview' ? 'Preview' : type === 'admin' ? 'Admin' : type === 'chat' ? 'AI Chat' : type === 'agent-monitor' ? 'Agent Monitor' : type === 'vscode' ? 'VS Code' : type === 'vnc' ? 'Remote Desktop' : type === 'docker' ? 'Docker' : type === 'spy' ? 'Spy' : type === 'claude-code' ? 'Claude Code' : 'Files');
       tabEl.innerHTML = `<span class="tab-icon">${icon}</span><span class="tab-label">${escHtml(label)}</span><span class="tab-close" onclick="event.stopPropagation();closeTab('${tabId}')">✕</span>`;
+      if (type === 'claude-code') tabEl.style.color = '#f97316';
       tabEl.onclick = () => switchTab(tabId);
       // Drag to reorder
       tabEl.draggable = true;
@@ -4686,12 +4820,124 @@
         </div>`;
         container.appendChild(paneEl);
         spyLoadDevices(tabId);
+
+      } else if (type === 'claude-code') {
+        paneEl.innerHTML = `<div class="cc-wrap" id="${tabId}-cc">
+          <div class="cc-main">
+          <div class="cc-sidebar" id="${tabId}-cc-sidebar">
+            <div class="cc-session-header">
+              <span>Sessions</span>
+              <button onclick="ccNewSession('${tabId}')">+ New</button>
+            </div>
+            <div class="cc-session-list" id="${tabId}-cc-sessions"></div>
+            <div class="cc-sidebar-tabs">
+              <div class="cc-sidebar-tab active" data-tab="files" onclick="ccSwitchSideTab('${tabId}','files',this)">Files</div>
+              <div class="cc-sidebar-tab" data-tab="tasks" onclick="ccSwitchSideTab('${tabId}','tasks',this)">Tasks</div>
+            </div>
+            <div class="cc-file-tree" id="${tabId}-cc-files">
+              <div style="padding:12px 8px;color:#5a5a7a;font-size:10px;text-align:center">No files changed yet</div>
+            </div>
+            <div class="cc-cost-panel" id="${tabId}-cc-cost">
+              <div class="cc-cost-row"><span>Cost</span><span class="cc-cost-value" id="${tabId}-cc-cost-val">$0.00</span></div>
+              <div class="cc-cost-row"><span>In</span><span class="cc-cost-value" id="${tabId}-cc-tok-in">0</span></div>
+              <div class="cc-cost-row"><span>Out</span><span class="cc-cost-value" id="${tabId}-cc-tok-out">0</span></div>
+              <div class="cc-cost-row"><span>Turns</span><span class="cc-cost-value" id="${tabId}-cc-turns">0</span></div>
+            </div>
+          </div>
+          <div class="cc-chat-area">
+            <div class="cc-topbar" id="${tabId}-cc-topbar">
+              <div class="cc-topbar-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg></div>
+              <span class="cc-topbar-title">Claude Code</span>
+              <div class="cc-model-picker" id="${tabId}-cc-model-picker">
+                <span id="${tabId}-cc-model-label">Opus</span><span class="cc-chevron">▾</span>
+                <div class="cc-model-dropdown">
+                  <div class="cc-model-opt active" data-model="opus" onclick="ccSelectModel('${tabId}','opus',this)">Opus <span style="font-size:8px;opacity:.5">1M ctx</span></div>
+                  <div class="cc-model-opt" data-model="sonnet" onclick="ccSelectModel('${tabId}','sonnet',this)">Sonnet <span style="font-size:8px;opacity:.5">200K</span></div>
+                  <div class="cc-model-opt" data-model="haiku" onclick="ccSelectModel('${tabId}','haiku',this)">Haiku <span style="font-size:8px;opacity:.5">200K</span></div>
+                </div>
+              </div>
+              <div class="cc-perm-badge default" id="${tabId}-cc-perm" onclick="ccCyclePerm('${tabId}')" title="Click to cycle permission mode">
+                <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                <span id="${tabId}-cc-perm-label">Default</span>
+              </div>
+              <div class="cc-cwd-badge" id="${tabId}-cc-cwd" onclick="ccChangeCwd('${tabId}')" title="Click to change working directory">
+                <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                <span id="${tabId}-cc-cwd-label" style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;direction:rtl">~</span>
+              </div>
+              <div class="cc-ctx-bar" id="${tabId}-cc-ctx" title="Context usage">
+                <span>CTX</span>
+                <div class="cc-ctx-meter"><div class="cc-ctx-fill low" id="${tabId}-cc-ctx-fill" style="width:0%"></div></div>
+                <span id="${tabId}-cc-ctx-pct">0%</span>
+              </div>
+              <div class="cc-topbar-right">
+                <button class="cc-topbar-btn" onclick="ccCompact('${tabId}')" title="Compress context (/compact)">
+                  <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 14h6v6"/><path d="M14 4h6v6"/><path d="M10 14L4 20"/><path d="M20 4l-6 6"/></svg>
+                  Compact
+                </button>
+                <button class="cc-topbar-btn danger" onclick="ccEndSession('${tabId}')" title="End session">
+                  <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/></svg>
+                  End
+                </button>
+              </div>
+            </div>
+            <div class="cc-messages" id="${tabId}-cc-messages">
+              <div class="cc-empty" id="${tabId}-cc-empty">
+                <div class="cc-empty-icon"><svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#f97316" stroke-width="1.5" stroke-linecap="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg></div>
+                <div class="cc-empty-text">Claude Code</div>
+                <div class="cc-empty-sub">AI Coding Agent — type a message to start</div>
+              </div>
+            </div>
+            <div class="cc-streaming-bar" id="${tabId}-cc-streaming">
+              <div class="cc-streaming-dots"><span></span><span></span><span></span></div>
+              <span id="${tabId}-cc-streaming-text">Claude is thinking...</span>
+              <span style="font-size:8px;color:#5a5a7a" id="${tabId}-cc-streaming-time"></span>
+              <button class="cc-stop-btn" onclick="ccStop('${tabId}')">
+                <svg width="7" height="7" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>
+                Stop
+              </button>
+            </div>
+            <div class="cc-input-area" id="${tabId}-cc-input-area">
+              <div class="cc-slash-dropdown" id="${tabId}-cc-slash"></div>
+              <div class="cc-input-box">
+                <textarea id="${tabId}-cc-input" placeholder="Ask Claude Code..." rows="1"></textarea>
+                <button class="cc-send-btn" onclick="ccSend('${tabId}')">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                </button>
+              </div>
+            </div>
+          </div>
+          </div>
+        </div>`;
+        container.appendChild(paneEl);
+        tabData.ccSessionId = null;
+        tabData.ccModel = 'opus';
+        tabData.ccPermMode = 'default';
+        tabData.ccCwd = '';
+        tabData.ccAutoScroll = true;
+        // Setup input
+        const ccInput = document.getElementById(tabId + '-cc-input');
+        ccInput.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); ccSend(tabId); }
+        });
+        ccInput.addEventListener('input', () => {
+          ccInput.style.height = 'auto';
+          ccInput.style.height = Math.min(ccInput.scrollHeight, 100) + 'px';
+          ccHandleSlash(tabId, ccInput.value);
+        });
+        // Auto-scroll control
+        const ccMsgs = document.getElementById(tabId + '-cc-messages');
+        ccMsgs.addEventListener('scroll', () => {
+          const td = tabs.get(tabId);
+          if (!td) return;
+          td.ccAutoScroll = (ccMsgs.scrollTop + ccMsgs.clientHeight >= ccMsgs.scrollHeight - 30);
+        });
       }
 
       tabs.set(tabId, tabData);
       switchTab(tabId);
       // Init chat first session after tab is registered
       if (type === 'chat' && !opts?.skipDefaultSession) setTimeout(() => chatNewSessionQuick(tabId), 50);
+      if (type === 'claude-code') setTimeout(() => ccRefreshSessionList(tabId), 200);
       return tabId;
     }
 
@@ -4780,6 +5026,12 @@
       }
       // Clean up SSE streams (popout logs)
       if (tab._sse) { tab._sse.close(); }
+      // Clean up Claude Code session
+      if (tab.type === 'claude-code' && tab.ccSessionId) {
+        if (window._ws && window._ws.readyState === 1) {
+          window._ws.send(JSON.stringify({ type: 'claude-detach', id: tab.ccSessionId }));
+        }
+      }
       // Clean up spy streams
       if (tab.type === 'spy') {
         const state = _spyState[tabId];
@@ -9881,6 +10133,611 @@
       setTimeout(setupAllPaneHeaderDrags, 200);
     }
 
+    // === Claude Code Tab Functions ===
+    function openClaudeCodeTab() {
+      createTab('claude-code', { name: 'Claude Code', icon: '⚡' });
+    }
+
+    const CC_SLASH_COMMANDS = [
+      { cmd: '/compact', desc: 'Compress conversation context' },
+      { cmd: '/clear', desc: 'Clear conversation' },
+      { cmd: '/help', desc: 'Show help' },
+      { cmd: '/review', desc: 'Review code changes' },
+      { cmd: '/commit', desc: 'Create a git commit' },
+      { cmd: '/pr', desc: 'Create a pull request' },
+      { cmd: '/init', desc: 'Initialize CLAUDE.md' },
+      { cmd: '/bug', desc: 'Report a bug' },
+      { cmd: '/config', desc: 'Open configuration' },
+      { cmd: '/cost', desc: 'Show token/cost usage' },
+      { cmd: '/doctor', desc: 'Diagnose issues' },
+      { cmd: '/memory', desc: 'Edit CLAUDE.md memory' },
+      { cmd: '/model', desc: 'Switch model' },
+      { cmd: '/permissions', desc: 'View/update permissions' },
+      { cmd: '/status', desc: 'Show status' },
+      { cmd: '/terminal-setup', desc: 'Install shell tools' },
+    ];
+    const CC_PERM_MODES = ['default', 'plan', 'auto', 'acceptEdits'];
+
+    async function ccNewSession(tabId) {
+      const td = tabs.get(tabId);
+      if (!td) return;
+      const model = td.ccModel || 'opus';
+      const permMode = td.ccPermMode || 'default';
+      try {
+        const r = await fetch('/api/claude/sessions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ model, permissionMode: permMode, cwd: td.ccCwd || undefined })
+        });
+        if (!r.ok) { const e = await r.json(); showToast('Failed: ' + (e.error || 'unknown'), 'error'); return; }
+        const data = await r.json();
+        td.ccSessionId = data.id;
+        // Attach via WebSocket
+        if (window._ws && window._ws.readyState === 1) {
+          window._ws.send(JSON.stringify({ type: 'claude-attach', id: data.id }));
+        }
+        // Clear messages
+        const msgsEl = document.getElementById(tabId + '-cc-messages');
+        msgsEl.innerHTML = `<div class="cc-empty" id="${tabId}-cc-empty">
+          <div class="cc-empty-icon"><svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#f97316" stroke-width="1.5" stroke-linecap="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg></div>
+          <div class="cc-empty-text">Claude Code</div>
+          <div class="cc-empty-sub">Session started — model: ${escHtml(model)}</div>
+        </div>`;
+        ccRefreshSessionList(tabId);
+        showToast('Claude Code session started', 'success');
+      } catch (e) {
+        showToast('Failed to create session: ' + e.message, 'error');
+      }
+    }
+
+    async function ccRefreshSessionList(tabId) {
+      try {
+        const r = await fetch('/api/claude/sessions');
+        if (!r.ok) return;
+        const sessions = await r.json();
+        const listEl = document.getElementById(tabId + '-cc-sessions');
+        if (!listEl) return;
+        const td = tabs.get(tabId);
+        const activeId = td?.ccSessionId;
+        listEl.innerHTML = sessions.map(s => `<div class="cc-session-item${s.id === activeId ? ' active' : ''}" onclick="ccSwitchSession('${tabId}','${s.id}')">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          ${escHtml(s.name)}
+          <span class="cc-time">${s.status === 'stopped' ? '●' : s.turns + 't'}</span>
+        </div>`).join('');
+      } catch {}
+    }
+
+    async function ccSwitchSession(tabId, sessionId) {
+      const td = tabs.get(tabId);
+      if (!td) return;
+      // Detach current
+      if (td.ccSessionId && window._ws && window._ws.readyState === 1) {
+        window._ws.send(JSON.stringify({ type: 'claude-detach', id: td.ccSessionId }));
+      }
+      td.ccSessionId = sessionId;
+      // Attach new
+      if (window._ws && window._ws.readyState === 1) {
+        window._ws.send(JSON.stringify({ type: 'claude-attach', id: sessionId }));
+      }
+      ccRefreshSessionList(tabId);
+    }
+
+    function ccSend(tabId) {
+      const td = tabs.get(tabId);
+      if (!td) return;
+      const input = document.getElementById(tabId + '-cc-input');
+      const msg = input.value.trim();
+      if (!msg) return;
+      input.value = '';
+      input.style.height = 'auto';
+      // Hide slash dropdown
+      const slash = document.getElementById(tabId + '-cc-slash');
+      if (slash) slash.classList.remove('show');
+
+      // If no session, create one first
+      if (!td.ccSessionId) {
+        ccNewSession(tabId).then(() => {
+          setTimeout(() => ccDoSend(tabId, msg), 500);
+        });
+        return;
+      }
+      ccDoSend(tabId, msg);
+    }
+
+    function ccDoSend(tabId, msg) {
+      const td = tabs.get(tabId);
+      if (!td || !td.ccSessionId) return;
+      // Show streaming bar + user message immediately
+      ccAppendMessage(tabId, ccRenderUserMsg(msg));
+      const streamBar = document.getElementById(tabId + '-cc-streaming');
+      if (streamBar) { streamBar.classList.add('active'); }
+      const stText = document.getElementById(tabId + '-cc-streaming-text');
+      if (stText) stText.textContent = 'Claude is thinking...';
+      if (window._ws && window._ws.readyState === 1) {
+        window._ws.send(JSON.stringify({ type: 'claude-send', id: td.ccSessionId, message: msg, model: td.ccModel, permMode: td.ccPermMode, cwd: td.ccCwd || undefined }));
+      }
+      // Refresh session list to show updated name
+      setTimeout(() => ccRefreshSessionList(tabId), 300);
+    }
+
+    function ccStop(tabId) {
+      const td = tabs.get(tabId);
+      if (!td || !td.ccSessionId) return;
+      if (window._ws && window._ws.readyState === 1) {
+        window._ws.send(JSON.stringify({ type: 'claude-stop', id: td.ccSessionId }));
+      }
+    }
+
+    function ccCompact(tabId) {
+      const td = tabs.get(tabId);
+      if (!td || !td.ccSessionId) return;
+      fetch('/api/claude/sessions/' + td.ccSessionId + '/compact', { method: 'POST' });
+      showToast('Compacting context...', 'info');
+    }
+
+    async function ccEndSession(tabId) {
+      const td = tabs.get(tabId);
+      if (!td || !td.ccSessionId) return;
+      if (window._ws && window._ws.readyState === 1) {
+        window._ws.send(JSON.stringify({ type: 'claude-detach', id: td.ccSessionId }));
+      }
+      await fetch('/api/claude/sessions/' + td.ccSessionId, { method: 'DELETE' });
+      td.ccSessionId = null;
+      const msgsEl = document.getElementById(tabId + '-cc-messages');
+      msgsEl.innerHTML = `<div class="cc-empty" id="${tabId}-cc-empty">
+        <div class="cc-empty-icon"><svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#f97316" stroke-width="1.5" stroke-linecap="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg></div>
+        <div class="cc-empty-text">Session Ended</div>
+        <div class="cc-empty-sub">Start a new session to continue</div>
+      </div>`;
+      document.getElementById(tabId + '-cc-streaming').classList.remove('active');
+      ccRefreshSessionList(tabId);
+      showToast('Session ended', 'info');
+    }
+
+    function ccSelectModel(tabId, model, el) {
+      const td = tabs.get(tabId);
+      if (!td) return;
+      td.ccModel = model;
+      document.getElementById(tabId + '-cc-model-label').textContent = model.charAt(0).toUpperCase() + model.slice(1);
+      // Update active state
+      el.closest('.cc-model-dropdown').querySelectorAll('.cc-model-opt').forEach(o => o.classList.remove('active'));
+      el.classList.add('active');
+    }
+
+    function ccCyclePerm(tabId) {
+      const td = tabs.get(tabId);
+      if (!td) return;
+      const idx = CC_PERM_MODES.indexOf(td.ccPermMode);
+      td.ccPermMode = CC_PERM_MODES[(idx + 1) % CC_PERM_MODES.length];
+      const badge = document.getElementById(tabId + '-cc-perm');
+      const label = document.getElementById(tabId + '-cc-perm-label');
+      badge.className = 'cc-perm-badge ' + td.ccPermMode;
+      label.textContent = td.ccPermMode.charAt(0).toUpperCase() + td.ccPermMode.slice(1);
+    }
+
+    function ccChangeCwd(tabId) {
+      const td = tabs.get(tabId);
+      if (!td) return;
+      // Create folder picker overlay
+      const overlay = document.createElement('div');
+      overlay.className = 'cyber-overlay';
+      overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center';
+      overlay.innerHTML = `<div style="background:#111128;border:1px solid rgba(255,255,255,.1);border-radius:12px;width:480px;max-height:70vh;display:flex;flex-direction:column;box-shadow:0 16px 48px rgba(0,0,0,.5)">
+        <div style="padding:12px 16px;border-bottom:1px solid rgba(255,255,255,.08);display:flex;align-items:center;gap:8px">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fbbf24" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+          <span style="font-size:14px;font-weight:600;color:#e4e4ef">Select Working Directory</span>
+          <button onclick="this.closest('.cyber-overlay').remove()" style="margin-left:auto;background:none;border:none;color:#7a7a9a;font-size:18px;cursor:pointer">✕</button>
+        </div>
+        <div id="cc-cwd-drives" style="padding:8px 12px;display:flex;gap:6px;flex-wrap:wrap;border-bottom:1px solid rgba(255,255,255,.06)"></div>
+        <div id="cc-cwd-breadcrumb" style="padding:6px 12px;font-size:11px;color:#7a7a9a;font-family:'JetBrains Mono',monospace;display:flex;gap:4px;flex-wrap:wrap;border-bottom:1px solid rgba(255,255,255,.06)"></div>
+        <div id="cc-cwd-list" style="flex:1;overflow-y:auto;padding:4px 0;min-height:200px;max-height:400px">
+          <div style="padding:20px;text-align:center;color:#5a5a7a">Loading...</div>
+        </div>
+        <div style="padding:10px 16px;border-top:1px solid rgba(255,255,255,.08);display:flex;align-items:center;gap:8px">
+          <input type="text" id="cc-cwd-input" style="flex:1;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:6px;padding:6px 10px;color:#e4e4ef;font-size:12px;font-family:'JetBrains Mono',monospace;outline:none" value="${escAttr(td.ccCwd || '')}" placeholder="Enter path...">
+          <button onclick="ccCwdSelect('${tabId}',document.getElementById('cc-cwd-input').value);this.closest('.cyber-overlay').remove()" style="background:linear-gradient(135deg,#f97316,#ea580c);color:white;border:none;border-radius:6px;padding:6px 16px;font-size:12px;font-weight:500;cursor:pointer">Select</button>
+        </div>
+      </div>`;
+      document.body.appendChild(overlay);
+      overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+      // Load drives + files
+      ccCwdLoadDrives(tabId);
+      ccCwdLoadFiles(tabId, td.ccCwd || '');
+    }
+
+    async function ccCwdLoadDrives(tabId) {
+      try {
+        const r = await fetch('/api/files/drives');
+        const drives = await r.json();
+        const el = document.getElementById('cc-cwd-drives');
+        if (!el) return;
+        el.innerHTML = (Array.isArray(drives) ? drives : [drives]).map(d =>
+          `<button onclick="ccCwdLoadFiles('${tabId}','${d.Root.replace(/\\/g,'/')}')" style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:5px;padding:4px 10px;color:#9d9db5;font-size:11px;cursor:pointer;display:flex;align-items:center;gap:4px">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><line x1="2" y1="14" x2="22" y2="14"/></svg>
+            ${d.Name}: <span style="font-size:9px;color:#5a5a7a">${d.FreeGB}GB</span>
+          </button>`
+        ).join('');
+      } catch {}
+    }
+
+    async function ccCwdLoadFiles(tabId, dir) {
+      const listEl = document.getElementById('cc-cwd-list');
+      const inputEl = document.getElementById('cc-cwd-input');
+      if (!listEl) return;
+      listEl.innerHTML = '<div style="padding:20px;text-align:center;color:#5a5a7a">Loading...</div>';
+      try {
+        const url = dir ? `/api/files/list?path=${encodeURIComponent(dir)}` : '/api/files/list';
+        const r = await fetch(url);
+        const data = await r.json();
+        if (data.error) { listEl.innerHTML = `<div style="padding:12px;color:#ef4444;font-size:12px">${escHtml(data.error)}</div>`; return; }
+        if (inputEl) inputEl.value = data.path;
+        // Breadcrumb
+        const bcEl = document.getElementById('cc-cwd-breadcrumb');
+        if (bcEl) {
+          const parts = data.path.replace(/\\/g, '/').split('/').filter(Boolean);
+          let acc = '';
+          bcEl.innerHTML = parts.map((p, i) => {
+            acc += p + '/';
+            const path = acc;
+            return `${i > 0 ? '<span style="color:#3a3a5a">›</span>' : ''}<span onclick="ccCwdLoadFiles('${tabId}','${escAttr(path)}')" style="cursor:pointer;color:#9d9db5;padding:1px 2px;border-radius:2px">${escHtml(p)}</span>`;
+          }).join('');
+        }
+        // Filter folders only + parent
+        const folders = (data.items || []).filter(f => f.isDir);
+        let html = '';
+        // Parent dir
+        if (data.path && data.path.replace(/\\/g,'/').split('/').filter(Boolean).length > 1) {
+          const parent = data.path.replace(/\\/g, '/').replace(/\/[^/]+\/?$/, '') || '/';
+          html += `<div onclick="ccCwdLoadFiles('${tabId}','${escAttr(parent)}')" style="display:flex;align-items:center;gap:8px;padding:6px 14px;cursor:pointer;font-size:12px;color:#7a7a9a" onmouseover="this.style.background='rgba(255,255,255,.04)'" onmouseout="this.style.background=''">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+            ..
+          </div>`;
+        }
+        html += folders.map(f => {
+          const fp = (data.path + '/' + f.name).replace(/\\/g, '/').replace(/\/\//g, '/');
+          return `<div onclick="ccCwdLoadFiles('${tabId}','${escAttr(fp)}')" ondblclick="ccCwdSelect('${tabId}','${escAttr(fp)}');this.closest('.cyber-overlay').remove()" style="display:flex;align-items:center;gap:8px;padding:6px 14px;cursor:pointer;font-size:12px;color:#e4e4ef" onmouseover="this.style.background='rgba(255,255,255,.04)'" onmouseout="this.style.background=''">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fbbf24" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+            ${escHtml(f.name)}
+          </div>`;
+        }).join('');
+        if (!folders.length && !html) html = '<div style="padding:12px 14px;color:#5a5a7a;font-size:12px">No subfolders</div>';
+        listEl.innerHTML = html;
+      } catch (e) {
+        listEl.innerHTML = `<div style="padding:12px;color:#ef4444;font-size:12px">${e.message}</div>`;
+      }
+    }
+
+    function ccCwdSelect(tabId, path) {
+      const td = tabs.get(tabId);
+      if (!td) return;
+      td.ccCwd = path.replace(/\\/g, '/').replace(/\/$/, '');
+      const label = document.getElementById(tabId + '-cc-cwd-label');
+      if (label) label.textContent = td.ccCwd.split('/').pop() || td.ccCwd || '~';
+    }
+
+    function ccSwitchSideTab(tabId, tab, el) {
+      el.closest('.cc-sidebar-tabs').querySelectorAll('.cc-sidebar-tab').forEach(t => t.classList.remove('active'));
+      el.classList.add('active');
+      // For now, only files tab has content
+    }
+
+    function ccHandleSlash(tabId, val) {
+      const dropdown = document.getElementById(tabId + '-cc-slash');
+      if (!dropdown) return;
+      if (val.startsWith('/')) {
+        const query = val.toLowerCase();
+        const matches = CC_SLASH_COMMANDS.filter(c => c.cmd.startsWith(query));
+        if (matches.length > 0) {
+          dropdown.innerHTML = matches.map(c =>
+            `<div class="cc-slash-item" onclick="ccInsertSlash('${tabId}','${c.cmd}')"><span class="cc-slash-cmd">${c.cmd}</span><span class="cc-slash-desc">${c.desc}</span></div>`
+          ).join('');
+          dropdown.classList.add('show');
+        } else {
+          dropdown.classList.remove('show');
+        }
+      } else {
+        dropdown.classList.remove('show');
+      }
+    }
+
+    function ccInsertSlash(tabId, cmd) {
+      const input = document.getElementById(tabId + '-cc-input');
+      input.value = cmd + ' ';
+      input.focus();
+      document.getElementById(tabId + '-cc-slash').classList.remove('show');
+    }
+
+    function ccPermissionRespond(tabId, allow) {
+      const td = tabs.get(tabId);
+      if (!td || !td.ccSessionId) return;
+      if (window._ws && window._ws.readyState === 1) {
+        window._ws.send(JSON.stringify({ type: 'claude-permission', id: td.ccSessionId, allow }));
+      }
+    }
+
+    // Render functions for Claude Code messages
+    function ccRenderUserMsg(content) {
+      const time = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+      return `<div class="cc-msg">
+        <div class="cc-msg-avatar user"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
+        <div class="cc-msg-body">
+          <div class="cc-msg-header"><span class="cc-msg-name">You</span><span>${time}</span></div>
+          <div class="cc-msg-content">${escHtml(content)}</div>
+        </div>
+      </div>`;
+    }
+
+    function ccRenderAiText(content, model) {
+      const time = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+      // Parse markdown
+      let html = content;
+      if (typeof marked !== 'undefined' && marked.parse) {
+        try { html = marked.parse(content); } catch { html = escHtml(content); }
+      } else {
+        html = escHtml(content);
+      }
+      // Add copy buttons to code blocks
+      html = html.replace(/<pre><code/g, '<pre><button class="cc-copy-btn" onclick="ccCopyCode(this)">Copy</button><code');
+      return `<div class="cc-msg">
+        <div class="cc-msg-avatar ai"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg></div>
+        <div class="cc-msg-body">
+          <div class="cc-msg-header">
+            <span class="cc-msg-name" style="color:#f97316">Claude Code</span>
+            <span>${time}</span>
+            <span style="font-size:8px;background:rgba(249,115,22,.1);color:#f97316;padding:1px 5px;border-radius:3px">${escHtml(model || 'opus')}</span>
+          </div>
+          <div class="cc-msg-content">${html}</div>
+        </div>
+      </div>`;
+    }
+
+    function ccRenderToolBlock(tool, file, status, body, collapsed) {
+      const icons = { Read: '📖', Edit: '✏️', Write: '📝', Bash: '⚡', Grep: '🔍', Glob: '📂', Agent: '🤖' };
+      const icon = icons[tool] || '🔧';
+      const statusCls = status === 'done' ? 'done' : status === 'error' ? 'error' : 'running';
+      const statusText = status === 'done' ? '✓' : status === 'error' ? '✗' : '⟳';
+      return `<div class="cc-tool-block">
+        <div class="cc-tool-header" onclick="this.nextElementSibling.classList.toggle('open')">
+          <span class="cc-tool-icon">${icon}</span>
+          <span class="cc-tool-name">${escHtml(tool)}</span>
+          <span class="cc-tool-file">${escHtml(file || '')}</span>
+          <span class="cc-tool-status ${statusCls}">${statusText}</span>
+        </div>
+        <div class="cc-tool-body${collapsed ? '' : ' open'}">${body || ''}</div>
+      </div>`;
+    }
+
+    function ccRenderPermPrompt(tabId, detail) {
+      return `<div class="cc-perm-prompt">
+        <div class="cc-perm-prompt-title">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fbbf24" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          Permission Required
+        </div>
+        <div class="cc-perm-prompt-detail">${escHtml(detail || 'Claude wants to perform an action')}</div>
+        <div class="cc-perm-btns">
+          <button class="cc-perm-btn allow" onclick="ccPermissionRespond('${tabId}',true);this.closest('.cc-perm-prompt').remove()">Allow</button>
+          <button class="cc-perm-btn deny" onclick="ccPermissionRespond('${tabId}',false);this.closest('.cc-perm-prompt').remove()">Deny</button>
+        </div>
+      </div>`;
+    }
+
+    function ccCopyCode(btn) {
+      const code = btn.nextElementSibling;
+      if (code) {
+        navigator.clipboard.writeText(code.textContent).then(() => {
+          btn.textContent = 'Copied!';
+          setTimeout(() => btn.textContent = 'Copy', 1500);
+        });
+      }
+    }
+
+    function ccAppendMessage(tabId, html) {
+      const msgsEl = document.getElementById(tabId + '-cc-messages');
+      if (!msgsEl) return;
+      // Remove empty state
+      const empty = document.getElementById(tabId + '-cc-empty');
+      if (empty) empty.remove();
+      msgsEl.insertAdjacentHTML('beforeend', html);
+      // Auto-scroll
+      const td = tabs.get(tabId);
+      if (td?.ccAutoScroll) msgsEl.scrollTop = msgsEl.scrollHeight;
+    }
+
+    function ccUpdateCost(tabId, cost, tokIn, tokOut, turns) {
+      const fmt = (n) => n >= 1000 ? (n/1000).toFixed(1) + 'K' : String(n);
+      const el = (id) => document.getElementById(id);
+      const e = el(tabId + '-cc-cost-val'); if (e) e.textContent = '$' + (cost || 0).toFixed(3);
+      const i = el(tabId + '-cc-tok-in'); if (i) i.textContent = fmt(tokIn || 0);
+      const o = el(tabId + '-cc-tok-out'); if (o) o.textContent = fmt(tokOut || 0);
+      const t = el(tabId + '-cc-turns'); if (t) t.textContent = String(turns || 0);
+    }
+
+    function ccUpdateContext(tabId, pct) {
+      const fill = document.getElementById(tabId + '-cc-ctx-fill');
+      const label = document.getElementById(tabId + '-cc-ctx-pct');
+      if (fill) {
+        fill.style.width = pct + '%';
+        fill.className = 'cc-ctx-fill ' + (pct < 50 ? 'low' : pct < 75 ? 'mid' : pct < 90 ? 'high' : 'critical');
+      }
+      if (label) label.textContent = pct + '%';
+    }
+
+    function ccUpdateFiles(tabId, files) {
+      const el = document.getElementById(tabId + '-cc-files');
+      if (!el || !files || !files.length) return;
+      el.innerHTML = files.map(f => {
+        const name = f.path.split(/[/\\]/).pop();
+        const bcls = f.action === 'NEW' ? 'c' : f.action === 'M' ? 'm' : 'd';
+        return `<div class="cc-file-item"><span style="font-size:12px;width:14px;text-align:center">📄</span><span>${escHtml(name)}</span><span class="cc-file-badge ${bcls}">${f.action}</span></div>`;
+      }).join('');
+    }
+
+    function ccUpdateFilesFromServer(tabId) {
+      const td = tabs.get(tabId);
+      if (!td || !td.ccSessionId) return;
+      fetch('/api/claude/sessions/' + td.ccSessionId).then(r => r.json()).then(d => {
+        if (d.files) ccUpdateFiles(tabId, d.files);
+      }).catch(() => {});
+    }
+
+    // Handle incoming Claude Code WebSocket events
+    function ccHandleEvent(rawMsg) {
+      // claude-event: { type: "claude-event", sessionId, event: {...} }
+      // claude-attached: { type: "claude-attached", id, ... }
+      const sessionId = rawMsg.sessionId || rawMsg.id;
+      const data = rawMsg.event || rawMsg; // unwrap nested event
+      // Find tab that has this session
+      let tabId = null;
+      tabs.forEach((td, tid) => {
+        if (td.type === 'claude-code' && td.ccSessionId === sessionId) tabId = tid;
+      });
+      if (!tabId) return;
+      const td = tabs.get(tabId);
+      const streamBar = document.getElementById(tabId + '-cc-streaming');
+
+      if (data.type === 'user') {
+        // Tool results come as user type events
+        const blocks = data.message?.content || [];
+        for (const block of blocks) {
+          if (block.type === 'tool_result') {
+            const msgsEl = document.getElementById(tabId + '-cc-messages');
+            // Find the last running tool block
+            const allTools = msgsEl.querySelectorAll('.cc-tool-block .cc-tool-status.running');
+            const lastRunning = allTools[allTools.length - 1];
+            if (lastRunning) {
+              lastRunning.className = 'cc-tool-status done'; lastRunning.textContent = '✓';
+              const toolBlock = lastRunning.closest('.cc-tool-block');
+              const body = toolBlock?.querySelector('.cc-tool-body');
+              if (body) {
+                const txt = typeof block.content === 'string' ? block.content : '';
+                if (txt) body.innerHTML = `<pre style="margin:0;white-space:pre-wrap;max-height:150px;overflow:auto;font-size:11px">${escHtml(txt.substring(0, 3000))}</pre>`;
+                body.classList.add('open');
+              }
+            }
+          }
+        }
+      } else if (data.type === 'assistant') {
+        // Parse content blocks: text, tool_use, thinking
+        // All blocks go into a single AI turn container
+        const blocks = data.message?.content || [];
+        streamBar.classList.add('active');
+        // Get or create the current AI turn container
+        const msgsEl = document.getElementById(tabId + '-cc-messages');
+        let turnBody = msgsEl.querySelector('.cc-ai-turn-active .cc-msg-body');
+        if (!turnBody) {
+          const time = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+          const turnHtml = `<div class="cc-msg cc-ai-turn-active">
+            <div class="cc-msg-avatar ai"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg></div>
+            <div class="cc-msg-body">
+              <div class="cc-msg-header">
+                <span class="cc-msg-name" style="color:#f97316">Claude Code</span>
+                <span>${time}</span>
+                <span style="font-size:9px;background:rgba(249,115,22,.1);color:#f97316;padding:1px 6px;border-radius:3px">${escHtml(td.ccModel || 'opus')}</span>
+              </div>
+            </div>
+          </div>`;
+          ccAppendMessage(tabId, turnHtml);
+          turnBody = msgsEl.querySelector('.cc-ai-turn-active .cc-msg-body');
+        }
+        for (const block of blocks) {
+          if (block.type === 'text' && block.text) {
+            let html = block.text;
+            if (typeof marked !== 'undefined' && marked.parse) {
+              try { html = marked.parse(block.text); } catch { html = escHtml(block.text); }
+            } else { html = escHtml(block.text); }
+            html = html.replace(/<pre><code/g, '<pre><button class="cc-copy-btn" onclick="ccCopyCode(this)">Copy</button><code');
+            turnBody.insertAdjacentHTML('beforeend', `<div class="cc-msg-content">${html}</div>`);
+            document.getElementById(tabId + '-cc-streaming-text').textContent = 'Claude is responding...';
+          } else if (block.type === 'tool_use') {
+            const toolName = block.name || 'Tool';
+            const file = block.input?.file_path || block.input?.command || block.input?.pattern || block.input?.path || '';
+            turnBody.insertAdjacentHTML('beforeend', ccRenderToolBlock(toolName, file, 'running', '', false));
+            document.getElementById(tabId + '-cc-streaming-text').textContent = 'Running ' + toolName + '...';
+            ccUpdateFilesFromServer(tabId);
+          } else if (block.type === 'thinking' && block.thinking) {
+            turnBody.insertAdjacentHTML('beforeend', `<div class="cc-tool-block" style="border-color:rgba(108,99,255,.15);background:rgba(108,99,255,.03)">
+              <div class="cc-tool-header" onclick="this.nextElementSibling.classList.toggle('open')" style="border-color:rgba(108,99,255,.1)">
+                <span class="cc-tool-icon">💭</span><span class="cc-tool-name" style="color:#6c63ff">Thinking</span>
+                <span class="cc-tool-status done" style="background:rgba(108,99,255,.1);color:#6c63ff">✓</span>
+              </div>
+              <div class="cc-tool-body" style="color:#7a7a9a;font-style:italic;font-family:Inter,sans-serif">${escHtml(block.thinking.substring(0, 1000))}</div>
+            </div>`);
+          }
+        }
+        // Auto-scroll
+        if (td?.ccAutoScroll) msgsEl.scrollTop = msgsEl.scrollHeight;
+      } else if (data.type === 'system' && data.subtype === 'init') {
+        // Update cwd from system init event
+        if (data.cwd) {
+          td.ccCwd = data.cwd;
+          const cwdLabel = document.getElementById(tabId + '-cc-cwd-label');
+          if (cwdLabel) cwdLabel.textContent = data.cwd.split(/[/\\]/).pop() || data.cwd;
+        }
+      } else if (data.type === 'result') {
+        // If error result (e.g. "No conversation found"), show notice
+        if (data.is_error) {
+          streamBar.classList.remove('active');
+          const activeTurn = document.getElementById(tabId + '-cc-messages')?.querySelector('.cc-ai-turn-active');
+          if (activeTurn) activeTurn.remove();
+          ccAppendMessage(tabId, `<div style="padding:8px 12px;font-size:12px;color:#fbbf24;background:rgba(251,191,36,.06);border:1px solid rgba(251,191,36,.15);border-radius:6px;margin:4px 0">⚠ Session reset — please resend your message</div>`);
+          return;
+        }
+        streamBar.classList.remove('active');
+        // Close the AI turn container
+        const activeTurn = document.getElementById(tabId + '-cc-messages')?.querySelector('.cc-ai-turn-active');
+        if (activeTurn) activeTurn.classList.remove('cc-ai-turn-active');
+        td.ccTurns = (td.ccTurns || 0) + 1;
+        const dur = data.duration_ms ? (data.duration_ms / 1000).toFixed(1) + 's' : '';
+        ccAppendMessage(tabId, `<div class="cc-turn-sep">Turn ${td.ccTurns}${dur ? ' · ' + dur : ''}</div>`);
+        // Use modelUsage for accurate counts
+        let tokIn = data.usage?.input_tokens || 0;
+        let tokOut = data.usage?.output_tokens || 0;
+        let tokCache = data.usage?.cache_read_input_tokens || 0;
+        if (data.modelUsage) {
+          const mu = Object.values(data.modelUsage)[0];
+          if (mu) { tokIn = mu.inputTokens || tokIn; tokOut = mu.outputTokens || tokOut; tokCache = mu.cacheReadInputTokens || tokCache; }
+        }
+        if (data.total_cost_usd != null) {
+          ccUpdateCost(tabId, data.total_cost_usd, tokIn, tokOut, td.ccTurns);
+        }
+        const ctxWindow = td.ccModel?.includes('opus') ? 1000000 : 200000;
+        const totalCtx = tokIn + tokOut + tokCache;
+        ccUpdateContext(tabId, Math.min(100, Math.round(totalCtx / ctxWindow * 100)));
+      } else if (data.type === 'turn-complete') {
+        streamBar.classList.remove('active');
+        ccRefreshSessionList(tabId);
+      } else if (data.type === 'session-ended') {
+        streamBar.classList.remove('active');
+        ccAppendMessage(tabId, `<div style="text-align:center;padding:8px;font-size:11px;color:#5a5a7a;border-top:1px solid rgba(255,255,255,.06);margin-top:8px">Session ended</div>`);
+      } else if (data.type === 'claude-attached') {
+        // Restore messages from session history
+        if (data.messages && data.messages.length) {
+          const msgsEl = document.getElementById(tabId + '-cc-messages');
+          msgsEl.innerHTML = '';
+          for (const m of data.messages) {
+            if (m.type === 'user' && m.content) ccAppendMessage(tabId, ccRenderUserMsg(m.content));
+            else if (m.type === 'assistant' && m.message?.content) {
+              for (const block of m.message.content) {
+                if (block.type === 'text' && block.text) ccAppendMessage(tabId, ccRenderAiText(block.text, td.ccModel));
+                else if (block.type === 'tool_use') ccAppendMessage(tabId, ccRenderToolBlock(block.name || 'Tool', block.input?.file_path || '', 'done', '', true));
+              }
+            }
+          }
+        }
+        ccUpdateCost(tabId, data.cost, data.tokens?.input, data.tokens?.output, data.turns);
+        ccUpdateContext(tabId, data.contextPct || 0);
+        if (data.files) ccUpdateFiles(tabId, data.files);
+      }
+    }
+
+    // Hook into existing WebSocket message handler
+    const _origWsOnMsg = window._onWsMessage;
+    window._ccWsHook = function(data) {
+      if (data.type === 'claude-event' || data.type === 'claude-attached') {
+        ccHandleEvent(data);
+      }
+    };
+
     // Show welcome/feature cards (new tab button)
     function showWelcomeTab() {
       // Deactivate all tabs visually
@@ -10151,10 +11008,18 @@
     function connect() {
       const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
       ws = new WebSocket(`${proto}//${location.host}`);
+      window._ws = ws;
 
       ws.onopen = () => {
         console.log('[WS] Connected');
         ws.send(JSON.stringify({ type: 'list' }));
+        // Re-attach Claude Code sessions + refresh sidebar
+        tabs.forEach((td, tid) => {
+          if (td.type === 'claude-code') {
+            if (td.ccSessionId) ws.send(JSON.stringify({ type: 'claude-attach', id: td.ccSessionId }));
+            setTimeout(() => ccRefreshSessionList(tid), 500);
+          }
+        });
         // Re-attach to previous session if reconnecting
         if (currentSessionId) {
           ws.send(JSON.stringify({ type: 'attach', id: currentSessionId }));
@@ -10320,6 +11185,12 @@
             break;
           case 'error':
             console.error('[Server]', msg.message);
+            break;
+          // Claude Code events
+          case 'claude-event':
+          case 'claude-attached':
+          case 'claude-sessions':
+            if (typeof ccHandleEvent === 'function') ccHandleEvent(msg);
             break;
         }
       };
@@ -10964,6 +11835,10 @@
         if (t.type === 'docker') {
           const wrap = document.getElementById(tabId + '-docker');
           if (wrap) wrap.style.fontSize = next + 'px';
+        }
+        if (t.type === 'claude-code') {
+          const wrap = document.getElementById(tabId + '-cc');
+          if (wrap) { wrap.style.setProperty('--cc-fs', next + 'px'); wrap.style.fontSize = next + 'px'; }
         }
       });
     }
@@ -12059,6 +12934,11 @@
               try { entry.editorContent = tab.monacoEditor.getValue(); } catch(e) {}
             }
           }
+          if (tab.type === 'claude-code') {
+            entry.ccSessionId = tab.ccSessionId;
+            entry.ccModel = tab.ccModel;
+            entry.ccPermMode = tab.ccPermMode;
+          }
           if (tab.type === 'files') {
             entry.filesCwd = typeof fileCwd !== 'undefined' ? fileCwd : '';
           }
@@ -12125,6 +13005,18 @@
             restoredAny = true;
           } else if (entry.type === 'docker') {
             createTab('docker', { name: 'Docker', icon: '🐳' });
+            restoredAny = true;
+          } else if (entry.type === 'claude-code') {
+            const tabId = createTab('claude-code', { name: entry.name || 'Claude Code', icon: '⚡' });
+            const tab = tabs.get(tabId);
+            if (tab) {
+              tab.ccModel = entry.ccModel || 'opus';
+              tab.ccPermMode = entry.ccPermMode || 'default';
+              if (entry.ccSessionId) {
+                tab.ccSessionId = entry.ccSessionId;
+                // Will re-attach on WS connect
+              }
+            }
             restoredAny = true;
           } else if (entry.type === 'editor' && entry.filePath) {
             // Restore editor — fetch content and open

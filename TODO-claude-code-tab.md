@@ -1,7 +1,7 @@
 # Claude Code Tab — Feature List
 
 > Reference: [mock-claude-code-tab.html](mock-claude-code-tab.html)  
-> Status: Planning  
+> Status: Phase 1 Complete  
 > Priority: P0 = must-have, P1 = important, P2 = nice-to-have
 
 ---
@@ -10,17 +10,17 @@
 
 | # | Feature | Description | Priority | Status |
 |---|---------|-------------|----------|--------|
-| 1.1 | Model Picker | Dropdown: Opus/Sonnet/Haiku with context window info. Hotkey `Cmd+P` | P0 | [ ] |
+| 1.1 | Model Picker | Dropdown: Opus/Sonnet/Haiku with context window info. Hotkey `Cmd+P` | P0 | [x] |
 | 1.2 | Effort Selector | 4 levels: Low/Med/High/Max. Passed as `--effort` flag | P1 | [ ] |
-| 1.3 | Permission Mode | Badge showing current mode (default/acceptEdits/plan/auto). Switch with `Shift+Tab` | P0 | [ ] |
+| 1.3 | Permission Mode | Badge showing current mode (default/acceptEdits/plan/auto). Switch with `Shift+Tab` | P0 | [x] |
 | 1.4 | Extended Thinking | Toggle button. Hotkey `Cmd+T`. Adds `--verbose` thinking output | P1 | [ ] |
 | 1.5 | Fast Mode | Toggle button. Hotkey `Alt+O`. Faster output | P1 | [ ] |
 | 1.6 | Git Branch | Show current branch name from `git rev-parse --abbrev-ref HEAD` | P1 | [ ] |
 | 1.7 | PR Status | Show PR number + status (Pending/Approved/Changes Requested) via `gh pr status` | P2 | [ ] |
-| 1.8 | Context Meter | % bar showing context window usage. Color: green < 50%, yellow < 75%, orange < 90%, red >= 90% | P0 | [ ] |
+| 1.8 | Context Meter | % bar showing context window usage. Color: green < 50%, yellow < 75%, orange < 90%, red >= 90% | P0 | [x] |
 | 1.9 | Rewind Button | Open rewind menu (restore code + conversation to checkpoint) | P1 | [ ] |
 | 1.10 | Compact Button | Trigger `/compact` to compress context | P1 | [ ] |
-| 1.11 | End Button | Kill Claude Code process, close tab | P0 | [ ] |
+| 1.11 | End Button | Kill Claude Code process, close tab | P0 | [x] |
 
 ---
 
@@ -30,17 +30,17 @@
 
 | # | Feature | Description | Priority | Status |
 |---|---------|-------------|----------|--------|
-| 2.1.1 | Session List | Show all sessions for current project. Click to resume (`--resume`) | P0 | [ ] |
-| 2.1.2 | New Session | Button to start fresh session | P0 | [ ] |
+| 2.1.1 | Session List | Show all sessions for current project. Click to resume (`--resume`) | P0 | [x] |
+| 2.1.2 | New Session | Button to start fresh session | P0 | [x] |
 | 2.1.3 | Session Time | Show relative time (now, 2h, 1d) | P2 | [ ] |
-| 2.1.4 | Active Indicator | Highlight active session with accent border | P1 | [ ] |
+| 2.1.4 | Active Indicator | Highlight active session with accent border | P1 | [x] |
 | 2.1.5 | Fork Session | Right-click → Fork (creates branch from current session) | P2 | [ ] |
 
 ### 2.2 Sidebar Tabs
 
 | # | Feature | Description | Priority | Status |
 |---|---------|-------------|----------|--------|
-| 2.2.1 | Files Tab | List files changed in session (M/NEW/DEL badges) | P0 | [ ] |
+| 2.2.1 | Files Tab | List files changed in session (M/NEW/DEL badges) | P0 | [x] |
 | 2.2.2 | Tasks Tab | Task list with checkboxes (done/running/pending) | P1 | [ ] |
 | 2.2.3 | Agents Tab | Show subagents + agent teams with status (idle/running/done) | P2 | [ ] |
 
@@ -48,7 +48,7 @@
 
 | # | Feature | Description | Priority | Status |
 |---|---------|-------------|----------|--------|
-| 2.3.1 | Session Cost | Show $ cost from Claude Code JSON output `total_cost_usd` | P0 | [ ] |
+| 2.3.1 | Session Cost | Show $ cost from Claude Code JSON output `total_cost_usd` | P0 | [x] |
 | 2.3.2 | Token Counts | Input/Output/Cache tokens | P1 | [ ] |
 | 2.3.3 | Turn Count | Number of conversation turns | P1 | [ ] |
 | 2.3.4 | Budget Bar | Progress bar against `--max-budget-usd` | P2 | [ ] |
@@ -71,10 +71,10 @@
 
 | # | Feature | Description | Priority | Status |
 |---|---------|-------------|----------|--------|
-| 3.1.1 | User Messages | Right-aligned or left with user avatar | P0 | [ ] |
-| 3.1.2 | AI Messages | Left-aligned with Claude avatar, model badge, timing | P0 | [ ] |
-| 3.1.3 | Markdown Rendering | Full GFM markdown via marked.js (already in CYBERFRAME) | P0 | [ ] |
-| 3.1.4 | Syntax Highlighting | Code blocks with language badge + copy button | P0 | [ ] |
+| 3.1.1 | User Messages | Right-aligned or left with user avatar | P0 | [x] |
+| 3.1.2 | AI Messages | Left-aligned with Claude avatar, model badge, timing | P0 | [x] |
+| 3.1.3 | Markdown Rendering | Full GFM markdown via marked.js (already in CYBERFRAME) | P0 | [x] |
+| 3.1.4 | Syntax Highlighting | Code blocks with language badge + copy button | P0 | [x] |
 | 3.1.5 | Turn Separators | Divider between turns showing turn number + duration | P1 | [ ] |
 | 3.1.6 | Thinking Badge | Show "thinking Xs" badge on AI messages that used extended thinking | P1 | [ ] |
 
@@ -82,34 +82,34 @@
 
 | # | Feature | Description | Priority | Status |
 |---|---------|-------------|----------|--------|
-| 3.2.1 | Read Block | Collapsible, show file path + line range, line numbers | P0 | [ ] |
-| 3.2.2 | Edit Block | Collapsible, show diff (green add / red delete) | P0 | [ ] |
-| 3.2.3 | Bash Block | Collapsible, show command + output, color-coded | P0 | [ ] |
-| 3.2.4 | Grep Block | Collapsible, show pattern + matches | P1 | [ ] |
-| 3.2.5 | Glob Block | Collapsible, show pattern + file list | P1 | [ ] |
-| 3.2.6 | Write Block | Collapsible, show file path + content preview | P1 | [ ] |
+| 3.2.1 | Read Block | Collapsible, show file path + line range, line numbers | P0 | [x] |
+| 3.2.2 | Edit Block | Collapsible, show diff (green add / red delete) | P0 | [x] |
+| 3.2.3 | Bash Block | Collapsible, show command + output, color-coded | P0 | [x] |
+| 3.2.4 | Grep Block | Collapsible, show pattern + matches | P1 | [x] |
+| 3.2.5 | Glob Block | Collapsible, show pattern + file list | P1 | [x] |
+| 3.2.6 | Write Block | Collapsible, show file path + content preview | P1 | [x] |
 | 3.2.7 | MCP Tool Block | Collapsible, show `mcp__server__tool` with args/result | P2 | [ ] |
-| 3.2.8 | Status Indicator | Running (spinner) / Done (✓) / Error (✗) per tool block | P0 | [ ] |
+| 3.2.8 | Status Indicator | Running (spinner) / Done (✓) / Error (✗) per tool block | P0 | [x] |
 | 3.2.9 | Click to Open | Click file path to open in editor tab (Monaco) | P2 | [ ] |
 
 ### 3.3 Special Blocks
 
 | # | Feature | Description | Priority | Status |
 |---|---------|-------------|----------|--------|
-| 3.3.1 | Thinking Block | Collapsible, show extended thinking content + duration | P1 | [ ] |
+| 3.3.1 | Thinking Block | Collapsible, show extended thinking content + duration | P1 | [x] |
 | 3.3.2 | Subagent Block | Show agent name, task, status, summary result | P1 | [ ] |
 | 3.3.3 | Agent Team Block | Show multiple agents running in parallel with status | P2 | [ ] |
 | 3.3.4 | Rewind Checkpoints | Clickable markers between turns. Esc+Esc to open rewind menu | P1 | [ ] |
-| 3.3.5 | Permission Prompt | Inline approve/deny UI when Claude asks for permission | P0 | [ ] |
+| 3.3.5 | Permission Prompt | Inline approve/deny UI when Claude asks for permission | P0 | [~] (uses --permission-mode flag, no inline prompt in -p mode) |
 
 ### 3.4 Streaming
 
 | # | Feature | Description | Priority | Status |
 |---|---------|-------------|----------|--------|
-| 3.4.1 | SSE Streaming | Parse `stream-json` output from Claude Code CLI, render incrementally | P0 | [ ] |
-| 3.4.2 | Streaming Bar | Bottom bar showing "Claude is editing...", current tool, duration | P0 | [ ] |
-| 3.4.3 | Stop Button | Kill process (`Ctrl+C`), show "Generation stopped" | P0 | [ ] |
-| 3.4.4 | Auto-scroll | Follow output, disable on manual scroll up, re-enable on scroll to bottom | P0 | [ ] |
+| 3.4.1 | SSE Streaming | Parse `stream-json` output from Claude Code CLI, render incrementally | P0 | [x] |
+| 3.4.2 | Streaming Bar | Bottom bar showing "Claude is editing...", current tool, duration | P0 | [x] |
+| 3.4.3 | Stop Button | Kill process (`Ctrl+C`), show "Generation stopped" | P0 | [x] |
+| 3.4.4 | Auto-scroll | Follow output, disable on manual scroll up, re-enable on scroll to bottom | P0 | [x] |
 
 ---
 
@@ -117,8 +117,8 @@
 
 | # | Feature | Description | Priority | Status |
 |---|---------|-------------|----------|--------|
-| 4.1 | Text Input | Auto-resize textarea, `Enter` to send, `Shift+Enter` for newline | P0 | [ ] |
-| 4.2 | Slash Commands | `/` at start of line shows autocomplete dropdown with all commands | P0 | [ ] |
+| 4.1 | Text Input | Auto-resize textarea, `Enter` to send, `Shift+Enter` for newline | P0 | [x] |
+| 4.2 | Slash Commands | `/` at start of line shows autocomplete dropdown with all commands | P0 | [x] |
 | 4.3 | @ File Picker | `@` shows file browser to attach/reference files | P1 | [ ] |
 | 4.4 | Voice Input | Hold `Space` for push-to-talk, transcribe via Whisper | P2 | [ ] |
 | 4.5 | Image Paste | `Cmd+V` to paste screenshot, send as context | P1 | [ ] |
@@ -146,11 +146,11 @@
 
 | # | Feature | Description | Priority | Status |
 |---|---------|-------------|----------|--------|
-| 6.1 | PTY Spawn | Spawn `claude` CLI in PTY for full interactive mode | P0 | [ ] |
-| 6.2 | Stream Parse | Parse `--output-format stream-json` events into structured messages | P0 | [ ] |
+| 6.1 | PTY Spawn | Spawn `claude` CLI via child_process.spawn with `-p` flag | P0 | [x] |
+| 6.2 | Stream Parse | Parse `--output-format stream-json` events into structured messages | P0 | [x] |
 | 6.3 | Session Store | Save/load sessions, map to Claude Code `--resume` | P1 | [ ] |
-| 6.4 | Process Control | Start/Stop/Kill Claude process per tab | P0 | [ ] |
-| 6.5 | Model Config | Pass `--model`, `--effort`, `--permission-mode` flags | P0 | [ ] |
+| 6.4 | Process Control | Start/Stop/Kill Claude process per tab | P0 | [x] |
+| 6.5 | Model Config | Pass `--model`, `--effort`, `--permission-mode` flags | P0 | [x] |
 | 6.6 | Git Status API | Endpoint for branch, PR status, diff stats | P1 | [ ] |
 | 6.7 | Context API | Endpoint for context usage % (parse from stream events) | P1 | [ ] |
 | 6.8 | Cost Tracking | Parse `total_cost_usd` and token usage from result events | P1 | [ ] |
@@ -163,9 +163,9 @@
 
 | # | Feature | Description | Priority | Status |
 |---|---------|-------------|----------|--------|
-| 7.1 | Welcome Card | Add "Claude Code" card to CYBERFRAME welcome screen (orange icon ⚡) | P0 | [ ] |
-| 7.2 | Tab Type | Register `claude-code` tab type in tab system | P0 | [ ] |
-| 7.3 | Tab Icon | Orange lightning bolt icon in tab bar | P1 | [ ] |
+| 7.1 | Welcome Card | Add "Claude Code" card to CYBERFRAME welcome screen (orange icon ⚡) | P0 | [x] |
+| 7.2 | Tab Type | Register `claude-code` tab type in tab system | P0 | [x] |
+| 7.3 | Tab Icon | Orange lightning bolt icon in tab bar | P1 | [x] |
 | 7.4 | Multi-tab | Support multiple Claude Code tabs (different sessions) | P1 | [ ] |
 | 7.5 | Workspace Save | Save/restore Claude Code tabs in workspace | P2 | [ ] |
 

@@ -2686,6 +2686,66 @@ wss.on("connection", (ws, req) => {
           }
           break;
         }
+
+        // Claude Code WebSocket messages
+        case "claude-attach": {
+          const cs = claudeSessions.get(parsed.id);
+          if (!cs) { ws.send(JSON.stringify({ type: "error", message: "Claude session not found" })); break; }
+          cs.clients.add(ws);
+          if (!ws._claudeSessions) ws._claudeSessions = new Set();
+          ws._claudeSessions.add(cs.id);
+          ws.send(JSON.stringify({ type: "claude-attached", id: cs.id, name: cs.name, model: cs.model, status: cs.status, messages: cs.messages, cost: cs.cost, tokens: cs.tokens, turns: cs.turns, contextPct: cs.contextPct, files: cs.files }));
+          break;
+        }
+        case "claude-detach": {
+          const cs = claudeSessions.get(parsed.id);
+          if (cs) { cs.clients.delete(ws); }
+          if (ws._claudeSessions) ws._claudeSessions.delete(parsed.id);
+          break;
+        }
+        case "claude-send": {
+          const cs = claudeSessions.get(parsed.id);
+          if (!cs || cs.dead) break;
+          if (cs.proc) { ws.send(JSON.stringify({ type: "error", message: "Claude is still processing" })); break; }
+          // Name session after first message
+          if (cs.turns === 0 && cs.name === "New Session") {
+            cs.name = parsed.message.slice(0, 40).replace(/\n/g, ' ') + (parsed.message.length > 40 ? '…' : '');
+          }
+          // Update model/permMode/cwd from client (allows changing mid-session)
+          if (parsed.model) cs.model = parsed.model;
+          if (parsed.permMode) cs.permMode = parsed.permMode;
+          if (parsed.cwd && parsed.cwd !== cs.cwd) {
+            cs.cwd = parsed.cwd;
+            // Reset claudeSessionId when cwd changes (conversations are per-project)
+            cs.claudeSessionId = null;
+            console.log(`[Claude:${cs.id.slice(0,6)}] CWD changed to ${cs.cwd}, reset claudeSessionId`);
+          }
+          const userMsg = { type: "user", content: parsed.message, timestamp: Date.now() };
+          cs.messages.push(userMsg);
+          broadcastClaude(cs, userMsg);
+          claudeSendMessage(cs, parsed.message);
+          break;
+        }
+        case "claude-permission": {
+          const cs = claudeSessions.get(parsed.id);
+          if (!cs || cs.dead || !cs.proc) break;
+          cs.proc.stdin.write(parsed.allow ? "y\n" : "n\n");
+          cs.status = "streaming";
+          break;
+        }
+        case "claude-stop": {
+          const cs = claudeSessions.get(parsed.id);
+          if (!cs || !cs.proc) break;
+          try { cs.proc.kill(); } catch {}
+          cs.proc = null;
+          cs.status = "idle";
+          broadcastClaude(cs, { type: "turn-complete", exitCode: -1 });
+          break;
+        }
+        case "claude-list": {
+          ws.send(JSON.stringify({ type: "claude-sessions", sessions: listClaudeSessions() }));
+          break;
+        }
       }
     } catch (e) {
       console.error("[!] WS message error:", e.message);
@@ -2696,6 +2756,14 @@ wss.on("connection", (ws, req) => {
     console.log(`[-] ${user} WebSocket disconnected, detaching ${attachedSessions.size} sessions`);
     attachedSessions.forEach(sess => detachSession(sess, ws));
     attachedSessions.clear();
+    // Clean up Claude sessions
+    if (ws._claudeSessions) {
+      ws._claudeSessions.forEach(csId => {
+        const cs = claudeSessions.get(csId);
+        if (cs) cs.clients.delete(ws);
+      });
+      ws._claudeSessions.clear();
+    }
     connectedClients.delete(ws);
   });
 });
@@ -2718,6 +2786,269 @@ vncWss.on("connection", (ws) => {
   ws.on("close", () => { console.log("[VNC] WebSocket disconnected"); vnc.end(); });
   vnc.on("close", () => ws.close());
   vnc.on("error", (e) => { console.error("[VNC] Error:", e.message); ws.close(); });
+});
+
+// === Claude Code Sessions ===
+const claudeSessions = new Map(); // id → session state (persistent across message turns)
+
+// Create a session object (no process yet — process spawns per message)
+function createClaudeSession(opts = {}) {
+  const id = crypto.randomBytes(8).toString("hex");
+  const sess = {
+    id,
+    proc: null,         // current running process (null when idle)
+    claudeSessionId: null, // Claude CLI's internal session ID (from result event)
+    model: opts.model || "opus",
+    effort: opts.effort || "high",
+    permMode: opts.permissionMode || "default",
+    cwd: opts.cwd || process.env.USERPROFILE || process.env.HOME,
+    status: "idle",
+    clients: new Set(),
+    messages: [],
+    cost: 0,
+    tokens: { input: 0, output: 0, cache: 0 },
+    turns: 0,
+    files: [],
+    contextPct: 0,
+    dead: false,
+    name: opts.name || "New Session",
+    createdAt: Date.now(),
+    lastActivity: Date.now(),
+  };
+  claudeSessions.set(id, sess);
+  console.log(`[Claude] Created session "${sess.name}" (${id}), model=${sess.model}`);
+  return sess;
+}
+
+// Send a message: spawns a new process per turn
+// First message: `claude -p "msg" --output-format stream-json`
+// Follow-ups: `claude -p "msg" --output-format stream-json --resume <claudeSessionId>`
+function claudeSendMessage(sess, message) {
+  if (sess.dead) return;
+  const { spawn: cpSpawn } = require("child_process");
+  const claudeBin = process.env.CLAUDE_BIN || "claude";
+
+  const args = ["-p", message, "--output-format", "stream-json", "--model", sess.model, "--verbose"];
+  if (sess.effort !== "high") args.push("--effort", sess.effort);
+  if (sess.permMode !== "default") args.push("--permission-mode", sess.permMode);
+  if (sess.claudeSessionId) args.push("--resume", sess.claudeSessionId);
+
+  const proc = cpSpawn(claudeBin, args, {
+    cwd: sess.cwd || process.env.USERPROFILE || process.env.HOME,
+    env: freshEnv(),
+    shell: true,
+    stdio: ["ignore", "pipe", "pipe"],  // stdin=ignore (prompt via -p flag, skip 3s wait)
+    windowsHide: true,
+  });
+
+  sess.proc = proc;
+  sess.status = "streaming";
+  sess.lastActivity = Date.now();
+  let jsonBuffer = "";
+
+  console.log(`[Claude:${sess.id.slice(0,6)}] Sending message, PID ${proc.pid}${sess.claudeSessionId ? ', resume=' + sess.claudeSessionId.slice(0,8) : ''}`);
+
+  proc.stdout.on("data", (chunk) => {
+    const data = chunk.toString();
+    jsonBuffer += data;
+
+    const lines = jsonBuffer.split("\n");
+    jsonBuffer = lines.pop();
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      try {
+        const evt = JSON.parse(trimmed);
+        processClaudeEvent(sess, evt);
+      } catch {
+        broadcastClaude(sess, { type: "raw", data: trimmed });
+      }
+    }
+  });
+
+  proc.stderr.on("data", (chunk) => {
+    const txt = chunk.toString().trim();
+    if (txt) console.log(`[Claude:${sess.id.slice(0,6)}] stderr: ${txt}`);
+  });
+
+  proc.on("exit", (exitCode) => {
+    console.log(`[Claude:${sess.id.slice(0,6)}] Turn finished (code ${exitCode})`);
+    sess.proc = null;
+    sess.status = "idle";
+    // Process any remaining buffer
+    if (jsonBuffer.trim()) {
+      try {
+        const evt = JSON.parse(jsonBuffer.trim());
+        processClaudeEvent(sess, evt);
+      } catch {}
+    }
+    broadcastClaude(sess, { type: "turn-complete", exitCode });
+  });
+
+  proc.on("error", (err) => {
+    console.error(`[Claude:${sess.id.slice(0,6)}] Process error:`, err.message);
+    sess.proc = null;
+    sess.status = "idle";
+    broadcastClaude(sess, { type: "error", message: err.message });
+  });
+}
+
+function processClaudeEvent(sess, evt) {
+  // stream-json format: assistant (with content blocks: text/tool_use/thinking),
+  // user (with tool_result), result, system (init), rate_limit_event, error
+  console.log(`[Claude:${sess.id.slice(0,6)}] EVENT ${evt.type}: ${JSON.stringify(evt).slice(0, 200)}`);
+  const msgData = { ...evt, timestamp: Date.now() };
+
+  if (evt.type === "assistant") {
+    sess.status = "streaming";
+    // Extract content blocks for file tracking
+    const blocks = evt.message?.content || [];
+    for (const block of blocks) {
+      if (block.type === "tool_use") {
+        const toolName = block.name || "";
+        const fp = block.input?.file_path || block.input?.path || "";
+        if (fp && (toolName === "Read" || toolName === "Edit" || toolName === "Write" || toolName === "Glob" || toolName === "Grep")) {
+          if (!sess.files.find(f => f.path === fp)) {
+            const action = toolName === "Write" ? "NEW" : toolName === "Edit" ? "M" : "R";
+            sess.files.push({ path: fp, action, timestamp: Date.now() });
+          }
+        }
+      }
+    }
+    sess.messages.push(msgData);
+  } else if (evt.type === "user") {
+    // tool_result events come as user messages
+    sess.messages.push(msgData);
+  } else if (evt.type === "result") {
+    sess.status = "idle";
+    // If error with "No conversation found", reset sessionId for next attempt
+    if (evt.is_error && evt.subtype === "error_during_execution") {
+      console.log(`[Claude:${sess.id.slice(0,6)}] Error result, resetting claudeSessionId for retry`);
+      sess.claudeSessionId = null;
+      // Don't count error turns
+      broadcastClaude(sess, msgData);
+      return;
+    }
+    sess.turns++;
+    if (evt.session_id) sess.claudeSessionId = evt.session_id;
+    if (evt.total_cost_usd != null) sess.cost = evt.total_cost_usd;
+    // Use modelUsage for accurate cumulative tokens
+    if (evt.usage) {
+      sess.tokens.input = evt.usage.input_tokens || 0;
+      sess.tokens.output = evt.usage.output_tokens || 0;
+      sess.tokens.cache = evt.usage.cache_read_input_tokens || 0;
+    }
+    if (evt.modelUsage) {
+      const mu = Object.values(evt.modelUsage)[0];
+      if (mu) {
+        sess.tokens.input = mu.inputTokens || sess.tokens.input;
+        sess.tokens.output = mu.outputTokens || sess.tokens.output;
+        sess.tokens.cache = mu.cacheReadInputTokens || sess.tokens.cache;
+      }
+    }
+    const ctxWindow = sess.model.includes("opus") ? 1000000 : 200000;
+    const totalTok = sess.tokens.input + sess.tokens.output + sess.tokens.cache;
+    sess.contextPct = Math.min(100, Math.round((totalTok / ctxWindow) * 100));
+    sess.messages.push(msgData);
+    console.log(`[Claude:${sess.id.slice(0,6)}] Result: cost=$${sess.cost?.toFixed(4)}, tokens=${totalTok}, ctx=${sess.contextPct}%, claudeSession=${sess.claudeSessionId || 'none'}`);
+  } else if (evt.type === "system") {
+    sess.messages.push(msgData);
+  } else if (evt.type === "error") {
+    sess.messages.push(msgData);
+  }
+
+  broadcastClaude(sess, msgData);
+}
+
+function broadcastClaude(sess, data) {
+  const payload = JSON.stringify({ type: "claude-event", sessionId: sess.id, event: data });
+  sess.clients.forEach(ws => {
+    if (ws.readyState === 1) {
+      try { ws.send(payload); } catch {}
+    }
+  });
+}
+
+function listClaudeSessions() {
+  return Array.from(claudeSessions.values()).map(s => ({
+    id: s.id, name: s.name, model: s.model, effort: s.effort, permMode: s.permMode,
+    status: s.status, cost: s.cost, tokens: s.tokens, turns: s.turns,
+    contextPct: s.contextPct, files: s.files, dead: s.dead,
+    createdAt: s.createdAt, lastActivity: s.lastActivity,
+    messageCount: s.messages.length,
+  }));
+}
+
+// REST API for Claude Code
+app.post("/api/claude/sessions", requireAuth, (req, res) => {
+  try {
+    const sess = createClaudeSession(req.body || {});
+    res.json({ id: sess.id, name: sess.name, model: sess.model });
+  } catch (e) {
+    console.error("[Claude] Create error:", e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get("/api/claude/sessions", requireAuth, (req, res) => {
+  res.json(listClaudeSessions());
+});
+
+app.get("/api/claude/sessions/:id", requireAuth, (req, res) => {
+  const sess = claudeSessions.get(req.params.id);
+  if (!sess) return res.status(404).json({ error: "not found" });
+  res.json({
+    id: sess.id, name: sess.name, model: sess.model, status: sess.status,
+    cost: sess.cost, tokens: sess.tokens, turns: sess.turns,
+    contextPct: sess.contextPct, files: sess.files, messages: sess.messages,
+  });
+});
+
+app.post("/api/claude/sessions/:id/send", requireAuth, (req, res) => {
+  const sess = claudeSessions.get(req.params.id);
+  if (!sess || sess.dead) return res.status(404).json({ error: "not found" });
+  const { message } = req.body;
+  if (!message) return res.status(400).json({ error: "message required" });
+  if (sess.proc) return res.status(409).json({ error: "still processing" });
+  const userMsg = { type: "user", content: message, timestamp: Date.now() };
+  sess.messages.push(userMsg);
+  broadcastClaude(sess, userMsg);
+  claudeSendMessage(sess, message);
+  res.json({ ok: true });
+});
+
+app.post("/api/claude/sessions/:id/permission", requireAuth, (req, res) => {
+  const sess = claudeSessions.get(req.params.id);
+  if (!sess || sess.dead || !sess.proc) return res.status(404).json({ error: "not found" });
+  const { allow } = req.body;
+  sess.proc.stdin.write(allow ? "y\n" : "n\n");
+  sess.status = "streaming";
+  res.json({ ok: true });
+});
+
+app.post("/api/claude/sessions/:id/stop", requireAuth, (req, res) => {
+  const sess = claudeSessions.get(req.params.id);
+  if (!sess) return res.status(404).json({ error: "not found" });
+  if (sess.proc) { try { sess.proc.kill(); } catch {} sess.proc = null; }
+  sess.status = "idle";
+  res.json({ ok: true });
+});
+
+app.delete("/api/claude/sessions/:id", requireAuth, (req, res) => {
+  const sess = claudeSessions.get(req.params.id);
+  if (!sess) return res.status(404).json({ error: "not found" });
+  if (sess.proc) { try { sess.proc.kill(); } catch {} }
+  claudeSessions.delete(req.params.id);
+  res.json({ ok: true });
+});
+
+app.post("/api/claude/sessions/:id/compact", requireAuth, (req, res) => {
+  const sess = claudeSessions.get(req.params.id);
+  if (!sess || sess.dead) return res.status(404).json({ error: "not found" });
+  // Compact = send /compact as a message
+  claudeSendMessage(sess, "/compact");
+  res.json({ ok: true });
 });
 
 server.listen(PORT, "0.0.0.0", () => {
