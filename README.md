@@ -21,7 +21,7 @@
 
 ### 📑 Multi-Tab Interface
 - **Tab bar** - each session opens in its own tab with dedicated terminal instance
-- **Mixed tabs** - terminal, editor (Monaco), preview, admin, AI chat, agent monitor, VS Code, VNC
+- **Mixed tabs** - terminal, editor (Monaco), preview, admin, AI chat, Claude Code, agent monitor, VS Code, VNC
 - **`+` button** - spawn new shell tab from tab bar
 - **Tab drag reorder** - drag tabs to rearrange, purple indicator line shows drop position
 - **Keyboard shortcuts** - `Ctrl+S` save editor tab, `Ctrl+W` close active tab
@@ -192,6 +192,20 @@
 - **View Compose File** — open `docker-compose.yml` in Monaco editor directly from network group header
 - **Persist Across Refresh** — Docker tab survives page reload via workspace state
 
+### ⚡ Claude Code Tab
+- **Full AI coding agent** — Claude Code CLI running inside CYBERFRAME as a dedicated tab
+- **Stream-JSON parser** — handles assistant, tool_use, thinking, tool_result, result events in real-time
+- **Tool use blocks** — collapsible Read, Edit, Bash, Grep, Glob, Write, Skill blocks with running/done status
+- **Thinking blocks** — collapsible extended thinking content (purple theme)
+- **Turn containers** — all blocks in a turn grouped under single AI avatar + header
+- **Top bar** — model picker (Opus/Sonnet/Haiku), permission mode cycling (Default/Plan/Auto/AcceptEdits), context meter (%)
+- **CWD folder picker** — drive buttons, breadcrumb nav, folder browser for workspace selection
+- **Left sidebar** — session list with auto-naming, files changed tab (R/M/NEW badges), cost panel ($, tokens, turns)
+- **Slash commands** — autocomplete dropdown with 16 commands (/commit, /pr, /review, /plan, /think, etc.)
+- **Session management** — create/resume/end/switch via WebSocket, `--resume` for conversation continuity
+- **Permission & model** — changeable mid-session per message
+- **Tab persistence** — save/restore on browser refresh
+
 ### 💬 AI Chat (OpenClaw)
 - **SSE streaming** - real-time token-by-token response via Server-Sent Events
 - **Multi-session** - sidebar with session list, create/rename/delete/switch sessions
@@ -199,6 +213,7 @@
 - **Markdown rendering** - full GitHub-style markdown via [marked.js](https://marked.js.org/)
 - **Syntax highlighting** - code blocks with language badge, copy button, Tokyo Night Dark theme
 - **Model selector** - switch between models (OpenClaw/Claude Code/Ollama) per session
+- **Claude Code models** - Opus 4.7 (1M), Sonnet 4.6, Haiku 4.5 via CLI subscription (no API key cost)
 - **System prompt presets** - Default, Code Expert, Thai Teacher, Creative Writer, Concise, or Custom
 - **Stop / Regenerate** - abort streaming mid-response or re-send for a new answer
 - **File & image attachments** - paste or drag images, attach text files (60+ types)
@@ -297,6 +312,7 @@
 - **Python 3.10+** (optional, for voice STT)
 - **TightVNC** (optional, for Remote Desktop)
 - **Docker Desktop** (optional, for Docker Management)
+- **Claude Code** (optional, for Claude Code Tab & AI Chat models) - `npm install @anthropic-ai/claude-code` + `claude auth login`
 - **gsudo** (optional, for Admin shells) - `winget install gerardog.gsudo` (enables PowerShell Admin & CMD Admin profiles)
 
 ### Install
@@ -343,13 +359,19 @@ WORKSPACE_DIR=C:\Users\YourName\.openclaw\workspace
 
 ### Claude Code SDK (Optional)
 
-Uses Claude Code CLI subscription (Pro/Max) instead of API key - no per-token cost.
+Uses Claude Code CLI subscription (Pro/Max) instead of API key — no per-token cost. Required for both Claude Code Tab and Claude Code models in AI Chat.
 
 ```bash
 npm install @anthropic-ai/claude-code
+claude auth login
 ```
 
-Once installed and `claude` is authenticated, "Claude Code (Sonnet)" will appear in the model picker automatically. Uses `--print` mode with `stream-json` output for real-time SSE streaming.
+Once installed and authenticated, 3 models appear in AI Chat model picker automatically:
+- **Claude Code (Opus 4.7)** — 1M context, most capable
+- **Claude Code (Sonnet 4.6)** — 200K context, fast
+- **Claude Code (Haiku 4.5)** — 200K context, fastest
+
+Model versions auto-resolve from CLI aliases and are cached for 1 hour.
 
 ### Voice STT (Optional)
 
@@ -698,7 +720,7 @@ pm2-startup install
 
 ```
 CYBERFRAME
-├── server.js              # Express + WebSocket + PTY + VNC proxy + AI Chat + TTS/STT
+├── server.js              # Express + WebSocket + PTY + VNC proxy + AI Chat + Claude Code + TTS/STT
 ├── stt-worker.py           # faster-whisper STT worker (Python)
 ├── .env                   # Credentials (git-ignored)
 ├── .env.example           # Template
@@ -739,7 +761,13 @@ CYBERFRAME
 | POST | `/api/snippets` | Add snippet |
 | DELETE | `/api/snippets/:id` | Delete snippet |
 | GET | `/api/activity` | Activity log |
-| POST | `/api/chat` | AI Chat SSE streaming |
+| POST | `/api/chat` | AI Chat SSE streaming (OpenClaw/Claude Code/Ollama) |
+| POST | `/api/claude/sessions` | Create Claude Code session |
+| GET | `/api/claude/sessions` | List Claude Code sessions |
+| POST | `/api/claude/sessions/:id/send` | Send message to Claude Code session |
+| POST | `/api/claude/sessions/:id/stop` | Stop Claude Code generation |
+| DELETE | `/api/claude/sessions/:id` | End Claude Code session |
+| POST | `/api/claude/sessions/:id/compact` | Compact Claude Code context |
 | POST | `/api/tts` | Text-to-Speech (MP3) |
 | POST | `/api/stt` | Speech-to-Text (upload audio) |
 | POST | `/api/voice-upload` | Upload voice recording |
@@ -804,6 +832,8 @@ CYBERFRAME
 `attached`, `output`, `sessions`, `session-died`, `detached`, `pong`, `error`
 
 **VNC Proxy:** `ws://host:port/vnc-ws` (binary, proxied to VNC port 5900)
+
+**Claude Code:** `claude-attach`, `claude-detach`, `claude-send`, `claude-permission`, `claude-stop`, `claude-list`
 
 **Spy Streams:** `ws://host:port/spy-ws?type=camera&device=...` (binary MJPEG frames) / `ws://host:port/spy-ws?type=audio&device=...` (binary PCM f32le)
 
