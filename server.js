@@ -1087,7 +1087,6 @@ setInterval(() => { _wsContext = null; }, 300000);
 app.post("/api/chat", requireAuth, async (req, res) => {
   const { messages, model } = req.body;
   if (!messages || !Array.isArray(messages)) return res.status(400).json({ error: "messages required" });
-  if (!OPENCLAW_TOKEN) return res.status(500).json({ error: "OPENCLAW_TOKEN not configured" });
 
   const { sessionId, sessionName, agentId } = req.body;
   // Store session name mapping for Agent Monitor display
@@ -1100,9 +1099,139 @@ app.post("/api/chat", requireAuth, async (req, res) => {
     ? [{ role: 'system', content: 'You are an AI assistant. Here is your identity and context:' + wsCtx }, ...messages]
     : messages;
 
-  // Determine if using OpenClaw Gateway or direct Ollama
+  // Determine routing: Claude Code SDK, Ollama, or OpenClaw Gateway
+  const isClaudeCode = model && model.startsWith('claude-code/');
+  const claudeCodeModel = isClaudeCode ? model.replace('claude-code/', '') : null;
   const isOllama = model && model.startsWith('ollama/');
   const ollamaModel = isOllama ? model.replace('ollama/', '') : null;
+
+  // === Claude Code SDK route ===
+  if (isClaudeCode) {
+    try {
+      const { spawn } = require('child_process');
+      const lastUserMsg = [...messages].reverse().find(m => m.role === 'user');
+      if (!lastUserMsg) return res.status(400).json({ error: "No user message" });
+
+      // Build system prompt from workspace context
+      const systemParts = [];
+      if (wsCtx) systemParts.push(wsCtx);
+      // Include conversation history as context
+      const historyMsgs = messages.slice(0, -1);
+      if (historyMsgs.length > 0) {
+        systemParts.push('\n\nConversation history:\n' + historyMsgs.map(m => `${m.role}: ${m.content}`).join('\n'));
+      }
+
+      // Use alias directly — Claude Code CLI resolves opus/sonnet/haiku to latest model
+      const args = [
+        '-p', lastUserMsg.content,
+        '--output-format', 'stream-json',
+        '--verbose',
+        '--include-partial-messages',
+        '--dangerously-skip-permissions',
+        '--model', claudeCodeModel || 'sonnet',
+      ];
+      const sysPrompt = systemParts.join(' ').trim();
+      if (sysPrompt) {
+        args.push('--append-system-prompt', sysPrompt);
+      }
+
+      const cliBin = path.join(__dirname, 'node_modules', '@anthropic-ai', 'claude-code', 'cli.js');
+      const claudeProc = spawn(process.execPath, [cliBin, ...args], {
+        cwd: process.env.WORKSPACE_DIR || process.cwd(),
+        env: { ...process.env, FORCE_COLOR: '0' },
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+
+      // SSE headers
+      res.setHeader("Content-Type", "text/event-stream");
+      res.setHeader("Cache-Control", "no-cache");
+      res.setHeader("Connection", "keep-alive");
+      res.setHeader("X-Accel-Buffering", "no");
+      res.flushHeaders();
+
+      const keepalive = setInterval(() => {
+        if (!res.writableEnded) res.write(': keepalive\n\n');
+      }, 15000);
+
+      let buffer = '';
+      let fullContent = '';
+
+      claudeProc.stdout.on('data', (chunk) => {
+        buffer += chunk.toString();
+        const lines = buffer.split('\n');
+        buffer = lines.pop(); // keep incomplete line in buffer
+
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          try {
+            const evt = JSON.parse(line);
+            // Handle partial assistant message chunks
+            if (evt.type === 'assistant' && evt.message) {
+              const textBlocks = (evt.message.content || []).filter(b => b.type === 'text');
+              const currentText = textBlocks.map(b => b.text).join('');
+              if (currentText.length > fullContent.length) {
+                const delta = currentText.slice(fullContent.length);
+                fullContent = currentText;
+                // Emit as OpenAI-compatible SSE chunk
+                const sseData = {
+                  choices: [{ delta: { content: delta }, index: 0 }],
+                };
+                if (!res.writableEnded) res.write(`data: ${JSON.stringify(sseData)}\n\n`);
+              }
+            }
+            // Handle result event (final)
+            if (evt.type === 'result') {
+              const resultText = evt.result || '';
+              if (resultText.length > fullContent.length) {
+                const delta = resultText.slice(fullContent.length);
+                const sseData = {
+                  choices: [{ delta: { content: delta }, index: 0 }],
+                };
+                if (!res.writableEnded) res.write(`data: ${JSON.stringify(sseData)}\n\n`);
+              }
+              if (!res.writableEnded) res.write('data: [DONE]\n\n');
+            }
+          } catch {}
+        }
+      });
+
+      claudeProc.stderr.on('data', (chunk) => {
+        console.error('[Claude Code SDK]', chunk.toString());
+      });
+
+      claudeProc.on('close', (code) => {
+        clearInterval(keepalive);
+        // If no [DONE] was sent yet, send it now
+        if (!res.writableEnded) {
+          if (code !== 0 && !fullContent) {
+            res.write(`data: ${JSON.stringify({ error: 'Claude Code exited with code ' + code })}\n\n`);
+          }
+          res.write('data: [DONE]\n\n');
+          res.end();
+        }
+      });
+
+      claudeProc.on('error', (err) => {
+        clearInterval(keepalive);
+        console.error('[Claude Code SDK] spawn error:', err.message);
+        if (!res.headersSent) res.status(502).json({ error: err.message });
+        else if (!res.writableEnded) { res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`); res.end(); }
+      });
+
+      req.on('close', () => {
+        clearInterval(keepalive);
+        claudeProc.kill();
+      });
+    } catch (e) {
+      console.error('[Claude Code SDK] error:', e.message);
+      if (!res.headersSent) res.status(502).json({ error: e.message });
+      else res.end();
+    }
+    return;
+  }
+
+  // === Ollama / OpenClaw routes (require OPENCLAW_TOKEN for OpenClaw) ===
+  if (!isOllama && !OPENCLAW_TOKEN) return res.status(500).json({ error: "OPENCLAW_TOKEN not configured" });
 
   try {
     let upstream;
@@ -1975,6 +2104,43 @@ app.get("/api/admin/routes", requireAuth, (req, res) => {
   });
 });
 
+// === Claude Code model cache (resolve aliases in background) ===
+let _ccModelCache = null;
+let _ccModelCacheTime = 0;
+const CC_CACHE_TTL = 3600000; // 1 hour
+function _getCachedClaudeCodeModels() {
+  if (_ccModelCache && Date.now() - _ccModelCacheTime < CC_CACHE_TTL) return _ccModelCache;
+  // Return placeholder immediately, resolve in background
+  const ccCli = path.join(__dirname, 'node_modules', '@anthropic-ai', 'claude-code', 'cli.js');
+  try { require('fs').accessSync(ccCli); } catch { return []; }
+  const aliases = ['opus', 'sonnet', 'haiku'];
+  const display = { opus: 'Opus', sonnet: 'Sonnet', haiku: 'Haiku' };
+  // If no cache yet, return basic list and resolve in background
+  if (!_ccModelCache) {
+    _ccModelCache = aliases.map(a => ({ id: 'claude-code/' + a, name: 'Claude Code (' + display[a] + ')', provider: 'claude-code' }));
+    _resolveClaudeCodeModels(ccCli, aliases, display);
+  }
+  return _ccModelCache;
+}
+async function _resolveClaudeCodeModels(ccCli, aliases, display) {
+  const { execSync } = require('child_process');
+  const resolved = [];
+  for (const a of aliases) {
+    try {
+      const out = execSync(`"${process.execPath}" "${ccCli}" --print --model ${a} --output-format json --dangerously-skip-permissions "ok"`, { timeout: 20000, encoding: 'utf8' });
+      const j = JSON.parse(out);
+      const keys = Object.keys(j.modelUsage || {}).filter(k => k.includes(a.slice(0, 4)));
+      const modelId = keys[0] || '';
+      const verMatch = modelId.match(/claude-\w+-(\d+)-(\d+)/);
+      const ver = verMatch ? verMatch[1] + '.' + verMatch[2] : '';
+      resolved.push({ id: 'claude-code/' + a, name: 'Claude Code (' + display[a] + (ver ? ' ' + ver : '') + ')', provider: 'claude-code' });
+    } catch { resolved.push({ id: 'claude-code/' + a, name: 'Claude Code (' + display[a] + ')', provider: 'claude-code' }); }
+  }
+  _ccModelCache = resolved;
+  _ccModelCacheTime = Date.now();
+  console.log('[Claude Code] Models resolved:', resolved.map(m => m.name).join(', '));
+}
+
 // GET /api/agents — list available agents + models
 app.get("/api/agents", requireAuth, async (req, res) => {
   try {
@@ -1991,8 +2157,11 @@ app.get("/api/agents", requireAuth, async (req, res) => {
         ollamaModels = (d.models || []).map(m => ({ id: 'ollama/' + m.name, name: m.name, size: m.size, provider: 'ollama' }));
       }
     } catch {}
+    // Check if Claude Code CLI is available
+    const claudeCodeModels = _getCachedClaudeCodeModels();
     const models = [
       { id: 'anthropic/claude-opus-4-6', name: 'Claude Opus 4', provider: 'anthropic', default: true },
+      ...claudeCodeModels,
       ...ollamaModels
     ];
     res.json({ agents, models });

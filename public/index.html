@@ -1152,6 +1152,7 @@
 
     @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
     .pulse { animation: pulse 2s ease-in-out infinite; }
+    @keyframes modelPulse { 0%, 100% { opacity:.2; transform:scale(.8); } 50% { opacity:1; transform:scale(1.2); } }
 
     /* === Shell Picker Modal === */
     #shell-modal {
@@ -5102,13 +5103,15 @@
       input.click();
     }
 
-    // Cache agent + model list
+    // Cache agent + model list (background prefetch on load)
     let _agentData = null;
-    async function _fetchAgents() {
-      if (_agentData) return _agentData;
+    async function _fetchAgents(force) {
+      if (_agentData && !force) return _agentData;
       try { const r = await fetch('/api/agents'); _agentData = await r.json(); } catch { _agentData = { agents: ['main'], models: [] }; }
       return _agentData;
     }
+    // Prefetch on page load so New Chat opens instantly
+    setTimeout(() => _fetchAgents(), 2000);
 
     function chatNewSessionQuick(tabId) {
       const tab = tabs.get(tabId);
@@ -5135,6 +5138,26 @@
       renderChatMessages(tabId);
     }
 
+    function _renderModelList(container, models, overlay) {
+      const formatSize = (b) => b > 1e9 ? (b/1e9).toFixed(1) + 'GB' : b > 1e6 ? (b/1e6).toFixed(0) + 'MB' : '';
+      container.innerHTML = models.map(m => {
+        const color = m.provider === 'anthropic' ? '#c084fc' : m.provider === 'claude-code' ? '#f97316' : '#fbbf24';
+        const provBadge = m.provider === 'anthropic' ? 'rgba(192,132,252,.1)' : m.provider === 'claude-code' ? 'rgba(249,115,22,.1)' : 'rgba(251,191,36,.1)';
+        return `<button class="chat-action-sm" style="padding:8px 12px;font-size:11px;justify-content:flex-start;gap:8px" data-model-id="${m.id}">
+          <span style="font-size:8px;padding:1px 5px;border-radius:3px;background:${provBadge};color:${color};font-weight:600">${m.provider}</span>
+          <span style="font-weight:500">${m.name}</span>
+          ${m.size ? '<span style="font-size:9px;color:var(--text3);margin-left:auto">' + formatSize(m.size) + '</span>' : ''}
+          ${m.default ? '<span style="font-size:8px;color:#4ade80;background:rgba(74,222,128,.1);padding:1px 5px;border-radius:3px">default</span>' : ''}
+        </button>`;
+      }).join('');
+      container.querySelectorAll('[data-model-id]').forEach(btn => {
+        btn.onclick = () => {
+          overlay._resolve({ agent: overlay._selectedAgent || 'main', model: btn.dataset.modelId });
+          overlay.remove();
+        };
+      });
+    }
+
     function _chatAgentPicker(data) {
       const agents = data.agents || ['main'];
       const models = data.models || [];
@@ -5143,7 +5166,6 @@
         const overlay = document.createElement('div');
         overlay.className = 'sess-info-overlay';
         overlay.onclick = (e) => { if (e.target === overlay) { overlay.remove(); resolve(null); } };
-        const formatSize = (b) => b > 1e9 ? (b/1e9).toFixed(1) + 'GB' : b > 1e6 ? (b/1e6).toFixed(0) + 'MB' : '';
         overlay.innerHTML = `<div class="sess-info-modal" style="width:380px">
           <h3 style="margin-bottom:14px">New Chat <button class="dip-close" onclick="this.closest('.sess-info-overlay').remove()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></h3>
           <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Agent</div>
@@ -5154,22 +5176,36 @@
             </button>`).join('')}
           </div>
           <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Model</div>
-          <div style="display:flex;flex-direction:column;gap:4px;max-height:240px;overflow-y:auto">
-            ${models.map(m => {
-              const color = m.provider === 'anthropic' ? '#c084fc' : '#fbbf24';
-              const provBadge = m.provider === 'anthropic' ? 'rgba(192,132,252,.1)' : 'rgba(251,191,36,.1)';
-              return `<button class="chat-action-sm" style="padding:8px 12px;font-size:11px;justify-content:flex-start;gap:8px" onclick="this.closest('.sess-info-overlay')._selectedModel='${m.id}';this.closest('.sess-info-overlay')._resolve({agent:this.closest('.sess-info-overlay')._selectedAgent||'main',model:'${m.id}'});this.closest('.sess-info-overlay').remove()">
-                <span style="font-size:8px;padding:1px 5px;border-radius:3px;background:${provBadge};color:${color};font-weight:600">${m.provider}</span>
-                <span style="font-weight:500">${m.name}</span>
-                ${m.size ? '<span style="font-size:9px;color:var(--text3);margin-left:auto">' + formatSize(m.size) + '</span>' : ''}
-                ${m.default ? '<span style="font-size:8px;color:#4ade80;background:rgba(74,222,128,.1);padding:1px 5px;border-radius:3px">default</span>' : ''}
-              </button>`;
-            }).join('')}
+          <div id="model-list-container" style="display:flex;flex-direction:column;gap:4px;max-height:240px;overflow-y:auto">
+            <div id="model-loading" style="display:flex;align-items:center;justify-content:center;padding:24px 0;gap:10px">
+              <div style="display:flex;gap:4px">
+                <div style="width:6px;height:6px;border-radius:50%;background:#6c63ff;animation:modelPulse .8s ease-in-out infinite"></div>
+                <div style="width:6px;height:6px;border-radius:50%;background:#6c63ff;animation:modelPulse .8s ease-in-out .15s infinite"></div>
+                <div style="width:6px;height:6px;border-radius:50%;background:#6c63ff;animation:modelPulse .8s ease-in-out .3s infinite"></div>
+              </div>
+              <span style="font-size:11px;color:var(--text3)">Loading models...</span>
+            </div>
           </div>
         </div>`;
         overlay._resolve = resolve;
         overlay._selectedAgent = 'main';
         document.body.appendChild(overlay);
+
+        // Render models: show cached immediately, then refresh
+        const container = document.getElementById('model-list-container');
+        if (models.length > 0) {
+          _renderModelList(container, models, overlay);
+        }
+        // Fetch fresh data in background and update
+        _fetchAgents(true).then(fresh => {
+          const freshModels = fresh.models || [];
+          if (freshModels.length > 0) {
+            _renderModelList(container, freshModels, overlay);
+          } else if (!models.length) {
+            container.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text3);font-size:11px">No models available</div>';
+          }
+        });
+
         // Drag scroll for agent pills
         const agentRow = overlay.querySelector('[style*="overflow-x"]');
         if (agentRow) {
@@ -5243,6 +5279,10 @@
 
     function _chatMaxTokens(model) {
       if (!model) return 200000;
+      // Claude Code models
+      if (model === 'claude-code/opus') return 1000000;
+      if (model === 'claude-code/sonnet') return 200000;
+      if (model === 'claude-code/haiku') return 200000;
       const m = model.replace('ollama/', '').replace(':latest', '');
       const ctx = {
         'qwen3.5:35b': 32768, 'qwen3.5:27b': 32768,
@@ -5294,7 +5334,7 @@
               <span>${msgCount} msg</span>
               <span>·</span><span class="cs-tokens">${tokenStr || 0}/${_chatMaxTokensStr(s.model)}</span>
             </div>
-            <div class="cs-meta" style="opacity:.4;font-size:8px">agent:${s.agentId || 'main'}:openai-user:cyberframe-${s.id}</div>
+            <div class="cs-meta" style="opacity:.4;font-size:8px">${s.model && s.model.startsWith('claude-code/') ? 'model:claude-code/' + s.model.replace('claude-code/','') : 'agent:' + (s.agentId || 'main')}${s.model && s.model.startsWith('ollama/') ? ':model:' + s.model.replace('ollama/','') : ''}<br>user:cyberframe-${s.id}</div>
           </div>
           <span class="cs-rename" onclick="event.stopPropagation();chatRenameSession('${tabId}','${s.id}',this.closest('.chat-session-item').querySelector('.cs-title'))" title="Rename">✏️</span>
           <span class="cs-delete" onclick="event.stopPropagation();chatDeleteSession('${tabId}','${s.id}')" title="Delete">✕</span>
@@ -6564,10 +6604,19 @@
       const agentBadge = document.getElementById(tabId + '-agent-badge');
       if (agentBadge && sess) {
         const isOllama = sess.model && sess.model.startsWith('ollama/');
-        const label = isOllama ? sess.model.replace('ollama/', '') : (sess.agentId || 'main');
-        const color = isOllama ? '#fbbf24' : '#4ade80';
-        agentBadge.style.cssText = `display:inline-flex;font-size:10px;background:${isOllama ? 'rgba(251,191,36,.08)' : 'rgba(74,222,128,.08)'} !important;color:${color} !important;border-color:${isOllama ? 'rgba(251,191,36,.15)' : 'rgba(74,222,128,.15)'} !important`;
-        agentBadge.innerHTML = `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round">${isOllama ? '<path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>' : '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>'}</svg> ${label}`;
+        const isClaudeCode = sess.model && sess.model.startsWith('claude-code/');
+        const ccAlias = isClaudeCode ? sess.model.replace('claude-code/', '') : '';
+        const ccCtx = { opus: '4.7 1M', sonnet: '4.6', haiku: '4.5' };
+        const ccLabel = ccAlias ? 'Claude Code · ' + ccAlias.charAt(0).toUpperCase() + ccAlias.slice(1) + ' ' + (ccCtx[ccAlias] || '') : '';
+        const label = isClaudeCode ? ccLabel : isOllama ? sess.model.replace('ollama/', '') : (sess.agentId || 'main');
+        const color = isClaudeCode ? '#f97316' : isOllama ? '#fbbf24' : '#4ade80';
+        const bg = isClaudeCode ? 'rgba(249,115,22,.08)' : isOllama ? 'rgba(251,191,36,.08)' : 'rgba(74,222,128,.08)';
+        const border = isClaudeCode ? 'rgba(249,115,22,.15)' : isOllama ? 'rgba(251,191,36,.15)' : 'rgba(74,222,128,.15)';
+        const icon = isClaudeCode ? '<path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z"/><path d="M8 12h8" stroke="#fff"/><path d="M12 8v8" stroke="#fff"/>'
+          : isOllama ? '<path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>'
+          : '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>';
+        agentBadge.style.cssText = `display:inline-flex;font-size:10px;background:${bg} !important;color:${color} !important;border-color:${border} !important`;
+        agentBadge.innerHTML = `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round">${icon}</svg> ${label}`;
       } else if (agentBadge) { agentBadge.style.display = 'none'; }
       // Update session key badge
       const sessBadge = document.getElementById(tabId + '-session-badge');

@@ -198,7 +198,7 @@
 - **Auto-title** - session automatically titled from first message
 - **Markdown rendering** - full GitHub-style markdown via [marked.js](https://marked.js.org/)
 - **Syntax highlighting** - code blocks with language badge, copy button, Tokyo Night Dark theme
-- **Model selector** - switch between models (Default/OpenClaw/Custom) per session
+- **Model selector** - switch between models (OpenClaw/Claude Code/Ollama) per session
 - **System prompt presets** - Default, Code Expert, Thai Teacher, Creative Writer, Concise, or Custom
 - **Stop / Regenerate** - abort streaming mid-response or re-send for a new answer
 - **File & image attachments** - paste or drag images, attach text files (60+ types)
@@ -340,6 +340,16 @@ WORKSPACE_DIR=C:\Users\YourName\.openclaw\workspace
 | `OPENCLAW_CLI` | `openclaw` | CLI command (`clawdbot`, `moltbot`) |
 | `OPENCLAW_DIR` | `.openclaw` | Config directory (`.clawdbot`, `.moltbot`) |
 | `WORKSPACE_DIR` | `~/<OPENCLAW_DIR>/workspace` | Agent workspace (SOUL.md, USER.md) |
+
+### Claude Code SDK (Optional)
+
+Uses Claude Code CLI subscription (Pro/Max) instead of API key - no per-token cost.
+
+```bash
+npm install @anthropic-ai/claude-code
+```
+
+Once installed and `claude` is authenticated, "Claude Code (Sonnet)" will appear in the model picker automatically. Uses `--print` mode with `stream-json` output for real-time SSE streaming.
 
 ### Voice STT (Optional)
 
