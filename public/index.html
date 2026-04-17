@@ -10070,7 +10070,7 @@
         const res = await fetch('/api/files/save', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ path: tab.filePath, content }),
+          body: JSON.stringify({ filePath: tab.filePath, content }),
         });
         if (res.ok) {
           tab.originalContent = content;
