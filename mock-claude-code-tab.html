@@ -1,0 +1,920 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Claude Code Tab — Mock UI v2</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+  * { margin:0; padding:0; box-sizing:border-box; }
+  :root {
+    --bg: #0a0a1a;
+    --bg2: #111128;
+    --bg3: #1a1a35;
+    --surface: rgba(255,255,255,.03);
+    --border: rgba(255,255,255,.06);
+    --text: #e4e4ef;
+    --text2: #9d9db5;
+    --text3: #5a5a7a;
+    --accent: #6c63ff;
+    --orange: #f97316;
+    --green: #4ade80;
+    --red: #ef4444;
+    --blue: #60a5fa;
+    --purple: #c084fc;
+    --yellow: #fbbf24;
+    --cyan: #22d3ee;
+  }
+  body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+  /* === Top Bar === */
+  .topbar {
+    display: flex; align-items: center; gap: 8px; padding: 6px 12px;
+    background: var(--bg2); border-bottom: 1px solid var(--border); flex-shrink: 0;
+  }
+  .topbar-icon {
+    width: 26px; height: 26px; border-radius: 6px; background: linear-gradient(135deg, var(--orange), #ea580c);
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .topbar-title { font-size: 12px; font-weight: 600; white-space: nowrap; }
+
+  /* Model Picker */
+  .model-picker {
+    font-size: 10px; padding: 3px 8px; border-radius: 4px; cursor: pointer; position: relative;
+    background: rgba(249,115,22,.1); color: var(--orange); border: 1px solid rgba(249,115,22,.15);
+    display: flex; align-items: center; gap: 4px; transition: all .15s;
+  }
+  .model-picker:hover { background: rgba(249,115,22,.2); }
+  .model-picker .chevron { font-size: 7px; opacity: .6; }
+  .model-dropdown {
+    position: absolute; top: 100%; left: 0; margin-top: 4px; min-width: 200px;
+    background: var(--bg3); border: 1px solid var(--border); border-radius: 8px;
+    padding: 4px; z-index: 100; display: none; box-shadow: 0 8px 32px rgba(0,0,0,.5);
+  }
+  .model-picker:hover .model-dropdown { display: block; }
+  .model-opt {
+    padding: 6px 10px; border-radius: 5px; font-size: 10px; cursor: pointer;
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    color: var(--text2); transition: background .1s;
+  }
+  .model-opt:hover { background: rgba(255,255,255,.05); }
+  .model-opt.active { background: rgba(249,115,22,.1); color: var(--orange); }
+  .model-opt .hotkey { font-size: 8px; color: var(--text3); font-family: 'JetBrains Mono', monospace; }
+
+  /* Effort Selector */
+  .effort-sel {
+    display: flex; border: 1px solid var(--border); border-radius: 4px; overflow: hidden;
+  }
+  .effort-opt {
+    font-size: 8px; padding: 3px 6px; cursor: pointer; color: var(--text3);
+    background: transparent; border: none; transition: all .15s; font-family: 'Inter', sans-serif;
+    text-transform: uppercase; letter-spacing: .5px;
+  }
+  .effort-opt:hover { color: var(--text2); background: rgba(255,255,255,.03); }
+  .effort-opt.active { color: var(--accent); background: rgba(108,99,255,.1); }
+
+  /* Permission Badge */
+  .perm-badge {
+    font-size: 9px; padding: 3px 7px; border-radius: 4px; cursor: pointer;
+    display: flex; align-items: center; gap: 4px; transition: all .15s;
+  }
+  .perm-badge.auto { background: rgba(74,222,128,.08); color: var(--green); border: 1px solid rgba(74,222,128,.15); }
+  .perm-badge.plan { background: rgba(96,165,250,.08); color: var(--blue); border: 1px solid rgba(96,165,250,.15); }
+  .perm-badge.default { background: rgba(255,255,255,.04); color: var(--text3); border: 1px solid var(--border); }
+  .perm-badge:hover { filter: brightness(1.2); }
+
+  /* Toggle Buttons */
+  .toggle-btn {
+    font-size: 9px; padding: 3px 7px; border-radius: 4px; cursor: pointer;
+    border: 1px solid var(--border); background: var(--surface); color: var(--text3);
+    display: flex; align-items: center; gap: 4px; transition: all .15s; white-space: nowrap;
+  }
+  .toggle-btn:hover { background: rgba(255,255,255,.06); color: var(--text2); }
+  .toggle-btn.active { border-color: rgba(192,132,252,.3); background: rgba(192,132,252,.08); color: var(--purple); }
+  .toggle-btn .hotkey { font-size: 7px; opacity: .5; font-family: 'JetBrains Mono', monospace; }
+
+  /* Git Info */
+  .git-info {
+    display: flex; align-items: center; gap: 6px; margin-left: auto;
+    font-size: 9px; color: var(--text3);
+  }
+  .git-branch {
+    display: flex; align-items: center; gap: 3px; padding: 2px 6px;
+    background: rgba(192,132,252,.06); border-radius: 3px; color: var(--purple);
+  }
+  .pr-status {
+    display: flex; align-items: center; gap: 3px; padding: 2px 6px;
+    border-radius: 3px; font-weight: 500;
+  }
+  .pr-status.pending { background: rgba(251,191,36,.08); color: var(--yellow); }
+  .pr-status.approved { background: rgba(74,222,128,.08); color: var(--green); }
+
+  /* Context Bar */
+  .context-bar {
+    display: flex; align-items: center; gap: 8px; padding: 2px 6px;
+    font-size: 8px; color: var(--text3);
+  }
+  .ctx-meter { width: 60px; height: 3px; background: var(--bg); border-radius: 2px; overflow: hidden; }
+  .ctx-fill { height: 100%; border-radius: 2px; transition: width .3s; }
+  .ctx-fill.low { background: var(--green); }
+  .ctx-fill.mid { background: var(--yellow); }
+  .ctx-fill.high { background: var(--orange); }
+  .ctx-fill.critical { background: var(--red); }
+
+  .topbar-right { display: flex; gap: 4px; }
+  .topbar-btn {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 5px;
+    color: var(--text3); font-size: 9px; padding: 4px 8px; cursor: pointer;
+    display: flex; align-items: center; gap: 3px; transition: all .15s; white-space: nowrap;
+  }
+  .topbar-btn:hover { background: rgba(108,99,255,.1); border-color: rgba(108,99,255,.3); color: var(--text); }
+  .topbar-btn.danger { color: var(--red); border-color: rgba(239,68,68,.15); }
+  .topbar-btn.danger:hover { background: rgba(239,68,68,.1); }
+
+  /* === Main Layout === */
+  .main { flex: 1; display: flex; overflow: hidden; }
+
+  /* === Left Sidebar === */
+  .sidebar-left {
+    width: 240px; background: var(--bg2); border-right: 1px solid var(--border);
+    display: flex; flex-direction: column; overflow: hidden; flex-shrink: 0;
+  }
+
+  /* Session List */
+  .session-header {
+    padding: 8px 10px; font-size: 9px; color: var(--text3); text-transform: uppercase;
+    letter-spacing: 1px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .session-header button {
+    background: rgba(108,99,255,.1); border: 1px solid rgba(108,99,255,.2);
+    color: var(--accent); font-size: 9px; padding: 2px 6px; border-radius: 3px; cursor: pointer;
+  }
+  .session-list { overflow-y: auto; flex-shrink: 0; max-height: 120px; }
+  .session-item {
+    display: flex; align-items: center; gap: 6px; padding: 5px 10px; cursor: pointer;
+    font-size: 10px; color: var(--text2); transition: background .1s; border-left: 2px solid transparent;
+  }
+  .session-item:hover { background: rgba(255,255,255,.03); }
+  .session-item.active { background: rgba(108,99,255,.06); border-left-color: var(--accent); color: var(--text); }
+  .session-item .time { font-size: 8px; color: var(--text3); margin-left: auto; }
+
+  /* Tabs in sidebar */
+  .sidebar-tabs {
+    display: flex; border-bottom: 1px solid var(--border); flex-shrink: 0;
+  }
+  .sidebar-tab {
+    flex: 1; padding: 6px 0; text-align: center; font-size: 9px; color: var(--text3);
+    cursor: pointer; border-bottom: 2px solid transparent; transition: all .15s;
+    text-transform: uppercase; letter-spacing: .5px;
+  }
+  .sidebar-tab:hover { color: var(--text2); background: rgba(255,255,255,.02); }
+  .sidebar-tab.active { color: var(--orange); border-bottom-color: var(--orange); }
+
+  /* Files Changed */
+  .file-tree { flex: 1; overflow-y: auto; padding: 4px 0; font-size: 10px; }
+  .file-item {
+    display: flex; align-items: center; gap: 5px; padding: 3px 10px; cursor: pointer;
+    color: var(--text2); transition: background .1s;
+  }
+  .file-item:hover { background: rgba(255,255,255,.03); }
+  .file-item.modified { color: var(--yellow); }
+  .file-item.created { color: var(--green); }
+  .file-item.deleted { color: var(--red); text-decoration: line-through; opacity: .6; }
+  .file-icon { font-size: 10px; width: 14px; text-align: center; }
+  .file-badge {
+    font-size: 7px; padding: 1px 4px; border-radius: 3px; margin-left: auto;
+    font-weight: 600; text-transform: uppercase;
+  }
+  .file-badge.m { background: rgba(251,191,36,.1); color: var(--yellow); }
+  .file-badge.c { background: rgba(74,222,128,.1); color: var(--green); }
+  .file-badge.d { background: rgba(239,68,68,.1); color: var(--red); }
+
+  /* Task List */
+  .task-list { flex: 1; overflow-y: auto; padding: 4px 0; font-size: 10px; }
+  .task-item {
+    display: flex; align-items: flex-start; gap: 6px; padding: 4px 10px; font-size: 10px; color: var(--text2);
+  }
+  .task-check { width: 12px; height: 12px; border-radius: 3px; border: 1px solid var(--border); flex-shrink: 0; margin-top: 1px; display: flex; align-items: center; justify-content: center; font-size: 8px; }
+  .task-check.done { background: rgba(74,222,128,.15); border-color: var(--green); color: var(--green); }
+  .task-check.running { background: rgba(249,115,22,.1); border-color: var(--orange); }
+  .task-text.done { text-decoration: line-through; opacity: .5; }
+
+  /* Agents Tab */
+  .agent-item {
+    display: flex; align-items: center; gap: 6px; padding: 5px 10px; font-size: 10px; color: var(--text2);
+  }
+  .agent-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+  .agent-dot.idle { background: var(--text3); }
+  .agent-dot.running { background: var(--orange); animation: pulse 1.5s infinite; }
+  .agent-dot.done { background: var(--green); }
+  .agent-role { font-size: 8px; color: var(--text3); margin-left: auto; }
+
+  /* Cost panel */
+  .cost-panel {
+    padding: 8px 10px; border-top: 1px solid var(--border); flex-shrink: 0;
+    font-size: 9px; color: var(--text3);
+  }
+  .cost-row { display: flex; justify-content: space-between; margin-bottom: 3px; }
+  .cost-value { color: var(--text2); font-family: 'JetBrains Mono', monospace; font-size: 9px; }
+  .cost-bar { height: 3px; background: var(--bg); border-radius: 2px; margin-top: 4px; overflow: hidden; }
+  .cost-bar-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--purple)); border-radius: 2px; }
+
+  /* Memory / MCP / Hooks status */
+  .status-row {
+    display: flex; align-items: center; gap: 4px; padding: 3px 10px; font-size: 8px; color: var(--text3);
+  }
+  .status-dot { width: 4px; height: 4px; border-radius: 50%; }
+  .status-dot.on { background: var(--green); }
+  .status-dot.off { background: var(--text3); }
+
+  /* === Chat Area === */
+  .chat-area { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+
+  /* Messages */
+  .messages { flex: 1; overflow-y: auto; padding: 12px 16px; display: flex; flex-direction: column; gap: 10px; }
+
+  .msg { display: flex; gap: 8px; max-width: 100%; }
+  .msg-avatar {
+    width: 24px; height: 24px; border-radius: 5px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center; font-size: 11px;
+  }
+  .msg-avatar.user { background: rgba(108,99,255,.15); color: var(--accent); }
+  .msg-avatar.ai { background: rgba(249,115,22,.15); color: var(--orange); }
+  .msg-body { flex: 1; min-width: 0; }
+  .msg-header { font-size: 9px; color: var(--text3); margin-bottom: 3px; display: flex; gap: 6px; align-items: center; }
+  .msg-name { font-weight: 600; color: var(--text2); }
+  .msg-content { font-size: 12px; line-height: 1.6; color: var(--text); }
+  .msg-content p { margin-bottom: 6px; }
+  .msg-content code {
+    font-family: 'JetBrains Mono', monospace; font-size: 10px;
+    background: rgba(255,255,255,.06); padding: 1px 4px; border-radius: 3px;
+  }
+
+  /* Tool use blocks */
+  .tool-block {
+    margin: 6px 0; border: 1px solid var(--border); border-radius: 6px;
+    overflow: hidden; background: var(--bg);
+  }
+  .tool-header {
+    display: flex; align-items: center; gap: 6px; padding: 6px 10px;
+    background: var(--surface); border-bottom: 1px solid var(--border);
+    font-size: 10px; cursor: pointer;
+  }
+  .tool-icon { font-size: 11px; }
+  .tool-name { font-weight: 600; color: var(--text2); font-family: 'JetBrains Mono', monospace; font-size: 10px; }
+  .tool-file { color: var(--blue); font-size: 9px; }
+  .tool-status { margin-left: auto; font-size: 8px; padding: 1px 5px; border-radius: 3px; }
+  .tool-status.done { background: rgba(74,222,128,.1); color: var(--green); }
+  .tool-status.running { background: rgba(251,191,36,.1); color: var(--yellow); animation: pulse 1.5s infinite; }
+  .tool-body {
+    padding: 8px 10px; font-family: 'JetBrains Mono', monospace; font-size: 10px;
+    color: var(--text2); max-height: 160px; overflow-y: auto; line-height: 1.5;
+  }
+  .tool-body .line-add { color: var(--green); }
+  .tool-body .line-del { color: var(--red); text-decoration: line-through; opacity: .6; }
+  .tool-body .line-num { color: var(--text3); user-select: none; display: inline-block; width: 28px; text-align: right; margin-right: 6px; }
+
+  /* Thinking block */
+  .thinking-block {
+    margin: 6px 0; padding: 8px 12px; border-radius: 6px;
+    background: rgba(108,99,255,.04); border: 1px solid rgba(108,99,255,.1);
+    font-size: 10px; color: var(--text3); font-style: italic;
+    display: flex; align-items: flex-start; gap: 6px;
+  }
+  .thinking-icon { color: var(--accent); font-size: 12px; flex-shrink: 0; }
+  .thinking-block details { width: 100%; }
+  .thinking-block summary { cursor: pointer; color: var(--text3); font-size: 9px; }
+  .thinking-content { margin-top: 4px; color: var(--text3); line-height: 1.5; }
+
+  /* Subagent block */
+  .subagent-block {
+    margin: 6px 0; border: 1px solid rgba(34,211,238,.15); border-radius: 6px;
+    overflow: hidden; background: rgba(34,211,238,.02);
+  }
+  .subagent-header {
+    display: flex; align-items: center; gap: 6px; padding: 6px 10px;
+    font-size: 10px; border-bottom: 1px solid rgba(34,211,238,.1);
+  }
+  .subagent-header .agent-name { color: var(--cyan); font-weight: 600; }
+  .subagent-body { padding: 8px 10px; font-size: 10px; color: var(--text2); line-height: 1.5; }
+
+  /* Turn separator */
+  .turn-sep {
+    display: flex; align-items: center; gap: 8px; padding: 2px 0;
+    font-size: 8px; color: var(--text3); text-transform: uppercase; letter-spacing: 1px;
+  }
+  .turn-sep::before, .turn-sep::after {
+    content: ''; flex: 1; height: 1px; background: var(--border);
+  }
+
+  /* Rewind marker */
+  .rewind-marker {
+    display: flex; align-items: center; gap: 6px; padding: 3px 10px; margin: 4px 0;
+    font-size: 9px; color: var(--text3); cursor: pointer; border-radius: 4px;
+    transition: background .15s;
+  }
+  .rewind-marker:hover { background: rgba(255,255,255,.03); color: var(--text2); }
+  .rewind-marker .ckpt { color: var(--accent); font-size: 8px; background: rgba(108,99,255,.1); padding: 1px 4px; border-radius: 2px; }
+
+  /* === Streaming Bar === */
+  .streaming-bar {
+    display: flex; align-items: center; gap: 8px; padding: 6px 16px;
+    background: rgba(249,115,22,.03); border-top: 1px solid rgba(249,115,22,.1);
+    font-size: 10px; color: var(--orange); flex-shrink: 0;
+  }
+  .streaming-dots { display: flex; gap: 3px; }
+  .streaming-dots span {
+    width: 4px; height: 4px; border-radius: 50%; background: var(--orange);
+    animation: dotPulse .8s ease-in-out infinite;
+  }
+  .streaming-dots span:nth-child(2) { animation-delay: .15s; }
+  .streaming-dots span:nth-child(3) { animation-delay: .3s; }
+  .streaming-stop {
+    margin-left: auto; background: rgba(239,68,68,.1); border: 1px solid rgba(239,68,68,.2);
+    color: var(--red); font-size: 9px; padding: 2px 8px; border-radius: 4px; cursor: pointer;
+    display: flex; align-items: center; gap: 3px;
+  }
+
+  /* === Input Area === */
+  .input-area {
+    padding: 8px 12px; border-top: 1px solid var(--border); background: var(--bg2); flex-shrink: 0;
+  }
+  .input-box {
+    display: flex; align-items: flex-end; gap: 6px;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+    padding: 8px 12px; transition: border-color .2s;
+  }
+  .input-box:focus-within { border-color: rgba(108,99,255,.4); }
+  .input-box textarea {
+    flex: 1; background: none; border: none; outline: none; color: var(--text);
+    font-family: 'Inter', sans-serif; font-size: 12px; resize: none;
+    min-height: 18px; max-height: 100px; line-height: 1.5;
+  }
+  .input-box textarea::placeholder { color: var(--text3); }
+
+  /* Input buttons */
+  .input-actions { display: flex; gap: 4px; align-items: center; flex-shrink: 0; }
+  .input-icon-btn {
+    width: 28px; height: 28px; border-radius: 6px; border: none;
+    background: transparent; color: var(--text3); cursor: pointer;
+    display: flex; align-items: center; justify-content: center; transition: all .15s;
+  }
+  .input-icon-btn:hover { background: rgba(255,255,255,.06); color: var(--text2); }
+  .input-icon-btn.voice { color: var(--red); }
+  .input-icon-btn.voice:hover { background: rgba(239,68,68,.1); }
+  .send-btn {
+    width: 28px; height: 28px; border-radius: 6px; border: none;
+    background: linear-gradient(135deg, var(--orange), #ea580c); color: white;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    transition: transform .1s; flex-shrink: 0;
+  }
+  .send-btn:hover { transform: scale(1.05); }
+
+  /* Slash command dropdown */
+  .slash-dropdown {
+    position: absolute; bottom: 100%; left: 0; right: 0; margin-bottom: 4px;
+    background: var(--bg3); border: 1px solid var(--border); border-radius: 8px;
+    padding: 4px; display: none; box-shadow: 0 -8px 32px rgba(0,0,0,.4); max-height: 200px; overflow-y: auto;
+  }
+  .slash-dropdown.show { display: block; }
+  .slash-item {
+    display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 5px;
+    cursor: pointer; transition: background .1s; font-size: 10px;
+  }
+  .slash-item:hover, .slash-item.active { background: rgba(108,99,255,.08); }
+  .slash-cmd { color: var(--accent); font-weight: 600; font-family: 'JetBrains Mono', monospace; min-width: 70px; }
+  .slash-desc { color: var(--text3); font-size: 9px; }
+  .slash-hotkey { margin-left: auto; font-size: 8px; color: var(--text3); font-family: 'JetBrains Mono', monospace; }
+
+  /* Input hints */
+  .input-hint { font-size: 8px; color: var(--text3); margin-top: 4px; padding: 0 4px; display: flex; gap: 10px; flex-wrap: wrap; }
+  .input-hint kbd {
+    background: rgba(255,255,255,.06); padding: 1px 3px; border-radius: 2px;
+    font-family: 'JetBrains Mono', monospace; font-size: 7px;
+  }
+
+  /* === Right Sidebar === */
+  .sidebar-right {
+    width: 200px; background: var(--bg2); border-left: 1px solid var(--border);
+    display: flex; flex-direction: column; overflow: hidden; flex-shrink: 0; font-size: 9px;
+  }
+  .sidebar-right-header {
+    padding: 8px 10px; font-size: 9px; color: var(--text3); text-transform: uppercase;
+    letter-spacing: 1px; border-bottom: 1px solid var(--border);
+  }
+  .sr-section { padding: 6px 10px; border-bottom: 1px solid var(--border); }
+  .sr-label { font-size: 8px; color: var(--text3); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 4px; }
+  .sr-row { display: flex; justify-content: space-between; margin-bottom: 2px; color: var(--text2); }
+  .sr-val { font-family: 'JetBrains Mono', monospace; }
+
+  .memory-item {
+    display: flex; align-items: center; gap: 4px; padding: 2px 0; font-size: 9px; color: var(--text2);
+  }
+  .memory-type {
+    font-size: 7px; padding: 1px 3px; border-radius: 2px; font-weight: 600; text-transform: uppercase;
+  }
+  .memory-type.user { background: rgba(108,99,255,.1); color: var(--accent); }
+  .memory-type.feedback { background: rgba(74,222,128,.1); color: var(--green); }
+  .memory-type.project { background: rgba(251,191,36,.1); color: var(--yellow); }
+
+  .hook-item { display: flex; align-items: center; gap: 4px; padding: 2px 0; font-size: 9px; color: var(--text3); }
+  .hook-trigger { font-size: 8px; color: var(--text2); font-family: 'JetBrains Mono', monospace; }
+
+  .mcp-item { display: flex; align-items: center; gap: 4px; padding: 2px 0; font-size: 9px; }
+
+  @keyframes pulse { 0%, 100% { opacity:1; } 50% { opacity:.4; } }
+  @keyframes dotPulse { 0%, 100% { opacity:.2; transform:scale(.8); } 50% { opacity:1; transform:scale(1.2); } }
+  @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(255,255,255,.08); border-radius: 2px; }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,.15); }
+</style>
+</head>
+<body>
+
+<!-- ═══════════ TOP BAR ═══════════ -->
+<div class="topbar">
+  <div class="topbar-icon">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+  </div>
+  <span class="topbar-title">Claude Code</span>
+
+  <!-- Model Picker (Cmd+P) -->
+  <div class="model-picker">
+    <span>Opus 4.7</span><span class="chevron">▾</span>
+    <div class="model-dropdown">
+      <div class="model-opt active">Opus 4.7 <span style="font-size:8px;opacity:.5">1M ctx</span> <span class="hotkey">⌘P</span></div>
+      <div class="model-opt">Sonnet 4.6 <span style="font-size:8px;opacity:.5">200K</span></div>
+      <div class="model-opt">Haiku 4.5 <span style="font-size:8px;opacity:.5">200K</span></div>
+    </div>
+  </div>
+
+  <!-- Effort Selector -->
+  <div class="effort-sel">
+    <button class="effort-opt">Low</button>
+    <button class="effort-opt">Med</button>
+    <button class="effort-opt active">High</button>
+    <button class="effort-opt">Max</button>
+  </div>
+
+  <!-- Permission Mode (Shift+Tab) -->
+  <div class="perm-badge auto" title="Shift+Tab to switch">
+    <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+    Auto
+  </div>
+
+  <!-- Extended Thinking Toggle (Cmd+T) -->
+  <div class="toggle-btn active" title="Extended Thinking">
+    <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+    Think <span class="hotkey">⌘T</span>
+  </div>
+
+  <!-- Fast Mode (Meta+O) -->
+  <div class="toggle-btn" title="Fast Mode">
+    <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+    Fast <span class="hotkey">⌥O</span>
+  </div>
+
+  <!-- Git Info -->
+  <div class="git-info">
+    <div class="git-branch">
+      <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg>
+      fix/payment-flow
+    </div>
+    <div class="pr-status pending">
+      PR #156 · Pending
+    </div>
+  </div>
+
+  <!-- Context Meter -->
+  <div class="context-bar" title="Context: 35% used">
+    <span>CTX</span>
+    <div class="ctx-meter"><div class="ctx-fill low" style="width:35%"></div></div>
+    <span>35%</span>
+  </div>
+
+  <!-- Action Buttons -->
+  <div class="topbar-right">
+    <button class="topbar-btn" title="Rewind (Esc+Esc)">
+      <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+      Rewind
+    </button>
+    <button class="topbar-btn" title="Compact (/compact)">
+      <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 14h6v6"/><path d="M14 4h6v6"/><path d="M10 14L4 20"/><path d="M20 4l-6 6"/></svg>
+      Compact
+    </button>
+    <button class="topbar-btn danger" title="End Session">
+      <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/></svg>
+      End
+    </button>
+  </div>
+</div>
+
+<div class="main">
+
+<!-- ═══════════ LEFT SIDEBAR ═══════════ -->
+<div class="sidebar-left">
+  <!-- Sessions -->
+  <div class="session-header">
+    <span>Sessions</span>
+    <button title="New Session">+ New</button>
+  </div>
+  <div class="session-list">
+    <div class="session-item active">
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      Fix Payment Flow
+      <span class="time">now</span>
+    </div>
+    <div class="session-item">
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      Add Wishlist API
+      <span class="time">2h</span>
+    </div>
+    <div class="session-item">
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      Refactor utils.ts
+      <span class="time">1d</span>
+    </div>
+  </div>
+
+  <!-- Sidebar Tabs -->
+  <div class="sidebar-tabs">
+    <div class="sidebar-tab active">Files</div>
+    <div class="sidebar-tab">Tasks</div>
+    <div class="sidebar-tab">Agents</div>
+  </div>
+
+  <!-- Files Changed (active tab) -->
+  <div class="file-tree">
+    <div class="file-item modified">
+      <span class="file-icon">📄</span><span>payment.service.ts</span><span class="file-badge m">M</span>
+    </div>
+    <div class="file-item modified">
+      <span class="file-icon">📄</span><span>stripe.adapter.ts</span><span class="file-badge m">M</span>
+    </div>
+    <div class="file-item created">
+      <span class="file-icon">📄</span><span>idempotency.middleware.ts</span><span class="file-badge c">NEW</span>
+    </div>
+    <div class="file-item modified">
+      <span class="file-icon">📄</span><span>order.routes.ts</span><span class="file-badge m">M</span>
+    </div>
+    <div class="file-item created">
+      <span class="file-icon">📄</span><span>payment-flow.test.ts</span><span class="file-badge c">NEW</span>
+    </div>
+  </div>
+
+  <!-- Hidden: Task List tab content -->
+  <!--
+  <div class="task-list">
+    <div class="task-item"><div class="task-check done">✓</div><span class="task-text done">Analyze payment flow</span></div>
+    <div class="task-item"><div class="task-check done">✓</div><span class="task-text done">Add idempotency middleware</span></div>
+    <div class="task-item"><div class="task-check running"></div><span>Fix N+1 query in order listing</span></div>
+    <div class="task-item"><div class="task-check"></div><span>Write integration tests</span></div>
+    <div class="task-item"><div class="task-check"></div><span>Add rate limiting</span></div>
+  </div>
+  -->
+
+  <!-- Hidden: Agents tab content -->
+  <!--
+  <div>
+    <div class="agent-item"><div class="agent-dot done"></div>Explore<span class="agent-role">Codebase scan</span></div>
+    <div class="agent-item"><div class="agent-dot running"></div>Security<span class="agent-role">Reviewing PR</span></div>
+    <div class="agent-item"><div class="agent-dot idle"></div>Plan<span class="agent-role">Idle</span></div>
+  </div>
+  -->
+
+  <!-- Cost Panel -->
+  <div class="cost-panel">
+    <div class="cost-row"><span>Cost</span><span class="cost-value">$0.042</span></div>
+    <div class="cost-row"><span>In</span><span class="cost-value">12,847</span></div>
+    <div class="cost-row"><span>Out</span><span class="cost-value">3,291</span></div>
+    <div class="cost-row"><span>Cache</span><span class="cost-value">8,420</span></div>
+    <div class="cost-row"><span>Turns</span><span class="cost-value">4</span></div>
+    <div class="cost-bar"><div class="cost-bar-fill" style="width:35%"></div></div>
+    <div style="margin-top:3px;text-align:right;font-size:8px">35% of $5 budget</div>
+  </div>
+
+  <!-- System Status -->
+  <div style="border-top:1px solid var(--border);padding:6px 0">
+    <div class="status-row"><div class="status-dot on"></div>CLAUDE.md loaded</div>
+    <div class="status-row"><div class="status-dot on"></div>Auto Memory · 6 entries</div>
+    <div class="status-row"><div class="status-dot on"></div>3 Hooks active</div>
+    <div class="status-row"><div class="status-dot on"></div>2 MCP servers</div>
+    <div class="status-row"><div class="status-dot on"></div>Code Intelligence (TS)</div>
+  </div>
+</div>
+
+<!-- ═══════════ CHAT AREA ═══════════ -->
+<div class="chat-area">
+  <div class="messages">
+
+    <!-- User message -->
+    <div class="msg">
+      <div class="msg-avatar user">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      </div>
+      <div class="msg-body">
+        <div class="msg-header">
+          <span class="msg-name">You</span><span>17:23</span>
+        </div>
+        <div class="msg-content">
+          ลูกค้ากดสั่งซื้อแล้ว Order ซ้ำ 2 รายการ ช่วยหาสาเหตุและแก้ให้หน่อย
+        </div>
+      </div>
+    </div>
+
+    <div class="rewind-marker">
+      <span class="ckpt">checkpoint</span>
+      <span>Esc+Esc to rewind here</span>
+    </div>
+
+    <div class="turn-sep">Turn 1 · 12.3s</div>
+
+    <!-- AI Response -->
+    <div class="msg">
+      <div class="msg-avatar ai">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+      </div>
+      <div class="msg-body">
+        <div class="msg-header">
+          <span class="msg-name" style="color:var(--orange)">Claude Code</span>
+          <span>17:23</span>
+          <span style="font-size:8px;background:rgba(108,99,255,.1);color:var(--accent);padding:1px 5px;border-radius:3px">opus 4.7</span>
+          <span style="font-size:8px;background:rgba(192,132,252,.1);color:var(--purple);padding:1px 5px;border-radius:3px">thinking 4.2s</span>
+        </div>
+
+        <!-- Thinking -->
+        <div class="thinking-block">
+          <span class="thinking-icon">💭</span>
+          <details>
+            <summary>Extended Thinking (4.2s)</summary>
+            <div class="thinking-content">
+              ปัญหา Duplicate Order เกิดจาก Race Condition ต้องดู Order Creation Flow...<br>
+              ต้องเช็ค: 1) Idempotency Key 2) Database Lock 3) Frontend debounce...
+            </div>
+          </details>
+        </div>
+
+        <!-- Subagent: Explore -->
+        <div class="subagent-block">
+          <div class="subagent-header">
+            <div class="agent-dot done"></div>
+            <span class="agent-name">Explore Agent</span>
+            <span style="font-size:8px;color:var(--text3)">สำรวจ Payment Flow · 3.1s</span>
+            <span class="tool-status done" style="margin-left:auto">✓ done</span>
+          </div>
+          <div class="subagent-body">
+            สำรวจ 8 ไฟล์ · พบ <code>createOrder()</code> ไม่มี Idempotency Check ที่ <code>order.service.ts:45</code>
+          </div>
+        </div>
+
+        <div class="msg-content">
+          <p>พบสาเหตุแล้ว — <code>createOrder()</code> ไม่มีการป้องกัน Duplicate Request:</p>
+        </div>
+
+        <!-- Tool: Read -->
+        <div class="tool-block">
+          <div class="tool-header" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'">
+            <span class="tool-icon">📖</span>
+            <span class="tool-name">Read</span>
+            <span class="tool-file">src/services/order.service.ts:40-55</span>
+            <span class="tool-status done">✓</span>
+          </div>
+          <div class="tool-body">
+            <div><span class="line-num">43</span>async createOrder(userId: string, cart: Cart) {</div>
+            <div><span class="line-num">44</span>  // ⚠ No idempotency check!</div>
+            <div><span class="line-num">45</span>  const order = this.orderRepo.create({</div>
+            <div><span class="line-num">46</span>    userId, items: cart.items,</div>
+            <div><span class="line-num">47</span>    total: cart.total</div>
+            <div><span class="line-num">48</span>  });</div>
+          </div>
+        </div>
+
+        <!-- Tool: Edit -->
+        <div class="tool-block">
+          <div class="tool-header" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'">
+            <span class="tool-icon">✏️</span>
+            <span class="tool-name">Edit</span>
+            <span class="tool-file">src/services/order.service.ts</span>
+            <span class="tool-status done">✓</span>
+          </div>
+          <div class="tool-body">
+            <div><span class="line-num">43</span><span class="line-add">async createOrder(userId: string, cart: Cart, idempotencyKey: string) {</span></div>
+            <div><span class="line-num">44</span><span class="line-add">  const existing = await this.redis.get(`order:idem:${idempotencyKey}`);</span></div>
+            <div><span class="line-num">45</span><span class="line-add">  if (existing) return JSON.parse(existing);</span></div>
+            <div><span class="line-num">46</span><span class="line-add">  const lock = await this.redis.set(`order:lock:${userId}`, '1', 'EX', 10, 'NX');</span></div>
+            <div><span class="line-num">47</span><span class="line-add">  if (!lock) throw new ConflictError('Order in progress');</span></div>
+          </div>
+        </div>
+
+        <!-- Tool: Bash -->
+        <div class="tool-block">
+          <div class="tool-header" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'">
+            <span class="tool-icon">⚡</span>
+            <span class="tool-name">Bash</span>
+            <span class="tool-file">npm test — 5 passed</span>
+            <span class="tool-status done">✓</span>
+          </div>
+          <div class="tool-body" style="display:none">
+            <div style="color:var(--green)">✓ should create order normally (42ms)</div>
+            <div style="color:var(--green)">✓ should return existing order for same key (8ms)</div>
+            <div style="color:var(--green)">✓ should block concurrent requests (15ms)</div>
+            <div style="color:var(--green)">✓ should allow new order after lock expires (52ms)</div>
+            <div style="color:var(--green)">✓ should handle Redis failure gracefully (11ms)</div>
+          </div>
+        </div>
+
+        <div class="msg-content">
+          <p>แก้เรียบร้อย สรุป:</p>
+          <p>1. เพิ่ม Idempotency Key ป้องกัน Request ซ้ำ<br>
+          2. เพิ่ม Redis Lock ป้องกัน Race Condition<br>
+          3. เพิ่ม Unique Constraint ใน Database<br>
+          4. Tests 5 ข้อผ่านหมด</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="rewind-marker">
+      <span class="ckpt">checkpoint</span>
+      <span>Esc+Esc to rewind here</span>
+    </div>
+
+    <div class="turn-sep">Turn 2</div>
+
+    <!-- User follow-up -->
+    <div class="msg">
+      <div class="msg-avatar user">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      </div>
+      <div class="msg-body">
+        <div class="msg-header"><span class="msg-name">You</span><span>17:25</span></div>
+        <div class="msg-content">/commit</div>
+      </div>
+    </div>
+
+    <!-- AI streaming -->
+    <div class="msg">
+      <div class="msg-avatar ai">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+      </div>
+      <div class="msg-body">
+        <div class="msg-header">
+          <span class="msg-name" style="color:var(--orange)">Claude Code</span>
+          <span>17:25</span>
+        </div>
+
+        <div class="tool-block" style="border-color:rgba(249,115,22,.2)">
+          <div class="tool-header">
+            <span class="tool-icon">⚡</span>
+            <span class="tool-name">Bash</span>
+            <span class="tool-file">git add + git commit</span>
+            <span class="tool-status running">⟳ running</span>
+          </div>
+          <div class="tool-body">
+            <div style="color:var(--yellow)">$ git add src/services/order.service.ts src/middleware/idempotency.ts ...</div>
+            <div style="color:var(--text3)">$ git commit -m "fix: prevent duplicate order creation with idempotency key<span style="animation:blink 1s infinite">▊</span>"</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Streaming indicator -->
+  <div class="streaming-bar">
+    <div class="streaming-dots"><span></span><span></span><span></span></div>
+    <span>Committing changes...</span>
+    <span style="margin-left:auto;font-size:8px;color:var(--text3)">Turn 2 · 3.1s</span>
+    <button class="streaming-stop">
+      <svg width="7" height="7" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>
+      Stop <kbd style="font-size:7px;opacity:.5">⌃C</kbd>
+    </button>
+  </div>
+
+  <!-- Input Area -->
+  <div class="input-area" style="position:relative">
+    <!-- Slash Command Dropdown (shown when typing /) -->
+    <div class="slash-dropdown show">
+      <div class="slash-item active"><span class="slash-cmd">/commit</span><span class="slash-desc">Stage & commit changes</span></div>
+      <div class="slash-item"><span class="slash-cmd">/pr</span><span class="slash-desc">Create pull request</span></div>
+      <div class="slash-item"><span class="slash-cmd">/review</span><span class="slash-desc">Review code changes</span></div>
+      <div class="slash-item"><span class="slash-cmd">/plan</span><span class="slash-desc">Enter plan mode</span></div>
+      <div class="slash-item"><span class="slash-cmd">/think</span><span class="slash-desc">Extended thinking</span><span class="slash-hotkey">⌘T</span></div>
+      <div class="slash-item"><span class="slash-cmd">/compact</span><span class="slash-desc">Compress context</span></div>
+      <div class="slash-item"><span class="slash-cmd">/init</span><span class="slash-desc">Create CLAUDE.md</span></div>
+      <div class="slash-item"><span class="slash-cmd">/loop</span><span class="slash-desc">Run on interval</span></div>
+      <div class="slash-item"><span class="slash-cmd">/batch</span><span class="slash-desc">Parallel tasks</span></div>
+      <div class="slash-item"><span class="slash-cmd">/deploy</span><span class="slash-desc">Deploy to production</span><span class="slash-hotkey">skill</span></div>
+    </div>
+
+    <div class="input-box">
+      <!-- Voice Button -->
+      <button class="input-icon-btn voice" title="Voice (hold Space)">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg>
+      </button>
+
+      <!-- File Attach -->
+      <button class="input-icon-btn" title="Attach file (@)">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+      </button>
+
+      <textarea placeholder="Ask Claude Code... (/ for commands, @ for files)" rows="1"></textarea>
+
+      <!-- Image Paste -->
+      <button class="input-icon-btn" title="Paste image (⌘V)">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+      </button>
+
+      <button class="send-btn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+      </button>
+    </div>
+
+    <div class="input-hint">
+      <span><kbd>Enter</kbd> Send</span>
+      <span><kbd>Shift+Enter</kbd> Newline</span>
+      <span><kbd>⌃C</kbd> Stop</span>
+      <span><kbd>/</kbd> Commands</span>
+      <span><kbd>@</kbd> Files</span>
+      <span><kbd>Space</kbd> Voice</span>
+      <span><kbd>⌃B</kbd> Background</span>
+      <span><kbd>Esc×2</kbd> Rewind</span>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ RIGHT SIDEBAR ═══════════ -->
+<div class="sidebar-right">
+  <div class="sidebar-right-header">Context</div>
+
+  <!-- CLAUDE.md -->
+  <div class="sr-section">
+    <div class="sr-label">CLAUDE.md</div>
+    <div style="font-size:9px;color:var(--green);display:flex;align-items:center;gap:3px">
+      <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
+      Loaded · 142 lines
+    </div>
+    <div style="font-size:8px;color:var(--text3);margin-top:2px">+ 3 rules in .claude/rules/</div>
+  </div>
+
+  <!-- Memory -->
+  <div class="sr-section">
+    <div class="sr-label">Auto Memory (6)</div>
+    <div class="memory-item"><span class="memory-type user">user</span>Backend Dev, Python → TS</div>
+    <div class="memory-item"><span class="memory-type feedback">feed</span>ตอบเป็นภาษาไทย</div>
+    <div class="memory-item"><span class="memory-type project">proj</span>Freeze code วันศุกร์</div>
+    <div style="font-size:8px;color:var(--text3);margin-top:2px">+ 3 more</div>
+  </div>
+
+  <!-- MCP Servers -->
+  <div class="sr-section">
+    <div class="sr-label">MCP Servers</div>
+    <div class="mcp-item">
+      <div class="status-dot on"></div>
+      <span style="color:var(--green)">puppeteer</span>
+    </div>
+    <div class="mcp-item">
+      <div class="status-dot on"></div>
+      <span style="color:var(--green)">slack</span>
+    </div>
+  </div>
+
+  <!-- Hooks -->
+  <div class="sr-section">
+    <div class="sr-label">Active Hooks</div>
+    <div class="hook-item"><span class="hook-trigger">PostEdit</span> prettier</div>
+    <div class="hook-item"><span class="hook-trigger">PostEdit</span> eslint --fix</div>
+    <div class="hook-item"><span class="hook-trigger">PreCommit</span> npm run lint</div>
+  </div>
+
+  <!-- Skills -->
+  <div class="sr-section">
+    <div class="sr-label">Skills (4)</div>
+    <div style="font-size:9px;color:var(--accent)">/deploy · /hotfix · /status · /changelog</div>
+  </div>
+
+  <!-- Subagents -->
+  <div class="sr-section">
+    <div class="sr-label">Subagents</div>
+    <div class="agent-item" style="padding:2px 0">
+      <div class="agent-dot done"></div>
+      <span>Explore</span><span class="agent-role">built-in</span>
+    </div>
+    <div class="agent-item" style="padding:2px 0">
+      <div class="agent-dot idle"></div>
+      <span>Plan</span><span class="agent-role">built-in</span>
+    </div>
+    <div class="agent-item" style="padding:2px 0">
+      <div class="agent-dot idle"></div>
+      <span>Security</span><span class="agent-role">custom</span>
+    </div>
+  </div>
+</div>
+
+</div>
+</body>
+</html>
