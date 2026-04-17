@@ -5,6 +5,46 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [2.6.0] — 2026-04-18
+
+### Added — Claude Code Tab (Phase 1 MVP)
+- **Claude Code tab** — new tab type for AI coding agent (⚡ orange icon on welcome screen)
+- **Backend**: spawn `claude` CLI via `child_process.spawn` with `-p` flag + `--output-format stream-json`
+- **Stream-JSON parser**: handles assistant (text/tool_use/thinking), user (tool_result), result, system events
+- **Chat UI**: user/AI messages with GFM markdown rendering, code blocks with copy button
+- **Tool blocks**: Read, Edit, Bash, Grep, Glob, Write, Skill, ToolSearch, AskUserQuestion — collapsible with running/done status
+- **Thinking blocks**: collapsible extended thinking content (purple theme)
+- **Turn container**: all blocks in a turn grouped under single AI avatar+header (like Claude Code CLI)
+- **Turn separators**: "TURN N · Xs" dividers between turns
+- **Streaming bar**: animated dots + current tool name + stop button
+- **Top bar**: model picker (Opus/Sonnet/Haiku), permission mode cycling (Default/Plan/Auto/AcceptEdits), context meter (%), CWD folder picker
+- **CWD folder picker dialog**: drive buttons, breadcrumb nav, folder browser using `/api/files/list` API
+- **Left sidebar**: session list with auto-naming from first message, files changed tab (R/M/NEW badges), cost panel ($, In, Out, Turns)
+- **Input area**: auto-resize textarea, slash command dropdown autocomplete (16 commands)
+- **Session management**: create/resume/end/switch via WebSocket, `--resume` for conversation continuity
+- **Permission mode & model changeable mid-session** per message
+- **Error handling**: session reset on resume failure, CWD change resets Claude session ID
+- **Tab persistence**: save/restore on browser refresh
+- **Font size**: responds to global A+/A- via CSS variable `--cc-fs`
+- REST API: `POST/GET /api/claude/sessions`, `POST .../send`, `POST .../stop`, `DELETE .../`, `POST .../compact`
+- WebSocket: `claude-attach`, `claude-detach`, `claude-send`, `claude-permission`, `claude-stop`, `claude-list`
+
+### Added — Claude Code SDK in AI Chat
+- **Claude Code as model option** in AI Chat — use Claude Code CLI subscription (Pro/Max) instead of API key, no per-token cost
+- **3 model choices**: Claude Code (Opus 4.7), Claude Code (Sonnet 4.6), Claude Code (Haiku 4.5) — auto-detected from CLI
+- **Model auto-resolve**: CLI aliases (`opus`, `sonnet`, `haiku`) resolve to latest model automatically, version cached for 1 hour
+- **Orange badge** in chat header: `Claude Code · Opus 4.7 1M` / `Claude Code · Sonnet 4.6` / `Claude Code · Haiku 4.5`
+- **Context window** per model: Opus 1M (`0/1000k`), Sonnet/Haiku 200K (`0/200k`)
+- **Loading animation** on model picker: dot pulse "Loading models..." while fetching, prefetch on page load
+- **Sidebar meta**: shows `model:claude-code/opus` instead of `agent:main` for Claude Code sessions
+- **Streaming**: spawns `claude` CLI with `--print --output-format stream-json --include-partial-messages`, converts to OpenAI-compatible SSE chunks
+- **No API key required**: uses authenticated Claude Code CLI session (OAuth), bypasses `OPENCLAW_TOKEN` requirement
+
+### Fixed
+- **File save in tab editor** — was sending `path` instead of `filePath` in request body, causing 400 "No path" error
+
+---
+
 ## [2.5.0] — 2026-04-12
 
 ### Added
