@@ -3828,10 +3828,13 @@
           <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg>
           Workspaces
         </span>
-        <button class="btn-sm workspace-save-btn" onclick="event.stopPropagation();saveWorkspacePrompt()" title="Save current workspace">
-          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-          Save
-        </button>
+        <span style="display:flex;gap:2px">
+          <button class="btn-sm workspace-save-btn" onclick="event.stopPropagation();saveWorkspaceQuick()" title="Save current workspace">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+            Save
+          </button>
+          <button class="btn-sm" onclick="event.stopPropagation();saveWorkspaceAs()" title="Save as new workspace" style="padding:2px 5px;font-size:9px">As</button>
+        </span>
       </div>
       <div class="workspace-list" id="workspace-list" style="display:none"></div>
     </div>
@@ -10767,6 +10770,58 @@
 
     let _wsListLoaded = false;
 
+    // Restore current workspace tracking on page load
+    (function _initWorkspaceTracking() {
+      _currentWorkspaceId = localStorage.getItem('_currentWorkspaceId') || null;
+      _currentWorkspaceName = localStorage.getItem('_currentWorkspaceName') || null;
+      if (_currentWorkspaceId) {
+        // Verify workspace still exists
+        fetch('/api/workspaces/' + encodeURIComponent(_currentWorkspaceId))
+          .then(r => { if (!r.ok) { _currentWorkspaceId = null; _currentWorkspaceName = null; localStorage.removeItem('_currentWorkspaceId'); localStorage.removeItem('_currentWorkspaceName'); } })
+          .catch(() => {});
+        _startAutoSave();
+      }
+      setTimeout(_updateWorkspaceIndicator, 500);
+    })();
+
+    // === Current Workspace Tracking ===
+    let _currentWorkspaceId = null;
+    let _currentWorkspaceName = null;
+    let _autoSaveInterval = null;
+
+    function _startAutoSave() {
+      if (_autoSaveInterval) clearInterval(_autoSaveInterval);
+      _autoSaveInterval = setInterval(async () => {
+        if (!_currentWorkspaceId) return;
+        try {
+          _saveTabsState();
+          const stateRaw = localStorage.getItem(TABS_STATE_KEY);
+          if (!stateRaw) return;
+          await fetch('/api/workspaces/' + encodeURIComponent(_currentWorkspaceId), {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tabs: JSON.parse(stateRaw) })
+          });
+        } catch {}
+      }, 60000); // Auto-save every 60s
+    }
+
+    function _updateWorkspaceIndicator() {
+      const btn = document.querySelector('.workspace-save-btn');
+      if (!btn) return;
+      if (_currentWorkspaceId) {
+        btn.innerHTML = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> Save`;
+        btn.title = 'Save to: ' + (_currentWorkspaceName || _currentWorkspaceId);
+        btn.style.borderColor = 'rgba(74,222,128,.3)';
+        btn.style.color = '#4ade80';
+      } else {
+        btn.innerHTML = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> Save`;
+        btn.title = 'Save current workspace';
+        btn.style.borderColor = '';
+        btn.style.color = '';
+      }
+    }
+
     function toggleWorkspacePanel() {
       const list = document.getElementById('workspace-list');
       const header = document.getElementById('ws-header');
@@ -10790,16 +10845,18 @@
         }
         listEl.innerHTML = workspaces.map(w => {
           const ago = _wsTimeAgo(new Date(w.savedAt));
-          return `<div class="workspace-item" onclick="openWorkspace('${escAttr(w.id)}')" title="${escAttr(w.description || 'Click to load')}">
+          const isCurrent = _currentWorkspaceId === w.id;
+          return `<div class="workspace-item${isCurrent ? ' ws-active' : ''}" onclick="openWorkspace('${escAttr(w.id)}')" title="${escAttr(w.description || 'Click to load')}">
             <div class="workspace-item-icon">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round"><rect x="2" y="6" width="20" height="14" rx="2"/><path d="M2 10h20"/><path d="M6 6V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v2"/></svg>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="${isCurrent ? '#4ade80' : 'var(--accent)'}" stroke-width="1.8" stroke-linecap="round"><rect x="2" y="6" width="20" height="14" rx="2"/><path d="M2 10h20"/><path d="M6 6V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v2"/></svg>
             </div>
             <div class="workspace-item-info">
-              <div class="workspace-item-name">${escHtml(w.name)}</div>
+              <div class="workspace-item-name">${escHtml(w.name)}${isCurrent ? ' <span style="font-size:7px;color:#4ade80;background:rgba(74,222,128,.1);padding:1px 4px;border-radius:2px;margin-left:4px">CURRENT</span>' : ''}</div>
               <div class="workspace-item-meta">
                 <span>${w.tabCount} tabs</span>
                 <span class="ws-dot"></span>
                 <span>${ago}</span>
+                ${isCurrent ? '<span class="ws-dot"></span><span style="color:#4ade80">auto-save</span>' : ''}
               </div>
             </div>
             <div class="workspace-item-actions">
@@ -10815,16 +10872,38 @@
       }
     }
 
-    function saveWorkspacePrompt() {
+    // Quick save: overwrite current workspace (or open Save As if none)
+    async function saveWorkspaceQuick() {
+      _saveTabsState();
+      const stateRaw = localStorage.getItem(TABS_STATE_KEY);
+      if (!stateRaw) { showToast('No tabs to save', 'info'); return; }
+      if (!_currentWorkspaceId) { saveWorkspaceAs(); return; }
+      try {
+        const res = await fetch('/api/workspaces/' + encodeURIComponent(_currentWorkspaceId), {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tabs: JSON.parse(stateRaw) })
+        });
+        const data = await res.json();
+        if (data.ok) {
+          showToast('💾 Saved: ' + (_currentWorkspaceName || 'workspace'), 'success');
+          _wsListLoaded = false;
+          loadWorkspaceList();
+        } else {
+          showToast('Save failed: ' + (data.error || ''), 'error');
+        }
+      } catch (e) { showToast('Save error: ' + e.message, 'error'); }
+    }
+
+    // Save As: always create new workspace with name prompt
+    function saveWorkspaceAs() {
       _saveTabsState();
       const stateRaw = localStorage.getItem(TABS_STATE_KEY);
       if (!stateRaw) { showToast('No tabs to save', 'info'); return; }
 
-      // Count current tabs
       const tabCount = tabs.size;
-      const defaultName = 'Workspace ' + new Date().toLocaleDateString('en-GB');
+      const defaultName = _currentWorkspaceName || 'Workspace ' + new Date().toLocaleDateString('en-GB');
 
-      // Create custom dialog
       const overlay = document.createElement('div');
       overlay.className = 'cyber-overlay';
       overlay.innerHTML = `
@@ -10836,12 +10915,12 @@
                 <polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>
               </svg>
             </div>
-            <h3>Save Workspace</h3>
+            <h3>Save As</h3>
             <p class="ws-save-sub">${tabCount} tabs will be saved</p>
           </div>
           <div class="ws-save-body">
             <label class="ws-save-label">Workspace Name</label>
-            <input type="text" class="ws-save-input" id="ws-save-name" value="${defaultName}" placeholder="Enter workspace name..." autofocus>
+            <input type="text" class="ws-save-input" id="ws-save-name" value="${escAttr(defaultName)}" placeholder="Enter workspace name..." autofocus>
             <label class="ws-save-label" style="margin-top:12px">Description <span style="color:var(--text3);font-weight:400">(optional)</span></label>
             <input type="text" class="ws-save-input" id="ws-save-desc" placeholder="Brief description...">
           </div>
@@ -10852,24 +10931,19 @@
                 <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
                 <polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>
               </svg>
-              Save Workspace
+              Save As New
             </button>
           </div>
         </div>`;
       document.body.appendChild(overlay);
 
-      // Focus and select input
       const nameInput = document.getElementById('ws-save-name');
       setTimeout(() => { nameInput.focus(); nameInput.select(); }, 50);
 
-      // Enter to save
       const onKey = (e) => { if (e.key === 'Enter') document.getElementById('ws-save-btn').click(); if (e.key === 'Escape') overlay.remove(); };
       overlay.addEventListener('keydown', onKey);
-
-      // Click overlay to close
       overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
 
-      // Save action
       document.getElementById('ws-save-btn').onclick = async () => {
         const name = nameInput.value.trim();
         if (!name) { nameInput.style.borderColor = '#f87171'; return; }
@@ -10884,6 +10958,12 @@
           });
           const data = await res.json();
           if (data.id) {
+            _currentWorkspaceId = data.id;
+            _currentWorkspaceName = name;
+            localStorage.setItem('_currentWorkspaceId', data.id);
+            localStorage.setItem('_currentWorkspaceName', name);
+            _updateWorkspaceIndicator();
+            _startAutoSave();
             showToast('💾 Saved: ' + name, 'success');
             _wsListLoaded = false;
             loadWorkspaceList();
@@ -10896,6 +10976,9 @@
         overlay.remove();
       };
     }
+
+    // Legacy compat
+    function saveWorkspacePrompt() { saveWorkspaceQuick(); }
 
     async function openWorkspace(id) {
       if (!confirm('Load this workspace? Current tabs will be replaced.')) return;
@@ -10912,6 +10995,9 @@
           });
         }
         localStorage.setItem(TABS_STATE_KEY, JSON.stringify(state));
+        // Track current workspace for auto-save
+        localStorage.setItem('_currentWorkspaceId', id);
+        localStorage.setItem('_currentWorkspaceName', data.name || id);
         window._skipSaveState = true; // Prevent beforeunload from overwriting
         showToast('📂 Loading: ' + (data.name || id), 'success');
         setTimeout(() => location.reload(), 300);

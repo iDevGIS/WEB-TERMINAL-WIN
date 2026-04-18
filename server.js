@@ -987,6 +987,19 @@ app.delete("/api/workspaces/:id", requireAuth, (req, res) => {
   res.json({ ok: true });
 });
 
+// Overwrite workspace (auto-save / save current)
+app.put("/api/workspaces/:id", requireAuth, express.json({ limit: "5mb" }), (req, res) => {
+  const filePath = path.join(WORKSPACE_DIR, path.basename(req.params.id) + ".json");
+  if (!fs.existsSync(filePath)) return res.status(404).json({ error: "not found" });
+  try {
+    const existing = JSON.parse(fs.readFileSync(filePath, "utf8"));
+    if (req.body.tabs) existing.tabs = req.body.tabs;
+    existing.savedAt = new Date().toISOString();
+    fs.writeFileSync(filePath, JSON.stringify(existing, null, 2));
+    res.json({ ok: true, savedAt: existing.savedAt });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // Rename/update workspace
 app.patch("/api/workspaces/:id", requireAuth, express.json(), (req, res) => {
   const filePath = path.join(WORKSPACE_DIR, path.basename(req.params.id) + ".json");
