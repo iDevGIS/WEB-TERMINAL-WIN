@@ -2481,6 +2481,7 @@
     }
     .chat-header-title svg { opacity: .6; flex-shrink: 0; }
     .chat-header-actions { display: flex; gap: 4px; flex-shrink: 0; align-items: center; }
+    .chat-header-pinned { display: flex; gap: 4px; flex-shrink: 0; align-items: center; }
     .chat-attach-preview {
       display: flex; gap: 8px; padding: 8px 12px; flex-wrap: wrap;
       border-bottom: 1px solid var(--glass-border); background: rgba(0,0,0,.15);
@@ -2546,8 +2547,10 @@
       /* Shrink badges on mobile */
       .chat-header-actions .chat-token-badge,
       .chat-header-actions .chat-session-badge { font-size: 8px !important; padding: 1px 4px !important; flex-shrink: 0; }
-      /* Pin action buttons to right */
-      .chat-header-actions .chat-icon-btn { flex-shrink: 0; }
+      /* Pinned buttons stay fixed right */
+      .chat-header-pinned { flex-shrink: 0; gap: 2px; }
+      .chat-header-pinned .chat-icon-btn { width: 28px; height: 28px; }
+      .chat-header-pinned .chat-icon-btn svg { width: 13px; height: 13px; }
       .chat-icon-btn { width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0; }
       .chat-icon-btn svg { width: 13px; height: 13px; }
       .chat-header-actions .chat-model-select {
@@ -4584,6 +4587,8 @@
                     <textarea class="sysprompt-textarea" id="${tabId}-sysprompt-txt" placeholder="Enter custom system prompt…" oninput="chatSysPromptCustom('${tabId}')"></textarea>
                   </div>
                 </div>
+              </div>
+              <div class="chat-header-pinned">
                 <button class="chat-icon-btn" onclick="chatToggleSearch('${tabId}')" title="Search"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button>
                 <button class="chat-icon-btn" onclick="chatExport('${tabId}')" title="Export"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></button>
                 <button class="chat-icon-btn" onclick="chatClearCurrent('${tabId}')" title="Clear"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
