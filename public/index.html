@@ -10770,20 +10770,6 @@
 
     let _wsListLoaded = false;
 
-    // Restore current workspace tracking on page load
-    (function _initWorkspaceTracking() {
-      _currentWorkspaceId = localStorage.getItem('_currentWorkspaceId') || null;
-      _currentWorkspaceName = localStorage.getItem('_currentWorkspaceName') || null;
-      if (_currentWorkspaceId) {
-        // Verify workspace still exists
-        fetch('/api/workspaces/' + encodeURIComponent(_currentWorkspaceId))
-          .then(r => { if (!r.ok) { _currentWorkspaceId = null; _currentWorkspaceName = null; localStorage.removeItem('_currentWorkspaceId'); localStorage.removeItem('_currentWorkspaceName'); } })
-          .catch(() => {});
-        _startAutoSave();
-      }
-      setTimeout(_updateWorkspaceIndicator, 500);
-    })();
-
     // === Current Workspace Tracking ===
     let _currentWorkspaceId = null;
     let _currentWorkspaceName = null;
@@ -10821,6 +10807,19 @@
         btn.style.color = '';
       }
     }
+
+    // Restore current workspace tracking on page load
+    (function _initWorkspaceTracking() {
+      _currentWorkspaceId = localStorage.getItem('_currentWorkspaceId') || null;
+      _currentWorkspaceName = localStorage.getItem('_currentWorkspaceName') || null;
+      if (_currentWorkspaceId) {
+        fetch('/api/workspaces/' + encodeURIComponent(_currentWorkspaceId))
+          .then(r => { if (!r.ok) { _currentWorkspaceId = null; _currentWorkspaceName = null; localStorage.removeItem('_currentWorkspaceId'); localStorage.removeItem('_currentWorkspaceName'); } })
+          .catch(() => {});
+        _startAutoSave();
+      }
+      setTimeout(_updateWorkspaceIndicator, 500);
+    })();
 
     function toggleWorkspacePanel() {
       const list = document.getElementById('workspace-list');
