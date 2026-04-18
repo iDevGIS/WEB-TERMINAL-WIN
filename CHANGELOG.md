@@ -56,9 +56,21 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 - **Auto-refresh** — admin page auto-refreshes every 3s after restart until server responds
 - REST API: `POST /api/admin/restart`
 
+### Added — Misc
+- **Claude Code image support** — images saved to temp file, path passed in prompt for CLI Read tool to analyze, auto-cleanup after response
+- **Workspace refresh button** — reload workspace list from server
+- **Workspace list** — shows CURRENT badge + auto-save indicator on active workspace
+
 ### Fixed
 - **File save in tab editor** — was sending `path` instead of `filePath` in request body, causing 400 "No path" error
-- **Chat header mobile overflow** — pinned hamburger + action buttons, scrollable badges
+- **Chat header mobile overflow** — pinned hamburger + action buttons, scrollable badges, hidden session name on mobile
+- **Claude Code image error** — `(m.content || '').split is not a function` when sending images (content is array not string)
+- **Claude Code session info** — showed `agent:main` instead of actual model name (e.g. `claude-code/opus`)
+- **Claude Code `--bare` flag** — removed, was blocking OAuth login (required ANTHROPIC_API_KEY only)
+- **Claude Code `--verbose` flag** — required for `stream-json` output format
+- **Claude Code model ID** — use CLI alias (`opus`/`sonnet`/`haiku`) instead of hardcoded dated model IDs
+- **Claude Code spawn** — use `node cli.js` directly instead of `npx` (ENOENT on non-shell spawn)
+- **Claude Code `--append-system-prompt`** — fixed empty argument error
 
 ---
 

@@ -213,7 +213,7 @@
 - **Markdown rendering** - full GitHub-style markdown via [marked.js](https://marked.js.org/)
 - **Syntax highlighting** - code blocks with language badge, copy button, Tokyo Night Dark theme
 - **Model selector** - switch between models (OpenClaw/Claude Code/Ollama) per session
-- **Claude Code models** - Opus 4.7 (1M), Sonnet 4.6, Haiku 4.5 via CLI subscription (no API key cost)
+- **Claude Code models** - Opus 4.7 (1M), Sonnet 4.6, Haiku 4.5 via CLI subscription (no API key cost), image support via temp file + Read tool
 - **System prompt presets** - Default, Code Expert, Thai Teacher, Creative Writer, Concise, or Custom
 - **Stop / Regenerate** - abort streaming mid-response or re-send for a new answer
 - **File & image attachments** - paste or drag images, attach text files (60+ types)
@@ -377,6 +377,8 @@ Once installed and authenticated, 3 models appear in AI Chat model picker automa
 - **Claude Code (Haiku 4.5)** — 200K context, fastest
 
 Model versions auto-resolve from CLI aliases and are cached for 1 hour.
+
+Image support: images are saved to temp files and paths are passed in the prompt for Claude Code's Read tool to analyze. Temp files are auto-cleaned after response.
 
 ### Voice STT (Optional)
 
