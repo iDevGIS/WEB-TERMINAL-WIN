@@ -3828,12 +3828,15 @@
           <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg>
           Workspaces
         </span>
-        <span style="display:flex;gap:2px">
+        <span style="display:flex;gap:3px">
           <button class="btn-sm workspace-save-btn" onclick="event.stopPropagation();saveWorkspaceQuick()" title="Save current workspace">
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
             Save
           </button>
-          <button class="btn-sm" onclick="event.stopPropagation();saveWorkspaceAs()" title="Save as new workspace" style="padding:2px 5px;font-size:9px">As</button>
+          <button class="btn-sm workspace-save-btn" onclick="event.stopPropagation();saveWorkspaceAs()" title="Save as new workspace">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+            As
+          </button>
         </span>
       </div>
       <div class="workspace-list" id="workspace-list" style="display:none"></div>
@@ -10798,8 +10801,8 @@
       if (_currentWorkspaceId) {
         btn.innerHTML = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> Save`;
         btn.title = 'Save to: ' + (_currentWorkspaceName || _currentWorkspaceId);
-        btn.style.borderColor = 'rgba(74,222,128,.3)';
-        btn.style.color = '#4ade80';
+        btn.style.borderColor = 'rgba(96,165,250,.3)';
+        btn.style.color = '#60a5fa';
       } else {
         btn.innerHTML = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> Save`;
         btn.title = 'Save current workspace';
@@ -10847,15 +10850,15 @@
           const isCurrent = _currentWorkspaceId === w.id;
           return `<div class="workspace-item${isCurrent ? ' ws-active' : ''}" onclick="openWorkspace('${escAttr(w.id)}')" title="${escAttr(w.description || 'Click to load')}">
             <div class="workspace-item-icon">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="${isCurrent ? '#4ade80' : 'var(--accent)'}" stroke-width="1.8" stroke-linecap="round"><rect x="2" y="6" width="20" height="14" rx="2"/><path d="M2 10h20"/><path d="M6 6V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v2"/></svg>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="${isCurrent ? '#60a5fa' : 'var(--accent)'}" stroke-width="1.8" stroke-linecap="round"><rect x="2" y="6" width="20" height="14" rx="2"/><path d="M2 10h20"/><path d="M6 6V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v2"/></svg>
             </div>
             <div class="workspace-item-info">
-              <div class="workspace-item-name">${escHtml(w.name)}${isCurrent ? ' <span style="font-size:7px;color:#4ade80;background:rgba(74,222,128,.1);padding:1px 4px;border-radius:2px;margin-left:4px">CURRENT</span>' : ''}</div>
+              <div class="workspace-item-name">${escHtml(w.name)}${isCurrent ? ' <span style="font-size:7px;color:#60a5fa;background:rgba(96,165,250,.12);padding:1px 4px;border-radius:2px;margin-left:4px">CURRENT</span>' : ''}</div>
               <div class="workspace-item-meta">
                 <span>${w.tabCount} tabs</span>
                 <span class="ws-dot"></span>
                 <span>${ago}</span>
-                ${isCurrent ? '<span class="ws-dot"></span><span style="color:#4ade80">auto-save</span>' : ''}
+                ${isCurrent ? '<span class="ws-dot"></span><span style="color:#60a5fa">auto-save</span>' : ''}
               </div>
             </div>
             <div class="workspace-item-actions">
