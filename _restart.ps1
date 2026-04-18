@@ -1,28 +1,34 @@
 # _restart.ps1
-# Self-restart script for CYBERFRAME
-# รันได้จาก web-terminal โดยไม่ค้าง เพราะใช้ cmd /c start แยก process
+# Self-update & restart CYBERFRAME
+# รันได้จาก web-terminal โดยไม่ค้าง เพราะ spawn process แยก
 
-$ROOT = "C:\Users\BudToZai\.openclaw\workspace\SCRIPT-TOOLS\WEB-TERMINAL"
+$ROOT = Split-Path -Parent $MyInvocation.MyCommand.Path
 
-Write-Host "🔄 Pulling latest..." -ForegroundColor Cyan
+Write-Host "`n🔄 Pulling latest..." -ForegroundColor Cyan
 Set-Location $ROOT
 git pull
 
-Write-Host "🚀 Spawning detached restart process..." -ForegroundColor Yellow
+# ตรวจ package.json เปลี่ยนหรือไม่
+$changed = git diff HEAD~1 --name-only 2>$null | Select-String 'package\.json'
+if ($changed) {
+  Write-Host "📦 package.json changed — running npm install..." -ForegroundColor Yellow
+  npm install --omit=dev 2>$null
+}
+
+Write-Host "🚀 Spawning detached restart..." -ForegroundColor Yellow
 
 $script = @"
 Start-Sleep 2
-Get-Process -Name node -ErrorAction SilentlyContinue | Where-Object { `$_.CommandLine -match 'server\.js' } | Stop-Process -Force
+Get-Process -Name node -ErrorAction SilentlyContinue |
+  Where-Object { `$_.MainModule.FileName -and `$_.CommandLine -match 'server\.js' } |
+  Stop-Process -Force -ErrorAction SilentlyContinue
 Start-Sleep 2
 Set-Location '$ROOT'
 Start-Process node -ArgumentList 'server.js' -WorkingDirectory '$ROOT' -WindowStyle Hidden
 "@
 
-# เข้ารหัส script เป็น Base64 เพื่อส่งผ่าน cmd
 $bytes = [System.Text.Encoding]::Unicode.GetBytes($script)
 $encoded = [Convert]::ToBase64String($bytes)
-
-# สร้าง process แยกจาก parent tree ทั้งหมด
 cmd /c start /b powershell -NoProfile -WindowStyle Hidden -EncodedCommand $encoded
 
-Write-Host "✅ Restart scheduled! CYBERFRAME จะ restart ใน ~4 วินาที" -ForegroundColor Green
+Write-Host "✅ CYBERFRAME จะ restart ใน ~4 วินาที`n" -ForegroundColor Green
