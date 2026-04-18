@@ -3843,7 +3843,7 @@
     </div>
 
     <div id="sidebar-footer">
-      <span class="info" id="session-count">0 sessions</span>
+      <span class="info" id="session-count" style="opacity:.4;font-size:9px">v2.6.0</span>
       <a href="javascript:void(0)" onclick="openAdminTab()" class="btn-logout" style="color:var(--accent);border-color:rgba(108,99,255,.2)">🛡️ Admin</a>
       <a href="/api/logout" class="btn-logout">⏻ Logout</a>
     </div>
@@ -11332,7 +11332,7 @@
 
     // === Rendering ===
     function renderSessions() {
-      sessionCountEl.textContent = `${sessions.length} session${sessions.length !== 1 ? 's' : ''}`;
+      // sessionCountEl now shows version, no longer updated with session count
 
       if (sessions.length === 0) {
         if (!sessionListEl.querySelector('.empty-state')) {
