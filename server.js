@@ -854,7 +854,7 @@ app.get("/api/admin/status", requireAuth, (req, res) => {
   let npu = null;
   try {
     const { execSync } = require("child_process");
-    const npuOut = execSync('powershell -NoProfile -Command "Get-PnpDevice | Where-Object { $_.FriendlyName -match \'NPU|Neural|AI Acc|VPU\' -and $_.Status -eq \'OK\' } | Select-Object -First 1 -ExpandProperty FriendlyName"', { encoding: 'utf-8', timeout: 5000 }).trim();
+    const npuOut = execSync('powershell -NoProfile -Command "Get-PnpDevice | Where-Object { ($_.FriendlyName -match \'\\bNPU\\b|Neural Processing|AI Boost|AI Accelerator|\\bVPU\\b|Ryzen AI\') -and ($_.FriendlyName -notmatch \'USB|Input Device|HID\') -and $_.Status -eq \'OK\' } | Select-Object -First 1 -ExpandProperty FriendlyName"', { encoding: 'utf-8', timeout: 5000 }).trim();
     if (npuOut) {
       npu = { name: npuOut };
       // Try to get utilization via performance counter
