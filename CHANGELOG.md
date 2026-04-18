@@ -50,8 +50,15 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 - **Version display** — sidebar footer shows `v2.6.0` instead of session count
 - REST API: `PUT /api/workspaces/:id` for overwriting workspace tabs data
 
+### Added — Update & Restart
+- **Update & Restart button** — admin Quick Actions, runs `git pull` + `npm install` (if needed) + restart server
+- **`_restart.ps1`** — self-update script, auto-detects path, spawns detached process, uses `Get-CimInstance` for process matching
+- **Auto-refresh** — admin page auto-refreshes every 3s after restart until server responds
+- REST API: `POST /api/admin/restart`
+
 ### Fixed
 - **File save in tab editor** — was sending `path` instead of `filePath` in request body, causing 400 "No path" error
+- **Chat header mobile overflow** — pinned hamburger + action buttons, scrollable badges
 
 ---
 

@@ -136,7 +136,7 @@
 - **Process Manager** - top 20 processes by memory, kill by PID
 - **Network Info** - hostname, local IP, Tailscale IP, Node version, platform
 - **Server Info** - PID, memory (RSS + heap), server uptime, shell profile count
-- **Quick Actions** - New Shell, Kill All Sessions, Remote Desktop, Copy IP, Export Logs
+- **Quick Actions** - New Shell, Kill All Sessions, Remote Desktop, Copy IP, Export Logs, Update & Restart
 - **Connected Browsers** - track active browser sessions (IP, browser, OS, connected time)
 - **Tailscale Serve Management** - view/add/remove Tailscale serve rules directly from admin panel
 - **Tailscale Funnel Management** - expose ports to the public internet with enable/disable toggle, real-time status badges (`● public` / `tailnet only`)
@@ -727,6 +727,7 @@ pm2-startup install
 CYBERFRAME
 ├── server.js              # Express + WebSocket + PTY + VNC proxy + AI Chat + Claude Code + TTS/STT
 ├── stt-worker.py           # faster-whisper STT worker (Python)
+├── _restart.ps1            # Self-update & restart script (git pull + restart)
 ├── .env                   # Credentials (git-ignored)
 ├── .env.example           # Template
 ├── voices/                # Uploaded voice audio files (git-ignored)
@@ -787,6 +788,7 @@ CYBERFRAME
 | GET | `/api/admin/processes` | Process list |
 | POST | `/api/admin/kill-process` | Kill process by PID |
 | GET | `/api/admin/server` | Server info |
+| POST | `/api/admin/restart` | Update & restart CYBERFRAME (git pull + restart) |
 | GET | `/api/agent/status` | Agent status (cached) |
 | GET | `/api/agent/sessions` | Agent session list |
 | GET | `/api/agent/sessions/preview` | Session transcript |
