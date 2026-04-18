@@ -131,7 +131,7 @@
 - [x] Admin Panel (system monitor, sessions, processes, GPU, network, server info)
 - [x] Admin shell profiles (gsudo)
 - [x] Admin REST API (`GET /status`, `GET /processes`, `POST /kill-process`, `GET /server`)
-- [x] Multi-tab system (terminal, editor, preview, admin, chat, agent, vscode, vnc, files)
+- [x] Multi-tab system (terminal, editor, preview, admin, chat, agent, vscode, vnc, files, docker, claude-code, spy)
 - [x] Tab drag reorder
 - [x] Split Pane (horizontal/vertical, nested, drag resize, drag swap, max 4)
 - [x] Drag & drop session → split pane (4-direction drop zones)
@@ -152,3 +152,5 @@
 - [x] Welcome feature cards (SVG icons, grid layout)
 - [x] Custom confirm dialog (glassmorphism)
 - [x] No-cache headers for HTML
+- [x] Claude Code tab — Phase 1 MVP (chat UI, tool blocks, stream-json, session management, model/perm/cwd picker)
+- [x] Docker tab (container list, start/stop/restart, logs streaming, exec shell, images, volumes, networks, compose)
