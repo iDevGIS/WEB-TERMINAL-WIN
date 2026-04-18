@@ -1190,25 +1190,31 @@ app.post("/api/chat", requireAuth, async (req, res) => {
         userText = (userText || 'ดูรูปภาพที่แนบมา') + '\n\nUser attached image(s). Read and analyze these files:\n' + imgPaths;
       }
       if (!userText) return res.status(400).json({ error: "No text content to send" });
+
+      // Build full prompt with history (write to temp file to avoid ENAMETOOLONG)
+      const sysPrompt = systemParts.join(' ').trim();
+      let fullPrompt = userText;
+      if (sysPrompt) fullPrompt = sysPrompt + '\n\n---\n\n' + userText;
+
+
       const args = [
-        '-p', userText,
+        '-p',
         '--output-format', 'stream-json',
         '--verbose',
         '--include-partial-messages',
         '--dangerously-skip-permissions',
         '--model', claudeCodeModel || 'sonnet',
       ];
-      const sysPrompt = systemParts.join(' ').trim();
-      if (sysPrompt) {
-        args.push('--append-system-prompt', sysPrompt);
-      }
 
       const cliBin = path.join(__dirname, 'node_modules', '@anthropic-ai', 'claude-code', 'cli.js');
       const claudeProc = spawn(process.execPath, [cliBin, ...args], {
         cwd: process.env.WORKSPACE_DIR || process.cwd(),
         env: { ...process.env, FORCE_COLOR: '0' },
-        stdio: ['ignore', 'pipe', 'pipe'],
+        stdio: ['pipe', 'pipe', 'pipe'],
       });
+      // Pipe prompt via stdin (avoids ENAMETOOLONG on Windows)
+      claudeProc.stdin.write(fullPrompt);
+      claudeProc.stdin.end();
 
       // SSE headers
       res.setHeader("Content-Type", "text/event-stream");
