@@ -850,8 +850,23 @@ app.get("/api/admin/status", requireAuth, (req, res) => {
     gpu = { name, util: parseInt(util), memUsed: parseInt(memUsed), memTotal: parseInt(memTotal), temp: parseInt(temp), power: parseFloat(power).toFixed(0) };
   } catch {}
 
+  // NPU (Intel Core Ultra / Qualcomm / AMD Ryzen AI)
+  let npu = null;
+  try {
+    const { execSync } = require("child_process");
+    const npuOut = execSync('powershell -NoProfile -Command "Get-PnpDevice | Where-Object { $_.FriendlyName -match \'NPU|Neural|AI Acc|VPU\' -and $_.Status -eq \'OK\' } | Select-Object -First 1 -ExpandProperty FriendlyName"', { encoding: 'utf-8', timeout: 5000 }).trim();
+    if (npuOut) {
+      npu = { name: npuOut };
+      // Try to get utilization via performance counter
+      try {
+        const utilOut = execSync('powershell -NoProfile -Command "(Get-Counter \'\\NPU(*)\\*\' -ErrorAction SilentlyContinue).CounterSamples | Where-Object { $_.Path -match \'utilization\' } | Select-Object -First 1 -ExpandProperty CookedValue"', { encoding: 'utf-8', timeout: 3000 }).trim();
+        if (utilOut && !isNaN(parseFloat(utilOut))) npu.util = Math.round(parseFloat(utilOut));
+      } catch {}
+    }
+  } catch {}
+
   res.json({
-    gpu,
+    gpu, npu,
     cpu: { percent: cpuPercent, model: cpuModel.replace(/\(R\)|\(TM\)/g, '').replace(/\s+/g, ' ').trim(), cores: cpus.length },
     memory: { totalGB: (totalMem / 1073741824).toFixed(1), usedGB: (usedMem / 1073741824).toFixed(1), freeGB: (freeMem / 1073741824).toFixed(1) },
     disk,

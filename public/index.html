@@ -3849,6 +3849,14 @@
         </div>
         <div style="height:2px;background:rgba(255,255,255,.06);border-radius:1px;overflow:hidden"><div id="res-gpu-bar" style="height:100%;border-radius:1px;width:0%;background:linear-gradient(90deg,#10b981,#4ade80);transition:width .5s ease"></div></div>
       </div>
+      <!-- NPU bar (hidden if no NPU) -->
+      <div id="res-npu-row" style="padding:0 2px;margin-bottom:8px;display:none">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:3px">
+          <span style="font-size:9px;color:var(--text3)">NPU <span id="res-npu-name" style="opacity:.5"></span></span>
+          <span id="res-npu-val" style="font-size:11px;font-weight:700;color:#a78bfa;font-family:'JetBrains Mono',monospace">—</span>
+        </div>
+        <div style="height:2px;background:rgba(255,255,255,.06);border-radius:1px;overflow:hidden"><div id="res-npu-bar" style="height:100%;border-radius:1px;width:0%;background:linear-gradient(90deg,#7c3aed,#a78bfa);transition:width .5s ease"></div></div>
+      </div>
       <!-- Network IPs -->
       <div style="padding:0 2px;display:flex;align-items:center;justify-content:space-between">
         <span style="font-size:9px;color:#4ade80">• <span id="res-net-up" style="color:var(--text3);font-family:'JetBrains Mono',monospace">—</span></span>
@@ -12943,6 +12951,20 @@
         } else {
           if (gpuBar) gpuBar.style.width = '0%';
           if (gpuVal) gpuVal.textContent = 'N/A';
+        }
+        // NPU
+        const npuData = d.npu;
+        const npuRow = document.getElementById('res-npu-row');
+        if (npuData && npuRow) {
+          npuRow.style.display = '';
+          const npuBar = document.getElementById('res-npu-bar');
+          const npuVal = document.getElementById('res-npu-val');
+          const npuName = document.getElementById('res-npu-name');
+          if (npuBar) npuBar.style.width = Math.min(100, npuData.util || 0) + '%';
+          if (npuVal) npuVal.textContent = npuData.util != null ? npuData.util + '%' : 'Ready';
+          if (npuName && npuData.name) npuName.textContent = npuData.name.replace('Intel(R) AI Boost', 'Intel AI Boost').replace('Neural Processing Unit', 'NPU').split(' ').slice(0,4).join(' ');
+        } else if (npuRow) {
+          npuRow.style.display = 'none';
         }
         // Network — show local + tailscale IP
         const net = d.network || {};
