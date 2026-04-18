@@ -17,6 +17,9 @@ if ($changed) {
 
 Write-Host "🚀 Spawning detached restart..." -ForegroundColor Yellow
 
+$nodePath = (Get-Command node -ErrorAction SilentlyContinue).Source
+if (-not $nodePath) { $nodePath = 'node' }
+
 $script = @"
 Start-Sleep 2
 `$procs = Get-CimInstance Win32_Process -Filter "Name='node.exe'" -ErrorAction SilentlyContinue |
@@ -26,7 +29,7 @@ foreach (`$p in `$procs) {
 }
 Start-Sleep 2
 Set-Location '$ROOT'
-Start-Process node -ArgumentList 'server.js' -WorkingDirectory '$ROOT' -WindowStyle Hidden
+Start-Process '$nodePath' -ArgumentList 'server.js' -WorkingDirectory '$ROOT' -WindowStyle Hidden
 "@
 
 $bytes = [System.Text.Encoding]::Unicode.GetBytes($script)
