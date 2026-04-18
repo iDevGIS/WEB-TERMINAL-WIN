@@ -2514,6 +2514,35 @@
       border: 1px solid rgba(255,255,255,.1); cursor: pointer; transition: transform .15s;
     }
     .chat-msg-images img:hover { transform: scale(1.02); }
+    /* Image Preview Modal */
+    .img-modal {
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 9999;
+      background: rgba(0,0,0,.85); backdrop-filter: blur(8px);
+      display: flex; align-items: center; justify-content: center;
+      cursor: zoom-out; animation: imgModalIn .2s ease;
+    }
+    @keyframes imgModalIn { from { opacity: 0; } to { opacity: 1; } }
+    .img-modal img {
+      max-width: 92vw; max-height: 90vh; border-radius: 8px;
+      box-shadow: 0 8px 40px rgba(0,0,0,.6); cursor: default;
+      transition: transform .2s;
+    }
+    .img-modal-close {
+      position: absolute; top: 16px; right: 16px; width: 36px; height: 36px;
+      border-radius: 50%; border: 1px solid rgba(255,255,255,.15);
+      background: rgba(0,0,0,.5); color: #fff; font-size: 18px;
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      transition: all .15s;
+    }
+    .img-modal-close:hover { background: rgba(239,68,68,.3); border-color: rgba(239,68,68,.5); }
+    .img-modal-dl {
+      position: absolute; bottom: 16px; right: 16px;
+      background: rgba(0,0,0,.5); border: 1px solid rgba(255,255,255,.15);
+      color: #fff; font-size: 11px; padding: 6px 14px; border-radius: 6px;
+      cursor: pointer; display: flex; align-items: center; gap: 4px;
+      font-family: 'Inter', sans-serif; transition: all .15s;
+    }
+    .img-modal-dl:hover { background: rgba(108,99,255,.3); border-color: rgba(108,99,255,.5); }
     .chat-msg-files { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 6px; }
     .msg-file-badge {
       display: inline-flex; align-items: center; gap: 4px;
@@ -5805,7 +5834,7 @@
             const texts = m.content.filter(c => c.type === 'text').map(c => c.text).join('\n');
             const imgs = m.content.filter(c => c.type === 'image_url');
             textPart = texts ? escHtml(texts).replace(/\n/g, '<br>') : '';
-            if (imgs.length) imgsPart = '<div class="chat-msg-images">' + imgs.map(c => `<img src="${c.image_url.url}" onclick="window.open(this.src,'_blank')">`).join('') + '</div>';
+            if (imgs.length) imgsPart = '<div class="chat-msg-images">' + imgs.map(c => `<img src="${c.image_url.url}" onclick="previewImage(this.src)">`).join('') + '</div>';
           } else {
             textPart = escHtml(m.content).replace(/\n/g, '<br>');
           }
@@ -6597,7 +6626,7 @@
       let imagesHtml = '';
       if (images.length) {
         imagesHtml = '<div class="chat-msg-images">' + images.map(img =>
-          `<img src="${img.dataUrl}" alt="${escAttr(img.name)}" onclick="window.open(this.src,'_blank')">`
+          `<img src="${img.dataUrl}" alt="${escAttr(img.name)}" onclick="previewImage(this.src)">`
         ).join('') + '</div>';
       }
       let filesHtml = '';
@@ -11530,6 +11559,29 @@
     }
 
     function escHtml(s) { return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]); }
+
+    function previewImage(src) {
+      const modal = document.createElement('div');
+      modal.className = 'img-modal';
+      modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+      modal.innerHTML = `
+        <img src="${src}">
+        <button class="img-modal-close" title="Close (Esc)">×</button>
+        <button class="img-modal-dl" onclick="event.stopPropagation()">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Download
+        </button>`;
+      modal.querySelector('.img-modal-close').onclick = () => modal.remove();
+      modal.querySelector('.img-modal-dl').onclick = (e) => {
+        e.stopPropagation();
+        const a = document.createElement('a');
+        a.href = src; a.download = 'image_' + Date.now() + '.png';
+        a.click();
+      };
+      document.body.appendChild(modal);
+      const onKey = (e) => { if (e.key === 'Escape') { modal.remove(); document.removeEventListener('keydown', onKey); } };
+      document.addEventListener('keydown', onKey);
+    }
     function escAttr(s) { return String(s||'').replace(/'/g, "\\'"); }
 
     // === Events ===
