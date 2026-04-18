@@ -1137,18 +1137,22 @@ app.post("/api/chat", requireAuth, async (req, res) => {
       const lastUserMsg = [...messages].reverse().find(m => m.role === 'user');
       if (!lastUserMsg) return res.status(400).json({ error: "No user message" });
 
+      // Extract text from content (may be string or array with text/image_url blocks)
+      const _extractText = (c) => typeof c === 'string' ? c : Array.isArray(c) ? c.filter(b => b.type === 'text').map(b => b.text).join('\n') : String(c || '');
+
       // Build system prompt from workspace context
       const systemParts = [];
       if (wsCtx) systemParts.push(wsCtx);
       // Include conversation history as context
       const historyMsgs = messages.slice(0, -1);
       if (historyMsgs.length > 0) {
-        systemParts.push('\n\nConversation history:\n' + historyMsgs.map(m => `${m.role}: ${m.content}`).join('\n'));
+        systemParts.push('\n\nConversation history:\n' + historyMsgs.map(m => `${m.role}: ${_extractText(m.content)}`).join('\n'));
       }
 
       // Use alias directly — Claude Code CLI resolves opus/sonnet/haiku to latest model
+      const userText = _extractText(lastUserMsg.content);
       const args = [
-        '-p', lastUserMsg.content,
+        '-p', userText,
         '--output-format', 'stream-json',
         '--verbose',
         '--include-partial-messages',
