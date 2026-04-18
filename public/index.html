@@ -2535,17 +2535,19 @@
       }
       .chat-header-title { display: none; }
       .chat-header {
-        overflow-x: auto; overflow-y: hidden;
-        -webkit-overflow-scrolling: touch;
-        scrollbar-width: none;
+        overflow: hidden; gap: 4px;
       }
-      .chat-header::-webkit-scrollbar { display: none; }
       .chat-header-actions {
-        flex: 0 0 auto; flex-wrap: nowrap; gap: 2px;
+        flex: 1 1 0; min-width: 0; flex-wrap: nowrap; gap: 2px;
+        overflow-x: auto; overflow-y: hidden;
+        -webkit-overflow-scrolling: touch; scrollbar-width: none;
       }
-      /* Shrink all badges on mobile */
+      .chat-header-actions::-webkit-scrollbar { display: none; }
+      /* Shrink badges on mobile */
       .chat-header-actions .chat-token-badge,
       .chat-header-actions .chat-session-badge { font-size: 8px !important; padding: 1px 4px !important; flex-shrink: 0; }
+      /* Pin action buttons to right */
+      .chat-header-actions .chat-icon-btn { flex-shrink: 0; }
       .chat-icon-btn { width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0; }
       .chat-icon-btn svg { width: 13px; height: 13px; }
       .chat-header-actions .chat-model-select {
