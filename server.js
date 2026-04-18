@@ -1151,10 +1151,28 @@ app.post("/api/chat", requireAuth, async (req, res) => {
 
       // Use alias directly — Claude Code CLI resolves opus/sonnet/haiku to latest model
       let userText = _extractText(lastUserMsg.content);
-      // If content has images, note it (CLI doesn't support images)
-      const hasImages = Array.isArray(lastUserMsg.content) && lastUserMsg.content.some(b => b.type === 'image_url');
-      if (hasImages) {
-        userText = (userText || 'ผู้ใช้ส่งรูปภาพมา') + '\n\n[Note: User attached image(s) but Claude Code CLI does not support image input. Please respond based on the text only.]';
+      // Save images to temp files and pass paths to Claude Code
+      const tempImages = [];
+      if (Array.isArray(lastUserMsg.content)) {
+        const tmpDir = path.join(__dirname, 'workspaces', '_tmp');
+        if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
+        lastUserMsg.content.filter(b => b.type === 'image_url' && b.image_url?.url).forEach((b, i) => {
+          try {
+            const dataUrl = b.image_url.url;
+            const match = dataUrl.match(/^data:image\/(\w+);base64,(.+)$/);
+            if (match) {
+              const ext = match[1] === 'jpeg' ? 'jpg' : match[1];
+              const fname = `img_${Date.now()}_${i}.${ext}`;
+              const fpath = path.join(tmpDir, fname);
+              fs.writeFileSync(fpath, Buffer.from(match[2], 'base64'));
+              tempImages.push(fpath);
+            }
+          } catch {}
+        });
+      }
+      if (tempImages.length) {
+        const imgPaths = tempImages.map(p => p.replace(/\\/g, '/')).join('\n');
+        userText = (userText || 'ดูรูปภาพที่แนบมา') + '\n\nUser attached image(s). Read and analyze these files:\n' + imgPaths;
       }
       if (!userText) return res.status(400).json({ error: "No text content to send" });
       const args = [
@@ -1236,6 +1254,8 @@ app.post("/api/chat", requireAuth, async (req, res) => {
 
       claudeProc.on('close', (code) => {
         clearInterval(keepalive);
+        // Cleanup temp images
+        tempImages.forEach(f => { try { fs.unlinkSync(f); } catch {} });
         // If no [DONE] was sent yet, send it now
         if (!res.writableEnded) {
           if (code !== 0 && !fullContent) {
