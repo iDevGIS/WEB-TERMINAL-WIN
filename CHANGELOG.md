@@ -40,6 +40,16 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 - **Streaming**: spawns `claude` CLI with `--print --output-format stream-json --include-partial-messages`, converts to OpenAI-compatible SSE chunks
 - **No API key required**: uses authenticated Claude Code CLI session (OAuth), bypasses `OPENCLAW_TOKEN` requirement
 
+### Added — Workspace Save As & Auto-save
+- **Quick Save** — one-click overwrite current workspace without dialog
+- **Save As** — save as new workspace with name + description prompt (separate button)
+- **Auto-save** — current workspace auto-saved every 60 seconds (async, non-blocking, fail-silent)
+- **Current workspace tracking** — blue CURRENT badge + "auto-save" indicator, persists across page reloads
+- **Rename workspace** — pencil button to rename via PATCH API, updates tracking if current
+- **Delete cleanup** — deleting current workspace clears auto-save tracking
+- **Version display** — sidebar footer shows `v2.6.0` instead of session count
+- REST API: `PUT /api/workspaces/:id` for overwriting workspace tabs data
+
 ### Fixed
 - **File save in tab editor** — was sending `path` instead of `filePath` in request body, causing 400 "No path" error
 

@@ -259,12 +259,17 @@
 - **Smart caching** - 30-second cache TTL, pre-warmed on server start
 
 ### 💾 Workspace Save/Load
-- **Save to server** - current tab layout + chat history + editor state saved as JSON on server
+- **Quick Save** - one-click overwrite current workspace (no dialog)
+- **Save As** - save as new workspace with name + description prompt
+- **Auto-save** - current workspace auto-saved every 60 seconds (async, non-blocking)
+- **Current workspace tracking** - blue CURRENT badge + auto-save indicator on active workspace
+- **Rename workspace** - edit name via pencil button using PATCH API
 - **Workspace list** - collapsible sidebar section showing all saved workspaces
 - **Cross-browser restore** - load a workspace from any browser/device on the same server
 - **Smart terminal handling** - saved terminal sessions create fresh shells on different browsers
 - **One-click load** - select workspace → writes to localStorage → page reload → full restore
-- **Delete workspaces** - hover to reveal delete button with confirmation
+- **Delete workspaces** - hover to reveal delete button with confirmation, clears auto-save if current
+- **Version display** - sidebar footer shows app version instead of session count
 
 ### 💾 Auto State Persistence
 - **Tabs survive refresh** - all open tabs saved to `localStorage` every 10 seconds + on page close
@@ -773,10 +778,11 @@ CYBERFRAME
 | POST | `/api/voice-upload` | Upload voice recording |
 | GET | `/api/voice/:file` | Serve voice audio |
 | GET | `/api/workspaces` | List saved workspaces |
-| POST | `/api/workspaces` | Save workspace |
+| POST | `/api/workspaces` | Save new workspace (Save As) |
 | GET | `/api/workspaces/:id` | Load workspace |
+| PUT | `/api/workspaces/:id` | Overwrite workspace tabs (auto-save) |
 | DELETE | `/api/workspaces/:id` | Delete workspace |
-| PATCH | `/api/workspaces/:id` | Update workspace |
+| PATCH | `/api/workspaces/:id` | Rename workspace |
 | GET | `/api/admin/status` | System metrics |
 | GET | `/api/admin/processes` | Process list |
 | POST | `/api/admin/kill-process` | Kill process by PID |
