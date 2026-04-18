@@ -5217,7 +5217,11 @@
       if (!tab) return;
       const sess = tab.chatSessions.find(s => s.id === tab.activeChatSession);
       if (!sess) return;
-      const fullKey = 'agent:main:openai-user:cyberframe-' + sess.id;
+      const isCC = sess.model && sess.model.startsWith('claude-code/');
+      const agentLabel = isCC ? sess.model : (sess.agentId || 'main');
+      const agentColor = isCC ? '#f97316' : '#4ade80';
+      const agentBg = isCC ? 'rgba(249,115,22,.1)' : 'rgba(74,222,128,.1)';
+      const fullKey = (isCC ? 'model:' + sess.model : 'agent:' + (sess.agentId || 'main')) + ':user:cyberframe-' + sess.id;
       // Remove existing
       document.querySelectorAll('.sess-info-overlay').forEach(e => e.remove());
       const overlay = document.createElement('div');
@@ -5226,7 +5230,7 @@
       overlay.innerHTML = `<div class="sess-info-modal">
         <h3>Session Info <button class="dip-close" onclick="this.closest('.sess-info-overlay').remove()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></h3>
         <div class="si-row"><span class="si-label">Key</span><span class="si-value">${escHtml(fullKey)}</span></div>
-        <div class="si-row"><span class="si-label">Agent</span><span class="si-value"><span class="si-badge" style="background:rgba(74,222,128,.1);color:#4ade80">${escHtml(sess.agentId || 'main')}</span></span></div>
+        <div class="si-row"><span class="si-label">${isCC ? 'Model' : 'Agent'}</span><span class="si-value"><span class="si-badge" style="background:${agentBg};color:${agentColor}">${escHtml(agentLabel)}</span></span></div>
         <div class="si-row"><span class="si-label">Session ID</span><span class="si-value" id="si-session-id">Loading...</span></div>
         <div class="si-row"><span class="si-label">Type</span><span class="si-value" id="si-type">...</span></div>
         <div class="si-row"><span class="si-label">Created</span><span class="si-value" id="si-created">...</span></div>
