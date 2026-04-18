@@ -357,6 +357,18 @@ app.post("/api/admin/shutdown", requireAuth, (req, res) => {
   setTimeout(() => process.exit(0), 500);
 });
 
+app.post("/api/admin/restart", requireAuth, (req, res) => {
+  const { spawn } = require("child_process");
+  const script = path.join(__dirname, "_restart.ps1");
+  if (!fs.existsSync(script)) return res.status(404).json({ error: "_restart.ps1 not found" });
+  try {
+    spawn("powershell", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", script], {
+      cwd: __dirname, detached: true, stdio: "ignore"
+    }).unref();
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 app.post("/api/admin/restart-pc", requireAuth, (req, res) => {
   const { exec } = require("child_process");
   res.json({ ok: true, message: "Restarting PC..." });

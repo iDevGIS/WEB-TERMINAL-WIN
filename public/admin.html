@@ -572,6 +572,10 @@
         <span class="qa-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></span>
         <span class="qa-label">Export Logs</span>
       </button>
+      <button class="qa-btn" onclick="restartCyberframe()">
+        <span class="qa-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="2" stroke-linecap="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg></span>
+        <span class="qa-label">Update & Restart</span>
+      </button>
       <button class="qa-btn" onclick="shutdownServer()">
         <span class="qa-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg></span>
         <span class="qa-label">Shutdown</span>
@@ -1939,6 +1943,36 @@
       await fetch(API + '/api/admin/shutdown', { method: 'POST' });
       document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;color:#ef4444;font-size:18px;font-family:Inter,sans-serif">Server shut down. Restart with start-hidden.vbs or node server.js</div>';
     } catch (e) { showModal('Shutdown failed: ' + e.message, {type:'alert', danger:true}); }
+  }
+
+  async function restartCyberframe() {
+    if (!await showModal('Update & Restart CYBERFRAME?\n\ngit pull → npm install (if needed) → restart server\nServer จะกลับมาใน ~8 วินาที', { confirmText: 'Restart Now' })) return;
+    const sec = 4;
+    try {
+      const r = await fetch(API + '/api/admin/restart', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ delay: sec })
+      });
+      const d = await r.json();
+      if (d.ok) {
+        document.body.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;color:#4ade80;font-family:Inter,sans-serif;gap:12px">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="2" stroke-linecap="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+          <div style="font-size:18px;font-weight:600">Restarting CYBERFRAME...</div>
+          <div style="font-size:13px;color:#9d9db5">Server will be back in ~${sec + 4} seconds</div>
+          <div style="font-size:11px;color:#5a5a7a;margin-top:8px">Auto-refreshing...</div>
+        </div>`;
+        // Auto-refresh until server is back
+        const check = setInterval(async () => {
+          try {
+            const r = await fetch(API + '/api/admin/status', { signal: AbortSignal.timeout(2000) });
+            if (r.ok) { clearInterval(check); location.reload(); }
+          } catch {}
+        }, 3000);
+      } else {
+        showModal('Restart failed: ' + (d.error || ''), { type: 'alert', danger: true });
+      }
+    } catch (e) { showModal('Restart failed: ' + e.message, { type: 'alert', danger: true }); }
   }
 
   // === Auto Refresh ===
