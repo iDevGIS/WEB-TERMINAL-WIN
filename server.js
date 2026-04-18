@@ -1150,7 +1150,13 @@ app.post("/api/chat", requireAuth, async (req, res) => {
       }
 
       // Use alias directly — Claude Code CLI resolves opus/sonnet/haiku to latest model
-      const userText = _extractText(lastUserMsg.content);
+      let userText = _extractText(lastUserMsg.content);
+      // If content has images, note it (CLI doesn't support images)
+      const hasImages = Array.isArray(lastUserMsg.content) && lastUserMsg.content.some(b => b.type === 'image_url');
+      if (hasImages) {
+        userText = (userText || 'ผู้ใช้ส่งรูปภาพมา') + '\n\n[Note: User attached image(s) but Claude Code CLI does not support image input. Please respond based on the text only.]';
+      }
+      if (!userText) return res.status(400).json({ error: "No text content to send" });
       const args = [
         '-p', userText,
         '--output-format', 'stream-json',
