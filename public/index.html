@@ -10976,7 +10976,7 @@
           </div>
           <div class="ws-save-footer">
             <button class="ws-save-cancel" onclick="this.closest('.cyber-overlay').remove()">Cancel</button>
-            <button class="ws-save-confirm" id="ws-save-btn">
+            <button class="ws-save-confirm" id="ws-saveas-confirm">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
                 <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
                 <polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>
@@ -10990,15 +10990,15 @@
       const nameInput = document.getElementById('ws-save-name');
       setTimeout(() => { nameInput.focus(); nameInput.select(); }, 50);
 
-      const onKey = (e) => { if (e.key === 'Enter') document.getElementById('ws-save-btn').click(); if (e.key === 'Escape') overlay.remove(); };
+      const onKey = (e) => { if (e.key === 'Enter') document.getElementById('ws-saveas-confirm').click(); if (e.key === 'Escape') overlay.remove(); };
       overlay.addEventListener('keydown', onKey);
       overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
 
-      document.getElementById('ws-save-btn').onclick = async () => {
+      document.getElementById('ws-saveas-confirm').onclick = async () => {
         const name = nameInput.value.trim();
         if (!name) { nameInput.style.borderColor = '#f87171'; return; }
         const desc = document.getElementById('ws-save-desc').value.trim();
-        const btn = document.getElementById('ws-save-btn');
+        const btn = document.getElementById('ws-saveas-confirm');
         btn.disabled = true; btn.textContent = 'Saving...';
         try {
           const res = await fetch('/api/workspaces', {
