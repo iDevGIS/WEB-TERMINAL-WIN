@@ -2534,6 +2534,12 @@
         overflow: hidden;
       }
       .chat-header-title { display: none; }
+      .chat-header {
+        overflow-x: auto; overflow-y: hidden;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+      }
+      .chat-header::-webkit-scrollbar { display: none; }
       .chat-header-actions {
         flex: 0 0 auto; flex-wrap: nowrap; gap: 2px;
       }
