@@ -6558,6 +6558,12 @@
       const textFiles = attachments.filter(a => a.kind === 'text');
       if (!text && !attachments.length) return;
 
+      // Warn if sending images to Claude Code (CLI doesn't support images)
+      if (images.length && sess.model && sess.model.startsWith('claude-code/')) {
+        showToast('⚠️ Claude Code ไม่รองรับรูปภาพ — เปลี่ยนเป็น Anthropic หรือ Ollama vision model แทน', 'error');
+        return;
+      }
+
       const messagesEl = document.getElementById(tabId + '-messages');
 
       // Clear empty state
