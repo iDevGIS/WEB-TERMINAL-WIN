@@ -19,9 +19,11 @@ Write-Host "🚀 Spawning detached restart..." -ForegroundColor Yellow
 
 $script = @"
 Start-Sleep 2
-Get-Process -Name node -ErrorAction SilentlyContinue |
-  Where-Object { `$_.MainModule.FileName -and `$_.CommandLine -match 'server\.js' } |
-  Stop-Process -Force -ErrorAction SilentlyContinue
+`$procs = Get-CimInstance Win32_Process -Filter "Name='node.exe'" -ErrorAction SilentlyContinue |
+  Where-Object { `$_.CommandLine -match 'server\.js' }
+foreach (`$p in `$procs) {
+  Stop-Process -Id `$p.ProcessId -Force -ErrorAction SilentlyContinue
+}
 Start-Sleep 2
 Set-Location '$ROOT'
 Start-Process node -ArgumentList 'server.js' -WorkingDirectory '$ROOT' -WindowStyle Hidden
