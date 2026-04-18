@@ -2537,8 +2537,10 @@
       .chat-header-actions {
         flex: 0 0 auto; flex-wrap: nowrap; gap: 2px;
       }
-      /* Hide badges on mobile — show only action buttons */
-      .chat-header-actions .chat-token-badge { display: none !important; }
+      /* Hide session + token badges on mobile — keep agent badge */
+      .chat-header-actions .chat-session-badge { display: none !important; }
+      .chat-header-actions .chat-token-badge:not([id$="-agent-badge"]) { display: none !important; }
+      .chat-header-actions [id$="-agent-badge"] { display: inline-flex !important; font-size: 9px !important; padding: 1px 5px !important; }
       .chat-icon-btn { width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0; }
       .chat-icon-btn svg { width: 13px; height: 13px; }
       .chat-header-actions .chat-model-select {
