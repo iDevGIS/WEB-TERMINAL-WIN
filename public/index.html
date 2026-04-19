@@ -10353,19 +10353,13 @@
       showToast('Session ended', 'info');
     }
 
-    // Cache for claude-code models from API
-    let _ccModelCache = null;
     async function _ccPopulateModelPicker(tabId) {
       const dropdown = document.getElementById(tabId + '-cc-model-dropdown');
       if (!dropdown) return;
-      // Fetch models if not cached
-      if (!_ccModelCache) {
-        try {
-          const r = await fetch('/api/agents'); const d = await r.json();
-          _ccModelCache = (d.models || []).filter(m => m.provider === 'claude-code');
-        } catch { _ccModelCache = []; }
-      }
-      const models = _ccModelCache.length ? _ccModelCache : [
+      // Use shared _fetchAgents() cache
+      const data = await _fetchAgents();
+      const ccModels = (data.models || []).filter(m => m.provider === 'claude-code');
+      const models = ccModels.length ? ccModels : [
         { alias: 'opus', name: 'Opus' },
         { alias: 'sonnet', name: 'Sonnet' },
         { alias: 'haiku', name: 'Haiku' }
@@ -10388,8 +10382,9 @@
       const td = tabs.get(tabId);
       if (!td) return;
       td.ccModel = model;
-      // Show versioned name from cache
-      const cached = (_ccModelCache || []).find(m => (m.alias || m.id?.replace('claude-code/', '')) === model);
+      // Show versioned name from shared cache
+      const ccModels = (_agentData?.models || []).filter(m => m.provider === 'claude-code');
+      const cached = ccModels.find(m => (m.alias || m.id?.replace('claude-code/', '')) === model);
       document.getElementById(tabId + '-cc-model-label').textContent = cached ? cached.name : model.charAt(0).toUpperCase() + model.slice(1);
       // Update active state
       el.closest('.cc-model-dropdown').querySelectorAll('.cc-model-opt').forEach(o => o.classList.remove('active'));
