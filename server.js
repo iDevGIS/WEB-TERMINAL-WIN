@@ -2295,13 +2295,18 @@ app.get("/api/agents", requireAuth, async (req, res) => {
       const primaryId = (ocCfg.agents?.defaults?.model?.primary || '').replace(/^anthropic\//, '');
       const providerModels = ocCfg.models?.providers?.anthropic?.models || [];
       if (providerModels.length) {
-        anthropicModels = providerModels.map(m => ({
-          id: 'anthropic/' + m.id,
-          name: (m.name || m.id).replace(/\s*\(via\s+.*?\)\s*$/, ''),
-          provider: OPENCLAW_CLI,
-          contextWindow: m.contextWindow || 200000,
-          ...(m.id === primaryId ? { default: true } : {})
-        }));
+        // Known context windows for Anthropic models (config may have incorrect values)
+        const knownCtx = { opus: 1000000, sonnet: 200000, haiku: 200000 };
+        anthropicModels = providerModels.map(m => {
+          const alias = (m.id.match(/claude-(\w+)-/) || [])[1] || '';
+          return {
+            id: 'anthropic/' + m.id,
+            name: (m.name || m.id).replace(/\s*\(via\s+.*?\)\s*$/, ''),
+            provider: OPENCLAW_CLI,
+            contextWindow: knownCtx[alias] || m.contextWindow || 200000,
+            ...(m.id === primaryId ? { default: true } : {})
+          };
+        });
       }
     }
     const models = [
