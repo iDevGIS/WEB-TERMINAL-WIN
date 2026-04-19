@@ -3889,7 +3889,7 @@
     </div>
 
     <div id="sidebar-footer">
-      <span class="info" id="session-count" style="opacity:.4;font-size:9px">v2.6.1</span>
+      <span class="info" id="session-count" style="opacity:.4;font-size:9px">v...</span>
       <a href="javascript:void(0)" onclick="openAdminTab()" class="btn-logout" style="color:var(--accent);border-color:rgba(108,99,255,.2)">🛡️ Admin</a>
       <a href="/api/logout" class="btn-logout">⏻ Logout</a>
     </div>
@@ -11253,6 +11253,7 @@
 
     const sessionListEl = document.getElementById('session-list');
     const sessionCountEl = document.getElementById('session-count');
+    fetch('/api/version').then(r=>r.json()).then(d=>{if(d.version)sessionCountEl.textContent='v'+d.version;}).catch(()=>{});
     const toolbarTitle = document.getElementById('current-session-name');
     const toolbarStatus = document.getElementById('toolbar-status');
     // btnDetach moved to session card
