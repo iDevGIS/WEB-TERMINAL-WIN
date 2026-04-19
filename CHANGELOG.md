@@ -16,6 +16,7 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 - **Shared agent cache** — `_fetchAgents()` cache shared between AI Chat and Claude Code model pickers
 - **Claude Code model picker** — dynamic model list in Claude Code tab top bar from config
 - **Claude-CLI deduplication** — multiple versions of same model alias deduplicated, latest version wins
+- **Dynamic version display** — sidebar footer fetches version from `/api/version` endpoint (reads `package.json`), no more hardcoded version strings
 
 ### Fixed
 - **Close button (dip-close) unclickable** — added `z-index`, `flex-shrink:0`, `min-width/min-height` to prevent button from being hidden behind siblings
@@ -24,6 +25,8 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 - **Ollama fallback** — when no platform config exists, all running Ollama models are listed (previously showed nothing)
 - **Agent list cleanup** — hardcoded to `['main']` only, no longer scans random directories as agents
 - **Agent button behavior** — single agent resolves immediately with default model; multi-agent mode highlights and waits for model selection
+- **Model name missing in chat messages** — SSE response now injects `model` field before `[DONE]` for both Claude Code and OpenClaw routes
+- **Opus context window shows 200k** — override incorrect `contextWindow` from platform config with known values (Opus=1M, Sonnet/Haiku=200k)
 
 ---
 

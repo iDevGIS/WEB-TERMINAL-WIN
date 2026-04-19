@@ -274,7 +274,7 @@
 - **Smart terminal handling** - saved terminal sessions create fresh shells on different browsers
 - **One-click load** - select workspace → writes to localStorage → page reload → full restore
 - **Delete workspaces** - hover to reveal delete button with confirmation, clears auto-save if current
-- **Version display** - sidebar footer shows app version instead of session count
+- **Version display** - sidebar footer dynamically fetches version from `/api/version` endpoint
 
 ### 💾 Auto State Persistence
 - **Tabs survive refresh** - all open tabs saved to `localStorage` every 10 seconds + on page close
