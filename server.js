@@ -2235,8 +2235,23 @@ app.get("/api/agents", requireAuth, async (req, res) => {
     } catch {}
     // Check if Claude Code CLI is available
     const claudeCodeModels = _getCachedClaudeCodeModels();
+    // Dynamic anthropic models from openclaw.json config
+    let anthropicModels = [{ id: 'anthropic/claude-opus-4-7', name: 'Claude Opus 4.7', provider: 'anthropic', default: true }];
+    try {
+      const ocCfg = JSON.parse(fs.readFileSync(path.join(process.env.USERPROFILE || process.env.HOME, '.openclaw', 'openclaw.json'), 'utf8'));
+      const primaryId = (ocCfg.agents?.defaults?.model?.primary || '').replace(/^anthropic\//, '');
+      const providerModels = ocCfg.models?.providers?.anthropic?.models || [];
+      if (providerModels.length) {
+        anthropicModels = providerModels.map(m => ({
+          id: 'anthropic/' + m.id,
+          name: (m.name || m.id).replace(/\s*\(via\s+.*?\)\s*$/, ''),
+          provider: 'anthropic',
+          ...(m.id === primaryId ? { default: true } : {})
+        }));
+      }
+    } catch {}
     const models = [
-      { id: 'anthropic/claude-opus-4-6', name: 'Claude Opus 4', provider: 'anthropic', default: true },
+      ...anthropicModels,
       ...claudeCodeModels,
       ...ollamaModels
     ];
