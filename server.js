@@ -2251,8 +2251,24 @@ app.get("/api/agents", requireAuth, async (req, res) => {
         }
       } catch {}
     }
-    // Check if Claude Code CLI is available
-    const claudeCodeModels = _getCachedClaudeCodeModels();
+    // Claude Code CLI models from openclaw.json (claude-cli/* entries)
+    const claudeCliAllowed = Object.keys(registeredModels).filter(k => k.startsWith('claude-cli/'));
+    let claudeCliModels = [];
+    if (claudeCliAllowed.length) {
+      claudeCliModels = claudeCliAllowed.map(k => {
+        const modelId = k.replace('claude-cli/', ''); // claude-opus-4-7
+        // Extract alias: opus, sonnet, haiku
+        const aliasMatch = modelId.match(/claude-(\w+)-/);
+        const alias = aliasMatch ? aliasMatch[1] : modelId;
+        // Extract version: 4-7 → 4.7
+        const verMatch = modelId.match(/(\d+)-(\d+)$/);
+        const ver = verMatch ? verMatch[1] + '.' + verMatch[2] : '';
+        const displayName = alias.charAt(0).toUpperCase() + alias.slice(1) + (ver ? ' ' + ver : '');
+        return { id: 'claude-code/' + alias, name: displayName, alias, provider: 'claude-code' };
+      });
+    }
+    // Fallback to CLI resolution if no config
+    const claudeCodeModels = claudeCliModels.length ? claudeCliModels : _getCachedClaudeCodeModels();
     // Dynamic anthropic models from openclaw.json config
     let anthropicModels = [{ id: 'anthropic/claude-opus-4-7', name: 'Claude Opus 4.7', provider: 'anthropic', default: true }];
     if (ocCfg) {

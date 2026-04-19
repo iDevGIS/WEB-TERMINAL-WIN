@@ -4904,11 +4904,7 @@
               <span class="cc-topbar-title">Claude Code</span>
               <div class="cc-model-picker" id="${tabId}-cc-model-picker">
                 <span id="${tabId}-cc-model-label">Opus</span><span class="cc-chevron">▾</span>
-                <div class="cc-model-dropdown">
-                  <div class="cc-model-opt active" data-model="opus" onclick="ccSelectModel('${tabId}','opus',this)">Opus <span style="font-size:8px;opacity:.5">1M ctx</span></div>
-                  <div class="cc-model-opt" data-model="sonnet" onclick="ccSelectModel('${tabId}','sonnet',this)">Sonnet <span style="font-size:8px;opacity:.5">200K</span></div>
-                  <div class="cc-model-opt" data-model="haiku" onclick="ccSelectModel('${tabId}','haiku',this)">Haiku <span style="font-size:8px;opacity:.5">200K</span></div>
-                </div>
+                <div class="cc-model-dropdown" id="${tabId}-cc-model-dropdown"></div>
               </div>
               <div class="cc-perm-badge default" id="${tabId}-cc-perm" onclick="ccCyclePerm('${tabId}')" title="Click to cycle permission mode">
                 <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
@@ -4991,7 +4987,11 @@
       switchTab(tabId);
       // Init chat first session after tab is registered
       if (type === 'chat' && !opts?.skipDefaultSession) setTimeout(() => chatNewSessionQuick(tabId), 50);
-      if (type === 'claude-code') setTimeout(() => ccRefreshSessionList(tabId), 200);
+      if (type === 'claude-code') {
+        setTimeout(() => ccRefreshSessionList(tabId), 200);
+        // Populate model picker from API
+        _ccPopulateModelPicker(tabId);
+      }
       return tabId;
     }
 
@@ -10353,11 +10353,44 @@
       showToast('Session ended', 'info');
     }
 
+    // Cache for claude-code models from API
+    let _ccModelCache = null;
+    async function _ccPopulateModelPicker(tabId) {
+      const dropdown = document.getElementById(tabId + '-cc-model-dropdown');
+      if (!dropdown) return;
+      // Fetch models if not cached
+      if (!_ccModelCache) {
+        try {
+          const r = await fetch('/api/agents'); const d = await r.json();
+          _ccModelCache = (d.models || []).filter(m => m.provider === 'claude-code');
+        } catch { _ccModelCache = []; }
+      }
+      const models = _ccModelCache.length ? _ccModelCache : [
+        { alias: 'opus', name: 'Opus' },
+        { alias: 'sonnet', name: 'Sonnet' },
+        { alias: 'haiku', name: 'Haiku' }
+      ];
+      const td = tabs.get(tabId);
+      const cur = td?.ccModel || 'opus';
+      const ctxMap = { opus: '1M', sonnet: '200K', haiku: '200K' };
+      dropdown.innerHTML = models.map(m => {
+        const alias = m.alias || m.id?.replace('claude-code/', '') || m.name.toLowerCase();
+        const active = alias === cur ? ' active' : '';
+        const ctx = ctxMap[alias] || '200K';
+        return `<div class="cc-model-opt${active}" data-model="${alias}" onclick="ccSelectModel('${tabId}','${alias}',this)">${escHtml(m.name)} <span style="font-size:8px;opacity:.5">${ctx} ctx</span></div>`;
+      }).join('');
+      // Update label to show versioned name
+      const curModel = models.find(m => (m.alias || m.id?.replace('claude-code/', '')) === cur);
+      if (curModel) document.getElementById(tabId + '-cc-model-label').textContent = curModel.name;
+    }
+
     function ccSelectModel(tabId, model, el) {
       const td = tabs.get(tabId);
       if (!td) return;
       td.ccModel = model;
-      document.getElementById(tabId + '-cc-model-label').textContent = model.charAt(0).toUpperCase() + model.slice(1);
+      // Show versioned name from cache
+      const cached = (_ccModelCache || []).find(m => (m.alias || m.id?.replace('claude-code/', '')) === model);
+      document.getElementById(tabId + '-cc-model-label').textContent = cached ? cached.name : model.charAt(0).toUpperCase() + model.slice(1);
       // Update active state
       el.closest('.cc-model-dropdown').querySelectorAll('.cc-model-opt').forEach(o => o.classList.remove('active'));
       el.classList.add('active');
