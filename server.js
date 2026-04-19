@@ -2251,21 +2251,29 @@ app.get("/api/agents", requireAuth, async (req, res) => {
         }
       } catch {}
     }
-    // Claude Code CLI models from openclaw.json (claude-cli/* entries)
+    // Claude Code CLI models from openclaw.json (claude-cli/* entries, deduplicated by alias, latest version wins)
     const claudeCliAllowed = Object.keys(registeredModels).filter(k => k.startsWith('claude-cli/'));
     let claudeCliModels = [];
     if (claudeCliAllowed.length) {
-      claudeCliModels = claudeCliAllowed.map(k => {
-        const modelId = k.replace('claude-cli/', ''); // claude-opus-4-7
-        // Extract alias: opus, sonnet, haiku
+      const aliasMap = new Map(); // alias → { name, ver }
+      for (const k of claudeCliAllowed) {
+        const modelId = k.replace('claude-cli/', '');
         const aliasMatch = modelId.match(/claude-(\w+)-/);
         const alias = aliasMatch ? aliasMatch[1] : modelId;
-        // Extract version: 4-7 → 4.7
         const verMatch = modelId.match(/(\d+)-(\d+)$/);
         const ver = verMatch ? verMatch[1] + '.' + verMatch[2] : '';
-        const displayName = alias.charAt(0).toUpperCase() + alias.slice(1) + (ver ? ' ' + ver : '');
-        return { id: 'claude-code/' + alias, name: displayName, alias, provider: 'claude-code' };
-      });
+        const verNum = verMatch ? parseInt(verMatch[1]) * 100 + parseInt(verMatch[2]) : 0;
+        const existing = aliasMap.get(alias);
+        if (!existing || verNum > existing.verNum) {
+          aliasMap.set(alias, { alias, ver, verNum });
+        }
+      }
+      claudeCliModels = [...aliasMap.values()].map(({ alias, ver }) => ({
+        id: 'claude-code/' + alias,
+        name: alias.charAt(0).toUpperCase() + alias.slice(1) + (ver ? ' ' + ver : ''),
+        alias,
+        provider: 'claude-code'
+      }));
     }
     // Fallback to CLI resolution if no config
     const claudeCodeModels = claudeCliModels.length ? claudeCliModels : _getCachedClaudeCodeModels();
