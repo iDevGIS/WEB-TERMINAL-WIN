@@ -2246,7 +2246,8 @@ app.get("/api/agents", requireAuth, async (req, res) => {
             .filter(name => tagMap.has(name))
             .map(name => {
               const m = tagMap.get(name);
-              return { id: 'ollama/' + m.name, name: ollamaNameMap.get(m.name) || m.name, size: m.size, provider: 'ollama' };
+              const ollamaCfg = ollamaProviderModels.find(pm => pm.id === name);
+              return { id: 'ollama/' + m.name, name: ollamaNameMap.get(m.name) || m.name, size: m.size, provider: 'ollama', contextWindow: ollamaCfg?.contextWindow || 32768 };
             });
         }
       } catch {}
@@ -2265,14 +2266,17 @@ app.get("/api/agents", requireAuth, async (req, res) => {
         const verNum = verMatch ? parseInt(verMatch[1]) * 100 + parseInt(verMatch[2]) : 0;
         const existing = aliasMap.get(alias);
         if (!existing || verNum > existing.verNum) {
-          aliasMap.set(alias, { alias, ver, verNum });
+          // Find contextWindow from anthropic provider config (claude-cli uses same models)
+          const anthropicModel = (ocCfg?.models?.providers?.anthropic?.models || []).find(m => m.id === modelId);
+          aliasMap.set(alias, { alias, ver, verNum, contextWindow: anthropicModel?.contextWindow || (alias === 'opus' ? 1000000 : 200000) });
         }
       }
-      claudeCliModels = [...aliasMap.values()].map(({ alias, ver }) => ({
+      claudeCliModels = [...aliasMap.values()].map(({ alias, ver, contextWindow }) => ({
         id: 'claude-code/' + alias,
         name: alias.charAt(0).toUpperCase() + alias.slice(1) + (ver ? ' ' + ver : ''),
         alias,
-        provider: 'claude-code'
+        provider: 'claude-code',
+        contextWindow
       }));
     }
     // Fallback to CLI resolution if no config
@@ -2287,6 +2291,7 @@ app.get("/api/agents", requireAuth, async (req, res) => {
           id: 'anthropic/' + m.id,
           name: (m.name || m.id).replace(/\s*\(via\s+.*?\)\s*$/, ''),
           provider: 'anthropic',
+          contextWindow: m.contextWindow || 200000,
           ...(m.id === primaryId ? { default: true } : {})
         }));
       }
