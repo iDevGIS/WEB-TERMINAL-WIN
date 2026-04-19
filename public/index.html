@@ -4605,7 +4605,7 @@
                 </div>
               </div>
               <div class="chat-header-actions">
-                <span class="chat-token-badge" id="${tabId}-agent-badge" style="display:none;font-size:10px;background:rgba(74,222,128,.08) !important;color:#4ade80 !important;border-color:rgba(74,222,128,.15) !important"></span>
+                <span class="chat-token-badge" id="${tabId}-agent-badge" style="display:none;font-size:10px;background:rgba(74,222,128,.08) !important;color:#4ade80 !important;border-color:rgba(74,222,128,.15) !important;cursor:pointer" onclick="chatChangeModel('${tabId}')" title="Click to change model"></span>
                 <span class="chat-token-badge chat-session-badge" id="${tabId}-session-badge" style="display:none;cursor:pointer" onclick="chatShowSessionInfo('${tabId}')" title=""></span>
                 <span class="chat-token-badge" id="${tabId}-token-badge" style="display:none"></span>
                 <select class="chat-model-select" id="${tabId}-model-select" onchange="chatModelChange('${tabId}')" style="display:none">
@@ -5536,6 +5536,51 @@
         }
         // Auto-select main agent
         setTimeout(() => { const mainBtn = document.getElementById('agent-pick-main'); if (mainBtn) mainBtn.click(); }, 50);
+      });
+    }
+
+    async function chatChangeModel(tabId) {
+      const tab = tabs.get(tabId);
+      if (!tab) return;
+      const sess = tab.chatSessions.find(s => s.id === tab.activeChatSession);
+      if (!sess) return;
+      const data = await _fetchAgents();
+      const models = data.models || [];
+      if (!models.length) { showToast('No models available', 'error'); return; }
+      // Build popup
+      document.querySelectorAll('.sess-info-overlay').forEach(e => e.remove());
+      const overlay = document.createElement('div');
+      overlay.className = 'sess-info-overlay';
+      overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+      const currentModel = sess.model || data.defaultModel || '';
+      overlay.innerHTML = `<div class="sess-info-modal" style="width:380px">
+        <h3 style="margin-bottom:14px">Change Model <button class="dip-close" onclick="this.closest('.sess-info-overlay').remove()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></h3>
+        <div style="font-size:10px;color:var(--text3);margin-bottom:8px">Current: <span style="color:var(--text)">${currentModel || 'default'}</span></div>
+        <div id="change-model-list" style="display:flex;flex-direction:column;gap:4px;max-height:300px;overflow-y:auto"></div>
+      </div>`;
+      document.body.appendChild(overlay);
+      const container = document.getElementById('change-model-list');
+      const formatSize = (b) => b > 1e9 ? (b/1e9).toFixed(1) + 'GB' : b > 1e6 ? (b/1e6).toFixed(0) + 'MB' : '';
+      container.innerHTML = models.map(m => {
+        const color = m.provider === 'anthropic' ? '#c084fc' : m.provider === 'claude-code' ? '#f97316' : '#fbbf24';
+        const provBadge = m.provider === 'anthropic' ? 'rgba(192,132,252,.1)' : m.provider === 'claude-code' ? 'rgba(249,115,22,.1)' : 'rgba(251,191,36,.1)';
+        const isCurrent = m.id === currentModel;
+        return `<button class="chat-action-sm" style="padding:8px 12px;font-size:11px;justify-content:flex-start;gap:8px${isCurrent ? ';border-color:rgba(108,99,255,.5);background:rgba(108,99,255,.1)' : ''}" data-model-id="${m.id}">
+          <span style="font-size:8px;padding:1px 5px;border-radius:3px;background:${provBadge};color:${color};font-weight:600">${m.provider}</span>
+          <span style="font-weight:500">${m.name}</span>
+          <span style="font-size:9px;color:var(--text3);margin-left:auto">${_chatMaxTokensStr(m.id)}</span>
+          ${m.size ? '<span style="font-size:9px;color:var(--text3)">' + formatSize(m.size) + '</span>' : ''}
+          ${isCurrent ? '<span style="font-size:8px;color:#6c63ff;background:rgba(108,99,255,.1);padding:1px 5px;border-radius:3px">current</span>' : ''}
+          ${m.default ? '<span style="font-size:8px;color:#4ade80;background:rgba(74,222,128,.1);padding:1px 5px;border-radius:3px">default</span>' : ''}
+        </button>`;
+      }).join('');
+      container.querySelectorAll('[data-model-id]').forEach(btn => {
+        btn.onclick = () => {
+          sess.model = btn.dataset.modelId;
+          _updateChatHeader(tabId);
+          overlay.remove();
+          showToast('Model changed to ' + btn.dataset.modelId, 'success');
+        };
       });
     }
 
