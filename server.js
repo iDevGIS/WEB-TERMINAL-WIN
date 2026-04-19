@@ -562,6 +562,7 @@ function loadSnippets() {
 }
 function saveSnippets(arr) { fs.writeFileSync(SNIPPETS_FILE, JSON.stringify(arr, null, 2)); }
 
+app.get("/api/version", requireAuth, (req, res) => { res.json({ version: require('./package.json').version }); });
 app.get("/api/snippets", requireAuth, (req, res) => { res.json(loadSnippets()); });
 app.post("/api/snippets", requireAuth, (req, res) => {
   const { name, command, category } = req.body;
@@ -1264,6 +1265,8 @@ app.post("/api/chat", requireAuth, async (req, res) => {
                 };
                 if (!res.writableEnded) res.write(`data: ${JSON.stringify(sseData)}\n\n`);
               }
+              // Send model info before DONE
+              if (!res.writableEnded) res.write(`data: ${JSON.stringify({ model: model || 'claude-code' })}\n\n`);
               if (!res.writableEnded) res.write('data: [DONE]\n\n');
             }
           } catch {}
@@ -1394,8 +1397,9 @@ app.post("/api/chat", requireAuth, async (req, res) => {
       clearInterval(keepalive);
       clearInterval(statInterval);
       if (!gotData) console.warn("[Chat proxy] stream ended with no data");
-      // Inject resource stats as special SSE event
+      // Inject model info + resource stats as special SSE events
       if (!res.writableEnded) {
+        if (model) res.write(`data: ${JSON.stringify({ model })}\n\n`);
         const stats = { cpu: maxCpu, mem: maxMem, gpu: maxGpu, gpuMem: maxGpuMem };
         res.write(`data: {"type":"resource_stats","cpu":${stats.cpu},"mem":${stats.mem},"gpu":${stats.gpu},"gpuMem":${stats.gpuMem}}\n\n`);
       }
