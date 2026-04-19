@@ -3325,7 +3325,7 @@
     .dip-status-badge.exited { background: rgba(239,68,68,.12); color: #ef4444; }
     .dip-status-badge.paused { background: rgba(251,191,36,.12); color: #fbbf24; }
     .dip-status-badge .dip-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
-    .dip-close { background: none; border: 1px solid rgba(255,255,255,.06); border-radius: 6px; color: var(--text3); cursor: pointer; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; transition: all .15s; }
+    .dip-close { background: none; border: 1px solid rgba(255,255,255,.06); border-radius: 6px; color: var(--text3); cursor: pointer; width: 28px; height: 28px; min-width: 28px; min-height: 28px; display: flex; align-items: center; justify-content: center; transition: all .15s; position: relative; z-index: 10; flex-shrink: 0; }
     .dip-close:hover { color: #ef4444; border-color: rgba(239,68,68,.2); background: rgba(239,68,68,.06); }
     .dip-header-meta { display: flex; gap: 16px; font-size: 11px; color: var(--text3); }
     .dip-header-meta span { display: flex; align-items: center; gap: 4px; }
@@ -5479,7 +5479,7 @@
         overlay.className = 'sess-info-overlay';
         overlay.onclick = (e) => { if (e.target === overlay) { overlay.remove(); resolve(null); } };
         overlay.innerHTML = `<div class="sess-info-modal" style="width:380px">
-          <h3 style="margin-bottom:14px">New Chat <button class="dip-close" onclick="this.closest('.sess-info-overlay').remove()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></h3>
+          <h3 style="margin-bottom:14px">New Chat <button class="dip-close" onclick="const o=this.closest('.sess-info-overlay');if(o._resolve)o._resolve(null);o.remove()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></h3>
           <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Agent</div>
           <div style="display:flex;gap:6px;margin-bottom:14px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;-ms-overflow-style:none">
             ${agents.map(a => {
