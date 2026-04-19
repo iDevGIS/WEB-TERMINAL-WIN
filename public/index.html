@@ -5451,8 +5451,9 @@
     function _renderModelList(container, models, overlay) {
       const formatSize = (b) => b > 1e9 ? (b/1e9).toFixed(1) + 'GB' : b > 1e6 ? (b/1e6).toFixed(0) + 'MB' : '';
       container.innerHTML = models.map(m => {
-        const color = m.provider === 'anthropic' ? '#c084fc' : m.provider === 'claude-code' ? '#f97316' : '#fbbf24';
-        const provBadge = m.provider === 'anthropic' ? 'rgba(192,132,252,.1)' : m.provider === 'claude-code' ? 'rgba(249,115,22,.1)' : 'rgba(251,191,36,.1)';
+        const isPlatform = m.provider !== 'claude-code' && m.provider !== 'ollama';
+        const color = isPlatform ? '#c084fc' : m.provider === 'claude-code' ? '#f97316' : '#fbbf24';
+        const provBadge = isPlatform ? 'rgba(192,132,252,.1)' : m.provider === 'claude-code' ? 'rgba(249,115,22,.1)' : 'rgba(251,191,36,.1)';
         return `<button class="chat-action-sm" style="padding:8px 12px;font-size:11px;justify-content:flex-start;gap:8px" data-model-id="${m.id}">
           <span style="font-size:8px;padding:1px 5px;border-radius:3px;background:${provBadge};color:${color};font-weight:600">${m.provider}</span>
           <span style="font-weight:500">${m.name}</span>
@@ -5562,8 +5563,9 @@
       const container = document.getElementById('change-model-list');
       const formatSize = (b) => b > 1e9 ? (b/1e9).toFixed(1) + 'GB' : b > 1e6 ? (b/1e6).toFixed(0) + 'MB' : '';
       container.innerHTML = models.map(m => {
-        const color = m.provider === 'anthropic' ? '#c084fc' : m.provider === 'claude-code' ? '#f97316' : '#fbbf24';
-        const provBadge = m.provider === 'anthropic' ? 'rgba(192,132,252,.1)' : m.provider === 'claude-code' ? 'rgba(249,115,22,.1)' : 'rgba(251,191,36,.1)';
+        const isPlatform = m.provider !== 'claude-code' && m.provider !== 'ollama';
+        const color = isPlatform ? '#c084fc' : m.provider === 'claude-code' ? '#f97316' : '#fbbf24';
+        const provBadge = isPlatform ? 'rgba(192,132,252,.1)' : m.provider === 'claude-code' ? 'rgba(249,115,22,.1)' : 'rgba(251,191,36,.1)';
         const isCurrent = m.id === currentModel;
         return `<button class="chat-action-sm" style="padding:8px 12px;font-size:11px;justify-content:flex-start;gap:8px${isCurrent ? ';border-color:rgba(108,99,255,.5);background:rgba(108,99,255,.1)' : ''}" data-model-id="${m.id}">
           <span style="font-size:8px;padding:1px 5px;border-radius:3px;background:${provBadge};color:${color};font-weight:600">${m.provider}</span>

@@ -2282,7 +2282,7 @@ app.get("/api/agents", requireAuth, async (req, res) => {
     // Fallback to CLI resolution if no config
     const claudeCodeModels = claudeCliModels.length ? claudeCliModels : _getCachedClaudeCodeModels();
     // Dynamic anthropic models from openclaw.json config
-    let anthropicModels = [{ id: 'anthropic/claude-opus-4-7', name: 'Claude Opus 4.7', provider: 'anthropic', default: true }];
+    let anthropicModels = [{ id: 'anthropic/claude-opus-4-7', name: 'Claude Opus 4.7', provider: OPENCLAW_CLI, default: true }];
     if (ocCfg) {
       const primaryId = (ocCfg.agents?.defaults?.model?.primary || '').replace(/^anthropic\//, '');
       const providerModels = ocCfg.models?.providers?.anthropic?.models || [];
@@ -2290,7 +2290,7 @@ app.get("/api/agents", requireAuth, async (req, res) => {
         anthropicModels = providerModels.map(m => ({
           id: 'anthropic/' + m.id,
           name: (m.name || m.id).replace(/\s*\(via\s+.*?\)\s*$/, ''),
-          provider: 'anthropic',
+          provider: OPENCLAW_CLI,
           contextWindow: m.contextWindow || 200000,
           ...(m.id === primaryId ? { default: true } : {})
         }));
@@ -2301,9 +2301,11 @@ app.get("/api/agents", requireAuth, async (req, res) => {
       ...claudeCodeModels,
       ...ollamaModels
     ];
-    res.json({ agents, models });
+    // Include platform info so frontend can show "openclaw main" / "clawdbot main" etc.
+    const primaryModel = ocCfg?.agents?.defaults?.model?.primary || '';
+    res.json({ agents, models, platform: OPENCLAW_CLI, defaultModel: primaryModel });
   } catch (e) {
-    res.json({ agents: ['main'], models: [] });
+    res.json({ agents: ['main'], models: [], platform: OPENCLAW_CLI });
   }
 });
 
