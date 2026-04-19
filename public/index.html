@@ -5417,7 +5417,7 @@
     let _agentData = null;
     async function _fetchAgents(force) {
       if (_agentData && !force) return _agentData;
-      try { const r = await fetch('/api/agents'); _agentData = await r.json(); } catch { _agentData = { agents: ['main'], models: [] }; }
+      try { const r = await fetch('/api/agents'); _agentData = await r.json(); if (_agentData.platform) window._agentPlatform = _agentData.platform; } catch { _agentData = { agents: ['main'], models: [] }; }
       return _agentData;
     }
     // Prefetch on page load so New Chat opens instantly
@@ -5456,7 +5456,8 @@
         return `<button class="chat-action-sm" style="padding:8px 12px;font-size:11px;justify-content:flex-start;gap:8px" data-model-id="${m.id}">
           <span style="font-size:8px;padding:1px 5px;border-radius:3px;background:${provBadge};color:${color};font-weight:600">${m.provider}</span>
           <span style="font-weight:500">${m.name}</span>
-          ${m.size ? '<span style="font-size:9px;color:var(--text3);margin-left:auto">' + formatSize(m.size) + '</span>' : ''}
+          <span style="font-size:9px;color:var(--text3);margin-left:auto">${_chatMaxTokensStr(m.id)}</span>
+          ${m.size ? '<span style="font-size:9px;color:var(--text3)">' + formatSize(m.size) + '</span>' : ''}
           ${m.default ? '<span style="font-size:8px;color:#4ade80;background:rgba(74,222,128,.1);padding:1px 5px;border-radius:3px">default</span>' : ''}
         </button>`;
       }).join('');
@@ -5480,10 +5481,17 @@
           <h3 style="margin-bottom:14px">New Chat <button class="dip-close" onclick="this.closest('.sess-info-overlay').remove()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></h3>
           <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Agent</div>
           <div style="display:flex;gap:6px;margin-bottom:14px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;-ms-overflow-style:none">
-            ${agents.map(a => `<button class="chat-action-sm" style="padding:8px 14px;font-size:11px;gap:6px;flex-shrink:0" id="agent-pick-${a}" onclick="document.querySelectorAll('[id^=agent-pick]').forEach(b=>{b.style.borderColor='';b.style.background=''});this.style.borderColor='rgba(108,99,255,.5)';this.style.background='rgba(108,99,255,.1)';this.closest('.sess-info-overlay')._selectedAgent='${a}'">
+            ${agents.map(a => {
+              const platformLabel = data.platform || 'openclaw';
+              let displayName = a === 'main' ? platformLabel + ' · ' + a : a;
+              if (a === 'main' && data.defaultModel) {
+                const dm = data.defaultModel.replace(/^anthropic\//, '').replace(/-/g, ' ').replace(/(\d+)\s(\d+)$/, '$1.$2').replace(/\b\w/g, c => c.toUpperCase());
+                displayName = platformLabel + ' · ' + dm + ' ' + _chatMaxTokensStr(data.defaultModel);
+              }
+              return `<button class="chat-action-sm" style="padding:8px 14px;font-size:11px;gap:6px;flex-shrink:0" id="agent-pick-${a}" onclick="document.querySelectorAll('[id^=agent-pick]').forEach(b=>{b.style.borderColor='';b.style.background=''});this.style.borderColor='rgba(108,99,255,.5)';this.style.background='rgba(108,99,255,.1)';this.closest('.sess-info-overlay')._selectedAgent='${a}'">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="${a === 'main' ? '#4ade80' : '#60a5fa'}" stroke-width="2" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-              <span style="font-weight:600">${a}</span>
-            </button>`).join('')}
+              <span style="font-weight:600">${displayName}</span>
+            </button>`}).join('')}
           </div>
           <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Model</div>
           <div id="model-list-container" style="display:flex;flex-direction:column;gap:4px;max-height:240px;overflow-y:auto">
@@ -5595,12 +5603,13 @@
         if (found?.contextWindow) return found.contextWindow;
       }
       // Fallback defaults
-      if (model.startsWith('claude-code/')) return model.includes('opus') ? 1000000 : 200000;
-      return model.startsWith('ollama/') ? 32768 : 200000;
+      if (model.includes('opus')) return 1000000;
+      if (model.startsWith('ollama/')) return 32768;
+      return 200000;
     }
     function _chatMaxTokensStr(model) {
       const t = _chatMaxTokens(model);
-      return t >= 1000 ? (t / 1000) + 'k' : t;
+      return t >= 1000000 ? (t / 1000000) + 'M' : t >= 1000 ? (t / 1000) + 'k' : t;
     }
 
     function _chatTimeAgo(ts) {
@@ -6912,9 +6921,17 @@
         const isOllama = sess.model && sess.model.startsWith('ollama/');
         const isClaudeCode = sess.model && sess.model.startsWith('claude-code/');
         const ccAlias = isClaudeCode ? sess.model.replace('claude-code/', '') : '';
-        const ccCtx = { opus: '4.7 1M', sonnet: '4.6', haiku: '4.5' };
-        const ccLabel = ccAlias ? 'Claude Code · ' + ccAlias.charAt(0).toUpperCase() + ccAlias.slice(1) + ' ' + (ccCtx[ccAlias] || '') : '';
-        const label = isClaudeCode ? ccLabel : isOllama ? sess.model.replace('ollama/', '') : (sess.agentId || 'main');
+        const ccCtxStr = _chatMaxTokensStr(sess.model);
+        const ccLabel = ccAlias ? 'Claude Code · ' + ccAlias.charAt(0).toUpperCase() + ccAlias.slice(1) + ' ' + ccCtxStr : '';
+        const agentRaw = sess.agentId || 'main';
+        const platformName = window._agentPlatform || 'openclaw';
+        // For main agent, show platform + default model name + context window
+        let mainLabel = platformName + ' · ' + agentRaw;
+        if (agentRaw === 'main' && _agentData?.defaultModel) {
+          const dm = _agentData.defaultModel.replace(/^anthropic\//, '').replace(/-/g, ' ').replace(/(\d+)\s(\d+)$/, '$1.$2').replace(/\b\w/g, c => c.toUpperCase());
+          mainLabel = platformName + ' · ' + dm + ' ' + _chatMaxTokensStr(_agentData.defaultModel);
+        }
+        const label = isClaudeCode ? ccLabel : isOllama ? sess.model.replace('ollama/', '') : (agentRaw === 'main' ? mainLabel : agentRaw);
         const color = isClaudeCode ? '#f97316' : isOllama ? '#fbbf24' : '#4ade80';
         const bg = isClaudeCode ? 'rgba(249,115,22,.08)' : isOllama ? 'rgba(251,191,36,.08)' : 'rgba(74,222,128,.08)';
         const border = isClaudeCode ? 'rgba(249,115,22,.15)' : isOllama ? 'rgba(251,191,36,.15)' : 'rgba(74,222,128,.15)';
