@@ -4,7 +4,7 @@
 
 ![Node.js](https://img.shields.io/badge/Node.js-18+-339933?logo=nodedotjs&logoColor=white)
 ![Platform](https://img.shields.io/badge/Platform-Windows-0078D6?logo=windows&logoColor=white)
-![Version](https://img.shields.io/badge/Version-1.9.2-6c63ff)
+![Version](https://img.shields.io/badge/Version-2.6.1-6c63ff)
 ![License](https://img.shields.io/badge/License-MIT-blue)
 
 ## ✨ Features
@@ -98,6 +98,7 @@
 - **HTML web preview** - render `.html` files as live webpages in iframe
 - **Toggle view** - switch between code/preview mode with one click (for `.md` and `.html` files)
 - **Image viewer** - full zoom support (scroll wheel, drag to pan, double-click toggle, controls)
+- **Image preview modal** - click images in chat/file manager for fullscreen popup with blur backdrop, close (Esc/X/click), download
 - **PDF viewer** - inline iframe, native browser PDF rendering
 - **JSON formatter** - auto pretty-print with indentation
 
@@ -137,6 +138,7 @@
 - **Network Info** - hostname, local IP, Tailscale IP, Node version, platform
 - **Server Info** - PID, memory (RSS + heap), server uptime, shell profile count
 - **Quick Actions** - New Shell, Kill All Sessions, Remote Desktop, Copy IP, Export Logs, Update & Restart
+- **NPU Monitoring** - auto-detect Intel/Qualcomm/AMD NPU with utilization bar (purple gradient)
 - **Connected Browsers** - track active browser sessions (IP, browser, OS, connected time)
 - **Tailscale Serve Management** - view/add/remove Tailscale serve rules directly from admin panel
 - **Tailscale Funnel Management** - expose ports to the public internet with enable/disable toggle, real-time status badges (`● public` / `tailnet only`)
@@ -204,6 +206,7 @@
 - **Slash commands** — autocomplete dropdown with 16 commands (/commit, /pr, /review, /plan, /think, etc.)
 - **Session management** — create/resume/end/switch via WebSocket, `--resume` for conversation continuity
 - **Permission & model** — changeable mid-session per message
+- **Dynamic model picker** — models loaded from platform config with deduplication
 - **Tab persistence** — save/restore on browser refresh
 
 ### 💬 AI Chat (OpenClaw)
@@ -212,8 +215,10 @@
 - **Auto-title** - session automatically titled from first message
 - **Markdown rendering** - full GitHub-style markdown via [marked.js](https://marked.js.org/)
 - **Syntax highlighting** - code blocks with language badge, copy button, Tokyo Night Dark theme
-- **Model selector** - switch between models (OpenClaw/Claude Code/Ollama) per session
+- **Model selector** - switch between models (OpenClaw/Claude Code/Ollama) per session, clickable badge to change mid-session
+- **Dynamic model config** - models loaded from platform config file (openclaw.json / clawdbot.json), with context window and provider info
 - **Claude Code models** - Opus 4.7 (1M), Sonnet 4.6, Haiku 4.5 via CLI subscription (no API key cost), image support via temp file + Read tool
+- **Ollama auto-detect** - all running Ollama models listed automatically when no config filter exists
 - **System prompt presets** - Default, Code Expert, Thai Teacher, Creative Writer, Concise, or Custom
 - **Stop / Regenerate** - abort streaming mid-response or re-send for a new answer
 - **File & image attachments** - paste or drag images, attach text files (60+ types)

@@ -5,6 +5,28 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [2.6.1] — 2026-04-19
+
+### Added — Dynamic Model Configuration
+- **Dynamic models from config** — anthropic, claude-code, and ollama models loaded from platform config file (openclaw.json / clawdbot.json / moltbot.json)
+- **Dynamic context window** — context window size per model from config (1M, 200k, 32.768k, etc.)
+- **Clickable agent badge** — click model badge in chat header to change model mid-session
+- **Dynamic agent label** — chat header shows model name + context window (e.g. `Claude Opus 4.7 1M`)
+- **Dynamic provider label** — badge shows actual platform name (openclaw / clawdbot / moltbot) instead of hardcoded 'anthropic'
+- **Shared agent cache** — `_fetchAgents()` cache shared between AI Chat and Claude Code model pickers
+- **Claude Code model picker** — dynamic model list in Claude Code tab top bar from config
+- **Claude-CLI deduplication** — multiple versions of same model alias deduplicated, latest version wins
+
+### Fixed
+- **Close button (dip-close) unclickable** — added `z-index`, `flex-shrink:0`, `min-width/min-height` to prevent button from being hidden behind siblings
+- **Promise leak in New Chat dialog** — X close button now properly resolves Promise with `null` before removing overlay (was hanging indefinitely)
+- **Dynamic config path** — config file path now uses `_clawdDir` variable (supports `.openclaw`, `.clawdbot`, `.moltbot` directories)
+- **Ollama fallback** — when no platform config exists, all running Ollama models are listed (previously showed nothing)
+- **Agent list cleanup** — hardcoded to `['main']` only, no longer scans random directories as agents
+- **Agent button behavior** — single agent resolves immediately with default model; multi-agent mode highlights and waits for model selection
+
+---
+
 ## [2.6.0] — 2026-04-18
 
 ### Added — Claude Code Tab (Phase 1 MVP)
