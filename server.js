@@ -928,6 +928,7 @@ app.get("/api/admin/server", requireAuth, (req, res) => {
 const OPENCLAW_GW = process.env.OPENCLAW_GATEWAY || "http://127.0.0.1:18789";
 const OPENCLAW_TOKEN = process.env.OPENCLAW_TOKEN || "";
 const OPENCLAW_CLI = process.env.CYBERFRAME_CLI || process.env.AGENT_CLI || "openclaw"; // e.g. "clawdbot" or "moltbot"
+const _clawdDir = process.env.CYBERFRAME_AGENT_DIR || process.env.AGENT_DIR || '.openclaw'; // e.g. '.clawdbot' or '.moltbot'
 const _cyberframeNames = {}; // sessionId → display name
 
 // === TTS (Edge Neural Voices) ===
@@ -2220,28 +2221,26 @@ async function _resolveClaudeCodeModels(ccCli, aliases, display) {
 // GET /api/agents — list available agents + models
 app.get("/api/agents", requireAuth, async (req, res) => {
   try {
-    const agentsDir = path.join(process.env.USERPROFILE || process.env.HOME, _clawdDir, 'agents');
-    const agents = fs.readdirSync(agentsDir, { withFileTypes: true })
-      .filter(d => d.isDirectory())
-      .map(d => d.name);
+    const agents = ['main'];
     // Read openclaw.json config for models
     let ocCfg = null;
     try {
-      ocCfg = JSON.parse(fs.readFileSync(path.join(process.env.USERPROFILE || process.env.HOME, '.openclaw', 'openclaw.json'), 'utf8'));
+      const cfgName = _clawdDir.replace(/^\./, '') + '.json'; // e.g. "openclaw.json" or "clawdbot.json"
+      ocCfg = JSON.parse(fs.readFileSync(path.join(process.env.USERPROFILE || process.env.HOME, _clawdDir, cfgName), 'utf8'));
     } catch {}
     const registeredModels = ocCfg?.agents?.defaults?.models || {};
-    // Ollama models: only show those registered in openclaw.json
+    // Ollama models: show registered from config, or fallback to all running models
     let ollamaModels = [];
     const ollamaAllowed = Object.keys(registeredModels).filter(k => k.startsWith('ollama/')).map(k => k.replace('ollama/', ''));
-    if (ollamaAllowed.length) {
-      // Get clean names from openclaw.json providers config
-      const ollamaProviderModels = ocCfg?.models?.providers?.ollama?.models || [];
-      const ollamaNameMap = new Map(ollamaProviderModels.map(m => [m.id, m.name]));
-      try {
-        const r = await fetch('http://127.0.0.1:11434/api/tags');
-        if (r.ok) {
-          const d = await r.json();
-          const tagMap = new Map((d.models || []).map(m => [m.name, m]));
+    const ollamaProviderModels = ocCfg?.models?.providers?.ollama?.models || [];
+    const ollamaNameMap = new Map(ollamaProviderModels.map(m => [m.id, m.name]));
+    try {
+      const r = await fetch('http://127.0.0.1:11434/api/tags');
+      if (r.ok) {
+        const d = await r.json();
+        const allModels = d.models || [];
+        if (ollamaAllowed.length) {
+          const tagMap = new Map(allModels.map(m => [m.name, m]));
           ollamaModels = ollamaAllowed
             .filter(name => tagMap.has(name))
             .map(name => {
@@ -2249,9 +2248,14 @@ app.get("/api/agents", requireAuth, async (req, res) => {
               const ollamaCfg = ollamaProviderModels.find(pm => pm.id === name);
               return { id: 'ollama/' + m.name, name: ollamaNameMap.get(m.name) || m.name, size: m.size, provider: 'ollama', contextWindow: ollamaCfg?.contextWindow || 32768 };
             });
+        } else {
+          // No config — show all available ollama models
+          ollamaModels = allModels.map(m => ({
+            id: 'ollama/' + m.name, name: m.name, size: m.size, provider: 'ollama', contextWindow: 32768
+          }));
         }
-      } catch {}
-    }
+      }
+    } catch {}
     // Claude Code CLI models from openclaw.json (claude-cli/* entries, deduplicated by alias, latest version wins)
     const claudeCliAllowed = Object.keys(registeredModels).filter(k => k.startsWith('claude-cli/'));
     let claudeCliModels = [];
@@ -2433,7 +2437,6 @@ app.get("/api/vscode-url", (req, res) => {
 // (VS Code proxy moved above requireAuth)
 
 // === OpenClaw Session Management ===
-const _clawdDir = process.env.CYBERFRAME_AGENT_DIR || process.env.AGENT_DIR || '.openclaw'; // e.g. '.clawdbot' or '.moltbot'
 const SESSIONS_STORE = path.join(process.env.USERPROFILE || process.env.HOME || '', _clawdDir, 'agents', 'main', 'sessions', 'sessions.json');
 
 app.get("/api/agent/sessions", requireAuth, (req, res) => {

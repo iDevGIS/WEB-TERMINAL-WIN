@@ -5489,7 +5489,10 @@
                 const dm = data.defaultModel.replace(/^anthropic\//, '').replace(/-/g, ' ').replace(/(\d+)\s(\d+)$/, '$1.$2').replace(/\b\w/g, c => c.toUpperCase());
                 displayName = platformLabel + ' · ' + dm + ' ' + _chatMaxTokensStr(data.defaultModel);
               }
-              return `<button class="chat-action-sm" style="padding:8px 14px;font-size:11px;gap:6px;flex-shrink:0" id="agent-pick-${a}" onclick="document.querySelectorAll('[id^=agent-pick]').forEach(b=>{b.style.borderColor='';b.style.background=''});this.style.borderColor='rgba(108,99,255,.5)';this.style.background='rgba(108,99,255,.1)';this.closest('.sess-info-overlay')._selectedAgent='${a}'">
+              return `<button class="chat-action-sm" style="padding:8px 14px;font-size:11px;gap:6px;flex-shrink:0" id="agent-pick-${a}" onclick="${agents.length <= 1
+                ? `const o=this.closest('.sess-info-overlay');o._resolve({agent:'${a}',model:'${data.defaultModel||''}'});o.remove()`
+                : `document.querySelectorAll('[id^=agent-pick]').forEach(b=>{b.style.borderColor='';b.style.background=''});this.style.borderColor='rgba(108,99,255,.5)';this.style.background='rgba(108,99,255,.1)';this.closest('.sess-info-overlay')._selectedAgent='${a}'`
+              }">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="${a === 'main' ? '#4ade80' : '#60a5fa'}" stroke-width="2" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
               <span style="font-weight:600">${displayName}</span>
             </button>`}).join('')}
@@ -5535,8 +5538,8 @@
           agentRow.addEventListener('mouseleave', () => { _dragging = false; agentRow.style.cursor = 'grab'; });
           agentRow.style.cursor = 'grab';
         }
-        // Auto-select main agent
-        setTimeout(() => { const mainBtn = document.getElementById('agent-pick-main'); if (mainBtn) mainBtn.click(); }, 50);
+        // Auto-select main agent if multiple agents exist
+        if (agents.length > 1) setTimeout(() => { const mainBtn = document.getElementById('agent-pick-main'); if (mainBtn) mainBtn.click(); }, 50);
       });
     }
 
