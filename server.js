@@ -2224,21 +2224,38 @@ app.get("/api/agents", requireAuth, async (req, res) => {
     const agents = fs.readdirSync(agentsDir, { withFileTypes: true })
       .filter(d => d.isDirectory())
       .map(d => d.name);
-    // Also get available models from Ollama
-    let ollamaModels = [];
+    // Read openclaw.json config for models
+    let ocCfg = null;
     try {
-      const r = await fetch('http://127.0.0.1:11434/api/tags');
-      if (r.ok) {
-        const d = await r.json();
-        ollamaModels = (d.models || []).map(m => ({ id: 'ollama/' + m.name, name: m.name, size: m.size, provider: 'ollama' }));
-      }
+      ocCfg = JSON.parse(fs.readFileSync(path.join(process.env.USERPROFILE || process.env.HOME, '.openclaw', 'openclaw.json'), 'utf8'));
     } catch {}
+    const registeredModels = ocCfg?.agents?.defaults?.models || {};
+    // Ollama models: only show those registered in openclaw.json
+    let ollamaModels = [];
+    const ollamaAllowed = Object.keys(registeredModels).filter(k => k.startsWith('ollama/')).map(k => k.replace('ollama/', ''));
+    if (ollamaAllowed.length) {
+      // Get clean names from openclaw.json providers config
+      const ollamaProviderModels = ocCfg?.models?.providers?.ollama?.models || [];
+      const ollamaNameMap = new Map(ollamaProviderModels.map(m => [m.id, m.name]));
+      try {
+        const r = await fetch('http://127.0.0.1:11434/api/tags');
+        if (r.ok) {
+          const d = await r.json();
+          const tagMap = new Map((d.models || []).map(m => [m.name, m]));
+          ollamaModels = ollamaAllowed
+            .filter(name => tagMap.has(name))
+            .map(name => {
+              const m = tagMap.get(name);
+              return { id: 'ollama/' + m.name, name: ollamaNameMap.get(m.name) || m.name, size: m.size, provider: 'ollama' };
+            });
+        }
+      } catch {}
+    }
     // Check if Claude Code CLI is available
     const claudeCodeModels = _getCachedClaudeCodeModels();
     // Dynamic anthropic models from openclaw.json config
     let anthropicModels = [{ id: 'anthropic/claude-opus-4-7', name: 'Claude Opus 4.7', provider: 'anthropic', default: true }];
-    try {
-      const ocCfg = JSON.parse(fs.readFileSync(path.join(process.env.USERPROFILE || process.env.HOME, '.openclaw', 'openclaw.json'), 'utf8'));
+    if (ocCfg) {
       const primaryId = (ocCfg.agents?.defaults?.model?.primary || '').replace(/^anthropic\//, '');
       const providerModels = ocCfg.models?.providers?.anthropic?.models || [];
       if (providerModels.length) {
@@ -2249,7 +2266,7 @@ app.get("/api/agents", requireAuth, async (req, res) => {
           ...(m.id === primaryId ? { default: true } : {})
         }));
       }
-    } catch {}
+    }
     const models = [
       ...anthropicModels,
       ...claudeCodeModels,
