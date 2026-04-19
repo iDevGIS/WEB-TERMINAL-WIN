@@ -885,6 +885,17 @@ CYBERFRAME
 - **HTTPS built-in** - currently relies on Tailscale
 - **Docker image** - one-click deploy CYBERFRAME itself
 - **Linux support** - currently Windows-only
+- **macOS support** - see below 👇
+
+---
+
+## 🍎 macOS Support — Help Wanted!
+
+CYBERFRAME currently runs on **Windows only**. We'd love to bring it to **macOS** but we don't have a Mac to develop and test on.
+
+**We're looking for a desktop Mac** (such as a **Mac Mini**) to develop and maintain the macOS version. If you have one to spare or would like to sponsor one, it would go directly toward building native macOS support — including zsh/bash/fish shell profiles, Homebrew integration, and macOS-specific admin features.
+
+Interested? [Open an issue](https://github.com/iDevGIS/WEB-TERMINAL-WIN/issues) on GitHub. Every contribution helps! 🙏
 
 ---
 
