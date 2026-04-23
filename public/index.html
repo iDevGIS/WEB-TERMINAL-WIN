@@ -2311,6 +2311,25 @@
     .cc-perm-badge.acceptEdits { background:rgba(251,191,36,.08); color:#fbbf24; border:1px solid rgba(251,191,36,.2); }
     .cc-cwd-badge { font-size:10px; padding:4px 8px; border-radius:5px; cursor:pointer; display:flex; align-items:center; gap:5px; background:rgba(251,191,36,.06); color:#fbbf24; border:1px solid rgba(251,191,36,.12); font-family:'JetBrains Mono',monospace; max-width:200px; }
     .cc-cwd-badge:hover { background:rgba(251,191,36,.12); }
+    /* Git branch badge */
+    .cc-git-badge { font-size:10px; padding:4px 8px; border-radius:5px; cursor:default; display:flex; align-items:center; gap:5px; background:rgba(139,92,246,.06); color:#a78bfa; border:1px solid rgba(139,92,246,.15); font-family:'JetBrains Mono',monospace; max-width:180px; overflow:hidden; }
+    .cc-git-badge.dirty { background:rgba(251,146,60,.08); color:#fb923c; border-color:rgba(251,146,60,.2); }
+    .cc-git-badge.hidden { display:none; }
+    .cc-git-branch { max-width:90px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .cc-git-stats { font-size:9px; opacity:.7; display:flex; gap:3px; }
+    /* Effort selector */
+    .cc-effort-picker { font-size:11px; padding:4px 8px; border-radius:5px; cursor:pointer; position:relative; background:rgba(96,165,250,.08); color:#60a5fa; border:1px solid rgba(96,165,250,.18); display:flex; align-items:center; gap:4px; font-weight:500; }
+    .cc-effort-picker:hover { background:rgba(96,165,250,.16); }
+    .cc-effort-dropdown { position:absolute; top:100%; left:0; margin-top:4px; min-width:140px; background:#1a1a35; border:1px solid rgba(255,255,255,.1); border-radius:6px; padding:3px; z-index:200; display:none; box-shadow:0 8px 32px rgba(0,0,0,.6); }
+    .cc-effort-picker:hover .cc-effort-dropdown { display:block; }
+    .cc-effort-opt { padding:6px 10px; border-radius:4px; font-size:11px; cursor:pointer; display:flex; align-items:center; justify-content:space-between; gap:8px; color:#9d9db5; }
+    .cc-effort-opt:hover { background:rgba(255,255,255,.06); }
+    .cc-effort-opt.active { background:rgba(96,165,250,.12); color:#60a5fa; }
+    /* Toggle buttons (thinking/fast) */
+    .cc-toggle-btn { font-size:11px; padding:4px 8px; border-radius:5px; cursor:pointer; display:flex; align-items:center; gap:4px; background:rgba(255,255,255,.04); color:#7a7a9a; border:1px solid rgba(255,255,255,.08); font-weight:500; transition:all .15s; }
+    .cc-toggle-btn:hover { background:rgba(255,255,255,.08); color:#e4e4ef; }
+    .cc-toggle-btn.active.thinking { background:rgba(192,132,252,.12); color:#c084fc; border-color:rgba(192,132,252,.3); }
+    .cc-toggle-btn.active.fast { background:rgba(251,191,36,.12); color:#fbbf24; border-color:rgba(251,191,36,.3); }
     .cc-ctx-bar { display:flex; align-items:center; gap:8px; padding:3px 8px; font-size:10px; color:#7a7a9a; }
     .cc-ctx-meter { width:70px; height:4px; background:#0a0a1a; border-radius:2px; overflow:hidden; }
     .cc-ctx-fill { height:100%; border-radius:2px; transition:width .3s; }
@@ -4906,6 +4925,19 @@
                 <span id="${tabId}-cc-model-label">Opus</span><span class="cc-chevron">▾</span>
                 <div class="cc-model-dropdown" id="${tabId}-cc-model-dropdown"></div>
               </div>
+              <div class="cc-effort-picker" id="${tabId}-cc-effort-picker" title="Effort level — how hard Claude thinks">
+                <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                <span id="${tabId}-cc-effort-label">High</span><span class="cc-chevron">▾</span>
+                <div class="cc-effort-dropdown" id="${tabId}-cc-effort-dropdown"></div>
+              </div>
+              <div class="cc-toggle-btn thinking" id="${tabId}-cc-thinking" onclick="ccToggleThinking('${tabId}')" title="Extended Thinking — prepend 'Think hard' to prompts (Cmd+T)">
+                <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7V17a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-2.3A7 7 0 0 0 12 2z"/></svg>
+                <span>Think</span>
+              </div>
+              <div class="cc-toggle-btn fast" id="${tabId}-cc-fast" onclick="ccToggleFast('${tabId}')" title="Fast Mode — low effort, faster output (Alt+O)">
+                <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                <span>Fast</span>
+              </div>
               <div class="cc-perm-badge default" id="${tabId}-cc-perm" onclick="ccCyclePerm('${tabId}')" title="Click to cycle permission mode">
                 <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
                 <span id="${tabId}-cc-perm-label">Default</span>
@@ -4913,6 +4945,11 @@
               <div class="cc-cwd-badge" id="${tabId}-cc-cwd" onclick="ccChangeCwd('${tabId}')" title="Click to change working directory">
                 <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
                 <span id="${tabId}-cc-cwd-label" style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;direction:rtl">~</span>
+              </div>
+              <div class="cc-git-badge hidden" id="${tabId}-cc-git" title="Git branch + status">
+                <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M13 6h3a2 2 0 0 1 2 2v7"/><line x1="6" y1="9" x2="6" y2="21"/></svg>
+                <span class="cc-git-branch" id="${tabId}-cc-git-branch">-</span>
+                <span class="cc-git-stats" id="${tabId}-cc-git-stats"></span>
               </div>
               <div class="cc-ctx-bar" id="${tabId}-cc-ctx" title="Context usage">
                 <span>CTX</span>
@@ -4961,13 +4998,21 @@
         container.appendChild(paneEl);
         tabData.ccSessionId = null;
         tabData.ccModel = 'opus';
+        tabData.ccEffort = 'high';
+        tabData.ccThinking = false;
+        tabData.ccFast = false;
         tabData.ccPermMode = 'default';
         tabData.ccCwd = '';
         tabData.ccAutoScroll = true;
+        tabData.ccGit = null;
         // Setup input
         const ccInput = document.getElementById(tabId + '-cc-input');
         ccInput.addEventListener('keydown', (e) => {
-          if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); ccSend(tabId); }
+          if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); ccSend(tabId); return; }
+          // Cmd/Ctrl+T → Extended Thinking toggle
+          if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 't') { e.preventDefault(); ccToggleThinking(tabId); return; }
+          // Alt+O → Fast Mode toggle
+          if (e.altKey && e.key.toLowerCase() === 'o') { e.preventDefault(); ccToggleFast(tabId); return; }
         });
         ccInput.addEventListener('input', () => {
           ccInput.style.height = 'auto';
@@ -4989,8 +5034,11 @@
       if (type === 'chat' && !opts?.skipDefaultSession) setTimeout(() => chatNewSessionQuick(tabId), 50);
       if (type === 'claude-code') {
         setTimeout(() => ccRefreshSessionList(tabId), 200);
-        // Populate model picker from API
+        // Populate pickers from API
         _ccPopulateModelPicker(tabId);
+        _ccPopulateEffortPicker(tabId);
+        // Fetch git status for cwd
+        setTimeout(() => _ccRefreshGit(tabId), 100);
       }
       return tabId;
     }
@@ -10375,7 +10423,7 @@
       const stText = document.getElementById(tabId + '-cc-streaming-text');
       if (stText) stText.textContent = 'Claude is thinking...';
       if (window._ws && window._ws.readyState === 1) {
-        window._ws.send(JSON.stringify({ type: 'claude-send', id: td.ccSessionId, message: msg, model: td.ccModel, permMode: td.ccPermMode, cwd: td.ccCwd || undefined }));
+        window._ws.send(JSON.stringify({ type: 'claude-send', id: td.ccSessionId, message: msg, model: td.ccModel, permMode: td.ccPermMode, effort: td.ccEffort, thinking: !!td.ccThinking, fast: !!td.ccFast, cwd: td.ccCwd || undefined }));
       }
       // Refresh session list to show updated name
       setTimeout(() => ccRefreshSessionList(tabId), 300);
@@ -10450,6 +10498,87 @@
       // Update active state
       el.closest('.cc-model-dropdown').querySelectorAll('.cc-model-opt').forEach(o => o.classList.remove('active'));
       el.classList.add('active');
+    }
+
+    // === Effort Selector ===
+    const CC_EFFORT_LEVELS = [
+      { id: 'low',    label: 'Low',    desc: 'Quick answers' },
+      { id: 'medium', label: 'Medium', desc: 'Balanced' },
+      { id: 'high',   label: 'High',   desc: 'Thorough' },
+      { id: 'xhigh',  label: 'XHigh',  desc: 'Extra thorough' },
+      { id: 'max',    label: 'Max',    desc: 'Deepest reasoning' }
+    ];
+
+    function _ccPopulateEffortPicker(tabId) {
+      const dropdown = document.getElementById(tabId + '-cc-effort-dropdown');
+      if (!dropdown) return;
+      const td = tabs.get(tabId);
+      const cur = td?.ccEffort || 'high';
+      dropdown.innerHTML = CC_EFFORT_LEVELS.map(l => {
+        const active = l.id === cur ? ' active' : '';
+        return `<div class="cc-effort-opt${active}" data-level="${l.id}" onclick="ccSelectEffort('${tabId}','${l.id}',this)">${l.label} <span style="font-size:9px;opacity:.5">${l.desc}</span></div>`;
+      }).join('');
+      const curL = CC_EFFORT_LEVELS.find(l => l.id === cur);
+      if (curL) document.getElementById(tabId + '-cc-effort-label').textContent = curL.label;
+    }
+
+    function ccSelectEffort(tabId, level, el) {
+      const td = tabs.get(tabId);
+      if (!td) return;
+      td.ccEffort = level;
+      const curL = CC_EFFORT_LEVELS.find(l => l.id === level);
+      document.getElementById(tabId + '-cc-effort-label').textContent = curL ? curL.label : level;
+      el.closest('.cc-effort-dropdown').querySelectorAll('.cc-effort-opt').forEach(o => o.classList.remove('active'));
+      el.classList.add('active');
+    }
+
+    function ccToggleThinking(tabId) {
+      const td = tabs.get(tabId);
+      if (!td) return;
+      td.ccThinking = !td.ccThinking;
+      const btn = document.getElementById(tabId + '-cc-thinking');
+      if (btn) btn.classList.toggle('active', td.ccThinking);
+      showToast('Extended Thinking ' + (td.ccThinking ? 'ON' : 'OFF'), 'info');
+    }
+
+    function ccToggleFast(tabId) {
+      const td = tabs.get(tabId);
+      if (!td) return;
+      td.ccFast = !td.ccFast;
+      const btn = document.getElementById(tabId + '-cc-fast');
+      if (btn) btn.classList.toggle('active', td.ccFast);
+      showToast('Fast Mode ' + (td.ccFast ? 'ON' : 'OFF'), 'info');
+    }
+
+    // Git branch + status — refresh per tab
+    async function _ccRefreshGit(tabId) {
+      const td = tabs.get(tabId);
+      if (!td) return;
+      const badge = document.getElementById(tabId + '-cc-git');
+      const branchEl = document.getElementById(tabId + '-cc-git-branch');
+      const statsEl = document.getElementById(tabId + '-cc-git-stats');
+      if (!badge || !branchEl) return;
+      try {
+        const qs = td.ccCwd ? ('?cwd=' + encodeURIComponent(td.ccCwd)) : '';
+        const r = await fetch('/api/git/status' + qs);
+        const data = await r.json();
+        if (!data.git) { badge.classList.add('hidden'); td.ccGit = null; return; }
+        td.ccGit = data;
+        badge.classList.remove('hidden');
+        badge.classList.toggle('dirty', !!data.dirty);
+        branchEl.textContent = data.branch;
+        const parts = [];
+        if (data.ahead) parts.push('↑' + data.ahead);
+        if (data.behind) parts.push('↓' + data.behind);
+        if (data.totalChanges) parts.push('±' + data.totalChanges);
+        statsEl.textContent = parts.join(' ');
+        badge.title = 'Branch: ' + data.branch + (data.dirty ? ' (dirty)' : ' (clean)') +
+          (data.ahead ? ' — ' + data.ahead + ' ahead' : '') +
+          (data.behind ? ' — ' + data.behind + ' behind' : '') +
+          (data.totalChanges ? ' — ' + data.totalChanges + ' changes' : '');
+      } catch (e) {
+        badge.classList.add('hidden');
+      }
     }
 
     function ccCyclePerm(tabId) {
@@ -10561,6 +10690,7 @@
       td.ccCwd = path.replace(/\\/g, '/').replace(/\/$/, '');
       const label = document.getElementById(tabId + '-cc-cwd-label');
       if (label) label.textContent = td.ccCwd.split('/').pop() || td.ccCwd || '~';
+      _ccRefreshGit(tabId);
     }
 
     function ccSwitchSideTab(tabId, tab, el) {
@@ -10820,6 +10950,7 @@
           td.ccCwd = data.cwd;
           const cwdLabel = document.getElementById(tabId + '-cc-cwd-label');
           if (cwdLabel) cwdLabel.textContent = data.cwd.split(/[/\\]/).pop() || data.cwd;
+          _ccRefreshGit(tabId);
         }
       } else if (data.type === 'result') {
         // If error result (e.g. "No conversation found"), show notice
@@ -10871,6 +11002,21 @@
               }
             }
           }
+        }
+        // Restore server-side session settings
+        if (data.effort) {
+          td.ccEffort = data.effort;
+          _ccPopulateEffortPicker(tabId);
+        }
+        if (typeof data.thinking === 'boolean') {
+          td.ccThinking = data.thinking;
+          const btn = document.getElementById(tabId + '-cc-thinking');
+          if (btn) btn.classList.toggle('active', td.ccThinking);
+        }
+        if (typeof data.fast === 'boolean') {
+          td.ccFast = data.fast;
+          const btn = document.getElementById(tabId + '-cc-fast');
+          if (btn) btn.classList.toggle('active', td.ccFast);
         }
         ccUpdateCost(tabId, data.cost, data.tokens?.input, data.tokens?.output, data.turns);
         ccUpdateContext(tabId, data.contextPct || 0);
@@ -13237,6 +13383,10 @@
             entry.ccSessionId = tab.ccSessionId;
             entry.ccModel = tab.ccModel;
             entry.ccPermMode = tab.ccPermMode;
+            entry.ccEffort = tab.ccEffort;
+            entry.ccThinking = !!tab.ccThinking;
+            entry.ccFast = !!tab.ccFast;
+            entry.ccCwd = tab.ccCwd;
           }
           if (tab.type === 'files') {
             entry.filesCwd = typeof fileCwd !== 'undefined' ? fileCwd : '';
@@ -13311,10 +13461,32 @@
             if (tab) {
               tab.ccModel = entry.ccModel || 'opus';
               tab.ccPermMode = entry.ccPermMode || 'default';
+              tab.ccEffort = entry.ccEffort || 'high';
+              tab.ccThinking = !!entry.ccThinking;
+              tab.ccFast = !!entry.ccFast;
+              if (entry.ccCwd) tab.ccCwd = entry.ccCwd;
               if (entry.ccSessionId) {
                 tab.ccSessionId = entry.ccSessionId;
                 // Will re-attach on WS connect
               }
+              // Reflect state in UI
+              setTimeout(() => {
+                _ccPopulateEffortPicker(tabId);
+                const thinkBtn = document.getElementById(tabId + '-cc-thinking');
+                if (thinkBtn) thinkBtn.classList.toggle('active', tab.ccThinking);
+                const fastBtn = document.getElementById(tabId + '-cc-fast');
+                if (fastBtn) fastBtn.classList.toggle('active', tab.ccFast);
+                // Update permission badge + label
+                const permBadge = document.getElementById(tabId + '-cc-perm');
+                const permLabel = document.getElementById(tabId + '-cc-perm-label');
+                if (permBadge) permBadge.className = 'cc-perm-badge ' + tab.ccPermMode;
+                if (permLabel) permLabel.textContent = tab.ccPermMode.charAt(0).toUpperCase() + tab.ccPermMode.slice(1);
+                if (tab.ccCwd) {
+                  const cwdLabel = document.getElementById(tabId + '-cc-cwd-label');
+                  if (cwdLabel) cwdLabel.textContent = tab.ccCwd.split(/[/\\]/).pop() || tab.ccCwd;
+                  _ccRefreshGit(tabId);
+                }
+              }, 150);
             }
             restoredAny = true;
           } else if (entry.type === 'editor' && entry.filePath) {

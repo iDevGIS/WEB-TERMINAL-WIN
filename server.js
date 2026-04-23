@@ -1548,6 +1548,49 @@ app.get("/api/agent/status", requireAuth, async (req, res) => {
   res.json(_agentStatusCache.data);
 });
 
+// === Git Status API ===
+// GET /api/git/status?cwd=<path>
+// Returns { branch, ahead, behind, dirty, changes, remote, pr? }
+app.get("/api/git/status", requireAuth, async (req, res) => {
+  const cwd = req.query.cwd ? String(req.query.cwd) : (process.env.USERPROFILE || process.env.HOME);
+  const safe = path.resolve(cwd);
+  if (!fs.existsSync(safe)) return res.status(404).json({ error: "cwd not found" });
+  const { exec: cpExec } = require("child_process");
+  const run = (cmd) => new Promise((resolve) => {
+    cpExec(cmd, { cwd: safe, timeout: 3000, windowsHide: true }, (err, stdout) => {
+      resolve(err ? null : String(stdout || "").trim());
+    });
+  });
+  try {
+    const branch = await run("git rev-parse --abbrev-ref HEAD");
+    if (!branch) return res.json({ git: false });
+    const [status, upstream, remote] = await Promise.all([
+      run("git status --porcelain"),
+      run("git rev-list --left-right --count HEAD...@{u}"),
+      run("git config --get remote.origin.url"),
+    ]);
+    let ahead = 0, behind = 0;
+    if (upstream) {
+      const m = upstream.split(/\s+/);
+      ahead = parseInt(m[0]) || 0;
+      behind = parseInt(m[1]) || 0;
+    }
+    const lines = status ? status.split(/\r?\n/).filter(Boolean) : [];
+    const changes = { modified: 0, added: 0, deleted: 0, untracked: 0 };
+    for (const ln of lines) {
+      const code = ln.slice(0, 2);
+      if (code === "??") changes.untracked++;
+      else if (/[MR]/.test(code)) changes.modified++;
+      else if (/A/.test(code)) changes.added++;
+      else if (/D/.test(code)) changes.deleted++;
+      else changes.modified++;
+    }
+    res.json({ git: true, branch, ahead, behind, dirty: lines.length > 0, changes, totalChanges: lines.length, remote: remote || null });
+  } catch (e) {
+    res.json({ git: false, error: e.message });
+  }
+});
+
 // Protected static files — no cache for HTML
 
 // === Docker Container Management ===
@@ -2845,7 +2888,7 @@ wss.on("connection", (ws, req) => {
           cs.clients.add(ws);
           if (!ws._claudeSessions) ws._claudeSessions = new Set();
           ws._claudeSessions.add(cs.id);
-          ws.send(JSON.stringify({ type: "claude-attached", id: cs.id, name: cs.name, model: cs.model, status: cs.status, messages: cs.messages, cost: cs.cost, tokens: cs.tokens, turns: cs.turns, contextPct: cs.contextPct, files: cs.files }));
+          ws.send(JSON.stringify({ type: "claude-attached", id: cs.id, name: cs.name, model: cs.model, effort: cs.effort, thinking: cs.thinking, fast: cs.fast, permMode: cs.permMode, status: cs.status, messages: cs.messages, cost: cs.cost, tokens: cs.tokens, turns: cs.turns, contextPct: cs.contextPct, files: cs.files }));
           break;
         }
         case "claude-detach": {
@@ -2862,9 +2905,12 @@ wss.on("connection", (ws, req) => {
           if (cs.turns === 0 && cs.name === "New Session") {
             cs.name = parsed.message.slice(0, 40).replace(/\n/g, ' ') + (parsed.message.length > 40 ? '…' : '');
           }
-          // Update model/permMode/cwd from client (allows changing mid-session)
+          // Update model/permMode/cwd/effort/thinking/fast from client (allows changing mid-session)
           if (parsed.model) cs.model = parsed.model;
           if (parsed.permMode) cs.permMode = parsed.permMode;
+          if (parsed.effort) cs.effort = parsed.effort;
+          if (typeof parsed.thinking === "boolean") cs.thinking = parsed.thinking;
+          if (typeof parsed.fast === "boolean") cs.fast = parsed.fast;
           if (parsed.cwd && parsed.cwd !== cs.cwd) {
             cs.cwd = parsed.cwd;
             // Reset claudeSessionId when cwd changes (conversations are per-project)
@@ -2951,6 +2997,8 @@ function createClaudeSession(opts = {}) {
     claudeSessionId: null, // Claude CLI's internal session ID (from result event)
     model: opts.model || "opus",
     effort: opts.effort || "high",
+    thinking: opts.thinking === true,
+    fast: opts.fast === true,
     permMode: opts.permissionMode || "default",
     cwd: opts.cwd || process.env.USERPROFILE || process.env.HOME,
     status: "idle",
@@ -2979,8 +3027,13 @@ function claudeSendMessage(sess, message) {
   const { spawn: cpSpawn } = require("child_process");
   const claudeBin = process.env.CLAUDE_BIN || "claude";
 
-  const args = ["-p", message, "--output-format", "stream-json", "--model", sess.model, "--verbose"];
-  if (sess.effort !== "high") args.push("--effort", sess.effort);
+  // Extended Thinking: prepend Claude Code's "think" keyword to trigger deeper reasoning
+  const promptText = sess.thinking ? `Think hard.\n\n${message}` : message;
+  // Fast Mode: override effort to "low" for quicker output
+  const effortLevel = sess.fast ? "low" : sess.effort;
+
+  const args = ["-p", promptText, "--output-format", "stream-json", "--model", sess.model, "--verbose"];
+  if (effortLevel !== "high") args.push("--effort", effortLevel);
   if (sess.permMode !== "default") args.push("--permission-mode", sess.permMode);
   if (sess.claudeSessionId) args.push("--resume", sess.claudeSessionId);
 
@@ -3123,7 +3176,8 @@ function broadcastClaude(sess, data) {
 
 function listClaudeSessions() {
   return Array.from(claudeSessions.values()).map(s => ({
-    id: s.id, name: s.name, model: s.model, effort: s.effort, permMode: s.permMode,
+    id: s.id, name: s.name, model: s.model, effort: s.effort,
+    thinking: s.thinking, fast: s.fast, permMode: s.permMode,
     status: s.status, cost: s.cost, tokens: s.tokens, turns: s.turns,
     contextPct: s.contextPct, files: s.files, dead: s.dead,
     createdAt: s.createdAt, lastActivity: s.lastActivity,
