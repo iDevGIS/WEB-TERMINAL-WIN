@@ -1,7 +1,7 @@
 # Claude Code Tab — Feature List
 
 > Reference: [mock-claude-code-tab.html](mock-claude-code-tab.html)  
-> Status: Phase 2 In Progress (Batches 1–10 merged)  
+> Status: Phase 2 Complete (Batches 1–16 merged)  
 > Priority: P0 = must-have, P1 = important, P2 = nice-to-have
 
 ## Batch History
@@ -19,6 +19,12 @@
 | Batch 8 | `cec8b2e` | 7.4 multi-tab (cwd-based auto-name, session isolation) · 7.5 workspace save (tab name + todos snapshot, attach payload cwd) |
 | Batch 9 | `4edd3d5` | 2.3.4 budget bar (per-session localStorage, cost progress) · 3.3.3 agent team block (auto-wrap consecutive Task tool_uses with status rollup) |
 | Batch 10 | `ec0c377` | 2.4.1–2.4.5 System Status pill bar (CLAUDE.md · Memory · Hooks · MCP · LSP) with `/system-status` API + click-to-expand modal |
+| Batch 11 | `a239515` | 5.2–5.6 Right sidebar tabbed panels (Memory/MCP/Hooks/Skills/Subagents) with per-type loaders + workspace state persistence |
+| Batch 12 | `cb35b94` | 3.2.7 MCP tool block (cyan-accented with server badge) · 2.2.3 Agents sidebar tab (subagent launches + click-to-scroll) |
+| Batch 13 | `9b049ba` | 3.2.9 Click-to-open file paths in Monaco · 6.9 fs.watch per-session with debounced broadcast + external-edit badge |
+| Batch 14 | `8a613e4` | 4.8 Keyboard hints strip below input · 6.10 MCP args/result passthrough in tool block body |
+| Batch 15 | `404579c` | 1.7 PR status badge via `gh pr status` · 2.1.5 Session context menu (Fork/Rename/Delete) + session rename endpoint |
+| Batch 16 | `ec0c3e2` | 4.4 Voice input via Web Speech API (partial: Whisper backend fallback deferred) |
 
 ---
 
