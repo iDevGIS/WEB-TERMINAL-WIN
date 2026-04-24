@@ -2448,6 +2448,23 @@
     /* Slash command dropdown */
     .cc-slash-dropdown { position:absolute; bottom:100%; left:16px; right:16px; margin-bottom:4px; background:#1a1a35; border:1px solid rgba(255,255,255,.1); border-radius:10px; padding:6px; display:none; box-shadow:0 -8px 32px rgba(0,0,0,.5); max-height:220px; overflow-y:auto; z-index:200; }
     .cc-slash-dropdown.show { display:block; }
+    .cc-at-dropdown { position:absolute; bottom:100%; left:16px; right:16px; margin-bottom:4px; background:#1a1a35; border:1px solid rgba(147,51,234,.25); border-radius:10px; padding:4px; display:none; box-shadow:0 -8px 32px rgba(0,0,0,.5); max-height:240px; overflow-y:auto; z-index:200; }
+    .cc-at-dropdown.show { display:block; }
+    .cc-at-item { display:flex; align-items:center; gap:8px; padding:6px 10px; border-radius:6px; cursor:pointer; font-size:11px; color:#e4e4ef; font-family:'JetBrains Mono',monospace; }
+    .cc-at-item:hover, .cc-at-item.active { background:rgba(168,85,247,.14); }
+    .cc-at-name { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .cc-attach-preview { display:flex; flex-wrap:wrap; gap:8px; padding:8px 0 10px; max-height:140px; overflow-y:auto; }
+    .cc-attach-thumb { position:relative; width:60px; height:60px; border-radius:8px; overflow:hidden; border:1px solid rgba(255,255,255,.08); background:#111128; }
+    .cc-attach-thumb img { width:100%; height:100%; object-fit:cover; }
+    .cc-attach-file { position:relative; display:flex; align-items:center; gap:8px; padding:6px 10px; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); border-radius:8px; max-width:240px; }
+    .cc-attach-icon { font-size:18px; }
+    .cc-attach-meta { display:flex; flex-direction:column; min-width:0; }
+    .cc-attach-name { font-size:11px; color:#e4e4ef; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:160px; }
+    .cc-attach-sub { font-size:9px; color:#7a7a9a; }
+    .cc-remove-attach { position:absolute; top:-4px; right:-4px; width:16px; height:16px; border-radius:50%; background:#ef4444; color:#fff; border:none; font-size:9px; cursor:pointer; display:flex; align-items:center; justify-content:center; line-height:1; }
+    .cc-attach-btn { width:28px; height:28px; border-radius:8px; background:transparent; border:1px solid rgba(255,255,255,.08); color:#9d9db5; cursor:pointer; display:flex; align-items:center; justify-content:center; flex-shrink:0; transition:all .15s; }
+    .cc-attach-btn:hover { background:rgba(147,51,234,.12); border-color:rgba(147,51,234,.35); color:#c084fc; }
+    .cc-input-area.drag-over { background:rgba(147,51,234,.08); border-top:1px dashed rgba(147,51,234,.5); }
     .cc-slash-item { display:flex; align-items:center; gap:10px; padding:7px 10px; border-radius:6px; cursor:pointer; font-size:12px; }
     .cc-slash-item:hover, .cc-slash-item.active { background:rgba(108,99,255,.1); }
     .cc-slash-cmd { color:#6c63ff; font-weight:600; font-family:'JetBrains Mono',monospace; min-width:80px; }
@@ -5007,7 +5024,13 @@
             </div>
             <div class="cc-input-area" id="${tabId}-cc-input-area">
               <div class="cc-slash-dropdown" id="${tabId}-cc-slash"></div>
+              <div class="cc-at-dropdown" id="${tabId}-cc-at"></div>
+              <div class="cc-attach-preview" id="${tabId}-cc-attach-preview" style="display:none"></div>
               <div class="cc-input-box">
+                <input type="file" id="${tabId}-cc-file-input" multiple accept="image/*,.txt,.md,.json,.log,.csv,.xml,.yaml,.yml,.js,.ts,.jsx,.tsx,.py,.go,.rs,.java,.c,.cpp,.cs,.php,.rb,.sh,.ps1,.html,.css,.scss,.sql" style="display:none" onchange="ccHandleFiles('${tabId}', this.files)">
+                <button class="cc-attach-btn" onclick="document.getElementById('${tabId}-cc-file-input').click()" title="Attach file">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+                </button>
                 <textarea id="${tabId}-cc-input" placeholder="Ask Claude Code..." rows="1"></textarea>
                 <button class="cc-send-btn" onclick="ccSend('${tabId}')">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
@@ -5027,6 +5050,9 @@
         tabData.ccCwd = '';
         tabData.ccAutoScroll = true;
         tabData.ccGit = null;
+        tabData.ccHistory = _ccLoadHistory();
+        tabData.ccHistoryIdx = -1;
+        tabData.ccHistoryDraft = '';
         // Setup input
         const ccInput = document.getElementById(tabId + '-cc-input');
         ccInput.addEventListener('keydown', (e) => {
@@ -5035,12 +5061,60 @@
           if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 't') { e.preventDefault(); ccToggleThinking(tabId); return; }
           // Alt+O → Fast Mode toggle
           if (e.altKey && e.key.toLowerCase() === 'o') { e.preventDefault(); ccToggleFast(tabId); return; }
+          // Up/Down — command history (only when caret at start/end and textarea is single-line or empty)
+          if (e.key === 'ArrowUp' && _ccShouldCycleHistory(ccInput, 'up')) {
+            e.preventDefault(); _ccHistoryPrev(tabId, ccInput); return;
+          }
+          if (e.key === 'ArrowDown' && _ccShouldCycleHistory(ccInput, 'down')) {
+            e.preventDefault(); _ccHistoryNext(tabId, ccInput); return;
+          }
+          // Escape — dismiss dropdowns + exit history
+          if (e.key === 'Escape') {
+            const td2 = tabs.get(tabId);
+            if (td2) td2.ccHistoryIdx = -1;
+            const at = document.getElementById(tabId + '-cc-at');
+            if (at) at.classList.remove('show');
+            const slash = document.getElementById(tabId + '-cc-slash');
+            if (slash) slash.classList.remove('show');
+          }
         });
         ccInput.addEventListener('input', () => {
           ccInput.style.height = 'auto';
           ccInput.style.height = Math.min(ccInput.scrollHeight, 100) + 'px';
+          // Any manual edit resets history cursor
+          const td2 = tabs.get(tabId);
+          if (td2) td2.ccHistoryIdx = -1;
           ccHandleSlash(tabId, ccInput.value);
+          ccHandleAt(tabId, ccInput);
         });
+        // Paste images from clipboard
+        ccInput.addEventListener('paste', (e) => {
+          const items = e.clipboardData?.items;
+          if (!items) return;
+          const files = [];
+          for (const item of items) {
+            if (item.type.startsWith('image/')) {
+              const f = item.getAsFile();
+              if (f) files.push(f);
+            }
+          }
+          if (files.length) { e.preventDefault(); ccHandleFiles(tabId, files); }
+        });
+        // Drag & drop onto input area
+        const ccInputArea = document.getElementById(tabId + '-cc-input-area');
+        if (ccInputArea) {
+          ccInputArea.addEventListener('dragover', (e) => {
+            if (e.dataTransfer?.types?.includes('Files')) { e.preventDefault(); ccInputArea.classList.add('drag-over'); }
+          });
+          ccInputArea.addEventListener('dragleave', () => { ccInputArea.classList.remove('drag-over'); });
+          ccInputArea.addEventListener('drop', (e) => {
+            ccInputArea.classList.remove('drag-over');
+            const files = Array.from(e.dataTransfer?.files || []).filter(f =>
+              f.type.startsWith('image/') || f.type.startsWith('text/') || _isTextFile(f.name)
+            );
+            if (files.length) { e.preventDefault(); ccHandleFiles(tabId, files); }
+          });
+        }
         // Auto-scroll control
         const ccMsgs = document.getElementById(tabId + '-cc-messages');
         ccMsgs.addEventListener('scroll', () => {
@@ -10418,34 +10492,55 @@
       if (!td) return;
       const input = document.getElementById(tabId + '-cc-input');
       const msg = input.value.trim();
-      if (!msg) return;
+      const attachments = (_ccAttachments[tabId] || []).slice();
+      if (!msg && !attachments.length) return;
+      // Push to history
+      if (msg) _ccPushHistory(tabId, msg);
       input.value = '';
       input.style.height = 'auto';
-      // Hide slash dropdown
+      td.ccHistoryIdx = -1;
+      // Clear attachments
+      _ccAttachments[tabId] = [];
+      _ccRenderAttachPreview(tabId);
+      // Hide dropdowns
       const slash = document.getElementById(tabId + '-cc-slash');
       if (slash) slash.classList.remove('show');
+      const at = document.getElementById(tabId + '-cc-at');
+      if (at) at.classList.remove('show');
 
       // If no session, create one first
       if (!td.ccSessionId) {
         ccNewSession(tabId).then(() => {
-          setTimeout(() => ccDoSend(tabId, msg), 500);
+          setTimeout(() => ccDoSend(tabId, msg, attachments), 500);
         });
         return;
       }
-      ccDoSend(tabId, msg);
+      ccDoSend(tabId, msg, attachments);
     }
 
-    function ccDoSend(tabId, msg) {
+    function ccDoSend(tabId, msg, attachments) {
       const td = tabs.get(tabId);
       if (!td || !td.ccSessionId) return;
-      // Show streaming bar + user message immediately
-      ccAppendMessage(tabId, ccRenderUserMsg(msg));
+      attachments = attachments || [];
+      // Render user bubble with attachment chips
+      ccAppendMessage(tabId, ccRenderUserMsg(msg, attachments));
       const streamBar = document.getElementById(tabId + '-cc-streaming');
       if (streamBar) { streamBar.classList.add('active'); }
       const stText = document.getElementById(tabId + '-cc-streaming-text');
       if (stText) stText.textContent = 'Claude is thinking...';
       if (window._ws && window._ws.readyState === 1) {
-        window._ws.send(JSON.stringify({ type: 'claude-send', id: td.ccSessionId, message: msg, model: td.ccModel, permMode: td.ccPermMode, effort: td.ccEffort, thinking: !!td.ccThinking, fast: !!td.ccFast, cwd: td.ccCwd || undefined }));
+        window._ws.send(JSON.stringify({
+          type: 'claude-send',
+          id: td.ccSessionId,
+          message: msg,
+          attachments,
+          model: td.ccModel,
+          permMode: td.ccPermMode,
+          effort: td.ccEffort,
+          thinking: !!td.ccThinking,
+          fast: !!td.ccFast,
+          cwd: td.ccCwd || undefined
+        }));
       }
       // Refresh session list to show updated name
       setTimeout(() => ccRefreshSessionList(tabId), 300);
@@ -10747,6 +10842,188 @@
       document.getElementById(tabId + '-cc-slash').classList.remove('show');
     }
 
+    // === Command History (4.7) ===
+    const _CC_HISTORY_KEY = 'cc_prompt_history_v1';
+    const _CC_HISTORY_MAX = 100;
+    function _ccLoadHistory() {
+      try { return JSON.parse(localStorage.getItem(_CC_HISTORY_KEY) || '[]'); } catch { return []; }
+    }
+    function _ccSaveHistory(arr) {
+      try { localStorage.setItem(_CC_HISTORY_KEY, JSON.stringify(arr.slice(-_CC_HISTORY_MAX))); } catch {}
+    }
+    function _ccPushHistory(tabId, msg) {
+      const td = tabs.get(tabId);
+      if (!td) return;
+      if (!msg || !msg.trim()) return;
+      td.ccHistory = td.ccHistory || _ccLoadHistory();
+      // Dedupe adjacent (avoid spamming)
+      if (td.ccHistory[td.ccHistory.length - 1] === msg) { td.ccHistoryIdx = -1; return; }
+      td.ccHistory.push(msg);
+      if (td.ccHistory.length > _CC_HISTORY_MAX) td.ccHistory = td.ccHistory.slice(-_CC_HISTORY_MAX);
+      _ccSaveHistory(td.ccHistory);
+      td.ccHistoryIdx = -1;
+    }
+    function _ccShouldCycleHistory(input, dir) {
+      // Only cycle when dropdown not showing and caret is at boundary
+      const slash = input.parentElement?.parentElement?.querySelector('.cc-slash-dropdown.show');
+      const at = input.parentElement?.parentElement?.querySelector('.cc-at-dropdown.show');
+      if (slash || at) return false;
+      const val = input.value;
+      if (!val) return true;
+      // Allow Up only if caret is in first line; Down only in last line
+      const pos = input.selectionStart;
+      if (dir === 'up') return val.indexOf('\n') === -1 || val.lastIndexOf('\n', Math.max(0, pos - 1)) === -1;
+      return val.indexOf('\n', pos) === -1;
+    }
+    function _ccHistoryPrev(tabId, input) {
+      const td = tabs.get(tabId);
+      if (!td) return;
+      const hist = td.ccHistory || _ccLoadHistory();
+      if (!hist.length) return;
+      if (td.ccHistoryIdx === -1) td.ccHistoryDraft = input.value;
+      const newIdx = td.ccHistoryIdx === -1 ? hist.length - 1 : Math.max(0, td.ccHistoryIdx - 1);
+      td.ccHistoryIdx = newIdx;
+      input.value = hist[newIdx];
+      input.style.height = 'auto';
+      input.style.height = Math.min(input.scrollHeight, 100) + 'px';
+      // Move caret to end
+      setTimeout(() => { input.selectionStart = input.selectionEnd = input.value.length; }, 0);
+    }
+    function _ccHistoryNext(tabId, input) {
+      const td = tabs.get(tabId);
+      if (!td) return;
+      const hist = td.ccHistory || [];
+      if (td.ccHistoryIdx === -1) return;
+      const newIdx = td.ccHistoryIdx + 1;
+      if (newIdx >= hist.length) {
+        td.ccHistoryIdx = -1;
+        input.value = td.ccHistoryDraft || '';
+      } else {
+        td.ccHistoryIdx = newIdx;
+        input.value = hist[newIdx];
+      }
+      input.style.height = 'auto';
+      input.style.height = Math.min(input.scrollHeight, 100) + 'px';
+      setTimeout(() => { input.selectionStart = input.selectionEnd = input.value.length; }, 0);
+    }
+
+    // === @ File Picker (4.3) ===
+    let _ccAtFetchTimer = null;
+    function ccHandleAt(tabId, input) {
+      const val = input.value;
+      const pos = input.selectionStart ?? val.length;
+      // Find last @ before caret that starts a word (after whitespace/start, no space after)
+      const before = val.slice(0, pos);
+      const m = before.match(/(^|\s)@([^\s@]*)$/);
+      const dropdown = document.getElementById(tabId + '-cc-at');
+      if (!dropdown) return;
+      if (!m) { dropdown.classList.remove('show'); return; }
+      const query = m[2];
+      clearTimeout(_ccAtFetchTimer);
+      _ccAtFetchTimer = setTimeout(() => _ccFetchAtMatches(tabId, query), 80);
+    }
+    async function _ccFetchAtMatches(tabId, query) {
+      const td = tabs.get(tabId);
+      const dropdown = document.getElementById(tabId + '-cc-at');
+      if (!td || !dropdown) return;
+      const cwd = td.ccCwd || '';
+      try {
+        const url = '/api/claude/file-search?cwd=' + encodeURIComponent(cwd) + '&q=' + encodeURIComponent(query);
+        const r = await fetch(url);
+        const data = await r.json();
+        const items = data.items || [];
+        if (!items.length) {
+          dropdown.innerHTML = `<div style="padding:10px 14px;font-size:11px;color:#7a7a9a">No matching files</div>`;
+          dropdown.classList.add('show');
+          return;
+        }
+        dropdown.innerHTML = items.slice(0, 40).map((it, idx) => {
+          const icon = it.isDir
+            ? '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fbbf24" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>'
+            : '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#a5b4fc" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>';
+          return `<div class="cc-at-item${idx===0?' active':''}" data-path="${escAttr(it.path)}" onclick="ccInsertAt('${tabId}','${escAttr(it.path)}')">
+            ${icon}
+            <span class="cc-at-name">${escHtml(it.path)}</span>
+          </div>`;
+        }).join('');
+        dropdown.classList.add('show');
+      } catch (e) {
+        dropdown.innerHTML = `<div style="padding:10px 14px;font-size:11px;color:#ef4444">${escHtml(e.message)}</div>`;
+        dropdown.classList.add('show');
+      }
+    }
+    function ccInsertAt(tabId, path) {
+      const input = document.getElementById(tabId + '-cc-input');
+      const val = input.value;
+      const pos = input.selectionStart ?? val.length;
+      const before = val.slice(0, pos);
+      const after = val.slice(pos);
+      const replaced = before.replace(/(^|\s)@([^\s@]*)$/, (match, p1) => `${p1}@${path} `);
+      input.value = replaced + after;
+      const newPos = replaced.length;
+      input.focus();
+      setTimeout(() => { input.selectionStart = input.selectionEnd = newPos; }, 0);
+      document.getElementById(tabId + '-cc-at').classList.remove('show');
+    }
+
+    // === File & Image Attach (4.5, 4.6) ===
+    const _ccAttachments = {}; // tabId → [{ kind:'image'|'text', name, dataUrl?, textContent?, lang? }]
+    function ccHandleFiles(tabId, files) {
+      if (!_ccAttachments[tabId]) _ccAttachments[tabId] = [];
+      Array.from(files).forEach(f => {
+        if (f.type.startsWith('image/')) {
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            _ccAttachments[tabId].push({ kind: 'image', name: f.name, dataUrl: e.target.result });
+            _ccRenderAttachPreview(tabId);
+          };
+          reader.readAsDataURL(f);
+        } else if (_isTextFile(f.name) || f.type.startsWith('text/')) {
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            _ccAttachments[tabId].push({ kind: 'text', name: f.name, textContent: e.target.result, lang: _getFileLang(f.name) });
+            _ccRenderAttachPreview(tabId);
+          };
+          reader.readAsText(f);
+        }
+      });
+      const fi = document.getElementById(tabId + '-cc-file-input');
+      if (fi) fi.value = '';
+    }
+    function _ccRenderAttachPreview(tabId) {
+      const el = document.getElementById(tabId + '-cc-attach-preview');
+      if (!el) return;
+      const items = _ccAttachments[tabId] || [];
+      if (!items.length) { el.style.display = 'none'; el.innerHTML = ''; return; }
+      el.style.display = 'flex';
+      el.innerHTML = items.map((a, i) => {
+        if (a.kind === 'image') {
+          return `<div class="cc-attach-thumb">
+            <img src="${a.dataUrl}" alt="${escAttr(a.name)}">
+            <button class="cc-remove-attach" onclick="ccRemoveAttach('${tabId}',${i})">✕</button>
+          </div>`;
+        } else {
+          const lines = (a.textContent || '').split('\n').length;
+          const size = (a.textContent || '').length;
+          const sizeStr = size < 1024 ? size + 'B' : (size/1024).toFixed(1) + 'KB';
+          return `<div class="cc-attach-file">
+            <div class="cc-attach-icon">📄</div>
+            <div class="cc-attach-meta">
+              <div class="cc-attach-name">${escHtml(a.name)}</div>
+              <div class="cc-attach-sub">${lines} lines · ${sizeStr}</div>
+            </div>
+            <button class="cc-remove-attach" onclick="ccRemoveAttach('${tabId}',${i})">✕</button>
+          </div>`;
+        }
+      }).join('');
+    }
+    function ccRemoveAttach(tabId, idx) {
+      if (_ccAttachments[tabId]) {
+        _ccAttachments[tabId].splice(idx, 1);
+        _ccRenderAttachPreview(tabId);
+      }
+    }
+
     function ccPermissionRespond(tabId, allow) {
       const td = tabs.get(tabId);
       if (!td || !td.ccSessionId) return;
@@ -10756,13 +11033,28 @@
     }
 
     // Render functions for Claude Code messages
-    function ccRenderUserMsg(content) {
+    function ccRenderUserMsg(content, attachments) {
       const time = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+      let atts = '';
+      if (Array.isArray(attachments) && attachments.length) {
+        const imgs = attachments.filter(a => a.kind === 'image');
+        const txts = attachments.filter(a => a.kind === 'text');
+        if (imgs.length) {
+          atts += '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">' + imgs.map(a =>
+            `<img src="${a.dataUrl}" alt="${escAttr(a.name)}" onclick="previewImage('${a.dataUrl}')" style="width:64px;height:64px;object-fit:cover;border-radius:6px;cursor:pointer">`
+          ).join('') + '</div>';
+        }
+        if (txts.length) {
+          atts += '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">' + txts.map(a =>
+            `<span style="padding:3px 8px;background:rgba(168,85,247,.14);border:1px solid rgba(168,85,247,.3);border-radius:999px;font-size:10px;color:#d8b4fe">📄 ${escHtml(a.name)}</span>`
+          ).join('') + '</div>';
+        }
+      }
       return `<div class="cc-msg">
         <div class="cc-msg-avatar user"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
         <div class="cc-msg-body">
           <div class="cc-msg-header"><span class="cc-msg-name">You</span><span>${time}</span></div>
-          <div class="cc-msg-content">${escHtml(content)}</div>
+          <div class="cc-msg-content">${content ? escHtml(content) : ''}${atts}</div>
         </div>
       </div>`;
     }
@@ -11117,7 +11409,7 @@
           const msgsEl = document.getElementById(tabId + '-cc-messages');
           msgsEl.innerHTML = '';
           for (const m of data.messages) {
-            if (m.type === 'user' && m.content) ccAppendMessage(tabId, ccRenderUserMsg(m.content));
+            if (m.type === 'user' && (m.content || (m.attachments && m.attachments.length))) ccAppendMessage(tabId, ccRenderUserMsg(m.content || '', m.attachments || []));
             else if (m.type === 'assistant' && m.message?.content) {
               for (const block of m.message.content) {
                 if (block.type === 'text' && block.text) ccAppendMessage(tabId, ccRenderAiText(block.text, td.ccModel));

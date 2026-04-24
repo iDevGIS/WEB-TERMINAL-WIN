@@ -2901,10 +2901,6 @@ wss.on("connection", (ws, req) => {
           const cs = claudeSessions.get(parsed.id);
           if (!cs || cs.dead) break;
           if (cs.proc) { ws.send(JSON.stringify({ type: "error", message: "Claude is still processing" })); break; }
-          // Name session after first message
-          if (cs.turns === 0 && cs.name === "New Session") {
-            cs.name = parsed.message.slice(0, 40).replace(/\n/g, ' ') + (parsed.message.length > 40 ? '…' : '');
-          }
           // Update model/permMode/cwd/effort/thinking/fast from client (allows changing mid-session)
           if (parsed.model) cs.model = parsed.model;
           if (parsed.permMode) cs.permMode = parsed.permMode;
@@ -2917,10 +2913,50 @@ wss.on("connection", (ws, req) => {
             cs.claudeSessionId = null;
             console.log(`[Claude:${cs.id.slice(0,6)}] CWD changed to ${cs.cwd}, reset claudeSessionId`);
           }
-          const userMsg = { type: "user", content: parsed.message, timestamp: Date.now() };
+          // Process attachments → augment prompt
+          const attachments = Array.isArray(parsed.attachments) ? parsed.attachments : [];
+          let promptForClaude = parsed.message || "";
+          const attachmentRefs = [];
+          for (const att of attachments) {
+            if (!att || !att.kind) continue;
+            if (att.kind === "image" && att.dataUrl) {
+              try {
+                const m = /^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/.exec(att.dataUrl);
+                if (m) {
+                  const ext = (m[1].split("/")[1] || "png").replace("jpeg", "jpg");
+                  const dir = cs.cwd || process.env.USERPROFILE || process.env.HOME;
+                  const tmpName = `.cc-attach-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+                  const full = path.join(dir, tmpName);
+                  fs.writeFileSync(full, Buffer.from(m[2], "base64"));
+                  attachmentRefs.push({ kind: "image", path: full, name: att.name || tmpName });
+                  if (!cs._cleanupPaths) cs._cleanupPaths = [];
+                  cs._cleanupPaths.push(full);
+                }
+              } catch (e) {
+                console.error(`[Claude:${cs.id.slice(0,6)}] image attach error:`, e.message);
+              }
+            } else if (att.kind === "text" && att.textContent != null) {
+              const fence = att.lang || "";
+              promptForClaude += `\n\n--- Attached: ${att.name || "file.txt"} ---\n\`\`\`${fence}\n${att.textContent}\n\`\`\``;
+              attachmentRefs.push({ kind: "text", name: att.name });
+            }
+          }
+          // If images present, append Read hint so Claude Code uses Read tool on them
+          const images = attachmentRefs.filter(r => r.kind === "image");
+          if (images.length) {
+            const hint = images.map(i => i.path).join(", ");
+            promptForClaude = (promptForClaude ? promptForClaude + "\n\n" : "") +
+              `Attached image${images.length > 1 ? "s" : ""} (use the Read tool): ${hint}`;
+          }
+          // Name session after first message
+          if (cs.turns === 0 && cs.name === "New Session") {
+            const src = (parsed.message || (attachments[0] && attachments[0].name) || "Attachment").toString();
+            cs.name = src.slice(0, 40).replace(/\n/g, ' ') + (src.length > 40 ? '…' : '');
+          }
+          const userMsg = { type: "user", content: parsed.message || "", attachments: attachmentRefs, timestamp: Date.now() };
           cs.messages.push(userMsg);
           broadcastClaude(cs, userMsg);
-          claudeSendMessage(cs, parsed.message);
+          claudeSendMessage(cs, promptForClaude);
           break;
         }
         case "claude-permission": {
@@ -3086,6 +3122,13 @@ function claudeSendMessage(sess, message) {
         const evt = JSON.parse(jsonBuffer.trim());
         processClaudeEvent(sess, evt);
       } catch {}
+    }
+    // Cleanup temp attachment files (images written before turn)
+    if (sess._cleanupPaths && sess._cleanupPaths.length) {
+      for (const p of sess._cleanupPaths) {
+        try { fs.unlinkSync(p); } catch {}
+      }
+      sess._cleanupPaths = [];
     }
     broadcastClaude(sess, { type: "turn-complete", exitCode });
   });
@@ -3254,6 +3297,53 @@ app.post("/api/claude/sessions/:id/compact", requireAuth, (req, res) => {
   // Compact = send /compact as a message
   claudeSendMessage(sess, "/compact");
   res.json({ ok: true });
+});
+
+// File search for @ picker — shallow recursive walk rooted at cwd, filtered by query
+app.get("/api/claude/file-search", requireAuth, (req, res) => {
+  const cwd = req.query.cwd || process.env.USERPROFILE || process.env.HOME;
+  const q = String(req.query.q || "").toLowerCase();
+  const LIMIT = 80;
+  const MAX_DEPTH = 4;
+  const IGNORE = new Set(["node_modules", ".git", "dist", "build", "out", "__pycache__", ".next", ".venv", "venv", ".cache", "target", "coverage", ".idea", ".vscode"]);
+  const results = [];
+  try {
+    const root = path.resolve(cwd);
+    function walk(dir, depth, rel) {
+      if (results.length >= LIMIT || depth > MAX_DEPTH) return;
+      let entries;
+      try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+      // Prioritize files then dirs alphabetically
+      entries.sort((a, b) => {
+        if (a.isDirectory() !== b.isDirectory()) return a.isDirectory() ? 1 : -1;
+        return a.name.localeCompare(b.name);
+      });
+      for (const e of entries) {
+        if (results.length >= LIMIT) break;
+        if (e.name.startsWith(".") && e.name !== ".env" && e.name !== ".gitignore") continue;
+        if (IGNORE.has(e.name)) continue;
+        const relPath = rel ? rel + "/" + e.name : e.name;
+        const lower = relPath.toLowerCase();
+        if (!q || lower.includes(q) || e.name.toLowerCase().includes(q)) {
+          results.push({ path: relPath, name: e.name, isDir: e.isDirectory() });
+        }
+        if (e.isDirectory()) walk(path.join(dir, e.name), depth + 1, relPath);
+      }
+    }
+    walk(root, 0, "");
+    // If query provided, rank by name-match over path-match
+    if (q) {
+      results.sort((a, b) => {
+        const an = a.name.toLowerCase().startsWith(q) ? 0 : a.name.toLowerCase().includes(q) ? 1 : 2;
+        const bn = b.name.toLowerCase().startsWith(q) ? 0 : b.name.toLowerCase().includes(q) ? 1 : 2;
+        if (an !== bn) return an - bn;
+        return a.path.length - b.path.length;
+      });
+    }
+    res.json({ cwd: root, items: results.slice(0, LIMIT) });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
 });
 
 server.listen(PORT, "0.0.0.0", () => {
