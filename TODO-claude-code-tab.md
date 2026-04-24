@@ -16,7 +16,7 @@
 | Batch 5 | `2ca5c75` | 1.9 rewind · 1.10 compact · 3.3.4 inline rewind checkpoints |
 | Batch 6 | `2a2ba82` | 2.1.3 session relative time · 2.4.1 CLAUDE.md status · 5.1 CLAUDE.md info · 5.7 collapsible right sidebar |
 | Batch 7 | `39999e0` | 2.2.2 Tasks tab (TodoWrite parse · per-session persist · live WS updates · tab count badge) |
-| Batch 8 | TBD | 7.4 multi-tab (cwd-based auto-name, session isolation) · 7.5 workspace save (tab name + todos snapshot, attach payload cwd) |
+| Batch 8 | `cec8b2e` | 7.4 multi-tab (cwd-based auto-name, session isolation) · 7.5 workspace save (tab name + todos snapshot, attach payload cwd) |
 
 ---
 
