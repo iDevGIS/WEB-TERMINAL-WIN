@@ -2464,6 +2464,28 @@
     .cc-subagent-body .prompt { font-family:'JetBrains Mono',monospace; font-size:11px; color:#9d9db5; background:rgba(0,0,0,.25); padding:8px 10px; border-radius:5px; margin-bottom:10px; white-space:pre-wrap; max-height:120px; overflow-y:auto; }
     .cc-subagent-body .summary { font-family:'Inter',sans-serif; color:#c4c4d8; }
     .cc-subagent-body .summary pre { background:rgba(0,0,0,.25); padding:8px 10px; border-radius:5px; font-size:11px; }
+    /* 3.3.3 Agent team block (wraps multiple parallel subagents) */
+    .cc-agent-team-block { margin:8px 0; border:1px solid rgba(168,85,247,.28); border-radius:10px; overflow:hidden; background:linear-gradient(135deg,rgba(168,85,247,.06),rgba(99,102,241,.05)); }
+    .cc-agent-team-header { display:flex; align-items:center; gap:10px; padding:8px 14px; background:rgba(168,85,247,.08); border-bottom:1px solid rgba(168,85,247,.18); font-size:11px; color:#c4a5ff; font-weight:600; }
+    .cc-agent-team-icon { font-size:13px; }
+    .cc-agent-team-meta { flex:1; min-width:0; display:flex; align-items:center; gap:8px; }
+    .cc-agent-team-count { font-size:9px; padding:1px 6px; border-radius:3px; background:rgba(168,85,247,.18); color:#a855f7; text-transform:uppercase; letter-spacing:.5px; }
+    .cc-agent-team-status { font-size:10px; color:#9d9db5; font-weight:400; display:inline-flex; gap:8px; }
+    .cc-agent-team-status .running { color:#fbbf24; }
+    .cc-agent-team-status .done { color:#4ade80; }
+    .cc-agent-team-status .error { color:#ef4444; }
+    .cc-agent-team-body { padding:8px 10px; display:flex; flex-direction:column; gap:6px; }
+    .cc-agent-team-body .cc-subagent-block { margin:0; border-color:rgba(168,85,247,.14); }
+    /* 2.3.4 Budget bar */
+    .cc-budget-row { display:flex; align-items:center; gap:6px; margin-top:6px; }
+    .cc-budget-input { flex:0 0 56px; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); border-radius:4px; padding:2px 6px; font-size:10px; color:#b0b0c8; font-family:'JetBrains Mono',monospace; outline:none; }
+    .cc-budget-input:focus { border-color:rgba(108,99,255,.4); }
+    .cc-budget-bar { flex:1; height:6px; background:rgba(255,255,255,.05); border-radius:3px; overflow:hidden; position:relative; }
+    .cc-budget-fill { height:100%; transition:width .3s ease, background .3s ease; background:#4ade80; }
+    .cc-budget-fill.mid { background:#fbbf24; }
+    .cc-budget-fill.high { background:#fb923c; }
+    .cc-budget-fill.critical { background:#ef4444; }
+    .cc-budget-pct { font-size:9px; color:#7a7a9a; min-width:30px; text-align:right; font-family:'JetBrains Mono',monospace; }
     /* Permission prompt */
     .cc-perm-prompt { margin:10px 0; padding:14px 16px; border-radius:10px; background:rgba(251,191,36,.05); border:1px solid rgba(251,191,36,.2); }
     .cc-perm-prompt-title { font-size:13px; font-weight:600; color:#fbbf24; margin-bottom:8px; display:flex; align-items:center; gap:8px; }
@@ -5003,6 +5025,12 @@
               <div class="cc-cost-row"><span>Out</span><span class="cc-cost-value" id="${tabId}-cc-tok-out">0</span></div>
               <div class="cc-cost-row"><span>Cache</span><span class="cc-cost-value" id="${tabId}-cc-tok-cache">0</span></div>
               <div class="cc-cost-row"><span>Turns</span><span class="cc-cost-value" id="${tabId}-cc-turns">0</span></div>
+              <div class="cc-budget-row" title="Set max budget (USD) for this session">
+                <span style="font-size:10px">$</span>
+                <input type="number" min="0" step="0.5" placeholder="Budget" class="cc-budget-input" id="${tabId}-cc-budget-input" oninput="ccBudgetSet('${tabId}', this.value)">
+                <div class="cc-budget-bar"><div class="cc-budget-fill" id="${tabId}-cc-budget-fill" style="width:0%"></div></div>
+                <span class="cc-budget-pct" id="${tabId}-cc-budget-pct">—</span>
+              </div>
             </div>
           </div>
           <div class="cc-chat-area">
@@ -10516,6 +10544,8 @@
         td.ccSessionId = data.id;
         td.ccCheckpoints = [];
         td.ccTurns = 0;
+        td.ccLastCost = 0;
+        ccBudgetRender(tabId);
         // Attach via WebSocket
         if (window._ws && window._ws.readyState === 1) {
           window._ws.send(JSON.stringify({ type: 'claude-attach', id: data.id }));
@@ -10593,6 +10623,8 @@
       }
       td.ccSessionId = sessionId;
       td.ccCheckpoints = [];
+      td.ccLastCost = 0;
+      ccBudgetRender(tabId);
       // Attach new — checkpoints will be restored via claude-attached event
       if (window._ws && window._ws.readyState === 1) {
         window._ws.send(JSON.stringify({ type: 'claude-attach', id: sessionId }));
@@ -11487,6 +11519,67 @@
           else body.insertAdjacentHTML('beforeend', `<div class="summary">${rendered}</div>`);
         }
       }
+      // 3.3.3 — bubble status change up to enclosing team block
+      const team = block.closest('.cc-agent-team-block');
+      if (team) ccUpdateAgentTeamHeader(team);
+    }
+
+    // 3.3.3 Agent Team Block — wraps consecutive Task tool_uses into a parallel team
+    function ccAppendSubagentTo(turnBody, toolUseId, subagentType, description, prompt) {
+      const html = ccRenderSubagentBlock(toolUseId, subagentType, description, prompt, 'running', '');
+      const last = turnBody.lastElementChild;
+      if (last && last.classList && last.classList.contains('cc-agent-team-block')) {
+        // Append into existing team
+        const body = last.querySelector('.cc-agent-team-body');
+        if (body) body.insertAdjacentHTML('beforeend', html);
+        ccUpdateAgentTeamHeader(last);
+        return;
+      }
+      if (last && last.classList && last.classList.contains('cc-subagent-block')) {
+        // Promote previous lone subagent + new one into a team block
+        const team = document.createElement('div');
+        team.className = 'cc-agent-team-block';
+        team.innerHTML = `<div class="cc-agent-team-header">
+            <span class="cc-agent-team-icon">🤝</span>
+            <div class="cc-agent-team-meta">
+              <span>Agent Team</span>
+              <span class="cc-agent-team-count" data-cc-team-count>2 agents</span>
+              <span class="cc-agent-team-status" data-cc-team-status></span>
+            </div>
+          </div>
+          <div class="cc-agent-team-body"></div>`;
+        const body = team.querySelector('.cc-agent-team-body');
+        body.appendChild(last);
+        body.insertAdjacentHTML('beforeend', html);
+        turnBody.appendChild(team);
+        ccUpdateAgentTeamHeader(team);
+        return;
+      }
+      turnBody.insertAdjacentHTML('beforeend', html);
+    }
+
+    function ccUpdateAgentTeamHeader(team) {
+      if (!team) return;
+      const blocks = team.querySelectorAll('.cc-subagent-block');
+      const total = blocks.length;
+      let running = 0, done = 0, error = 0;
+      blocks.forEach(b => {
+        const s = b.querySelector('.cc-subagent-status');
+        if (!s) return;
+        if (s.classList.contains('done')) done++;
+        else if (s.classList.contains('error')) error++;
+        else running++;
+      });
+      const countEl = team.querySelector('[data-cc-team-count]');
+      if (countEl) countEl.textContent = total + ' agents';
+      const statusEl = team.querySelector('[data-cc-team-status]');
+      if (statusEl) {
+        const parts = [];
+        if (running) parts.push(`<span class="running">⟳ ${running} running</span>`);
+        if (done) parts.push(`<span class="done">✓ ${done} done</span>`);
+        if (error) parts.push(`<span class="error">✗ ${error} error</span>`);
+        statusEl.innerHTML = parts.join('') || `<span class="done">✓ all done</span>`;
+      }
     }
 
     function ccRenderPermPrompt(tabId, detail) {
@@ -11533,6 +11626,44 @@
       const o = el(tabId + '-cc-tok-out'); if (o) o.textContent = fmt(tokOut || 0);
       const c = el(tabId + '-cc-tok-cache'); if (c) c.textContent = fmt(tokCache || 0);
       const t = el(tabId + '-cc-turns'); if (t) t.textContent = String(turns || 0);
+      const td = tabs.get(tabId);
+      if (td) td.ccLastCost = cost || 0;
+      ccBudgetRender(tabId);
+    }
+
+    // 2.3.4 Budget bar — store per-session in localStorage, render against current cost
+    function ccBudgetKey(tabId) {
+      const td = tabs.get(tabId);
+      const sid = td?.ccSessionId || tabId;
+      return 'cc-budget-' + sid;
+    }
+    function ccBudgetSet(tabId, val) {
+      const num = parseFloat(val);
+      const key = ccBudgetKey(tabId);
+      if (!val || !isFinite(num) || num <= 0) localStorage.removeItem(key);
+      else localStorage.setItem(key, String(num));
+      ccBudgetRender(tabId);
+    }
+    function ccBudgetRender(tabId) {
+      const td = tabs.get(tabId);
+      const fill = document.getElementById(tabId + '-cc-budget-fill');
+      const pct = document.getElementById(tabId + '-cc-budget-pct');
+      const input = document.getElementById(tabId + '-cc-budget-input');
+      if (!fill || !pct) return;
+      const budget = parseFloat(localStorage.getItem(ccBudgetKey(tabId)) || '0');
+      if (input && document.activeElement !== input) input.value = budget > 0 ? String(budget) : '';
+      const cost = (td && td.ccLastCost) || 0;
+      if (!budget || budget <= 0) {
+        fill.style.width = '0%'; fill.className = 'cc-budget-fill';
+        pct.textContent = '—'; pct.style.color = '#7a7a9a';
+        return;
+      }
+      const ratio = Math.min(cost / budget, 1.5);
+      const widthPct = Math.min(ratio * 100, 100);
+      fill.style.width = widthPct.toFixed(1) + '%';
+      fill.className = 'cc-budget-fill ' + (ratio < 0.5 ? '' : ratio < 0.75 ? 'mid' : ratio < 1.0 ? 'high' : 'critical');
+      pct.textContent = (ratio * 100).toFixed(0) + '%';
+      pct.style.color = ratio >= 1.0 ? '#ef4444' : ratio >= 0.75 ? '#fb923c' : '#7a7a9a';
     }
 
     function ccUpdateContext(tabId, pct) {
@@ -11652,12 +11783,12 @@
             document.getElementById(tabId + '-cc-streaming-text').textContent = 'Claude is responding...';
           } else if (block.type === 'tool_use') {
             const toolName = block.name || 'Tool';
-            // Route Task tool → subagent block
+            // Route Task tool → subagent block (auto-grouped into team if consecutive)
             if (toolName === 'Task') {
               const subType = block.input?.subagent_type || 'agent';
               const desc = block.input?.description || '';
               const prompt = block.input?.prompt || '';
-              turnBody.insertAdjacentHTML('beforeend', ccRenderSubagentBlock(block.id || '', subType, desc, prompt, 'running', ''));
+              ccAppendSubagentTo(turnBody, block.id || '', subType, desc, prompt);
               document.getElementById(tabId + '-cc-streaming-text').textContent = 'Subagent running: ' + subType;
             } else {
               const file = block.input?.file_path || block.input?.command || block.input?.pattern || block.input?.path || '';
@@ -14305,6 +14436,8 @@
                 if (Array.isArray(entry.ccTodos) && entry.ccTodos.length) {
                   _ccRenderTodos(tabId, entry.ccTodos);
                 }
+                // 2.3.4 — render persisted budget for restored session
+                ccBudgetRender(tabId);
               }, 150);
             }
             restoredAny = true;
