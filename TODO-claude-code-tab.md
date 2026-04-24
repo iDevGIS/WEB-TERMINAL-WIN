@@ -140,7 +140,7 @@
 | 4.5 | Image Paste | Paste from clipboard → thumb preview → server writes temp file + Read tool hint | P1 | [x] |
 | 4.6 | File Attach | 📎 button multi-select. Text files inline as lang-aware code block. Drag & drop supported | P1 | [x] |
 | 4.7 | Command History | `Up/Down` arrow to cycle through previous prompts (per-tab) | P1 | [x] |
-| 4.8 | Keyboard Hints | Show shortcut hints below input | P2 | [ ] |
+| 4.8 | Keyboard Hints | Show shortcut hints below input | P2 | [x] |
 
 ---
 
@@ -171,7 +171,7 @@
 | 6.7 | Context API | Endpoint for context usage % (parse from stream events) | P1 | [x] |
 | 6.8 | Cost Tracking | Parse `total_cost_usd` and token usage from result events | P1 | [x] |
 | 6.9 | File Watcher | Watch files changed by Claude, update sidebar in real-time | P2 | [x] |
-| 6.10 | MCP Passthrough | Forward MCP tool calls/results to UI | P2 | [ ] |
+| 6.10 | MCP Passthrough | Forward MCP tool calls/results to UI | P2 | [x] |
 
 ---
 

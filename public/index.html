@@ -2512,6 +2512,10 @@
     .cc-tool-block.mcp .cc-tool-name { color:#22d3ee; }
     .cc-mcp-badge { display:inline-flex; align-items:center; gap:3px; font-size:9px; padding:1px 6px; border-radius:3px; background:rgba(6,182,212,.12); color:#22d3ee; font-weight:600; text-transform:uppercase; letter-spacing:.3px; }
     .cc-mcp-server { font-size:10px; color:#67e8f9; font-family:'JetBrains Mono',monospace; }
+    .cc-mcp-args, .cc-mcp-result { padding:6px 10px; font-family:'JetBrains Mono',monospace; }
+    .cc-mcp-args { border-bottom:1px solid rgba(6,182,212,.1); background:rgba(6,182,212,.02); }
+    .cc-mcp-section-label { font-size:9px; color:#22d3ee; text-transform:uppercase; letter-spacing:.4px; font-weight:600; margin-bottom:3px; opacity:.7; }
+    .cc-mcp-args pre, .cc-mcp-result pre { margin:0; white-space:pre-wrap; max-height:200px; overflow:auto; font-size:10.5px; color:#cbd5e1; }
     /* Turn separator */
     .cc-turn-sep { display:flex; align-items:center; gap:10px; padding:6px 0; font-size:10px; color:#5a5a7a; text-transform:uppercase; letter-spacing:1px; }
     .cc-turn-sep::before, .cc-turn-sep::after { content:''; flex:1; height:1px; background:rgba(255,255,255,.06); }
@@ -2606,6 +2610,10 @@
     .cc-attach-btn { width:28px; height:28px; border-radius:8px; background:transparent; border:1px solid rgba(255,255,255,.08); color:#9d9db5; cursor:pointer; display:flex; align-items:center; justify-content:center; flex-shrink:0; transition:all .15s; }
     .cc-attach-btn:hover { background:rgba(147,51,234,.12); border-color:rgba(147,51,234,.35); color:#c084fc; }
     .cc-input-area.drag-over { background:rgba(147,51,234,.08); border-top:1px dashed rgba(147,51,234,.5); }
+    .cc-input-hints { display:flex; flex-wrap:wrap; gap:6px 12px; padding:5px 4px 0; font-size:10px; color:#5a5a7a; user-select:none; }
+    .cc-input-hints .cc-hint { display:inline-flex; align-items:center; gap:3px; white-space:nowrap; }
+    .cc-input-hints kbd { display:inline-block; padding:1px 5px; border-radius:3px; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); border-bottom-width:2px; font-family:'JetBrains Mono',monospace; font-size:9.5px; color:#9d9db5; line-height:1.2; }
+    .cc-input-hints .cc-hint:hover kbd { background:rgba(249,115,22,.08); border-color:rgba(249,115,22,.25); color:#fdba74; }
     .cc-slash-item { display:flex; align-items:center; gap:10px; padding:7px 10px; border-radius:6px; cursor:pointer; font-size:12px; }
     .cc-slash-item:hover, .cc-slash-item.active { background:rgba(108,99,255,.1); }
     .cc-slash-cmd { color:#6c63ff; font-weight:600; font-family:'JetBrains Mono',monospace; min-width:80px; }
@@ -5230,6 +5238,18 @@
                 <button class="cc-send-btn" onclick="ccSend('${tabId}')">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
                 </button>
+              </div>
+              <div class="cc-input-hints" id="${tabId}-cc-input-hints">
+                <span class="cc-hint"><kbd>@</kbd> file</span>
+                <span class="cc-hint"><kbd>/</kbd> command</span>
+                <span class="cc-hint"><kbd>Enter</kbd> send</span>
+                <span class="cc-hint"><kbd>Shift</kbd>+<kbd>Enter</kbd> newline</span>
+                <span class="cc-hint"><kbd>↑</kbd>/<kbd>↓</kbd> history</span>
+                <span class="cc-hint"><kbd>Shift</kbd>+<kbd>Tab</kbd> perm</span>
+                <span class="cc-hint"><kbd>Ctrl</kbd>+<kbd>P</kbd> model</span>
+                <span class="cc-hint"><kbd>Ctrl</kbd>+<kbd>T</kbd> thinking</span>
+                <span class="cc-hint"><kbd>Alt</kbd>+<kbd>O</kbd> fast</span>
+                <span class="cc-hint cc-hint-esc"><kbd>Esc</kbd> stop</span>
               </div>
             </div>
           </div>
@@ -12309,12 +12329,31 @@
             const allTools = msgsEl.querySelectorAll('.cc-tool-block .cc-tool-status.running');
             const lastRunning = allTools[allTools.length - 1];
             if (lastRunning) {
-              lastRunning.className = 'cc-tool-status done'; lastRunning.textContent = '✓';
+              if (block.is_error) {
+                lastRunning.className = 'cc-tool-status error'; lastRunning.textContent = '✗';
+              } else {
+                lastRunning.className = 'cc-tool-status done'; lastRunning.textContent = '✓';
+              }
               const toolBlock = lastRunning.closest('.cc-tool-block');
               const body = toolBlock?.querySelector('.cc-tool-body');
               if (body) {
-                const txt = typeof block.content === 'string' ? block.content : '';
-                if (txt) body.innerHTML = `<pre style="margin:0;white-space:pre-wrap;max-height:150px;overflow:auto;font-size:11px">${escHtml(txt.substring(0, 3000))}</pre>`;
+                let txt = '';
+                if (typeof block.content === 'string') txt = block.content;
+                else if (Array.isArray(block.content)) txt = block.content.map(c => c.text || '').filter(Boolean).join('\n');
+                if (txt) {
+                  const resultHtml = `<pre style="margin:0;white-space:pre-wrap;max-height:200px;overflow:auto;font-size:11px">${escHtml(txt.substring(0, 3000))}</pre>`;
+                  // 6.10 — for MCP blocks, preserve args section and fill the result slot
+                  if (toolBlock.classList.contains('mcp')) {
+                    const resultSlot = body.querySelector('.cc-mcp-result');
+                    if (resultSlot) {
+                      resultSlot.innerHTML = `<div class="cc-mcp-section-label">result</div>${resultHtml}`;
+                    } else {
+                      body.insertAdjacentHTML('beforeend', `<div class="cc-mcp-result"><div class="cc-mcp-section-label">result</div>${resultHtml}</div>`);
+                    }
+                  } else {
+                    body.innerHTML = resultHtml;
+                  }
+                }
                 body.classList.add('open');
               }
             }
@@ -12368,15 +12407,24 @@
               document.getElementById(tabId + '-cc-streaming-text').textContent = 'Subagent running: ' + subType;
             } else {
               let file = block.input?.file_path || block.input?.command || block.input?.pattern || block.input?.path || '';
-              // MCP tools have varied arg names — pick the first string-ish arg
-              if (!file && toolName.startsWith('mcp__') && block.input) {
-                for (const k of Object.keys(block.input)) {
-                  const v = block.input[k];
-                  if (typeof v === 'string' && v.length && v.length < 200) { file = v; break; }
-                  if (typeof v === 'number' || typeof v === 'boolean') { file = String(v); break; }
+              let body = '';
+              if (toolName.startsWith('mcp__')) {
+                // MCP tools have varied arg names — pick the first string-ish arg for the header
+                if (!file && block.input) {
+                  for (const k of Object.keys(block.input)) {
+                    const v = block.input[k];
+                    if (typeof v === 'string' && v.length && v.length < 200) { file = v; break; }
+                    if (typeof v === 'number' || typeof v === 'boolean') { file = String(v); break; }
+                  }
+                }
+                // 6.10 — show input args JSON in the body so users see what was passed
+                if (block.input && typeof block.input === 'object') {
+                  let json = '';
+                  try { json = JSON.stringify(block.input, null, 2); } catch { json = String(block.input); }
+                  body = `<div class="cc-mcp-args"><div class="cc-mcp-section-label">args</div><pre>${escHtml(json.substring(0, 2000))}</pre></div><div class="cc-mcp-result"></div>`;
                 }
               }
-              turnBody.insertAdjacentHTML('beforeend', ccRenderToolBlock(toolName, file, 'running', '', false));
+              turnBody.insertAdjacentHTML('beforeend', ccRenderToolBlock(toolName, file, 'running', body, false));
               document.getElementById(tabId + '-cc-streaming-text').textContent = 'Running ' + toolName + '...';
             }
             ccUpdateFilesFromServer(tabId);
