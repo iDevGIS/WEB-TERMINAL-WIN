@@ -1,7 +1,7 @@
 # Claude Code Tab — Feature List
 
 > Reference: [mock-claude-code-tab.html](mock-claude-code-tab.html)  
-> Status: Phase 2 In Progress (Batches 1–8 merged)  
+> Status: Phase 2 In Progress (Batches 1–9 merged)  
 > Priority: P0 = must-have, P1 = important, P2 = nice-to-have
 
 ## Batch History
@@ -17,6 +17,7 @@
 | Batch 6 | `2a2ba82` | 2.1.3 session relative time · 2.4.1 CLAUDE.md status · 5.1 CLAUDE.md info · 5.7 collapsible right sidebar |
 | Batch 7 | `39999e0` | 2.2.2 Tasks tab (TodoWrite parse · per-session persist · live WS updates · tab count badge) |
 | Batch 8 | `cec8b2e` | 7.4 multi-tab (cwd-based auto-name, session isolation) · 7.5 workspace save (tab name + todos snapshot, attach payload cwd) |
+| Batch 9 | `4edd3d5` | 2.3.4 budget bar (per-session localStorage, cost progress) · 3.3.3 agent team block (auto-wrap consecutive Task tool_uses with status rollup) |
 
 ---
 
@@ -65,7 +66,7 @@
 | 2.3.1 | Session Cost | Show $ cost from Claude Code JSON output `total_cost_usd` | P0 | [x] |
 | 2.3.2 | Token Counts | Input/Output/Cache tokens | P1 | [x] |
 | 2.3.3 | Turn Count | Number of conversation turns | P1 | [x] |
-| 2.3.4 | Budget Bar | Progress bar against `--max-budget-usd` | P2 | [ ] |
+| 2.3.4 | Budget Bar | Progress bar against `--max-budget-usd` | P2 | [x] |
 
 ### 2.4 System Status
 
@@ -112,7 +113,7 @@
 |---|---------|-------------|----------|--------|
 | 3.3.1 | Thinking Block | Collapsible, show extended thinking content + duration | P1 | [x] |
 | 3.3.2 | Subagent Block | Show agent name, task, status, summary result | P1 | [x] |
-| 3.3.3 | Agent Team Block | Show multiple agents running in parallel with status | P2 | [ ] |
+| 3.3.3 | Agent Team Block | Show multiple agents running in parallel with status | P2 | [x] |
 | 3.3.4 | Rewind Checkpoints | Clickable markers between turns. Esc+Esc to open rewind menu | P1 | [~] (inline Rewind button on user msgs; Esc+Esc hotkey pending) |
 | 3.3.5 | Permission Prompt | Inline approve/deny UI when Claude asks for permission | P0 | [~] (uses --permission-mode flag, no inline prompt in -p mode) |
 
