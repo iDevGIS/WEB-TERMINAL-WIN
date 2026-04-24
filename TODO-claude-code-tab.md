@@ -1,8 +1,21 @@
 # Claude Code Tab — Feature List
 
 > Reference: [mock-claude-code-tab.html](mock-claude-code-tab.html)  
-> Status: Phase 1 Complete  
+> Status: Phase 2 In Progress (Batches 1–7 merged)  
 > Priority: P0 = must-have, P1 = important, P2 = nice-to-have
+
+## Batch History
+
+| Batch | Commit | Content |
+|-------|--------|---------|
+| Phase 1 MVP | `3c638bb` | All P0 items (items 7.1–7.2, 6.1–6.2, 3.1–3.4, 4.1–4.2, 1.1/1.3/1.8/1.11, 6.4, 3.3.5, 2.1.1/2.1.2, 2.2.1, 2.3.1, 6.5) |
+| Batch 1 | `1560952` | Top Bar (1.2 effort · 1.4 thinking · 1.5 fast · 1.6 git · 6.6 git API) |
+| Batch 2 | `acc70cd` | 3.1.5 turn separators · 3.1.6 thinking badge · 3.3.2 subagent block |
+| Batch 3 | `e999dc7` | 4.3 @ picker · 4.5 image paste · 4.6 file attach · 4.7 command history |
+| Batch 4 | `91a3ffa` | 6.3 session store · 6.7 context API · 6.8 cost · 2.3.2/2.3.3 |
+| Batch 5 | `2ca5c75` | 1.9 rewind · 1.10 compact · 3.3.4 inline rewind checkpoints |
+| Batch 6 | `2a2ba82` | 2.1.3 session relative time · 2.4.1 CLAUDE.md status · 5.1 CLAUDE.md info · 5.7 collapsible right sidebar |
+| Batch 7 | TBD | 2.2.2 Tasks tab (TodoWrite parse · per-session persist · live WS updates · tab count badge) |
 
 ---
 
@@ -11,11 +24,11 @@
 | # | Feature | Description | Priority | Status |
 |---|---------|-------------|----------|--------|
 | 1.1 | Model Picker | Dropdown: Opus/Sonnet/Haiku with context window info. Hotkey `Cmd+P` | P0 | [x] |
-| 1.2 | Effort Selector | 4 levels: Low/Med/High/Max. Passed as `--effort` flag | P1 | [ ] |
+| 1.2 | Effort Selector | 5 levels: Low/Med/High/Max. Dropdown with ⚡ icon. Passed as `--effort` flag | P1 | [x] |
 | 1.3 | Permission Mode | Badge showing current mode (default/acceptEdits/plan/auto). Switch with `Shift+Tab` | P0 | [x] |
-| 1.4 | Extended Thinking | Toggle button. Hotkey `Cmd+T`. Adds `--verbose` thinking output | P1 | [ ] |
-| 1.5 | Fast Mode | Toggle button. Hotkey `Alt+O`. Faster output | P1 | [ ] |
-| 1.6 | Git Branch | Show current branch name from `git rev-parse --abbrev-ref HEAD` | P1 | [ ] |
+| 1.4 | Extended Thinking | Toggle button. Hotkey `Cmd+T`. Prepends `Think hard.` to prompts | P1 | [x] |
+| 1.5 | Fast Mode | Toggle button. Hotkey `Alt+O`. Forces effort=low | P1 | [x] |
+| 1.6 | Git Branch | Show current branch name from `git rev-parse --abbrev-ref HEAD` | P1 | [x] |
 | 1.7 | PR Status | Show PR number + status (Pending/Approved/Changes Requested) via `gh pr status` | P2 | [ ] |
 | 1.8 | Context Meter | % bar showing context window usage. Color: green < 50%, yellow < 75%, orange < 90%, red >= 90% | P0 | [x] |
 | 1.9 | Rewind Button | Open rewind menu (restore code + conversation to checkpoint) | P1 | [~] (conversation only; code restore out of scope) |
@@ -41,7 +54,7 @@
 | # | Feature | Description | Priority | Status |
 |---|---------|-------------|----------|--------|
 | 2.2.1 | Files Tab | List files changed in session (M/NEW/DEL badges) | P0 | [x] |
-| 2.2.2 | Tasks Tab | Task list with checkboxes (done/running/pending) | P1 | [ ] |
+| 2.2.2 | Tasks Tab | Task list with checkboxes (done/running/pending) | P1 | [x] |
 | 2.2.3 | Agents Tab | Show subagents + agent teams with status (idle/running/done) | P2 | [ ] |
 
 ### 2.3 Cost Panel
@@ -119,11 +132,11 @@
 |---|---------|-------------|----------|--------|
 | 4.1 | Text Input | Auto-resize textarea, `Enter` to send, `Shift+Enter` for newline | P0 | [x] |
 | 4.2 | Slash Commands | `/` at start of line shows autocomplete dropdown with all commands | P0 | [x] |
-| 4.3 | @ File Picker | `@` shows file browser to attach/reference files | P1 | [ ] |
+| 4.3 | @ File Picker | `@` shows dropdown of files in cwd (walks tree, ignores node_modules/.git/dist). Endpoint `/api/claude/file-search` | P1 | [x] |
 | 4.4 | Voice Input | Hold `Space` for push-to-talk, transcribe via Whisper | P2 | [ ] |
-| 4.5 | Image Paste | `Cmd+V` to paste screenshot, send as context | P1 | [ ] |
-| 4.6 | File Attach | Button to attach text/image files | P1 | [ ] |
-| 4.7 | Command History | `Up/Down` arrow to cycle through previous prompts | P1 | [ ] |
+| 4.5 | Image Paste | Paste from clipboard → thumb preview → server writes temp file + Read tool hint | P1 | [x] |
+| 4.6 | File Attach | 📎 button multi-select. Text files inline as lang-aware code block. Drag & drop supported | P1 | [x] |
+| 4.7 | Command History | `Up/Down` arrow to cycle through previous prompts (per-tab) | P1 | [x] |
 | 4.8 | Keyboard Hints | Show shortcut hints below input | P2 | [ ] |
 
 ---
@@ -151,7 +164,7 @@
 | 6.3 | Session Store | Save/load sessions, map to Claude Code `--resume` | P1 | [x] |
 | 6.4 | Process Control | Start/Stop/Kill Claude process per tab | P0 | [x] |
 | 6.5 | Model Config | Pass `--model`, `--effort`, `--permission-mode` flags | P0 | [x] |
-| 6.6 | Git Status API | Endpoint for branch, PR status, diff stats | P1 | [ ] |
+| 6.6 | Git Status API | `GET /api/git/status` → branch, ahead/behind, dirty. PR status via `gh` TBD | P1 | [x] |
 | 6.7 | Context API | Endpoint for context usage % (parse from stream events) | P1 | [x] |
 | 6.8 | Cost Tracking | Parse `total_cost_usd` and token usage from result events | P1 | [x] |
 | 6.9 | File Watcher | Watch files changed by Claude, update sidebar in real-time | P2 | [ ] |
@@ -198,6 +211,11 @@
 - Right sidebar (5.x)
 - Session store + resume (6.3)
 - Cost tracking (6.8)
+
+### Phase 2 — Remaining (P1)
+- 2.3.4 Budget bar
+- 3.3.3 Agent team block
+- 7.4 Multi-tab + 7.5 Workspace save
 
 ### Phase 3 — Full Feature
 - Agent Teams tab + blocks (2.2.3, 3.3.3)

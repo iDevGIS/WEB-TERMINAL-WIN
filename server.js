@@ -2888,7 +2888,7 @@ wss.on("connection", (ws, req) => {
           cs.clients.add(ws);
           if (!ws._claudeSessions) ws._claudeSessions = new Set();
           ws._claudeSessions.add(cs.id);
-          ws.send(JSON.stringify({ type: "claude-attached", id: cs.id, name: cs.name, model: cs.model, effort: cs.effort, thinking: cs.thinking, fast: cs.fast, permMode: cs.permMode, status: cs.status, messages: cs.messages, cost: cs.cost, tokens: cs.tokens, turns: cs.turns, contextPct: cs.contextPct, files: cs.files, checkpoints: cs.checkpoints || [] }));
+          ws.send(JSON.stringify({ type: "claude-attached", id: cs.id, name: cs.name, model: cs.model, effort: cs.effort, thinking: cs.thinking, fast: cs.fast, permMode: cs.permMode, status: cs.status, messages: cs.messages, cost: cs.cost, tokens: cs.tokens, turns: cs.turns, contextPct: cs.contextPct, files: cs.files, checkpoints: cs.checkpoints || [], todos: cs.todos || [] }));
           break;
         }
         case "claude-detach": {
@@ -3058,6 +3058,8 @@ function persistClaudeSession(sess) {
         lastActivity: sess.lastActivity,
         messages: (sess.messages || []).slice(-PERSIST_MESSAGE_CAP),
         checkpoints: sess.checkpoints || [],
+        todos: sess.todos || [],
+        todosUpdatedAt: sess.todosUpdatedAt || 0,
       };
       const file = path.join(CLAUDE_SESSIONS_DIR, sess.id + ".json");
       fs.writeFileSync(file, JSON.stringify(snapshot));
@@ -3100,6 +3102,8 @@ function loadClaudeSessionsFromDisk() {
           createdAt: s.createdAt || Date.now(),
           lastActivity: s.lastActivity || Date.now(),
           checkpoints: Array.isArray(s.checkpoints) ? s.checkpoints : [],
+          todos: Array.isArray(s.todos) ? s.todos : [],
+          todosUpdatedAt: s.todosUpdatedAt || 0,
         };
         claudeSessions.set(sess.id, sess);
         loaded++;
@@ -3160,6 +3164,8 @@ function createClaudeSession(opts = {}) {
     createdAt: Date.now(),
     lastActivity: Date.now(),
     checkpoints: [],  // 1.9 / 3.3.4: { id, turn, msgIdx, text, ts }
+    todos: [],        // 2.2.2: { content, activeForm, status, createdAt, updatedAt }
+    todosUpdatedAt: 0,
   };
   claudeSessions.set(id, sess);
   persistClaudeSession(sess);
@@ -3273,6 +3279,24 @@ function processClaudeEvent(sess, evt) {
             sess.files.push({ path: fp, action, timestamp: Date.now() });
           }
         }
+        // 2.2.2 Tasks tab — parse TodoWrite invocations
+        if (toolName === "TodoWrite" && Array.isArray(block.input?.todos)) {
+          const now = Date.now();
+          // Preserve createdAt across re-writes by merging on content
+          const prev = new Map((sess.todos || []).map(t => [t.content, t]));
+          sess.todos = block.input.todos.map(t => {
+            const old = prev.get(t.content);
+            return {
+              content: t.content || "",
+              activeForm: t.activeForm || t.content || "",
+              status: t.status || "pending",
+              createdAt: old?.createdAt || now,
+              updatedAt: now,
+            };
+          });
+          sess.todosUpdatedAt = now;
+          broadcastClaude(sess, { type: "todos", todos: sess.todos });
+        }
       }
     }
     sess.messages.push(msgData);
@@ -3331,14 +3355,21 @@ function broadcastClaude(sess, data) {
 }
 
 function listClaudeSessions() {
-  return Array.from(claudeSessions.values()).map(s => ({
-    id: s.id, name: s.name, model: s.model, effort: s.effort,
-    thinking: s.thinking, fast: s.fast, permMode: s.permMode,
-    status: s.status, cost: s.cost, tokens: s.tokens, turns: s.turns,
-    contextPct: s.contextPct, files: s.files, dead: s.dead,
-    createdAt: s.createdAt, lastActivity: s.lastActivity,
-    messageCount: s.messages.length,
-  }));
+  return Array.from(claudeSessions.values()).map(s => {
+    const todos = s.todos || [];
+    return {
+      id: s.id, name: s.name, model: s.model, effort: s.effort,
+      thinking: s.thinking, fast: s.fast, permMode: s.permMode,
+      status: s.status, cost: s.cost, tokens: s.tokens, turns: s.turns,
+      contextPct: s.contextPct, files: s.files, dead: s.dead,
+      createdAt: s.createdAt, lastActivity: s.lastActivity,
+      messageCount: s.messages.length,
+      todosCount: todos.length,
+      todosPending: todos.filter(t => t.status === "pending").length,
+      todosInProgress: todos.filter(t => t.status === "in_progress").length,
+      todosCompleted: todos.filter(t => t.status === "completed").length,
+    };
+  });
 }
 
 // REST API for Claude Code
@@ -3364,6 +3395,7 @@ app.get("/api/claude/sessions/:id", requireAuth, (req, res) => {
     cost: sess.cost, tokens: sess.tokens, turns: sess.turns,
     contextPct: sess.contextPct, files: sess.files, messages: sess.messages,
     checkpoints: sess.checkpoints || [],
+    todos: sess.todos || [],
   });
 });
 
@@ -3443,6 +3475,13 @@ app.post("/api/claude/sessions/:id/rewind", requireAuth, (req, res) => {
   persistClaudeSession(sess);
   broadcastClaude(sess, { type: "rewind", msgIdx: cp.msgIdx, turn: sess.turns });
   res.json({ ok: true, msgIdx: cp.msgIdx, turn: sess.turns });
+});
+
+// Tasks tab (2.2.2) — TodoWrite snapshot
+app.get("/api/claude/sessions/:id/todos", requireAuth, (req, res) => {
+  const sess = claudeSessions.get(req.params.id);
+  if (!sess) return res.status(404).json({ error: "not found" });
+  res.json({ todos: sess.todos || [], updatedAt: sess.todosUpdatedAt || 0 });
 });
 
 // Context usage endpoint (6.7) — tokens + percentage against model's window

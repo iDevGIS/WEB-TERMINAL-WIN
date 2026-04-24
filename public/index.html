@@ -2383,6 +2383,27 @@
     .cc-file-item:hover { background:rgba(255,255,255,.04); }
     .cc-file-badge { font-size:9px; padding:2px 5px; border-radius:3px; margin-left:auto; font-weight:600; text-transform:uppercase; }
     .cc-file-badge.m { background:rgba(251,191,36,.12); color:#fbbf24; } .cc-file-badge.c { background:rgba(74,222,128,.12); color:#4ade80; } .cc-file-badge.d { background:rgba(239,68,68,.12); color:#ef4444; }
+    /* 2.2.2 Tasks tab */
+    .cc-sidebar-tab-count { display:inline-block; margin-left:5px; padding:1px 5px; border-radius:7px; font-size:9px; font-weight:600; background:rgba(249,115,22,.18); color:#f97316; line-height:1.4; }
+    .cc-task-list { flex:1; overflow-y:auto; padding:6px 6px 10px; font-size:12px; }
+    .cc-task-item { display:flex; align-items:flex-start; gap:7px; padding:6px 8px; border-radius:6px; margin-bottom:3px; background:rgba(255,255,255,.02); border:1px solid rgba(255,255,255,.04); transition:background .15s; }
+    .cc-task-item:hover { background:rgba(255,255,255,.045); }
+    .cc-task-item.done { opacity:.55; }
+    .cc-task-item.done .cc-task-text { text-decoration:line-through; color:#7a7a9a; }
+    .cc-task-item.running { border-color:rgba(249,115,22,.35); background:rgba(249,115,22,.06); }
+    .cc-task-check { flex-shrink:0; width:14px; height:14px; margin-top:1px; border-radius:3px; display:flex; align-items:center; justify-content:center; font-size:9px; font-weight:700; border:1.5px solid rgba(255,255,255,.18); color:transparent; background:transparent; }
+    .cc-task-item.done .cc-task-check { background:#4ade80; border-color:#4ade80; color:#0a0a12; }
+    .cc-task-item.running .cc-task-check { border-color:#f97316; color:#f97316; background:rgba(249,115,22,.1); animation:cc-task-pulse 1.6s ease-in-out infinite; }
+    .cc-task-item.pending .cc-task-check { border-color:rgba(255,255,255,.2); }
+    @keyframes cc-task-pulse { 0%,100% { box-shadow:0 0 0 0 rgba(249,115,22,.35); } 50% { box-shadow:0 0 0 4px rgba(249,115,22,0); } }
+    .cc-task-text { flex:1; color:#e4e4ef; line-height:1.35; word-break:break-word; font-size:11.5px; }
+    .cc-task-item.running .cc-task-text { color:#fde5c7; }
+    .cc-task-summary { display:flex; gap:6px; padding:4px 10px 8px; font-size:10px; color:#7a7a9a; border-bottom:1px solid rgba(255,255,255,.04); margin-bottom:6px; flex-wrap:wrap; }
+    .cc-task-summary span { display:inline-flex; align-items:center; gap:3px; }
+    .cc-task-summary .dot { width:6px; height:6px; border-radius:50%; }
+    .cc-task-summary .dot.done { background:#4ade80; }
+    .cc-task-summary .dot.running { background:#f97316; }
+    .cc-task-summary .dot.pending { background:#7a7a9a; }
     .cc-cost-panel { padding:8px 10px; border-top:1px solid rgba(255,255,255,.08); flex-shrink:0; font-size:11px; color:#7a7a9a; }
     .cc-cost-row { display:flex; justify-content:space-between; margin-bottom:3px; }
     .cc-cost-value { color:#b0b0c8; font-family:'JetBrains Mono',monospace; font-size:11px; }
@@ -4967,11 +4988,14 @@
             </div>
             <div class="cc-session-list" id="${tabId}-cc-sessions"></div>
             <div class="cc-sidebar-tabs">
-              <div class="cc-sidebar-tab active" data-tab="files" onclick="ccSwitchSideTab('${tabId}','files',this)">Files</div>
-              <div class="cc-sidebar-tab" data-tab="tasks" onclick="ccSwitchSideTab('${tabId}','tasks',this)">Tasks</div>
+              <div class="cc-sidebar-tab active" data-tab="files" onclick="ccSwitchSideTab('${tabId}','files',this)">Files<span class="cc-sidebar-tab-count" id="${tabId}-cc-files-count" style="display:none"></span></div>
+              <div class="cc-sidebar-tab" data-tab="tasks" onclick="ccSwitchSideTab('${tabId}','tasks',this)">Tasks<span class="cc-sidebar-tab-count" id="${tabId}-cc-tasks-count" style="display:none"></span></div>
             </div>
-            <div class="cc-file-tree" id="${tabId}-cc-files">
+            <div class="cc-file-tree" id="${tabId}-cc-files" data-cc-side-panel="files">
               <div style="padding:12px 8px;color:#5a5a7a;font-size:10px;text-align:center">No files changed yet</div>
+            </div>
+            <div class="cc-task-list" id="${tabId}-cc-tasks" data-cc-side-panel="tasks" style="display:none">
+              <div style="padding:12px 8px;color:#5a5a7a;font-size:10px;text-align:center">No tasks yet — Claude will track TodoWrite here</div>
             </div>
             <div class="cc-cost-panel" id="${tabId}-cc-cost">
               <div class="cc-cost-row"><span>Cost</span><span class="cc-cost-value" id="${tabId}-cc-cost-val">$0.00</span></div>
@@ -11066,7 +11090,51 @@
     function ccSwitchSideTab(tabId, tab, el) {
       el.closest('.cc-sidebar-tabs').querySelectorAll('.cc-sidebar-tab').forEach(t => t.classList.remove('active'));
       el.classList.add('active');
-      // For now, only files tab has content
+      const sidebar = document.getElementById(tabId + '-cc-sidebar');
+      if (!sidebar) return;
+      sidebar.querySelectorAll('[data-cc-side-panel]').forEach(p => {
+        p.style.display = p.dataset.ccSidePanel === tab ? '' : 'none';
+      });
+      const td = tabs.get(tabId);
+      if (td) td.ccSideTab = tab;
+    }
+
+    // 2.2.2 Tasks tab — render TodoWrite snapshot into sidebar
+    function _ccRenderTodos(tabId, todos) {
+      const el = document.getElementById(tabId + '-cc-tasks');
+      if (!el) return;
+      const list = Array.isArray(todos) ? todos : [];
+      const td = tabs.get(tabId);
+      if (td) td.ccTodos = list;
+      // Tab count badge — show pending + running
+      const countEl = document.getElementById(tabId + '-cc-tasks-count');
+      const pending = list.filter(t => t.status === 'pending').length;
+      const running = list.filter(t => t.status === 'in_progress').length;
+      const done = list.filter(t => t.status === 'completed').length;
+      const remaining = pending + running;
+      if (countEl) {
+        if (remaining > 0) { countEl.textContent = remaining; countEl.style.display = ''; }
+        else { countEl.style.display = 'none'; }
+      }
+      if (!list.length) {
+        el.innerHTML = '<div style="padding:12px 8px;color:#5a5a7a;font-size:10px;text-align:center">No tasks yet — Claude will track TodoWrite here</div>';
+        return;
+      }
+      const summary = `<div class="cc-task-summary">
+        <span><span class="dot running"></span>${running} running</span>
+        <span><span class="dot pending"></span>${pending} pending</span>
+        <span><span class="dot done"></span>${done} done</span>
+      </div>`;
+      const items = list.map(t => {
+        const status = t.status === 'completed' ? 'done' : t.status === 'in_progress' ? 'running' : 'pending';
+        const label = status === 'running' ? (t.activeForm || t.content) : t.content;
+        const check = status === 'done' ? '✓' : status === 'running' ? '•' : '';
+        return `<div class="cc-task-item ${status}" title="${escAttr(t.activeForm || t.content)}">
+          <div class="cc-task-check">${check}</div>
+          <div class="cc-task-text">${escHtml(label || '')}</div>
+        </div>`;
+      }).join('');
+      el.innerHTML = summary + items;
     }
 
     function ccHandleSlash(tabId, val) {
@@ -11472,6 +11540,11 @@
         const bcls = f.action === 'NEW' ? 'c' : f.action === 'M' ? 'm' : 'd';
         return `<div class="cc-file-item"><span style="font-size:12px;width:14px;text-align:center">📄</span><span>${escHtml(name)}</span><span class="cc-file-badge ${bcls}">${f.action}</span></div>`;
       }).join('');
+      const countEl = document.getElementById(tabId + '-cc-files-count');
+      if (countEl) {
+        if (files.length > 0) { countEl.textContent = files.length; countEl.style.display = ''; }
+        else { countEl.style.display = 'none'; }
+      }
     }
 
     function ccUpdateFilesFromServer(tabId) {
@@ -11660,6 +11733,9 @@
       } else if (data.type === 'turn-complete') {
         streamBar.classList.remove('active');
         ccRefreshSessionList(tabId);
+      } else if (data.type === 'todos') {
+        // 2.2.2 Tasks tab — live TodoWrite snapshot
+        _ccRenderTodos(tabId, data.todos || []);
       } else if (data.type === 'checkpoint') {
         // 1.9 / 3.3.4 — new checkpoint from server; track for rewind UI
         if (!Array.isArray(td.ccCheckpoints)) td.ccCheckpoints = [];
@@ -11730,6 +11806,8 @@
         if (data.files) ccUpdateFiles(tabId, data.files);
         // 1.9 — restore checkpoints
         td.ccCheckpoints = Array.isArray(data.checkpoints) ? data.checkpoints.slice() : [];
+        // 2.2.2 — restore TodoWrite snapshot for Tasks tab
+        _ccRenderTodos(tabId, data.todos || []);
         // Batch 6 — load CLAUDE.md for this session
         ccLoadClaudeMd(tabId);
       }
