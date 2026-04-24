@@ -18,7 +18,7 @@
 | Batch 7 | `39999e0` | 2.2.2 Tasks tab (TodoWrite parse · per-session persist · live WS updates · tab count badge) |
 | Batch 8 | `cec8b2e` | 7.4 multi-tab (cwd-based auto-name, session isolation) · 7.5 workspace save (tab name + todos snapshot, attach payload cwd) |
 | Batch 9 | `4edd3d5` | 2.3.4 budget bar (per-session localStorage, cost progress) · 3.3.3 agent team block (auto-wrap consecutive Task tool_uses with status rollup) |
-| Batch 10 | `TBD` | 2.4.1–2.4.5 System Status pill bar (CLAUDE.md · Memory · Hooks · MCP · LSP) with `/system-status` API + click-to-expand modal |
+| Batch 10 | `ec0c377` | 2.4.1–2.4.5 System Status pill bar (CLAUDE.md · Memory · Hooks · MCP · LSP) with `/system-status` API + click-to-expand modal |
 
 ---
 
