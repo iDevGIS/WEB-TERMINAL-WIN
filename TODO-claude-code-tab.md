@@ -1,7 +1,7 @@
 # Claude Code Tab — Feature List
 
 > Reference: [mock-claude-code-tab.html](mock-claude-code-tab.html)  
-> Status: Phase 2 In Progress (Batches 1–7 merged)  
+> Status: Phase 2 In Progress (Batches 1–8 merged)  
 > Priority: P0 = must-have, P1 = important, P2 = nice-to-have
 
 ## Batch History
@@ -16,6 +16,7 @@
 | Batch 5 | `2ca5c75` | 1.9 rewind · 1.10 compact · 3.3.4 inline rewind checkpoints |
 | Batch 6 | `2a2ba82` | 2.1.3 session relative time · 2.4.1 CLAUDE.md status · 5.1 CLAUDE.md info · 5.7 collapsible right sidebar |
 | Batch 7 | `39999e0` | 2.2.2 Tasks tab (TodoWrite parse · per-session persist · live WS updates · tab count badge) |
+| Batch 8 | TBD | 7.4 multi-tab (cwd-based auto-name, session isolation) · 7.5 workspace save (tab name + todos snapshot, attach payload cwd) |
 
 ---
 
@@ -179,8 +180,8 @@
 | 7.1 | Welcome Card | Add "Claude Code" card to CYBERFRAME welcome screen (orange icon ⚡) | P0 | [x] |
 | 7.2 | Tab Type | Register `claude-code` tab type in tab system | P0 | [x] |
 | 7.3 | Tab Icon | Orange lightning bolt icon in tab bar | P1 | [x] |
-| 7.4 | Multi-tab | Support multiple Claude Code tabs (different sessions) | P1 | [ ] |
-| 7.5 | Workspace Save | Save/restore Claude Code tabs in workspace | P2 | [ ] |
+| 7.4 | Multi-tab | Support multiple Claude Code tabs (different sessions) | P1 | [x] |
+| 7.5 | Workspace Save | Save/restore Claude Code tabs in workspace | P2 | [x] |
 
 ---
 

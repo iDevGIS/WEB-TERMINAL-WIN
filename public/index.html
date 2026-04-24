@@ -10529,6 +10529,7 @@
         </div>`;
         ccRefreshSessionList(tabId);
         ccLoadClaudeMd(tabId);
+        _ccUpdateTabName(tabId);
         showToast('Claude Code session started', 'success');
       } catch (e) {
         showToast('Failed to create session: ' + e.message, 'error');
@@ -10556,6 +10557,17 @@
           </div>`;
         }).join('');
       } catch {}
+    }
+
+    // 7.4 — Auto-rename Claude Code tab to include cwd basename so multi-tab is readable
+    function _ccUpdateTabName(tabId) {
+      const td = tabs.get(tabId);
+      if (!td || td.type !== 'claude-code') return;
+      const cwd = td.ccCwd || '';
+      const base = cwd ? (cwd.split(/[/\\]/).filter(Boolean).pop() || cwd) : '';
+      const name = base ? ('Claude Code · ' + base) : 'Claude Code';
+      if (td.name !== name) updateTabName(tabId, name, '⚡');
+      if (td.tabEl) td.tabEl.title = cwd ? ('Claude Code — ' + cwd) : 'Claude Code';
     }
 
     // 2.1.3 — Short relative time for session sidebar (narrow format)
@@ -11085,6 +11097,7 @@
       if (label) label.textContent = td.ccCwd.split('/').pop() || td.ccCwd || '~';
       _ccRefreshGit(tabId);
       ccLoadClaudeMd(tabId);
+      _ccUpdateTabName(tabId);
     }
 
     function ccSwitchSideTab(tabId, tab, el) {
@@ -11682,6 +11695,7 @@
           const cwdLabel = document.getElementById(tabId + '-cc-cwd-label');
           if (cwdLabel) cwdLabel.textContent = data.cwd.split(/[/\\]/).pop() || data.cwd;
           _ccRefreshGit(tabId);
+          _ccUpdateTabName(tabId);
         }
       } else if (data.type === 'result') {
         // If error result (e.g. "No conversation found"), show notice
@@ -11787,6 +11801,13 @@
           }
         }
         // Restore server-side session settings
+        if (data.cwd) {
+          td.ccCwd = data.cwd;
+          const cwdLabel = document.getElementById(tabId + '-cc-cwd-label');
+          if (cwdLabel) cwdLabel.textContent = data.cwd.split(/[/\\]/).pop() || data.cwd;
+          _ccRefreshGit(tabId);
+          _ccUpdateTabName(tabId);
+        }
         if (data.effort) {
           td.ccEffort = data.effort;
           _ccPopulateEffortPicker(tabId);
@@ -14176,6 +14197,9 @@
             entry.ccThinking = !!tab.ccThinking;
             entry.ccFast = !!tab.ccFast;
             entry.ccCwd = tab.ccCwd;
+            // 7.5 — persist tab name + todos snapshot so restore shows Tasks tab immediately
+            entry.name = tab.name;
+            entry.ccTodos = Array.isArray(tab.ccTodos) ? tab.ccTodos : [];
           }
           if (tab.type === 'files') {
             entry.filesCwd = typeof fileCwd !== 'undefined' ? fileCwd : '';
@@ -14274,6 +14298,12 @@
                   const cwdLabel = document.getElementById(tabId + '-cc-cwd-label');
                   if (cwdLabel) cwdLabel.textContent = tab.ccCwd.split(/[/\\]/).pop() || tab.ccCwd;
                   _ccRefreshGit(tabId);
+                }
+                // 7.4 — restore tab name from cwd (overrides default "Claude Code" label)
+                _ccUpdateTabName(tabId);
+                // 7.5 — paint cached todos into Tasks tab while waiting for claude-attached
+                if (Array.isArray(entry.ccTodos) && entry.ccTodos.length) {
+                  _ccRenderTodos(tabId, entry.ccTodos);
                 }
               }, 150);
             }

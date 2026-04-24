@@ -2888,7 +2888,7 @@ wss.on("connection", (ws, req) => {
           cs.clients.add(ws);
           if (!ws._claudeSessions) ws._claudeSessions = new Set();
           ws._claudeSessions.add(cs.id);
-          ws.send(JSON.stringify({ type: "claude-attached", id: cs.id, name: cs.name, model: cs.model, effort: cs.effort, thinking: cs.thinking, fast: cs.fast, permMode: cs.permMode, status: cs.status, messages: cs.messages, cost: cs.cost, tokens: cs.tokens, turns: cs.turns, contextPct: cs.contextPct, files: cs.files, checkpoints: cs.checkpoints || [], todos: cs.todos || [] }));
+          ws.send(JSON.stringify({ type: "claude-attached", id: cs.id, name: cs.name, model: cs.model, effort: cs.effort, thinking: cs.thinking, fast: cs.fast, permMode: cs.permMode, status: cs.status, messages: cs.messages, cost: cs.cost, tokens: cs.tokens, turns: cs.turns, contextPct: cs.contextPct, files: cs.files, checkpoints: cs.checkpoints || [], todos: cs.todos || [], cwd: cs.cwd }));
           break;
         }
         case "claude-detach": {
