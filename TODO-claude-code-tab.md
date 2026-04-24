@@ -58,7 +58,7 @@
 |---|---------|-------------|----------|--------|
 | 2.2.1 | Files Tab | List files changed in session (M/NEW/DEL badges) | P0 | [x] |
 | 2.2.2 | Tasks Tab | Task list with checkboxes (done/running/pending) | P1 | [x] |
-| 2.2.3 | Agents Tab | Show subagents + agent teams with status (idle/running/done) | P2 | [ ] |
+| 2.2.3 | Agents Tab | Show subagents + agent teams with status (idle/running/done) | P2 | [x] |
 
 ### 2.3 Cost Panel
 
@@ -104,7 +104,7 @@
 | 3.2.4 | Grep Block | Collapsible, show pattern + matches | P1 | [x] |
 | 3.2.5 | Glob Block | Collapsible, show pattern + file list | P1 | [x] |
 | 3.2.6 | Write Block | Collapsible, show file path + content preview | P1 | [x] |
-| 3.2.7 | MCP Tool Block | Collapsible, show `mcp__server__tool` with args/result | P2 | [ ] |
+| 3.2.7 | MCP Tool Block | Collapsible, show `mcp__server__tool` with args/result | P2 | [x] |
 | 3.2.8 | Status Indicator | Running (spinner) / Done (✓) / Error (✗) per tool block | P0 | [x] |
 | 3.2.9 | Click to Open | Click file path to open in editor tab (Monaco) | P2 | [ ] |
 

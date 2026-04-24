@@ -2453,6 +2453,20 @@
     .cc-task-summary .dot.done { background:#4ade80; }
     .cc-task-summary .dot.running { background:#f97316; }
     .cc-task-summary .dot.pending { background:#7a7a9a; }
+    .cc-agent-list { flex:1; overflow-y:auto; padding:6px 6px 10px; font-size:12px; }
+    .cc-agent-item { display:flex; align-items:center; gap:7px; padding:7px 8px; border-radius:6px; margin-bottom:3px; background:rgba(255,255,255,.02); border:1px solid rgba(255,255,255,.04); cursor:pointer; transition:background .15s; }
+    .cc-agent-item:hover { background:rgba(108,99,255,.08); border-color:rgba(108,99,255,.25); }
+    .cc-agent-item.running { border-color:rgba(108,99,255,.35); background:rgba(108,99,255,.08); }
+    .cc-agent-item.done { opacity:.7; }
+    .cc-agent-item.error { border-color:rgba(239,68,68,.3); background:rgba(239,68,68,.05); }
+    .cc-agent-dot { flex-shrink:0; width:8px; height:8px; border-radius:50%; background:#7a7a9a; }
+    .cc-agent-item.running .cc-agent-dot { background:#6c63ff; animation:cc-task-pulse 1.6s ease-in-out infinite; }
+    .cc-agent-item.done .cc-agent-dot { background:#4ade80; }
+    .cc-agent-item.error .cc-agent-dot { background:#ef4444; }
+    .cc-agent-meta { flex:1; min-width:0; }
+    .cc-agent-name { font-size:11px; font-weight:600; color:#e4e4ef; text-transform:uppercase; letter-spacing:.3px; }
+    .cc-agent-desc { font-size:10.5px; color:#9d9db5; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:1px; }
+    .cc-agent-item.running .cc-agent-name { color:#c4bffb; }
     .cc-cost-panel { padding:8px 10px; border-top:1px solid rgba(255,255,255,.08); flex-shrink:0; font-size:11px; color:#7a7a9a; }
     .cc-cost-row { display:flex; justify-content:space-between; margin-bottom:3px; }
     .cc-cost-value { color:#b0b0c8; font-family:'JetBrains Mono',monospace; font-size:11px; }
@@ -2488,6 +2502,12 @@
     .cc-tool-body.open { display:block; }
     .cc-tool-body .line-add { color:#4ade80; } .cc-tool-body .line-del { color:#ef4444; text-decoration:line-through; opacity:.6; }
     .cc-tool-body .line-num { color:#5a5a7a; user-select:none; display:inline-block; width:32px; text-align:right; margin-right:8px; }
+    /* 3.2.7 MCP tool block — cyan accent */
+    .cc-tool-block.mcp { border-color:rgba(6,182,212,.2); background:rgba(6,182,212,.04); }
+    .cc-tool-block.mcp .cc-tool-header { background:rgba(6,182,212,.06); border-bottom-color:rgba(6,182,212,.12); }
+    .cc-tool-block.mcp .cc-tool-name { color:#22d3ee; }
+    .cc-mcp-badge { display:inline-flex; align-items:center; gap:3px; font-size:9px; padding:1px 6px; border-radius:3px; background:rgba(6,182,212,.12); color:#22d3ee; font-weight:600; text-transform:uppercase; letter-spacing:.3px; }
+    .cc-mcp-server { font-size:10px; color:#67e8f9; font-family:'JetBrains Mono',monospace; }
     /* Turn separator */
     .cc-turn-sep { display:flex; align-items:center; gap:10px; padding:6px 0; font-size:10px; color:#5a5a7a; text-transform:uppercase; letter-spacing:1px; }
     .cc-turn-sep::before, .cc-turn-sep::after { content:''; flex:1; height:1px; background:rgba(255,255,255,.06); }
@@ -2497,7 +2517,8 @@
     /* Thinking badge on AI header */
     .cc-thinking-badge { display:inline-flex; align-items:center; gap:3px; font-size:9px; padding:1px 6px; border-radius:3px; background:rgba(108,99,255,.1); color:#6c63ff; font-weight:500; }
     /* Subagent block */
-    .cc-subagent-block { margin:8px 0; border:1px solid rgba(168,85,247,.18); border-radius:8px; overflow:hidden; background:linear-gradient(135deg,rgba(168,85,247,.04),rgba(139,92,246,.06)); }
+    .cc-subagent-block { margin:8px 0; border:1px solid rgba(168,85,247,.18); border-radius:8px; overflow:hidden; background:linear-gradient(135deg,rgba(168,85,247,.04),rgba(139,92,246,.06)); transition:box-shadow .3s, border-color .3s; }
+    .cc-subagent-block.cc-subagent-flash { box-shadow:0 0 0 3px rgba(168,85,247,.35); border-color:rgba(168,85,247,.55); }
     .cc-subagent-header { display:flex; align-items:center; gap:10px; padding:10px 14px; background:rgba(168,85,247,.05); border-bottom:1px solid rgba(168,85,247,.12); font-size:12px; cursor:pointer; }
     .cc-subagent-icon { width:22px; height:22px; border-radius:6px; background:rgba(168,85,247,.15); color:#a855f7; display:flex; align-items:center; justify-content:center; font-size:13px; flex-shrink:0; }
     .cc-subagent-meta { flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
@@ -5061,12 +5082,16 @@
             <div class="cc-sidebar-tabs">
               <div class="cc-sidebar-tab active" data-tab="files" onclick="ccSwitchSideTab('${tabId}','files',this)">Files<span class="cc-sidebar-tab-count" id="${tabId}-cc-files-count" style="display:none"></span></div>
               <div class="cc-sidebar-tab" data-tab="tasks" onclick="ccSwitchSideTab('${tabId}','tasks',this)">Tasks<span class="cc-sidebar-tab-count" id="${tabId}-cc-tasks-count" style="display:none"></span></div>
+              <div class="cc-sidebar-tab" data-tab="agents" onclick="ccSwitchSideTab('${tabId}','agents',this)">Agents<span class="cc-sidebar-tab-count" id="${tabId}-cc-agents-count" style="display:none"></span></div>
             </div>
             <div class="cc-file-tree" id="${tabId}-cc-files" data-cc-side-panel="files">
               <div style="padding:12px 8px;color:#5a5a7a;font-size:10px;text-align:center">No files changed yet</div>
             </div>
             <div class="cc-task-list" id="${tabId}-cc-tasks" data-cc-side-panel="tasks" style="display:none">
               <div style="padding:12px 8px;color:#5a5a7a;font-size:10px;text-align:center">No tasks yet — Claude will track TodoWrite here</div>
+            </div>
+            <div class="cc-agent-list" id="${tabId}-cc-agents" data-cc-side-panel="agents" style="display:none">
+              <div style="padding:12px 8px;color:#5a5a7a;font-size:10px;text-align:center">No subagents launched yet</div>
             </div>
             <div class="cc-cost-panel" id="${tabId}-cc-cost">
               <div class="cc-cost-row"><span>Cost</span><span class="cc-cost-value" id="${tabId}-cc-cost-val">$0.00</span></div>
@@ -11638,6 +11663,61 @@
       el.innerHTML = summary + items;
     }
 
+    // 2.2.3 Agents tab — render subagent invocations for the current session
+    function _ccRenderAgents(tabId) {
+      const el = document.getElementById(tabId + '-cc-agents');
+      if (!el) return;
+      const td = tabs.get(tabId);
+      const list = (td && td.ccAgents) || [];
+      const countEl = document.getElementById(tabId + '-cc-agents-count');
+      const running = list.filter(a => a.status === 'running').length;
+      if (countEl) {
+        if (running > 0) { countEl.textContent = running; countEl.style.display = ''; }
+        else { countEl.style.display = 'none'; }
+      }
+      if (!list.length) {
+        el.innerHTML = '<div style="padding:12px 8px;color:#5a5a7a;font-size:10px;text-align:center">No subagents launched yet</div>';
+        return;
+      }
+      el.innerHTML = list.slice().reverse().map(a => {
+        const status = a.status || 'running';
+        return `<div class="cc-agent-item ${status}" title="${escAttr(a.prompt || a.description || '')}" onclick="ccScrollToSubagent('${tabId}','${escAttr(a.id || '')}')">
+          <div class="cc-agent-dot"></div>
+          <div class="cc-agent-meta">
+            <div class="cc-agent-name">${escHtml(a.type || 'agent')}</div>
+            <div class="cc-agent-desc">${escHtml(a.description || (a.prompt || '').substring(0, 80))}</div>
+          </div>
+        </div>`;
+      }).join('');
+    }
+
+    function ccScrollToSubagent(tabId, useId) {
+      if (!useId) return;
+      const msgsEl = document.getElementById(tabId + '-cc-messages');
+      if (!msgsEl) return;
+      const block = msgsEl.querySelector(`.cc-subagent-block[data-tool-use-id="${CSS.escape(useId)}"]`);
+      if (!block) return;
+      block.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      block.classList.add('cc-subagent-flash');
+      setTimeout(() => block.classList.remove('cc-subagent-flash'), 1200);
+    }
+
+    function ccTrackAgentStart(tabId, useId, type, description, prompt) {
+      const td = tabs.get(tabId); if (!td) return;
+      if (!Array.isArray(td.ccAgents)) td.ccAgents = [];
+      td.ccAgents.push({ id: useId || '', type: type || 'agent', description: description || '', prompt: prompt || '', status: 'running', startedAt: Date.now() });
+      _ccRenderAgents(tabId);
+    }
+
+    function ccTrackAgentEnd(tabId, useId, status) {
+      const td = tabs.get(tabId); if (!td || !Array.isArray(td.ccAgents)) return;
+      const entry = td.ccAgents.find(a => a.id === useId);
+      if (!entry) return;
+      entry.status = status || 'done';
+      entry.endedAt = Date.now();
+      _ccRenderAgents(tabId);
+    }
+
     function ccHandleSlash(tabId, val) {
       const dropdown = document.getElementById(tabId + '-cc-slash');
       if (!dropdown) return;
@@ -11913,9 +11993,26 @@
 
     function ccRenderToolBlock(tool, file, status, body, collapsed) {
       const icons = { Read: '📖', Edit: '✏️', Write: '📝', Bash: '⚡', Grep: '🔍', Glob: '📂', Agent: '🤖' };
-      const icon = icons[tool] || '🔧';
       const statusCls = status === 'done' ? 'done' : status === 'error' ? 'error' : 'running';
       const statusText = status === 'done' ? '✓' : status === 'error' ? '✗' : '⟳';
+      // MCP tools: mcp__<server>__<tool>
+      if (typeof tool === 'string' && tool.startsWith('mcp__')) {
+        const parts = tool.split('__');
+        const server = parts[1] || 'server';
+        const toolSub = parts.slice(2).join('__') || 'tool';
+        return `<div class="cc-tool-block mcp">
+          <div class="cc-tool-header" onclick="this.nextElementSibling.classList.toggle('open')">
+            <span class="cc-tool-icon">🔌</span>
+            <span class="cc-mcp-badge">MCP</span>
+            <span class="cc-mcp-server">${escHtml(server)}</span>
+            <span class="cc-tool-name">${escHtml(toolSub)}</span>
+            <span class="cc-tool-file">${escHtml(file || '')}</span>
+            <span class="cc-tool-status ${statusCls}">${statusText}</span>
+          </div>
+          <div class="cc-tool-body${collapsed ? '' : ' open'}">${body || ''}</div>
+        </div>`;
+      }
+      const icon = icons[tool] || '🔧';
       return `<div class="cc-tool-block">
         <div class="cc-tool-header" onclick="this.nextElementSibling.classList.toggle('open')">
           <span class="cc-tool-icon">${icon}</span>
@@ -12183,7 +12280,9 @@
               let summary = '';
               if (typeof block.content === 'string') summary = block.content;
               else if (Array.isArray(block.content)) summary = block.content.map(c => c.text || '').filter(Boolean).join('\n');
-              ccUpdateSubagentBlock(useId, block.is_error ? 'error' : 'done', summary);
+              const status = block.is_error ? 'error' : 'done';
+              ccUpdateSubagentBlock(useId, status, summary);
+              ccTrackAgentEnd(tabId, useId, status);
               continue;
             }
             // Find the last running tool block
@@ -12245,9 +12344,18 @@
               const desc = block.input?.description || '';
               const prompt = block.input?.prompt || '';
               ccAppendSubagentTo(turnBody, block.id || '', subType, desc, prompt);
+              ccTrackAgentStart(tabId, block.id || '', subType, desc, prompt);
               document.getElementById(tabId + '-cc-streaming-text').textContent = 'Subagent running: ' + subType;
             } else {
-              const file = block.input?.file_path || block.input?.command || block.input?.pattern || block.input?.path || '';
+              let file = block.input?.file_path || block.input?.command || block.input?.pattern || block.input?.path || '';
+              // MCP tools have varied arg names — pick the first string-ish arg
+              if (!file && toolName.startsWith('mcp__') && block.input) {
+                for (const k of Object.keys(block.input)) {
+                  const v = block.input[k];
+                  if (typeof v === 'string' && v.length && v.length < 200) { file = v; break; }
+                  if (typeof v === 'number' || typeof v === 'boolean') { file = String(v); break; }
+                }
+              }
               turnBody.insertAdjacentHTML('beforeend', ccRenderToolBlock(toolName, file, 'running', '', false));
               document.getElementById(tabId + '-cc-streaming-text').textContent = 'Running ' + toolName + '...';
             }
