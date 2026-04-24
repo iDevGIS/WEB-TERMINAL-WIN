@@ -2364,6 +2364,27 @@
     .cc-right-expand-btn:hover { color:#8b84ff; }
     .cc-topbar-btn.sidebar-toggle { padding:5px 8px; }
     .cc-topbar-btn.sidebar-toggle.active { background:rgba(108,99,255,.18); border-color:rgba(108,99,255,.4); color:#a79fff; }
+    /* Batch 10 — System Status pill bar (2.4.1–2.4.5) */
+    .cc-sysstatus-bar { display:flex; align-items:center; gap:6px; padding:4px 10px; border-bottom:1px solid rgba(255,255,255,.05); background:rgba(10,10,26,.4); flex-wrap:wrap; min-height:24px; flex-shrink:0; }
+    .cc-sysstatus-bar.hidden { display:none; }
+    .cc-sys-pill { display:inline-flex; align-items:center; gap:4px; padding:2px 7px; border-radius:10px; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.06); color:#9d9db5; font-size:10px; cursor:pointer; transition:all .12s; white-space:nowrap; line-height:1.4; }
+    .cc-sys-pill:hover { background:rgba(255,255,255,.08); border-color:rgba(255,255,255,.12); color:#e4e4ef; }
+    .cc-sys-pill svg { flex-shrink:0; }
+    .cc-sys-pill .cc-sys-count { color:#e4e4ef; font-weight:600; }
+    .cc-sys-pill.active { background:rgba(34,197,94,.1); border-color:rgba(34,197,94,.25); color:#4ade80; }
+    .cc-sys-pill.active .cc-sys-count { color:#86efac; }
+    .cc-sys-pill.warn { background:rgba(251,146,60,.08); border-color:rgba(251,146,60,.2); color:#fb923c; }
+    .cc-sys-pill.dim { opacity:.55; }
+    .cc-sys-pill.cc-sys-md.active { background:rgba(56,189,248,.1); border-color:rgba(56,189,248,.25); color:#38bdf8; }
+    .cc-sys-pill.cc-sys-md.active .cc-sys-count { color:#7dd3fc; }
+    .cc-sys-pill.cc-sys-mem.active { background:rgba(236,72,153,.08); border-color:rgba(236,72,153,.2); color:#f472b6; }
+    .cc-sys-pill.cc-sys-mem.active .cc-sys-count { color:#f9a8d4; }
+    .cc-sys-pill.cc-sys-hook.active { background:rgba(168,85,247,.08); border-color:rgba(168,85,247,.22); color:#c084fc; }
+    .cc-sys-pill.cc-sys-hook.active .cc-sys-count { color:#d8b4fe; }
+    .cc-sys-pill.cc-sys-mcp.active { background:rgba(6,182,212,.08); border-color:rgba(6,182,212,.22); color:#22d3ee; }
+    .cc-sys-pill.cc-sys-mcp.active .cc-sys-count { color:#67e8f9; }
+    .cc-sys-pill.cc-sys-lsp.active { background:rgba(249,115,22,.08); border-color:rgba(249,115,22,.22); color:#fb923c; }
+    .cc-sys-pill.cc-sys-lsp.active .cc-sys-count { color:#fdba74; }
     /* Left Sidebar */
     .cc-sidebar { width:240px; background:rgba(17,17,40,.97); border-right:1px solid rgba(255,255,255,.08); display:flex; flex-direction:column; overflow:hidden; flex-shrink:0; }
     .cc-session-header { padding:8px 10px; font-size:10px; color:#7a7a9a; text-transform:uppercase; letter-spacing:1px; border-bottom:1px solid rgba(255,255,255,.08); display:flex; align-items:center; justify-content:space-between; }
@@ -5097,6 +5118,31 @@
                   End
                 </button>
               </div>
+            </div>
+            <div class="cc-sysstatus-bar hidden" id="${tabId}-cc-sysstatus">
+              <div class="cc-sys-pill cc-sys-md" id="${tabId}-cc-sys-md" onclick="ccSysPillClick('${tabId}','md')" title="CLAUDE.md status">
+                <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                <span id="${tabId}-cc-sys-md-label">CLAUDE</span><span class="cc-sys-count" id="${tabId}-cc-sys-md-count">—</span>
+              </div>
+              <div class="cc-sys-pill cc-sys-mem" id="${tabId}-cc-sys-mem" onclick="ccSysPillClick('${tabId}','memory')" title="Auto-memory entries">
+                <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12c0 4-4 7-9 7s-9-3-9-7 4-7 9-7 9 3 9 7z"/><path d="M12 3v2"/><path d="M12 19v2"/></svg>
+                <span>Memory</span><span class="cc-sys-count" id="${tabId}-cc-sys-mem-count">0</span>
+              </div>
+              <div class="cc-sys-pill cc-sys-hook" id="${tabId}-cc-sys-hook" onclick="ccSysPillClick('${tabId}','hooks')" title="Active hooks from settings.json">
+                <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                <span>Hooks</span><span class="cc-sys-count" id="${tabId}-cc-sys-hook-count">0</span>
+              </div>
+              <div class="cc-sys-pill cc-sys-mcp" id="${tabId}-cc-sys-mcp" onclick="ccSysPillClick('${tabId}','mcp')" title="MCP servers configured">
+                <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                <span>MCP</span><span class="cc-sys-count" id="${tabId}-cc-sys-mcp-count">0</span>
+              </div>
+              <div class="cc-sys-pill cc-sys-lsp" id="${tabId}-cc-sys-lsp" onclick="ccSysPillClick('${tabId}','lsp')" title="Detected language (LSP placeholder)">
+                <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+                <span id="${tabId}-cc-sys-lsp-label">Code</span>
+              </div>
+              <button class="cc-sys-pill" id="${tabId}-cc-sys-refresh" onclick="ccLoadSystemStatus('${tabId}', true)" title="Refresh system status" style="margin-left:auto;cursor:pointer;border:0;background:transparent;color:#7a7a9a">
+                <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+              </button>
             </div>
             <div class="cc-messages" id="${tabId}-cc-messages">
               <div class="cc-empty" id="${tabId}-cc-empty">
@@ -10559,6 +10605,7 @@
         </div>`;
         ccRefreshSessionList(tabId);
         ccLoadClaudeMd(tabId);
+        ccLoadSystemStatus(tabId);
         _ccUpdateTabName(tabId);
         showToast('Claude Code session started', 'success');
       } catch (e) {
@@ -10631,6 +10678,7 @@
       }
       ccRefreshSessionList(tabId);
       ccLoadClaudeMd(tabId);
+      ccLoadSystemStatus(tabId);
     }
 
     // 5.7 — Toggle right sidebar (Info panel)
@@ -10681,6 +10729,126 @@
       } else {
         ccRenderRightSidebar(tabId);
       }
+    }
+
+    // 2.4.1–2.4.5 — System Status (Batch 10)
+    async function ccLoadSystemStatus(tabId, forceToast) {
+      const td = tabs.get(tabId);
+      if (!td || !td.ccSessionId) return;
+      try {
+        const r = await fetch(`/api/claude/sessions/${td.ccSessionId}/system-status`);
+        if (!r.ok) return;
+        const data = await r.json();
+        td.ccSystemStatus = data;
+        _ccPaintSystemStatus(tabId, data);
+        if (forceToast) showToast('System status refreshed', 'success');
+      } catch {}
+    }
+
+    function _ccPaintSystemStatus(tabId, data) {
+      const bar = document.getElementById(tabId + '-cc-sysstatus');
+      if (!bar) return;
+      bar.classList.remove('hidden');
+      // 2.4.1 CLAUDE.md
+      const md = data.claudemd || { loaded: false };
+      const mdPill = document.getElementById(tabId + '-cc-sys-md');
+      const mdLabel = document.getElementById(tabId + '-cc-sys-md-label');
+      const mdCount = document.getElementById(tabId + '-cc-sys-md-count');
+      if (mdPill && mdCount) {
+        mdPill.classList.toggle('active', !!md.loaded);
+        mdPill.classList.toggle('warn', !md.loaded);
+        if (mdLabel) mdLabel.textContent = md.loaded ? 'CLAUDE' : 'CLAUDE·none';
+        mdCount.textContent = md.loaded ? (md.lines + 'L') : '—';
+        mdPill.title = md.loaded ? `CLAUDE.md loaded · ${md.lines} lines · ${(md.size/1024).toFixed(1)}KB\n${md.path}` : 'No CLAUDE.md found in cwd, .claude/, or ~/.claude/';
+      }
+      // 2.4.2 Memory
+      const mem = data.memory || { count: 0 };
+      const memPill = document.getElementById(tabId + '-cc-sys-mem');
+      const memCount = document.getElementById(tabId + '-cc-sys-mem-count');
+      if (memPill && memCount) {
+        memPill.classList.toggle('active', mem.count > 0);
+        memPill.classList.toggle('dim', mem.count === 0);
+        memCount.textContent = mem.count || 0;
+        memPill.title = mem.path ? `Auto-memory · ${mem.count} entries (${mem.kind})\n${mem.path}` : 'No auto-memory index found';
+      }
+      // 2.4.3 Hooks
+      const hooks = data.hooks || { count: 0, entries: [] };
+      const hookPill = document.getElementById(tabId + '-cc-sys-hook');
+      const hookCount = document.getElementById(tabId + '-cc-sys-hook-count');
+      if (hookPill && hookCount) {
+        hookPill.classList.toggle('active', hooks.count > 0);
+        hookPill.classList.toggle('dim', hooks.count === 0);
+        hookCount.textContent = hooks.count || 0;
+        const events = [...new Set((hooks.entries || []).map(h => h.event))].join(', ');
+        hookPill.title = hooks.count > 0 ? `${hooks.count} hook${hooks.count === 1 ? '' : 's'} active\nEvents: ${events}` : 'No hooks configured';
+      }
+      // 2.4.4 MCP
+      const mcp = data.mcp || { count: 0, servers: [] };
+      const mcpPill = document.getElementById(tabId + '-cc-sys-mcp');
+      const mcpCount = document.getElementById(tabId + '-cc-sys-mcp-count');
+      if (mcpPill && mcpCount) {
+        mcpPill.classList.toggle('active', mcp.count > 0);
+        mcpPill.classList.toggle('dim', mcp.count === 0);
+        mcpCount.textContent = mcp.count || 0;
+        const names = (mcp.servers || []).map(s => s.name).join(', ');
+        mcpPill.title = mcp.count > 0 ? `${mcp.count} MCP server${mcp.count === 1 ? '' : 's'}\n${names}` : 'No MCP servers configured';
+      }
+      // 2.4.5 LSP / language
+      const lsp = data.lsp || { detected: false };
+      const lspPill = document.getElementById(tabId + '-cc-sys-lsp');
+      const lspLabel = document.getElementById(tabId + '-cc-sys-lsp-label');
+      if (lspPill && lspLabel) {
+        lspPill.classList.toggle('active', !!lsp.detected);
+        lspPill.classList.toggle('dim', !lsp.detected);
+        lspLabel.textContent = lsp.detected ? lsp.language : 'Code';
+        lspPill.title = lsp.detected ? `Detected: ${lsp.language} (from ${lsp.marker})` : 'No language markers detected (tsconfig.json, pyproject.toml, etc.)';
+      }
+    }
+
+    function ccSysPillClick(tabId, kind) {
+      const td = tabs.get(tabId);
+      if (!td) return;
+      if (kind === 'md') { ccShowClaudeMd(tabId); return; }
+      const data = td.ccSystemStatus;
+      if (!data) { ccLoadSystemStatus(tabId, true); return; }
+      let title = '', body = '';
+      if (kind === 'memory') {
+        const m = data.memory || {};
+        title = 'Auto-Memory';
+        body = m.path ? `<div><strong>Path:</strong> ${escHtml(m.path)}</div><div><strong>Entries:</strong> ${m.count}</div><div><strong>Kind:</strong> ${escHtml(m.kind || 'unknown')}</div>` : '<div>No auto-memory index found in ~/.claude/memory/ or workspace.</div>';
+      } else if (kind === 'hooks') {
+        const h = data.hooks || { entries: [] };
+        title = `Hooks (${h.count || 0})`;
+        if (!h.count) body = '<div>No hooks configured in ~/.claude/settings.json or .claude/settings.json.</div>';
+        else body = (h.entries || []).map(e => `<div style="margin-bottom:8px;padding:6px 8px;background:rgba(0,0,0,.25);border-radius:4px"><div style="color:#c084fc;font-size:11px;font-weight:600">${escHtml(e.event)}${e.matcher ? ' · <span style="color:#7a7a9a">' + escHtml(e.matcher) + '</span>' : ''}</div><div style="font-family:JetBrains Mono,monospace;font-size:10px;color:#9d9db5;margin-top:3px;word-break:break-all">${escHtml(e.command || '')}</div></div>`).join('');
+      } else if (kind === 'mcp') {
+        const m = data.mcp || { servers: [] };
+        title = `MCP Servers (${m.count || 0})`;
+        if (!m.count) body = '<div>No MCP servers found in ~/.claude.json or .mcp.json.</div>';
+        else body = (m.servers || []).map(s => `<div style="margin-bottom:8px;padding:6px 8px;background:rgba(0,0,0,.25);border-radius:4px"><div style="color:#22d3ee;font-size:11px;font-weight:600">${escHtml(s.name)} <span style="color:#7a7a9a;font-weight:400">(${escHtml(s.type)})</span></div><div style="font-family:JetBrains Mono,monospace;font-size:10px;color:#9d9db5;margin-top:3px;word-break:break-all">${escHtml(s.command || '')}</div></div>`).join('');
+      } else if (kind === 'lsp') {
+        const l = data.lsp || {};
+        title = 'Code Intelligence';
+        body = l.detected ? `<div><strong>Language:</strong> ${escHtml(l.language)}</div><div><strong>Marker file:</strong> ${escHtml(l.marker)}</div><div style="color:#7a7a9a;font-size:11px;margin-top:6px">Full LSP integration planned for Phase 3.</div>` : '<div>No language markers detected in current cwd.</div>';
+      }
+      _ccShowSysModal(title, body);
+    }
+
+    function _ccShowSysModal(title, bodyHtml) {
+      let m = document.getElementById('cc-sys-modal');
+      if (!m) {
+        m = document.createElement('div');
+        m.id = 'cc-sys-modal';
+        m.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:9999;padding:20px';
+        m.innerHTML = `<div style="background:#111128;border:1px solid rgba(255,255,255,.08);border-radius:10px;max-width:560px;width:100%;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 24px 48px rgba(0,0,0,.6)">
+          <div style="padding:12px 16px;border-bottom:1px solid rgba(255,255,255,.06);display:flex;align-items:center;justify-content:space-between"><div id="cc-sys-modal-title" style="font-weight:600;color:#e4e4ef;font-size:13px"></div><button onclick="document.getElementById('cc-sys-modal').remove()" style="background:transparent;border:0;color:#7a7a9a;font-size:18px;cursor:pointer">×</button></div>
+          <div id="cc-sys-modal-body" style="padding:14px 16px;overflow:auto;color:#c8c8d8;font-size:12px"></div>
+        </div>`;
+        m.onclick = (e) => { if (e.target === m) m.remove(); };
+        document.body.appendChild(m);
+      }
+      document.getElementById('cc-sys-modal-title').textContent = title;
+      document.getElementById('cc-sys-modal-body').innerHTML = bodyHtml || '<em style="color:#7a7a9a">Empty</em>';
     }
 
     function ccRenderRightSidebar(tabId) {
@@ -11129,6 +11297,7 @@
       if (label) label.textContent = td.ccCwd.split('/').pop() || td.ccCwd || '~';
       _ccRefreshGit(tabId);
       ccLoadClaudeMd(tabId);
+      ccLoadSystemStatus(tabId);
       _ccUpdateTabName(tabId);
     }
 
@@ -11962,6 +12131,7 @@
         _ccRenderTodos(tabId, data.todos || []);
         // Batch 6 — load CLAUDE.md for this session
         ccLoadClaudeMd(tabId);
+        ccLoadSystemStatus(tabId);
       }
     }
 

@@ -1,7 +1,7 @@
 # Claude Code Tab — Feature List
 
 > Reference: [mock-claude-code-tab.html](mock-claude-code-tab.html)  
-> Status: Phase 2 In Progress (Batches 1–9 merged)  
+> Status: Phase 2 In Progress (Batches 1–10 merged)  
 > Priority: P0 = must-have, P1 = important, P2 = nice-to-have
 
 ## Batch History
@@ -18,6 +18,7 @@
 | Batch 7 | `39999e0` | 2.2.2 Tasks tab (TodoWrite parse · per-session persist · live WS updates · tab count badge) |
 | Batch 8 | `cec8b2e` | 7.4 multi-tab (cwd-based auto-name, session isolation) · 7.5 workspace save (tab name + todos snapshot, attach payload cwd) |
 | Batch 9 | `4edd3d5` | 2.3.4 budget bar (per-session localStorage, cost progress) · 3.3.3 agent team block (auto-wrap consecutive Task tool_uses with status rollup) |
+| Batch 10 | `TBD` | 2.4.1–2.4.5 System Status pill bar (CLAUDE.md · Memory · Hooks · MCP · LSP) with `/system-status` API + click-to-expand modal |
 
 ---
 
@@ -72,11 +73,11 @@
 
 | # | Feature | Description | Priority | Status |
 |---|---------|-------------|----------|--------|
-| 2.4.1 | CLAUDE.md Status | Show if loaded + line count | P1 | [ ] |
-| 2.4.2 | Memory Status | Show Auto Memory entry count | P2 | [ ] |
-| 2.4.3 | Hooks Status | Show active hooks count | P2 | [ ] |
-| 2.4.4 | MCP Status | Show connected MCP servers | P2 | [ ] |
-| 2.4.5 | Code Intelligence | Show if LSP is active + language | P2 | [ ] |
+| 2.4.1 | CLAUDE.md Status | Show if loaded + line count | P1 | [x] |
+| 2.4.2 | Memory Status | Show Auto Memory entry count | P2 | [x] |
+| 2.4.3 | Hooks Status | Show active hooks count | P2 | [x] |
+| 2.4.4 | MCP Status | Show connected MCP servers | P2 | [x] |
+| 2.4.5 | Code Intelligence | Show if LSP is active + language | P2 | [~] (marker-based language detect; real LSP deferred to Phase 3) |
 
 ---
 

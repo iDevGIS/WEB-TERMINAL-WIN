@@ -3544,6 +3544,131 @@ app.get("/api/claude/sessions/:id/claudemd", requireAuth, (req, res) => {
   res.json({ cwd, files: found, exists: found.length > 0 });
 });
 
+// 2.4.1–2.4.5 — System Status (Batch 10)
+// Aggregates CLAUDE.md, auto-memory, hooks, MCP, and language/LSP hints for a session.
+app.get("/api/claude/sessions/:id/system-status", requireAuth, (req, res) => {
+  const sess = claudeSessions.get(req.params.id);
+  if (!sess) return res.status(404).json({ error: "not found" });
+  const cwd = sess.cwd || process.env.USERPROFILE || process.env.HOME || "";
+  const home = process.env.USERPROFILE || process.env.HOME || "";
+
+  // 2.4.1 CLAUDE.md — use first found of [cwd/CLAUDE.md, cwd/.claude/CLAUDE.md, ~/.claude/CLAUDE.md]
+  let claudemd = { loaded: false, path: null, lines: 0, size: 0 };
+  for (const p of [path.join(cwd, "CLAUDE.md"), path.join(cwd, ".claude", "CLAUDE.md"), path.join(home, ".claude", "CLAUDE.md")]) {
+    try {
+      const st = fs.statSync(p);
+      if (st.isFile()) {
+        const txt = fs.readFileSync(p, "utf8");
+        claudemd = { loaded: true, path: p, lines: txt.split(/\r?\n/).length, size: st.size };
+        break;
+      }
+    } catch {}
+  }
+
+  // 2.4.2 Memory — count entries. Prefer ~/.claude/memory/MEMORY.md entries; fall back to workspace memory/.
+  let memory = { count: 0, path: null, kind: null };
+  const memCandidates = [
+    { p: path.join(home, ".claude", "memory", "MEMORY.md"), kind: "index" },
+    { p: path.join(cwd, "memory", "MEMORY.md"), kind: "index" },
+    { p: path.join(cwd, "MEMORY.md"), kind: "index" },
+  ];
+  for (const c of memCandidates) {
+    try {
+      const st = fs.statSync(c.p);
+      if (st.isFile()) {
+        const txt = fs.readFileSync(c.p, "utf8");
+        // Count pointer lines "- [Title](file.md)" OR section headings "## "
+        const pointerCount = (txt.match(/^\s*-\s+\[[^\]]+\]\([^)]+\)/gm) || []).length;
+        const headingCount = (txt.match(/^##\s+/gm) || []).length;
+        memory = { count: pointerCount || headingCount, path: c.p, kind: c.kind };
+        break;
+      }
+    } catch {}
+  }
+  if (!memory.path) {
+    // Count any *.md files in ~/.claude/memory/ as fallback
+    try {
+      const dir = path.join(home, ".claude", "memory");
+      const files = fs.readdirSync(dir).filter(f => f.endsWith(".md") && f !== "MEMORY.md");
+      if (files.length) memory = { count: files.length, path: dir, kind: "dir" };
+    } catch {}
+  }
+
+  // 2.4.3 Hooks — merge ~/.claude/settings.json + <cwd>/.claude/settings.json
+  const hooks = [];
+  for (const p of [path.join(home, ".claude", "settings.json"), path.join(cwd, ".claude", "settings.json")]) {
+    try {
+      const j = JSON.parse(fs.readFileSync(p, "utf8"));
+      const h = j && j.hooks;
+      if (h && typeof h === "object") {
+        for (const event of Object.keys(h)) {
+          const arr = Array.isArray(h[event]) ? h[event] : [];
+          for (const entry of arr) {
+            // Claude Code settings shape: each entry has { matcher?, hooks: [{type, command}] }
+            const inner = Array.isArray(entry && entry.hooks) ? entry.hooks : [entry];
+            for (const hk of inner) {
+              if (hk && (hk.command || hk.type)) {
+                hooks.push({ event, matcher: entry.matcher || null, command: hk.command || hk.type || "" });
+              }
+            }
+          }
+        }
+      }
+    } catch {}
+  }
+
+  // 2.4.4 MCP — read ~/.claude.json/.mcp.json or <cwd>/.mcp.json (Claude Code convention)
+  const mcpServers = [];
+  const seenMcp = new Set();
+  for (const p of [path.join(cwd, ".mcp.json"), path.join(home, ".claude.json"), path.join(home, ".mcp.json")]) {
+    try {
+      const j = JSON.parse(fs.readFileSync(p, "utf8"));
+      const m = (j && j.mcpServers) || (j && j.mcp && j.mcp.servers) || null;
+      if (m && typeof m === "object") {
+        for (const name of Object.keys(m)) {
+          if (seenMcp.has(name)) continue;
+          seenMcp.add(name);
+          const cfg = m[name] || {};
+          mcpServers.push({ name, type: cfg.type || (cfg.url ? "http" : "stdio"), command: cfg.command || cfg.url || "" });
+        }
+      }
+    } catch {}
+  }
+
+  // 2.4.5 Code Intelligence — infer primary language from cwd markers (no real LSP yet)
+  const lang = { detected: false, language: null, marker: null };
+  const markers = [
+    { file: "tsconfig.json", lang: "TypeScript" },
+    { file: "package.json", lang: "JavaScript" },
+    { file: "pyproject.toml", lang: "Python" },
+    { file: "requirements.txt", lang: "Python" },
+    { file: "Cargo.toml", lang: "Rust" },
+    { file: "go.mod", lang: "Go" },
+    { file: "pom.xml", lang: "Java" },
+    { file: "build.gradle", lang: "Java" },
+    { file: "composer.json", lang: "PHP" },
+    { file: "Gemfile", lang: "Ruby" },
+    { file: "mix.exs", lang: "Elixir" },
+    { file: "deno.json", lang: "Deno" },
+  ];
+  for (const m of markers) {
+    try {
+      if (fs.statSync(path.join(cwd, m.file)).isFile()) {
+        lang.detected = true; lang.language = m.lang; lang.marker = m.file; break;
+      }
+    } catch {}
+  }
+
+  res.json({
+    cwd,
+    claudemd,
+    memory,
+    hooks: { count: hooks.length, entries: hooks.slice(0, 40) },
+    mcp: { count: mcpServers.length, servers: mcpServers },
+    lsp: lang,
+  });
+});
+
 // File search for @ picker — shallow recursive walk rooted at cwd, filtered by query
 app.get("/api/claude/file-search", requireAuth, (req, res) => {
   const cwd = req.query.cwd || process.env.USERPROFILE || process.env.HOME;
