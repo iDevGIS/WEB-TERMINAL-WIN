@@ -2888,7 +2888,7 @@ wss.on("connection", (ws, req) => {
           cs.clients.add(ws);
           if (!ws._claudeSessions) ws._claudeSessions = new Set();
           ws._claudeSessions.add(cs.id);
-          ws.send(JSON.stringify({ type: "claude-attached", id: cs.id, name: cs.name, model: cs.model, effort: cs.effort, thinking: cs.thinking, fast: cs.fast, permMode: cs.permMode, status: cs.status, messages: cs.messages, cost: cs.cost, tokens: cs.tokens, turns: cs.turns, contextPct: cs.contextPct, files: cs.files }));
+          ws.send(JSON.stringify({ type: "claude-attached", id: cs.id, name: cs.name, model: cs.model, effort: cs.effort, thinking: cs.thinking, fast: cs.fast, permMode: cs.permMode, status: cs.status, messages: cs.messages, cost: cs.cost, tokens: cs.tokens, turns: cs.turns, contextPct: cs.contextPct, files: cs.files, checkpoints: cs.checkpoints || [] }));
           break;
         }
         case "claude-detach": {
@@ -2953,6 +2953,7 @@ wss.on("connection", (ws, req) => {
             const src = (parsed.message || (attachments[0] && attachments[0].name) || "Attachment").toString();
             cs.name = src.slice(0, 40).replace(/\n/g, ' ') + (src.length > 40 ? '…' : '');
           }
+          pushClaudeCheckpoint(cs, parsed.message || "");
           const userMsg = { type: "user", content: parsed.message || "", attachments: attachmentRefs, timestamp: Date.now() };
           cs.messages.push(userMsg);
           broadcastClaude(cs, userMsg);
@@ -3056,6 +3057,7 @@ function persistClaudeSession(sess) {
         createdAt: sess.createdAt,
         lastActivity: sess.lastActivity,
         messages: (sess.messages || []).slice(-PERSIST_MESSAGE_CAP),
+        checkpoints: sess.checkpoints || [],
       };
       const file = path.join(CLAUDE_SESSIONS_DIR, sess.id + ".json");
       fs.writeFileSync(file, JSON.stringify(snapshot));
@@ -3097,6 +3099,7 @@ function loadClaudeSessionsFromDisk() {
           name: s.name || "Restored Session",
           createdAt: s.createdAt || Date.now(),
           lastActivity: s.lastActivity || Date.now(),
+          checkpoints: Array.isArray(s.checkpoints) ? s.checkpoints : [],
         };
         claudeSessions.set(sess.id, sess);
         loaded++;
@@ -3118,6 +3121,20 @@ function deleteClaudeSessionFromDisk(id) {
 }
 
 // Create a session object (no process yet — process spawns per message)
+// 1.9 / 3.3.4 — push a rewind checkpoint at the start of a user turn
+function pushClaudeCheckpoint(sess, userText) {
+  const cp = {
+    id: crypto.randomBytes(6).toString("hex"),
+    turn: sess.turns + 1,          // turn about to start
+    msgIdx: sess.messages.length,  // position of the incoming user message
+    text: (userText || "").slice(0, 200),
+    ts: Date.now(),
+  };
+  sess.checkpoints.push(cp);
+  broadcastClaude(sess, { type: "checkpoint", checkpoint: cp });
+  return cp;
+}
+
 function createClaudeSession(opts = {}) {
   const id = crypto.randomBytes(8).toString("hex");
   const sess = {
@@ -3142,6 +3159,7 @@ function createClaudeSession(opts = {}) {
     name: opts.name || "New Session",
     createdAt: Date.now(),
     lastActivity: Date.now(),
+    checkpoints: [],  // 1.9 / 3.3.4: { id, turn, msgIdx, text, ts }
   };
   claudeSessions.set(id, sess);
   persistClaudeSession(sess);
@@ -3345,6 +3363,7 @@ app.get("/api/claude/sessions/:id", requireAuth, (req, res) => {
     id: sess.id, name: sess.name, model: sess.model, status: sess.status,
     cost: sess.cost, tokens: sess.tokens, turns: sess.turns,
     contextPct: sess.contextPct, files: sess.files, messages: sess.messages,
+    checkpoints: sess.checkpoints || [],
   });
 });
 
@@ -3354,6 +3373,7 @@ app.post("/api/claude/sessions/:id/send", requireAuth, (req, res) => {
   const { message } = req.body;
   if (!message) return res.status(400).json({ error: "message required" });
   if (sess.proc) return res.status(409).json({ error: "still processing" });
+  pushClaudeCheckpoint(sess, message);
   const userMsg = { type: "user", content: message, timestamp: Date.now() };
   sess.messages.push(userMsg);
   broadcastClaude(sess, userMsg);
@@ -3393,6 +3413,36 @@ app.post("/api/claude/sessions/:id/compact", requireAuth, (req, res) => {
   // Compact = send /compact as a message
   claudeSendMessage(sess, "/compact");
   res.json({ ok: true });
+});
+
+// 1.9 / 3.3.4 — Rewind checkpoints
+app.get("/api/claude/sessions/:id/checkpoints", requireAuth, (req, res) => {
+  const sess = claudeSessions.get(req.params.id);
+  if (!sess) return res.status(404).json({ error: "not found" });
+  res.json({ checkpoints: sess.checkpoints || [] });
+});
+
+app.post("/api/claude/sessions/:id/rewind", requireAuth, (req, res) => {
+  const sess = claudeSessions.get(req.params.id);
+  if (!sess || sess.dead) return res.status(404).json({ error: "not found" });
+  if (sess.proc) return res.status(409).json({ error: "stop the current turn first" });
+  const { checkpointId } = req.body || {};
+  if (!checkpointId) return res.status(400).json({ error: "checkpointId required" });
+  const idx = (sess.checkpoints || []).findIndex(c => c.id === checkpointId);
+  if (idx < 0) return res.status(404).json({ error: "checkpoint not found" });
+  const cp = sess.checkpoints[idx];
+  // Truncate messages at checkpoint position (drop user msg + everything after)
+  sess.messages = sess.messages.slice(0, cp.msgIdx);
+  // Drop checkpoints at or after this one
+  sess.checkpoints = sess.checkpoints.slice(0, idx);
+  // Reset turn counter + claudeSessionId so next send starts a fresh Claude thread
+  sess.turns = cp.turn - 1;
+  sess.claudeSessionId = null;
+  sess.status = "idle";
+  sess.lastActivity = Date.now();
+  persistClaudeSession(sess);
+  broadcastClaude(sess, { type: "rewind", msgIdx: cp.msgIdx, turn: sess.turns });
+  res.json({ ok: true, msgIdx: cp.msgIdx, turn: sess.turns });
 });
 
 // Context usage endpoint (6.7) — tokens + percentage against model's window

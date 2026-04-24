@@ -4997,6 +4997,13 @@
                 <span id="${tabId}-cc-ctx-pct">0%</span>
               </div>
               <div class="cc-topbar-right">
+                <div class="cc-rewind-wrap" style="position:relative">
+                  <button class="cc-topbar-btn" onclick="ccToggleRewindMenu('${tabId}')" title="Rewind to a checkpoint" id="${tabId}-cc-rewind-btn">
+                    <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+                    Rewind
+                  </button>
+                  <div class="cc-rewind-dropdown" id="${tabId}-cc-rewind-dropdown" style="display:none;position:absolute;top:100%;right:0;margin-top:4px;background:#1a1a24;border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:4px;min-width:240px;max-width:340px;max-height:280px;overflow:auto;z-index:1000;box-shadow:0 8px 24px rgba(0,0,0,.4)"></div>
+                </div>
                 <button class="cc-topbar-btn" onclick="ccCompact('${tabId}')" title="Compress context (/compact)">
                   <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 14h6v6"/><path d="M14 4h6v6"/><path d="M10 14L4 20"/><path d="M20 4l-6 6"/></svg>
                   Compact
@@ -10438,6 +10445,8 @@
         if (!r.ok) { const e = await r.json(); showToast('Failed: ' + (e.error || 'unknown'), 'error'); return; }
         const data = await r.json();
         td.ccSessionId = data.id;
+        td.ccCheckpoints = [];
+        td.ccTurns = 0;
         // Attach via WebSocket
         if (window._ws && window._ws.readyState === 1) {
           window._ws.send(JSON.stringify({ type: 'claude-attach', id: data.id }));
@@ -10481,7 +10490,8 @@
         window._ws.send(JSON.stringify({ type: 'claude-detach', id: td.ccSessionId }));
       }
       td.ccSessionId = sessionId;
-      // Attach new
+      td.ccCheckpoints = [];
+      // Attach new — checkpoints will be restored via claude-attached event
       if (window._ws && window._ws.readyState === 1) {
         window._ws.send(JSON.stringify({ type: 'claude-attach', id: sessionId }));
       }
@@ -10562,6 +10572,81 @@
       showToast('Compacting context...', 'info');
     }
 
+    // 1.9 Rewind Button — toggle dropdown with checkpoint list
+    function ccToggleRewindMenu(tabId) {
+      const dd = document.getElementById(tabId + '-cc-rewind-dropdown');
+      if (!dd) return;
+      const open = dd.style.display !== 'none';
+      // Close all first
+      document.querySelectorAll('.cc-rewind-dropdown').forEach(el => { el.style.display = 'none'; });
+      if (open) return;
+      const td = tabs.get(tabId);
+      const cps = (td && td.ccCheckpoints) || [];
+      if (!cps.length) {
+        dd.innerHTML = '<div style="padding:10px 12px;font-size:11px;color:#7a7a9a;text-align:center">No checkpoints yet — send a message to create one</div>';
+      } else {
+        dd.innerHTML = '<div style="padding:6px 10px 4px;font-size:9px;color:#5a5a7a;text-transform:uppercase;letter-spacing:.5px">Rewind to…</div>' +
+          cps.map((cp, i) => {
+            const when = new Date(cp.ts).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+            const preview = (cp.text || '(empty)').replace(/\s+/g, ' ').slice(0, 80);
+            return `<div class="cc-rewind-item" onclick="ccExecRewind('${tabId}','${cp.id}')" style="padding:8px 10px;cursor:pointer;border-radius:6px;display:flex;align-items:flex-start;gap:8px;font-size:11px" onmouseover="this.style.background='rgba(255,255,255,.05)'" onmouseout="this.style.background='transparent'">
+              <span style="color:#f97316;font-weight:600;flex-shrink:0;font-size:10px">#${cp.turn}</span>
+              <span style="color:#e5e7ff;flex:1;line-height:1.35">${escHtml(preview)}</span>
+              <span style="color:#5a5a7a;font-size:9px;flex-shrink:0">${when}</span>
+            </div>`;
+          }).join('');
+      }
+      dd.style.display = 'block';
+      // Click-outside to close
+      setTimeout(() => {
+        const handler = (e) => {
+          if (!dd.contains(e.target) && !e.target.closest('#' + tabId + '-cc-rewind-btn')) {
+            dd.style.display = 'none';
+            document.removeEventListener('click', handler);
+          }
+        };
+        document.addEventListener('click', handler);
+      }, 0);
+    }
+
+    async function ccExecRewind(tabId, checkpointId) {
+      const td = tabs.get(tabId);
+      if (!td || !td.ccSessionId) return;
+      // Close dropdown
+      const dd = document.getElementById(tabId + '-cc-rewind-dropdown');
+      if (dd) dd.style.display = 'none';
+      try {
+        const r = await fetch('/api/claude/sessions/' + td.ccSessionId + '/rewind', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ checkpointId })
+        });
+        if (!r.ok) { const e = await r.json().catch(() => ({})); showToast('Rewind failed: ' + (e.error || r.status), 'error'); return; }
+        showToast('Rewound to checkpoint', 'info');
+        // UI update happens on 'rewind' WS broadcast
+      } catch (e) {
+        showToast('Rewind failed: ' + e.message, 'error');
+      }
+    }
+
+    // 3.3.4 — inline rewind from a user message; each rendered user msg corresponds to a checkpoint at the same ordinal
+    function ccRewindFromUserMsg(btn, ev) {
+      if (ev) ev.stopPropagation();
+      const msgsEl = btn.closest('.cc-messages');
+      if (!msgsEl || !msgsEl.id) return;
+      const tabId = msgsEl.id.replace(/-cc-messages$/, '');
+      const td = tabs.get(tabId);
+      if (!td) return;
+      const userMsgs = Array.from(msgsEl.querySelectorAll('.cc-user-msg'));
+      const el = btn.closest('.cc-user-msg');
+      const idx = userMsgs.indexOf(el);
+      if (idx < 0) return;
+      const cp = (td.ccCheckpoints || [])[idx];
+      if (!cp) { showToast('Checkpoint not found', 'error'); return; }
+      if (!confirm('Rewind to this point? This will remove this message and everything after.')) return;
+      ccExecRewind(tabId, cp.id);
+    }
+
     async function ccEndSession(tabId) {
       const td = tabs.get(tabId);
       if (!td || !td.ccSessionId) return;
@@ -10570,6 +10655,8 @@
       }
       await fetch('/api/claude/sessions/' + td.ccSessionId, { method: 'DELETE' });
       td.ccSessionId = null;
+      td.ccCheckpoints = [];
+      td.ccTurns = 0;
       const msgsEl = document.getElementById(tabId + '-cc-messages');
       msgsEl.innerHTML = `<div class="cc-empty" id="${tabId}-cc-empty">
         <div class="cc-empty-icon"><svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#f97316" stroke-width="1.5" stroke-linecap="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg></div>
@@ -11051,10 +11138,16 @@
           ).join('') + '</div>';
         }
       }
-      return `<div class="cc-msg">
+      return `<div class="cc-msg cc-user-msg">
         <div class="cc-msg-avatar user"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
         <div class="cc-msg-body">
-          <div class="cc-msg-header"><span class="cc-msg-name">You</span><span>${time}</span></div>
+          <div class="cc-msg-header">
+            <span class="cc-msg-name">You</span><span>${time}</span>
+            <button class="cc-user-rewind" onclick="ccRewindFromUserMsg(this, event)" title="Rewind to here — remove this message and all that follows" style="margin-left:auto;background:transparent;border:1px solid rgba(255,255,255,.08);color:#7a7a9a;border-radius:4px;padding:2px 5px;cursor:pointer;font-size:9px;display:inline-flex;align-items:center;gap:3px;opacity:.6">
+              <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+              Rewind
+            </button>
+          </div>
           <div class="cc-msg-content">${content ? escHtml(content) : ''}${atts}</div>
         </div>
       </div>`;
@@ -11402,6 +11495,29 @@
       } else if (data.type === 'turn-complete') {
         streamBar.classList.remove('active');
         ccRefreshSessionList(tabId);
+      } else if (data.type === 'checkpoint') {
+        // 1.9 / 3.3.4 — new checkpoint from server; track for rewind UI
+        if (!Array.isArray(td.ccCheckpoints)) td.ccCheckpoints = [];
+        td.ccCheckpoints.push(data.checkpoint);
+      } else if (data.type === 'rewind') {
+        // Rewind executed — drop messages/turns from DOM and local state
+        const msgsEl = document.getElementById(tabId + '-cc-messages');
+        if (msgsEl) {
+          const userMsgs = msgsEl.querySelectorAll('.cc-user-msg');
+          const startIdx = typeof data.turn === 'number' ? data.turn : 0;
+          // Remove startIdx-th user msg and every node after it (inclusive)
+          if (userMsgs[startIdx]) {
+            let node = userMsgs[startIdx];
+            while (node) {
+              const next = node.nextSibling;
+              node.remove();
+              node = next;
+            }
+          }
+        }
+        td.ccTurns = data.turn || 0;
+        if (Array.isArray(td.ccCheckpoints)) td.ccCheckpoints = td.ccCheckpoints.slice(0, td.ccTurns);
+        streamBar.classList.remove('active');
       } else if (data.type === 'session-ended') {
         streamBar.classList.remove('active');
         ccAppendMessage(tabId, `<div style="text-align:center;padding:8px;font-size:11px;color:#5a5a7a;border-top:1px solid rgba(255,255,255,.06);margin-top:8px">Session ended</div>`);
@@ -11447,6 +11563,8 @@
         ccUpdateCost(tabId, data.cost, data.tokens?.input, data.tokens?.output, data.turns, data.tokens?.cache);
         ccUpdateContext(tabId, data.contextPct || 0);
         if (data.files) ccUpdateFiles(tabId, data.files);
+        // 1.9 — restore checkpoints
+        td.ccCheckpoints = Array.isArray(data.checkpoints) ? data.checkpoints.slice() : [];
       }
     }
 

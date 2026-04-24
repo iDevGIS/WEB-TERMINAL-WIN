@@ -18,8 +18,8 @@
 | 1.6 | Git Branch | Show current branch name from `git rev-parse --abbrev-ref HEAD` | P1 | [ ] |
 | 1.7 | PR Status | Show PR number + status (Pending/Approved/Changes Requested) via `gh pr status` | P2 | [ ] |
 | 1.8 | Context Meter | % bar showing context window usage. Color: green < 50%, yellow < 75%, orange < 90%, red >= 90% | P0 | [x] |
-| 1.9 | Rewind Button | Open rewind menu (restore code + conversation to checkpoint) | P1 | [ ] |
-| 1.10 | Compact Button | Trigger `/compact` to compress context | P1 | [ ] |
+| 1.9 | Rewind Button | Open rewind menu (restore code + conversation to checkpoint) | P1 | [~] (conversation only; code restore out of scope) |
+| 1.10 | Compact Button | Trigger `/compact` to compress context | P1 | [x] |
 | 1.11 | End Button | Kill Claude Code process, close tab | P0 | [x] |
 
 ---
@@ -99,7 +99,7 @@
 | 3.3.1 | Thinking Block | Collapsible, show extended thinking content + duration | P1 | [x] |
 | 3.3.2 | Subagent Block | Show agent name, task, status, summary result | P1 | [x] |
 | 3.3.3 | Agent Team Block | Show multiple agents running in parallel with status | P2 | [ ] |
-| 3.3.4 | Rewind Checkpoints | Clickable markers between turns. Esc+Esc to open rewind menu | P1 | [ ] |
+| 3.3.4 | Rewind Checkpoints | Clickable markers between turns. Esc+Esc to open rewind menu | P1 | [~] (inline Rewind button on user msgs; Esc+Esc hotkey pending) |
 | 3.3.5 | Permission Prompt | Inline approve/deny UI when Claude asks for permission | P0 | [~] (uses --permission-mode flag, no inline prompt in -p mode) |
 
 ### 3.4 Streaming
