@@ -1591,6 +1591,55 @@ app.get("/api/git/status", requireAuth, async (req, res) => {
   }
 });
 
+// 1.7 — PR status via `gh pr status` (returns current-branch PR info if any)
+// GET /api/git/pr-status?cwd=<path>
+const _prStatusCache = new Map(); // cwd -> { ts, data }
+app.get("/api/git/pr-status", requireAuth, async (req, res) => {
+  const cwd = req.query.cwd ? String(req.query.cwd) : (process.env.USERPROFILE || process.env.HOME);
+  const safe = path.resolve(cwd);
+  if (!fs.existsSync(safe)) return res.status(404).json({ error: "cwd not found" });
+  const cached = _prStatusCache.get(safe);
+  if (cached && Date.now() - cached.ts < 60_000) return res.json(cached.data);
+  const { exec: cpExec } = require("child_process");
+  const run = (cmd) => new Promise((resolve) => {
+    cpExec(cmd, { cwd: safe, timeout: 5000, windowsHide: true }, (err, stdout) => {
+      resolve(err ? null : String(stdout || "").trim());
+    });
+  });
+  try {
+    const out = await run("gh pr status --json number,state,title,url,reviewDecision,mergeable,isDraft");
+    if (!out) {
+      const data = { available: false };
+      _prStatusCache.set(safe, { ts: Date.now(), data });
+      return res.json(data);
+    }
+    let parsed;
+    try { parsed = JSON.parse(out); } catch { parsed = null; }
+    const current = parsed && parsed.currentBranch;
+    if (!current) {
+      const data = { available: true, pr: null };
+      _prStatusCache.set(safe, { ts: Date.now(), data });
+      return res.json(data);
+    }
+    const data = {
+      available: true,
+      pr: {
+        number: current.number,
+        state: current.state,
+        title: current.title,
+        url: current.url,
+        reviewDecision: current.reviewDecision || null,
+        mergeable: current.mergeable || null,
+        isDraft: !!current.isDraft,
+      },
+    };
+    _prStatusCache.set(safe, { ts: Date.now(), data });
+    res.json(data);
+  } catch (e) {
+    res.json({ available: false, error: e.message });
+  }
+});
+
 // Protected static files — no cache for HTML
 
 // === Docker Container Management ===
@@ -3454,6 +3503,62 @@ app.get("/api/claude/sessions/:id", requireAuth, (req, res) => {
     checkpoints: sess.checkpoints || [],
     todos: sess.todos || [],
   });
+});
+
+// 2.1.5 — Fork session: duplicate the current session's transcript + state into
+// a new session. The new session resumes from the same Claude CLI context but
+// diverges from here in the proxy's message log and checkpoints.
+app.post("/api/claude/sessions/:id/fork", requireAuth, (req, res) => {
+  const src = claudeSessions.get(req.params.id);
+  if (!src) return res.status(404).json({ error: "not found" });
+  const newId = crypto.randomBytes(8).toString("hex");
+  const suffix = " (fork)";
+  const baseName = src.name.endsWith(suffix) ? src.name : src.name + suffix;
+  const fork = {
+    id: newId,
+    proc: null,
+    claudeSessionId: src.claudeSessionId, // inherit CLI session so Resume keeps context
+    model: src.model,
+    effort: src.effort,
+    thinking: src.thinking,
+    fast: src.fast,
+    permMode: src.permMode,
+    cwd: src.cwd,
+    status: "idle",
+    clients: new Set(),
+    messages: JSON.parse(JSON.stringify(src.messages || [])),
+    cost: src.cost,
+    tokens: { ...(src.tokens || { input: 0, output: 0, cache: 0 }) },
+    turns: src.turns,
+    files: JSON.parse(JSON.stringify(src.files || [])),
+    contextPct: src.contextPct,
+    dead: false,
+    name: baseName,
+    createdAt: Date.now(),
+    lastActivity: Date.now(),
+    checkpoints: JSON.parse(JSON.stringify(src.checkpoints || [])),
+    todos: JSON.parse(JSON.stringify(src.todos || [])),
+    todosUpdatedAt: src.todosUpdatedAt || 0,
+    fsWatcher: null,
+    fsWatchTimer: null,
+    fsWatchPending: new Map(),
+    forkedFrom: src.id,
+  };
+  claudeSessions.set(newId, fork);
+  persistClaudeSession(fork);
+  startClaudeFsWatcher(fork);
+  console.log(`[Claude] Forked session ${src.id.slice(0,6)} → ${newId.slice(0,6)}`);
+  res.json({ id: newId, name: fork.name, forkedFrom: src.id });
+});
+
+app.post("/api/claude/sessions/:id/rename", requireAuth, (req, res) => {
+  const sess = claudeSessions.get(req.params.id);
+  if (!sess) return res.status(404).json({ error: "not found" });
+  const name = String(req.body?.name || "").trim();
+  if (!name) return res.status(400).json({ error: "name required" });
+  sess.name = name.slice(0, 120);
+  persistClaudeSession(sess);
+  res.json({ ok: true, name: sess.name });
 });
 
 app.post("/api/claude/sessions/:id/send", requireAuth, (req, res) => {

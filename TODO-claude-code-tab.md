@@ -32,7 +32,7 @@
 | 1.4 | Extended Thinking | Toggle button. Hotkey `Cmd+T`. Prepends `Think hard.` to prompts | P1 | [x] |
 | 1.5 | Fast Mode | Toggle button. Hotkey `Alt+O`. Forces effort=low | P1 | [x] |
 | 1.6 | Git Branch | Show current branch name from `git rev-parse --abbrev-ref HEAD` | P1 | [x] |
-| 1.7 | PR Status | Show PR number + status (Pending/Approved/Changes Requested) via `gh pr status` | P2 | [ ] |
+| 1.7 | PR Status | Show PR number + status (Pending/Approved/Changes Requested) via `gh pr status` | P2 | [x] |
 | 1.8 | Context Meter | % bar showing context window usage. Color: green < 50%, yellow < 75%, orange < 90%, red >= 90% | P0 | [x] |
 | 1.9 | Rewind Button | Open rewind menu (restore code + conversation to checkpoint) | P1 | [~] (conversation only; code restore out of scope) |
 | 1.10 | Compact Button | Trigger `/compact` to compress context | P1 | [x] |
@@ -50,7 +50,7 @@
 | 2.1.2 | New Session | Button to start fresh session | P0 | [x] |
 | 2.1.3 | Session Time | Show relative time (now, 2h, 1d) | P2 | [x] |
 | 2.1.4 | Active Indicator | Highlight active session with accent border | P1 | [x] |
-| 2.1.5 | Fork Session | Right-click → Fork (creates branch from current session) | P2 | [ ] |
+| 2.1.5 | Fork Session | Right-click → Fork (creates branch from current session) | P2 | [x] |
 
 ### 2.2 Sidebar Tabs
 

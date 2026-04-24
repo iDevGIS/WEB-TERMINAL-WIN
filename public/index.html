@@ -2317,6 +2317,16 @@
     .cc-git-badge.hidden { display:none; }
     .cc-git-branch { max-width:90px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .cc-git-stats { font-size:9px; opacity:.7; display:flex; gap:3px; }
+    .cc-pr-badge { font-size:10px; padding:4px 8px; border-radius:5px; cursor:pointer; display:flex; align-items:center; gap:5px; background:rgba(96,165,250,.06); color:#93c5fd; border:1px solid rgba(96,165,250,.15); font-family:'JetBrains Mono',monospace; text-decoration:none; transition:background .15s, border-color .15s; }
+    .cc-pr-badge:hover { background:rgba(96,165,250,.12); border-color:rgba(96,165,250,.3); }
+    .cc-pr-badge.hidden { display:none; }
+    .cc-pr-status { font-size:9px; padding:1px 5px; border-radius:3px; font-weight:600; text-transform:uppercase; letter-spacing:.3px; }
+    .cc-pr-status.approved { background:rgba(74,222,128,.15); color:#4ade80; }
+    .cc-pr-status.changes { background:rgba(251,191,36,.15); color:#fbbf24; }
+    .cc-pr-status.pending { background:rgba(148,163,184,.15); color:#94a3b8; }
+    .cc-pr-status.merged { background:rgba(168,85,247,.15); color:#c084fc; }
+    .cc-pr-status.closed { background:rgba(239,68,68,.15); color:#f87171; }
+    .cc-pr-status.draft { background:rgba(148,163,184,.1); color:#9d9db5; }
     /* Effort selector */
     .cc-effort-picker { font-size:11px; padding:4px 8px; border-radius:5px; cursor:pointer; position:relative; background:rgba(96,165,250,.08); color:#60a5fa; border:1px solid rgba(96,165,250,.18); display:flex; align-items:center; gap:4px; font-weight:500; }
     .cc-effort-picker:hover { background:rgba(96,165,250,.16); }
@@ -2423,6 +2433,11 @@
     .cc-session-item:hover { background:rgba(255,255,255,.04); }
     .cc-session-item.active { background:rgba(108,99,255,.08); border-left-color:#6c63ff; color:#e4e4ef; }
     .cc-session-item .cc-time { font-size:10px; color:#5a5a7a; margin-left:auto; }
+    .cc-session-menu { position:fixed; z-index:9999; min-width:170px; background:rgba(17,17,40,.98); border:1px solid rgba(255,255,255,.1); border-radius:6px; box-shadow:0 8px 24px rgba(0,0,0,.5); padding:4px; font-size:12px; }
+    .cc-session-menu-item { display:flex; align-items:center; gap:8px; padding:7px 10px; border-radius:4px; color:#d1d5db; cursor:pointer; transition:background .1s; }
+    .cc-session-menu-item:hover { background:rgba(108,99,255,.15); color:#fff; }
+    .cc-session-menu-item.danger:hover { background:rgba(239,68,68,.15); color:#fca5a5; }
+    .cc-session-menu-item svg { opacity:.8; }
     .cc-sidebar-tabs { display:flex; border-bottom:1px solid rgba(255,255,255,.08); flex-shrink:0; }
     .cc-sidebar-tab { flex:1; padding:7px 0; text-align:center; font-size:10px; color:#7a7a9a; cursor:pointer; border-bottom:2px solid transparent; text-transform:uppercase; letter-spacing:.5px; font-weight:500; }
     .cc-sidebar-tab:hover { color:#9d9db5; background:rgba(255,255,255,.03); }
@@ -5157,6 +5172,11 @@
                 <span class="cc-git-branch" id="${tabId}-cc-git-branch">-</span>
                 <span class="cc-git-stats" id="${tabId}-cc-git-stats"></span>
               </div>
+              <a class="cc-pr-badge hidden" id="${tabId}-cc-pr" target="_blank" rel="noopener" title="Pull request status">
+                <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 9v12"/><path d="M18 6v9"/><path d="M13 6a2 2 0 0 0-2-2H9"/></svg>
+                <span id="${tabId}-cc-pr-num">PR</span>
+                <span class="cc-pr-status" id="${tabId}-cc-pr-status"></span>
+              </a>
               <div class="cc-ctx-bar" id="${tabId}-cc-ctx" title="Context usage">
                 <span>CTX</span>
                 <div class="cc-ctx-meter"><div class="cc-ctx-fill low" id="${tabId}-cc-ctx-fill" style="width:0%"></div></div>
@@ -10749,7 +10769,7 @@
           const relTime = _ccTimeAgo(ts);
           const running = s.status === 'streaming' || s.status === 'waiting';
           const timeLabel = running ? '<span style="color:#fbbf24">●</span> ' + relTime : relTime;
-          return `<div class="cc-session-item${s.id === activeId ? ' active' : ''}" onclick="ccSwitchSession('${tabId}','${s.id}')" title="${escHtml(s.name)} • ${s.turns || 0} turns • ${new Date(ts).toLocaleString()}">
+          return `<div class="cc-session-item${s.id === activeId ? ' active' : ''}" onclick="ccSwitchSession('${tabId}','${s.id}')" oncontextmenu="ccShowSessionMenu(event,'${tabId}','${s.id}')" title="${escHtml(s.name)} • ${s.turns || 0} turns • ${new Date(ts).toLocaleString()} — right-click for more">
             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
             ${escHtml(s.name)}
             <span class="cc-time">${timeLabel}</span>
@@ -10781,6 +10801,70 @@
       if (d < 30) return d + 'd';
       const mo = Math.floor(d / 30);
       return mo + 'mo';
+    }
+
+    // 2.1.5 — right-click menu on a session entry
+    function ccShowSessionMenu(ev, tabId, sessionId) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      document.querySelectorAll('.cc-session-menu').forEach(m => m.remove());
+      const menu = document.createElement('div');
+      menu.className = 'cc-session-menu';
+      menu.style.left = ev.clientX + 'px';
+      menu.style.top = ev.clientY + 'px';
+      menu.innerHTML = `
+        <div class="cc-session-menu-item" data-action="fork">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><circle cx="18" cy="6" r="3"/><path d="M18 9v3a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V9"/><path d="M12 12v3"/></svg>
+          Fork Session
+        </div>
+        <div class="cc-session-menu-item" data-action="rename">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          Rename
+        </div>
+        <div class="cc-session-menu-item danger" data-action="delete">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
+          Delete
+        </div>`;
+      document.body.appendChild(menu);
+      const close = () => { menu.remove(); document.removeEventListener('click', close); };
+      setTimeout(() => document.addEventListener('click', close), 0);
+      menu.addEventListener('click', async (e) => {
+        const item = e.target.closest('.cc-session-menu-item');
+        if (!item) return;
+        const action = item.dataset.action;
+        close();
+        if (action === 'fork') await ccForkSession(tabId, sessionId);
+        else if (action === 'rename') await ccRenameSession(tabId, sessionId);
+        else if (action === 'delete') await ccDeleteSession(tabId, sessionId);
+      });
+    }
+
+    async function ccForkSession(tabId, sessionId) {
+      try {
+        const r = await fetch('/api/claude/sessions/' + sessionId + '/fork', { method: 'POST' });
+        const data = await r.json();
+        if (!r.ok || !data.id) { showToast(data.error || 'Fork failed', 'error'); return; }
+        showToast('Session forked: ' + data.name, 'info');
+        await ccRefreshSessionList(tabId);
+        ccSwitchSession(tabId, data.id);
+      } catch (e) { showToast('Fork failed: ' + e.message, 'error'); }
+    }
+
+    async function ccRenameSession(tabId, sessionId) {
+      const name = prompt('New session name:');
+      if (!name) return;
+      try {
+        await fetch('/api/claude/sessions/' + sessionId + '/rename', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) });
+        ccRefreshSessionList(tabId);
+      } catch {}
+    }
+
+    async function ccDeleteSession(tabId, sessionId) {
+      if (!confirm('Delete this session? This cannot be undone.')) return;
+      try {
+        await fetch('/api/claude/sessions/' + sessionId, { method: 'DELETE' });
+        ccRefreshSessionList(tabId);
+      } catch {}
     }
 
     async function ccSwitchSession(tabId, sessionId) {
@@ -11500,7 +11584,7 @@
         const qs = td.ccCwd ? ('?cwd=' + encodeURIComponent(td.ccCwd)) : '';
         const r = await fetch('/api/git/status' + qs);
         const data = await r.json();
-        if (!data.git) { badge.classList.add('hidden'); td.ccGit = null; return; }
+        if (!data.git) { badge.classList.add('hidden'); td.ccGit = null; _ccHidePrBadge(tabId); return; }
         td.ccGit = data;
         badge.classList.remove('hidden');
         badge.classList.toggle('dirty', !!data.dirty);
@@ -11514,8 +11598,45 @@
           (data.ahead ? ' — ' + data.ahead + ' ahead' : '') +
           (data.behind ? ' — ' + data.behind + ' behind' : '') +
           (data.totalChanges ? ' — ' + data.totalChanges + ' changes' : '');
+        _ccRefreshPrStatus(tabId);
       } catch (e) {
         badge.classList.add('hidden');
+        _ccHidePrBadge(tabId);
+      }
+    }
+
+    function _ccHidePrBadge(tabId) {
+      const pr = document.getElementById(tabId + '-cc-pr');
+      if (pr) pr.classList.add('hidden');
+    }
+
+    // 1.7 — refresh PR status via `gh pr status`
+    async function _ccRefreshPrStatus(tabId) {
+      const td = tabs.get(tabId);
+      if (!td) return;
+      const pr = document.getElementById(tabId + '-cc-pr');
+      if (!pr) return;
+      try {
+        const qs = td.ccCwd ? ('?cwd=' + encodeURIComponent(td.ccCwd)) : '';
+        const r = await fetch('/api/git/pr-status' + qs);
+        const data = await r.json();
+        if (!data || !data.available || !data.pr) { pr.classList.add('hidden'); return; }
+        const num = document.getElementById(tabId + '-cc-pr-num');
+        const st = document.getElementById(tabId + '-cc-pr-status');
+        num.textContent = '#' + data.pr.number;
+        pr.href = data.pr.url || '#';
+        let label = 'Pending', cls = 'pending';
+        if (data.pr.state === 'MERGED') { label = 'Merged'; cls = 'merged'; }
+        else if (data.pr.state === 'CLOSED') { label = 'Closed'; cls = 'closed'; }
+        else if (data.pr.isDraft) { label = 'Draft'; cls = 'draft'; }
+        else if (data.pr.reviewDecision === 'APPROVED') { label = 'Approved'; cls = 'approved'; }
+        else if (data.pr.reviewDecision === 'CHANGES_REQUESTED') { label = 'Changes'; cls = 'changes'; }
+        st.textContent = label;
+        st.className = 'cc-pr-status ' + cls;
+        pr.title = `PR #${data.pr.number}: ${data.pr.title || ''} — ${label}`;
+        pr.classList.remove('hidden');
+      } catch {
+        pr.classList.add('hidden');
       }
     }
 
