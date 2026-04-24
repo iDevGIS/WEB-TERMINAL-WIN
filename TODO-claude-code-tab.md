@@ -49,8 +49,8 @@
 | # | Feature | Description | Priority | Status |
 |---|---------|-------------|----------|--------|
 | 2.3.1 | Session Cost | Show $ cost from Claude Code JSON output `total_cost_usd` | P0 | [x] |
-| 2.3.2 | Token Counts | Input/Output/Cache tokens | P1 | [ ] |
-| 2.3.3 | Turn Count | Number of conversation turns | P1 | [ ] |
+| 2.3.2 | Token Counts | Input/Output/Cache tokens | P1 | [x] |
+| 2.3.3 | Turn Count | Number of conversation turns | P1 | [x] |
 | 2.3.4 | Budget Bar | Progress bar against `--max-budget-usd` | P2 | [ ] |
 
 ### 2.4 System Status
@@ -148,12 +148,12 @@
 |---|---------|-------------|----------|--------|
 | 6.1 | PTY Spawn | Spawn `claude` CLI via child_process.spawn with `-p` flag | P0 | [x] |
 | 6.2 | Stream Parse | Parse `--output-format stream-json` events into structured messages | P0 | [x] |
-| 6.3 | Session Store | Save/load sessions, map to Claude Code `--resume` | P1 | [ ] |
+| 6.3 | Session Store | Save/load sessions, map to Claude Code `--resume` | P1 | [x] |
 | 6.4 | Process Control | Start/Stop/Kill Claude process per tab | P0 | [x] |
 | 6.5 | Model Config | Pass `--model`, `--effort`, `--permission-mode` flags | P0 | [x] |
 | 6.6 | Git Status API | Endpoint for branch, PR status, diff stats | P1 | [ ] |
-| 6.7 | Context API | Endpoint for context usage % (parse from stream events) | P1 | [ ] |
-| 6.8 | Cost Tracking | Parse `total_cost_usd` and token usage from result events | P1 | [ ] |
+| 6.7 | Context API | Endpoint for context usage % (parse from stream events) | P1 | [x] |
+| 6.8 | Cost Tracking | Parse `total_cost_usd` and token usage from result events | P1 | [x] |
 | 6.9 | File Watcher | Watch files changed by Claude, update sidebar in real-time | P2 | [ ] |
 | 6.10 | MCP Passthrough | Forward MCP tool calls/results to UI | P2 | [ ] |
 

@@ -4953,6 +4953,7 @@
               <div class="cc-cost-row"><span>Cost</span><span class="cc-cost-value" id="${tabId}-cc-cost-val">$0.00</span></div>
               <div class="cc-cost-row"><span>In</span><span class="cc-cost-value" id="${tabId}-cc-tok-in">0</span></div>
               <div class="cc-cost-row"><span>Out</span><span class="cc-cost-value" id="${tabId}-cc-tok-out">0</span></div>
+              <div class="cc-cost-row"><span>Cache</span><span class="cc-cost-value" id="${tabId}-cc-tok-cache">0</span></div>
               <div class="cc-cost-row"><span>Turns</span><span class="cc-cost-value" id="${tabId}-cc-turns">0</span></div>
             </div>
           </div>
@@ -11185,12 +11186,13 @@
       if (td?.ccAutoScroll) msgsEl.scrollTop = msgsEl.scrollHeight;
     }
 
-    function ccUpdateCost(tabId, cost, tokIn, tokOut, turns) {
+    function ccUpdateCost(tabId, cost, tokIn, tokOut, turns, tokCache) {
       const fmt = (n) => n >= 1000 ? (n/1000).toFixed(1) + 'K' : String(n);
       const el = (id) => document.getElementById(id);
       const e = el(tabId + '-cc-cost-val'); if (e) e.textContent = '$' + (cost || 0).toFixed(3);
       const i = el(tabId + '-cc-tok-in'); if (i) i.textContent = fmt(tokIn || 0);
       const o = el(tabId + '-cc-tok-out'); if (o) o.textContent = fmt(tokOut || 0);
+      const c = el(tabId + '-cc-tok-cache'); if (c) c.textContent = fmt(tokCache || 0);
       const t = el(tabId + '-cc-turns'); if (t) t.textContent = String(turns || 0);
     }
 
@@ -11392,7 +11394,7 @@
         if (data.total_cost_usd != null && data.total_cost_usd > 0) sepBits.push(`<span>$${data.total_cost_usd.toFixed(4)}</span>`);
         ccAppendMessage(tabId, `<div class="cc-turn-sep"><span class="cc-turn-sep-meta">${sepBits.join(' <span class="dot">·</span> ')}</span></div>`);
         if (data.total_cost_usd != null) {
-          ccUpdateCost(tabId, data.total_cost_usd, tokIn, tokOut, td.ccTurns);
+          ccUpdateCost(tabId, data.total_cost_usd, tokIn, tokOut, td.ccTurns, tokCache);
         }
         const ctxWindow = _chatMaxTokens('claude-code/' + (td.ccModel || 'opus'));
         const totalCtx = tokIn + tokOut + tokCache;
@@ -11442,7 +11444,7 @@
           const btn = document.getElementById(tabId + '-cc-fast');
           if (btn) btn.classList.toggle('active', td.ccFast);
         }
-        ccUpdateCost(tabId, data.cost, data.tokens?.input, data.tokens?.output, data.turns);
+        ccUpdateCost(tabId, data.cost, data.tokens?.input, data.tokens?.output, data.turns, data.tokens?.cache);
         ccUpdateContext(tabId, data.contextPct || 0);
         if (data.files) ccUpdateFiles(tabId, data.files);
       }

@@ -2957,6 +2957,7 @@ wss.on("connection", (ws, req) => {
           cs.messages.push(userMsg);
           broadcastClaude(cs, userMsg);
           claudeSendMessage(cs, promptForClaude);
+          persistClaudeSession(cs);
           break;
         }
         case "claude-permission": {
@@ -3024,6 +3025,98 @@ vncWss.on("connection", (ws) => {
 // === Claude Code Sessions ===
 const claudeSessions = new Map(); // id → session state (persistent across message turns)
 
+// Session persistence to disk — survives server restart
+const CLAUDE_SESSIONS_DIR = path.join(__dirname, ".claude-sessions");
+const PERSIST_MESSAGE_CAP = 200; // cap messages stored on disk to avoid huge files
+try { fs.mkdirSync(CLAUDE_SESSIONS_DIR, { recursive: true }); } catch {}
+
+const _persistTimers = new Map(); // sessId → timer handle (debounce)
+function persistClaudeSession(sess) {
+  if (!sess || sess.dead) return;
+  // Debounce: coalesce writes within 1s window
+  if (_persistTimers.has(sess.id)) clearTimeout(_persistTimers.get(sess.id));
+  const t = setTimeout(() => {
+    _persistTimers.delete(sess.id);
+    try {
+      const snapshot = {
+        id: sess.id,
+        name: sess.name,
+        model: sess.model,
+        effort: sess.effort,
+        thinking: sess.thinking,
+        fast: sess.fast,
+        permMode: sess.permMode,
+        cwd: sess.cwd,
+        claudeSessionId: sess.claudeSessionId,
+        cost: sess.cost,
+        tokens: sess.tokens,
+        turns: sess.turns,
+        contextPct: sess.contextPct,
+        files: sess.files,
+        createdAt: sess.createdAt,
+        lastActivity: sess.lastActivity,
+        messages: (sess.messages || []).slice(-PERSIST_MESSAGE_CAP),
+      };
+      const file = path.join(CLAUDE_SESSIONS_DIR, sess.id + ".json");
+      fs.writeFileSync(file, JSON.stringify(snapshot));
+    } catch (e) {
+      console.error(`[Claude:${sess.id.slice(0,6)}] persist error:`, e.message);
+    }
+  }, 1000);
+  _persistTimers.set(sess.id, t);
+}
+
+function loadClaudeSessionsFromDisk() {
+  let loaded = 0;
+  try {
+    const files = fs.readdirSync(CLAUDE_SESSIONS_DIR).filter(f => f.endsWith(".json"));
+    for (const f of files) {
+      try {
+        const raw = fs.readFileSync(path.join(CLAUDE_SESSIONS_DIR, f), "utf8");
+        const s = JSON.parse(raw);
+        if (!s || !s.id) continue;
+        const sess = {
+          id: s.id,
+          proc: null,
+          claudeSessionId: s.claudeSessionId || null,
+          model: s.model || "opus",
+          effort: s.effort || "high",
+          thinking: !!s.thinking,
+          fast: !!s.fast,
+          permMode: s.permMode || "default",
+          cwd: s.cwd || process.env.USERPROFILE || process.env.HOME,
+          status: "idle",
+          clients: new Set(),
+          messages: Array.isArray(s.messages) ? s.messages : [],
+          cost: s.cost || 0,
+          tokens: s.tokens || { input: 0, output: 0, cache: 0 },
+          turns: s.turns || 0,
+          files: Array.isArray(s.files) ? s.files : [],
+          contextPct: s.contextPct || 0,
+          dead: false,
+          name: s.name || "Restored Session",
+          createdAt: s.createdAt || Date.now(),
+          lastActivity: s.lastActivity || Date.now(),
+        };
+        claudeSessions.set(sess.id, sess);
+        loaded++;
+      } catch (e) {
+        console.error(`[Claude] Failed to load session from ${f}:`, e.message);
+      }
+    }
+  } catch (e) {
+    // Directory missing or unreadable — fine, just skip
+  }
+  if (loaded) console.log(`[Claude] Restored ${loaded} session(s) from disk`);
+}
+
+function deleteClaudeSessionFromDisk(id) {
+  try {
+    const f = path.join(CLAUDE_SESSIONS_DIR, id + ".json");
+    if (fs.existsSync(f)) fs.unlinkSync(f);
+  } catch {}
+}
+
 // Create a session object (no process yet — process spawns per message)
 function createClaudeSession(opts = {}) {
   const id = crypto.randomBytes(8).toString("hex");
@@ -3051,6 +3144,7 @@ function createClaudeSession(opts = {}) {
     lastActivity: Date.now(),
   };
   claudeSessions.set(id, sess);
+  persistClaudeSession(sess);
   console.log(`[Claude] Created session "${sess.name}" (${id}), model=${sess.model}`);
   return sess;
 }
@@ -3199,6 +3293,7 @@ function processClaudeEvent(sess, evt) {
     sess.contextPct = Math.min(100, Math.round((totalTok / ctxWindow) * 100));
     sess.messages.push(msgData);
     console.log(`[Claude:${sess.id.slice(0,6)}] Result: cost=$${sess.cost?.toFixed(4)}, tokens=${totalTok}, ctx=${sess.contextPct}%, claudeSession=${sess.claudeSessionId || 'none'}`);
+    persistClaudeSession(sess);
   } else if (evt.type === "system") {
     sess.messages.push(msgData);
   } else if (evt.type === "error") {
@@ -3288,6 +3383,7 @@ app.delete("/api/claude/sessions/:id", requireAuth, (req, res) => {
   if (!sess) return res.status(404).json({ error: "not found" });
   if (sess.proc) { try { sess.proc.kill(); } catch {} }
   claudeSessions.delete(req.params.id);
+  deleteClaudeSessionFromDisk(req.params.id);
   res.json({ ok: true });
 });
 
@@ -3297,6 +3393,43 @@ app.post("/api/claude/sessions/:id/compact", requireAuth, (req, res) => {
   // Compact = send /compact as a message
   claudeSendMessage(sess, "/compact");
   res.json({ ok: true });
+});
+
+// Context usage endpoint (6.7) — tokens + percentage against model's window
+app.get("/api/claude/sessions/:id/context", requireAuth, (req, res) => {
+  const sess = claudeSessions.get(req.params.id);
+  if (!sess) return res.status(404).json({ error: "not found" });
+  const ctxWindow = sess.model.includes("opus") ? 1000000 : 200000;
+  const totalTokens = (sess.tokens.input || 0) + (sess.tokens.output || 0) + (sess.tokens.cache || 0);
+  res.json({
+    pct: sess.contextPct,
+    totalTokens,
+    contextWindow: ctxWindow,
+    model: sess.model,
+    breakdown: {
+      input: sess.tokens.input || 0,
+      output: sess.tokens.output || 0,
+      cache: sess.tokens.cache || 0,
+    },
+  });
+});
+
+// Cost + token tracking endpoint (6.8)
+app.get("/api/claude/sessions/:id/cost", requireAuth, (req, res) => {
+  const sess = claudeSessions.get(req.params.id);
+  if (!sess) return res.status(404).json({ error: "not found" });
+  const tokens = sess.tokens || { input: 0, output: 0, cache: 0 };
+  res.json({
+    cost: sess.cost || 0,
+    tokens: {
+      input: tokens.input || 0,
+      output: tokens.output || 0,
+      cache: tokens.cache || 0,
+      total: (tokens.input || 0) + (tokens.output || 0) + (tokens.cache || 0),
+    },
+    turns: sess.turns || 0,
+    claudeSessionId: sess.claudeSessionId || null,
+  });
 });
 
 // File search for @ picker — shallow recursive walk rooted at cwd, filtered by query
@@ -3345,6 +3478,9 @@ app.get("/api/claude/file-search", requireAuth, (req, res) => {
     res.status(400).json({ error: e.message });
   }
 });
+
+// Restore persisted Claude Code sessions before accepting connections
+loadClaudeSessionsFromDisk();
 
 server.listen(PORT, "0.0.0.0", () => {
   console.log(`⚡ CYBERFRAME running at http://127.0.0.1:${PORT}`);
