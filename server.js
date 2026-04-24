@@ -3179,6 +3179,24 @@ function deleteClaudeSessionFromDisk(id) {
 
 // Create a session object (no process yet — process spawns per message)
 // 1.9 / 3.3.4 — push a rewind checkpoint at the start of a user turn
+function _gitSnapshot(cwd) {
+  try {
+    const { execSync } = require("child_process");
+    const head = execSync("git rev-parse HEAD", { cwd, timeout: 2000, stdio: ["ignore", "pipe", "ignore"] })
+      .toString().trim();
+    if (!head) return null;
+    // Capture working tree (tracked + staged) non-destructively
+    let stash = "";
+    try {
+      // -u includes untracked (but not ignored) — may return empty if clean
+      stash = execSync("git stash create -u", { cwd, timeout: 4000, stdio: ["ignore", "pipe", "ignore"] })
+        .toString().trim();
+    } catch { stash = ""; }
+    return { head, stash: stash || null, cwd };
+  } catch {
+    return null; // not a git repo or git unavailable
+  }
+}
 function pushClaudeCheckpoint(sess, userText) {
   const cp = {
     id: crypto.randomBytes(6).toString("hex"),
@@ -3187,6 +3205,9 @@ function pushClaudeCheckpoint(sess, userText) {
     text: (userText || "").slice(0, 200),
     ts: Date.now(),
   };
+  // 1.9 — optional git snapshot of cwd for code-state restore
+  const snap = _gitSnapshot(sess.cwd);
+  if (snap) cp.git = snap;
   sess.checkpoints.push(cp);
   broadcastClaude(sess, { type: "checkpoint", checkpoint: cp });
   return cp;
@@ -3621,11 +3642,30 @@ app.post("/api/claude/sessions/:id/rewind", requireAuth, (req, res) => {
   const sess = claudeSessions.get(req.params.id);
   if (!sess || sess.dead) return res.status(404).json({ error: "not found" });
   if (sess.proc) return res.status(409).json({ error: "stop the current turn first" });
-  const { checkpointId } = req.body || {};
+  const { checkpointId, restoreCode } = req.body || {};
   if (!checkpointId) return res.status(400).json({ error: "checkpointId required" });
   const idx = (sess.checkpoints || []).findIndex(c => c.id === checkpointId);
   if (idx < 0) return res.status(404).json({ error: "checkpoint not found" });
   const cp = sess.checkpoints[idx];
+  // 1.9 — optional code-state restore via git snapshot
+  let codeResult = null;
+  if (restoreCode && cp.git && cp.git.head) {
+    try {
+      const { execSync } = require("child_process");
+      const cwd = cp.git.cwd || sess.cwd;
+      const run = (cmd) => execSync(cmd, { cwd, timeout: 10000, stdio: ["ignore", "pipe", "pipe"] }).toString().trim();
+      // Hard reset to recorded HEAD so tracked files match that commit
+      run(`git reset --hard ${cp.git.head}`);
+      // If we captured a working-tree stash, apply it to restore uncommitted edits
+      if (cp.git.stash) {
+        try { run(`git stash apply ${cp.git.stash}`); }
+        catch (e) { codeResult = { ok: false, error: "stash apply failed: " + (e.message || e) }; }
+      }
+      if (!codeResult) codeResult = { ok: true, head: cp.git.head, stash: !!cp.git.stash };
+    } catch (e) {
+      codeResult = { ok: false, error: e.message || String(e) };
+    }
+  }
   // Truncate messages at checkpoint position (drop user msg + everything after)
   sess.messages = sess.messages.slice(0, cp.msgIdx);
   // Drop checkpoints at or after this one
@@ -3636,8 +3676,8 @@ app.post("/api/claude/sessions/:id/rewind", requireAuth, (req, res) => {
   sess.status = "idle";
   sess.lastActivity = Date.now();
   persistClaudeSession(sess);
-  broadcastClaude(sess, { type: "rewind", msgIdx: cp.msgIdx, turn: sess.turns });
-  res.json({ ok: true, msgIdx: cp.msgIdx, turn: sess.turns });
+  broadcastClaude(sess, { type: "rewind", msgIdx: cp.msgIdx, turn: sess.turns, codeRestored: !!(codeResult && codeResult.ok) });
+  res.json({ ok: true, msgIdx: cp.msgIdx, turn: sess.turns, code: codeResult });
 });
 
 // Tasks tab (2.2.2) — TodoWrite snapshot

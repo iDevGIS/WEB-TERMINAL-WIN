@@ -2627,6 +2627,7 @@
     .cc-voice-btn { width:28px; height:28px; border-radius:8px; background:transparent; border:1px solid rgba(255,255,255,.08); color:#9d9db5; cursor:pointer; display:flex; align-items:center; justify-content:center; flex-shrink:0; transition:all .15s; }
     .cc-voice-btn:hover { background:rgba(239,68,68,.1); border-color:rgba(239,68,68,.3); color:#fca5a5; }
     .cc-voice-btn.listening { background:rgba(239,68,68,.18); border-color:#ef4444; color:#fca5a5; animation:cc-voice-pulse 1.2s ease-in-out infinite; }
+    .cc-voice-btn.transcribing { background:rgba(168,85,247,.18); border-color:#a855f7; color:#d8b4fe; animation:spin 1s linear infinite; }
     .cc-voice-btn.unsupported { opacity:.4; cursor:not-allowed; }
     @keyframes cc-voice-pulse { 0%,100% { box-shadow:0 0 0 0 rgba(239,68,68,.5); } 50% { box-shadow:0 0 0 6px rgba(239,68,68,0); } }
     .cc-input-area.drag-over { background:rgba(147,51,234,.08); border-top:1px dashed rgba(147,51,234,.5); }
@@ -5189,7 +5190,7 @@
               </div>
               <div class="cc-topbar-right">
                 <div class="cc-rewind-wrap" style="position:relative">
-                  <button class="cc-topbar-btn" onclick="ccToggleRewindMenu('${tabId}')" title="Rewind to a checkpoint" id="${tabId}-cc-rewind-btn">
+                  <button class="cc-topbar-btn" onclick="ccToggleRewindMenu('${tabId}')" title="Rewind to a checkpoint (Esc Esc)" id="${tabId}-cc-rewind-btn">
                     <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
                     Rewind
                   </button>
@@ -5333,9 +5334,10 @@
           </div>
         </div>`;
         container.appendChild(paneEl);
+        // Voice: prefer Web Speech API; fall back to Whisper (MediaRecorder) if missing
         if (!(window.SpeechRecognition || window.webkitSpeechRecognition)) {
           const vb = document.getElementById(tabId + '-cc-voice-btn');
-          if (vb) { vb.classList.add('unsupported'); vb.title = 'Voice input not supported in this browser'; }
+          if (vb) vb.title = 'Voice input (Whisper — records, then transcribes)';
         }
         tabData.ccSessionId = null;
         tabData.ccRightOpen = false;
@@ -11418,9 +11420,11 @@
           cps.map((cp, i) => {
             const when = new Date(cp.ts).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
             const preview = (cp.text || '(empty)').replace(/\s+/g, ' ').slice(0, 80);
-            return `<div class="cc-rewind-item" onclick="ccExecRewind('${tabId}','${cp.id}')" style="padding:8px 10px;cursor:pointer;border-radius:6px;display:flex;align-items:flex-start;gap:8px;font-size:11px" onmouseover="this.style.background='rgba(255,255,255,.05)'" onmouseout="this.style.background='transparent'">
+            const codeBadge = cp.git ? `<span title="Code snapshot available" style="color:#22c55e;font-size:9px;flex-shrink:0">📦</span>` : '';
+            return `<div class="cc-rewind-item" onclick="ccExecRewind('${tabId}','${cp.id}',${cp.git ? 'true' : 'false'})" style="padding:8px 10px;cursor:pointer;border-radius:6px;display:flex;align-items:flex-start;gap:8px;font-size:11px" onmouseover="this.style.background='rgba(255,255,255,.05)'" onmouseout="this.style.background='transparent'">
               <span style="color:#f97316;font-weight:600;flex-shrink:0;font-size:10px">#${cp.turn}</span>
               <span style="color:#e5e7ff;flex:1;line-height:1.35">${escHtml(preview)}</span>
+              ${codeBadge}
               <span style="color:#5a5a7a;font-size:9px;flex-shrink:0">${when}</span>
             </div>`;
           }).join('');
@@ -11438,21 +11442,37 @@
       }, 0);
     }
 
-    async function ccExecRewind(tabId, checkpointId) {
+    async function ccExecRewind(tabId, checkpointId, hasCodeSnapshot) {
       const td = tabs.get(tabId);
       if (!td || !td.ccSessionId) return;
       // Close dropdown
       const dd = document.getElementById(tabId + '-cc-rewind-dropdown');
       if (dd) dd.style.display = 'none';
+      // 1.9 — offer code-state restore when a git snapshot exists
+      let restoreCode = false;
+      if (hasCodeSnapshot) {
+        restoreCode = await cyberConfirm({
+          icon: '📦', iconClass: 'warning',
+          title: 'Restore code state too?',
+          message: 'A git snapshot is available. Restore working tree to this checkpoint? (This will hard-reset tracked files and re-apply uncommitted edits.)',
+          confirmText: 'Restore code',
+          cancelText: 'Conversation only'
+        });
+      }
       try {
         const r = await fetch('/api/claude/sessions/' + td.ccSessionId + '/rewind', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ checkpointId })
+          body: JSON.stringify({ checkpointId, restoreCode })
         });
         if (!r.ok) { const e = await r.json().catch(() => ({})); showToast('Rewind failed: ' + (e.error || r.status), 'error'); return; }
-        showToast('Rewound to checkpoint', 'info');
-        // UI update happens on 'rewind' WS broadcast
+        const j = await r.json().catch(() => ({}));
+        if (restoreCode) {
+          if (j.code && j.code.ok) showToast('Rewound — code restored', 'info');
+          else showToast('Rewound, but code restore failed: ' + ((j.code && j.code.error) || 'unknown'), 'error');
+        } else {
+          showToast('Rewound to checkpoint', 'info');
+        }
       } catch (e) {
         showToast('Rewind failed: ' + e.message, 'error');
       }
@@ -11473,7 +11493,7 @@
       const cp = (td.ccCheckpoints || [])[idx];
       if (!cp) { showToast('Checkpoint not found', 'error'); return; }
       if (!confirm('Rewind to this point? This will remove this message and everything after.')) return;
-      ccExecRewind(tabId, cp.id);
+      ccExecRewind(tabId, cp.id, !!cp.git);
     }
 
     async function ccEndSession(tabId) {
@@ -12025,20 +12045,23 @@
       document.getElementById(tabId + '-cc-at').classList.remove('show');
     }
 
-    // === 4.4 Voice Input (push-to-talk via Web Speech API) ===
-    const _ccVoice = {}; // tabId → { recognition, listening }
+    // === 4.4 Voice Input (Web Speech API, Whisper fallback) ===
+    const _ccVoice = {}; // tabId → { recognition?, recorder?, stream?, listening, mode }
     const _ccSpeechRecognition = (window.SpeechRecognition || window.webkitSpeechRecognition || null);
-    function ccToggleVoice(tabId) {
+    async function ccToggleVoice(tabId) {
       const btn = document.getElementById(tabId + '-cc-voice-btn');
-      if (!_ccSpeechRecognition) {
-        showToast('Voice input not supported in this browser', 'error');
-        if (btn) btn.classList.add('unsupported');
-        return;
-      }
       const state = _ccVoice[tabId];
       if (state && state.listening) {
-        try { state.recognition.stop(); } catch {}
+        if (state.mode === 'whisper') {
+          try { state.recorder.stop(); } catch {}
+        } else {
+          try { state.recognition.stop(); } catch {}
+        }
         return;
+      }
+      // Whisper fallback when Web Speech API missing
+      if (!_ccSpeechRecognition) {
+        return ccStartWhisper(tabId, btn);
       }
       const recognition = new _ccSpeechRecognition();
       recognition.continuous = true;
@@ -12075,12 +12098,78 @@
       };
       try {
         recognition.start();
-        _ccVoice[tabId] = { recognition, listening: true };
+        _ccVoice[tabId] = { recognition, listening: true, mode: 'speech' };
         if (btn) btn.classList.add('listening');
         showToast('Listening… click mic again to stop', 'info');
       } catch (e) {
         showToast('Voice start failed: ' + e.message, 'error');
       }
+    }
+
+    // Whisper fallback — record via MediaRecorder then POST to /api/stt
+    async function ccStartWhisper(tabId, btn) {
+      const input = document.getElementById(tabId + '-cc-input');
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      } catch (err) {
+        if (err && err.name === 'NotAllowedError') showToast('Microphone permission denied', 'error');
+        else showToast('Microphone error: ' + (err && err.message || err), 'error');
+        return;
+      }
+      let mime = 'audio/webm;codecs=opus';
+      if (!window.MediaRecorder || !MediaRecorder.isTypeSupported(mime)) {
+        mime = (window.MediaRecorder && MediaRecorder.isTypeSupported('audio/mp4')) ? 'audio/mp4'
+             : (window.MediaRecorder && MediaRecorder.isTypeSupported('audio/ogg')) ? 'audio/ogg' : '';
+      }
+      if (!window.MediaRecorder) {
+        stream.getTracks().forEach(t => t.stop());
+        showToast('Voice input not supported in this browser', 'error');
+        if (btn) btn.classList.add('unsupported');
+        return;
+      }
+      const recorder = new MediaRecorder(stream, mime ? { mimeType: mime } : {});
+      const chunks = [];
+      recorder.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
+      recorder.onstop = async () => {
+        stream.getTracks().forEach(t => t.stop());
+        _ccVoice[tabId] = null;
+        if (btn) btn.classList.remove('listening');
+        if (!chunks.length) return;
+        const blob = new Blob(chunks, { type: mime || 'audio/webm' });
+        if (btn) btn.classList.add('transcribing');
+        try {
+          const fd = new FormData();
+          fd.append('audio', blob, 'voice.' + ((mime && mime.split('/')[1].split(';')[0]) || 'webm'));
+          const langGuess = (navigator.language || '').toLowerCase().startsWith('th') ? 'th' : 'auto';
+          fd.append('lang', langGuess);
+          const r = await fetch('/api/stt', { method: 'POST', body: fd });
+          const j = await r.json().catch(() => ({}));
+          if (!r.ok || j.error) throw new Error(j.error || ('HTTP ' + r.status));
+          const text = (j.text || j.transcript || '').trim();
+          if (text && input) {
+            const cur = input.value || '';
+            const sep = cur && !cur.endsWith(' ') ? ' ' : '';
+            input.value = cur + sep + text;
+            input.dispatchEvent(new Event('input'));
+          } else if (!text) {
+            showToast('No speech detected', 'info');
+          }
+        } catch (e) {
+          showToast('Transcription failed: ' + e.message, 'error');
+        } finally {
+          if (btn) btn.classList.remove('transcribing');
+        }
+      };
+      recorder.onerror = () => {
+        try { stream.getTracks().forEach(t => t.stop()); } catch {}
+        _ccVoice[tabId] = null;
+        if (btn) { btn.classList.remove('listening'); btn.classList.remove('transcribing'); }
+      };
+      recorder.start();
+      _ccVoice[tabId] = { recorder, stream, listening: true, mode: 'whisper' };
+      if (btn) btn.classList.add('listening');
+      showToast('Recording… click mic again to transcribe', 'info');
     }
 
     // === File & Image Attach (4.5, 4.6) ===
@@ -14320,11 +14409,26 @@
     }
 
     // Close preview on Escape
+    let _lastEscAt = 0;
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
-        if (document.getElementById('editor-overlay').style.display !== 'none') { closeEditor(); return; }
-        if (document.getElementById('preview-overlay').style.display !== 'none') { closePreview(); return; }
-        if (document.getElementById('term-search-bar').classList.contains('active')) { closeTermSearch(); return; }
+        if (document.getElementById('editor-overlay').style.display !== 'none') { closeEditor(); _lastEscAt = 0; return; }
+        if (document.getElementById('preview-overlay').style.display !== 'none') { closePreview(); _lastEscAt = 0; return; }
+        if (document.getElementById('term-search-bar').classList.contains('active')) { closeTermSearch(); _lastEscAt = 0; return; }
+        // 3.3.4 Esc+Esc → open rewind menu for active Claude Code tab
+        const activeT = tabs.get(activeTabId);
+        if (activeT && activeT.type === 'claude-code') {
+          const now = Date.now();
+          if (now - _lastEscAt < 500) {
+            _lastEscAt = 0;
+            e.preventDefault();
+            ccToggleRewindMenu(activeTabId);
+            return;
+          }
+          _lastEscAt = now;
+        } else {
+          _lastEscAt = 0;
+        }
       }
       // Ctrl+F → terminal search (intercept browser search)
       if ((e.ctrlKey || e.metaKey) && e.key === 'f' && term && currentSessionId) {
