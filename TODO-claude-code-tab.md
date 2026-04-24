@@ -149,11 +149,11 @@
 | # | Feature | Description | Priority | Status |
 |---|---------|-------------|----------|--------|
 | 5.1 | CLAUDE.md Info | Show loaded status, line count, rules count | P1 | [x] |
-| 5.2 | Memory Panel | List auto-memory entries by type (user/feedback/project/reference) | P2 | [ ] |
-| 5.3 | MCP Panel | List connected servers with status dot (green/red) | P2 | [ ] |
-| 5.4 | Hooks Panel | List active hooks with trigger + command | P2 | [ ] |
-| 5.5 | Skills Panel | List available skills (built-in + custom) | P2 | [ ] |
-| 5.6 | Subagents Panel | List agents with status (idle/running/done) | P2 | [ ] |
+| 5.2 | Memory Panel | List auto-memory entries by type (user/feedback/project/reference) | P2 | [x] |
+| 5.3 | MCP Panel | List connected servers with status dot (green/red) | P2 | [x] |
+| 5.4 | Hooks Panel | List active hooks with trigger + command | P2 | [x] |
+| 5.5 | Skills Panel | List available skills (built-in + custom) | P2 | [x] |
+| 5.6 | Subagents Panel | List agents with status (idle/running/done) | P2 | [x] |
 | 5.7 | Collapsible | Right sidebar can be hidden/shown with toggle | P1 | [x] |
 
 ---

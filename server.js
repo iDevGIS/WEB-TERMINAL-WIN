@@ -3669,6 +3669,173 @@ app.get("/api/claude/sessions/:id/system-status", requireAuth, (req, res) => {
   });
 });
 
+// 5.2 Memory Panel — list auto-memory entries from ~/.claude/memory/
+app.get("/api/claude/sessions/:id/memory-list", requireAuth, (req, res) => {
+  const sess = claudeSessions.get(req.params.id);
+  if (!sess) return res.status(404).json({ error: "not found" });
+  const home = process.env.USERPROFILE || process.env.HOME || "";
+  const cwd = sess.cwd || home;
+  const memDir = path.join(home, ".claude", "memory");
+  const indexPath = path.join(memDir, "MEMORY.md");
+  const result = { dir: memDir, index: null, entries: [] };
+  // Try MEMORY.md index first — parse pointer lines
+  try {
+    const txt = fs.readFileSync(indexPath, "utf8");
+    result.index = { path: indexPath, size: fs.statSync(indexPath).size };
+    const lines = txt.split(/\r?\n/);
+    for (const ln of lines) {
+      const m = ln.match(/^\s*-\s+\[([^\]]+)\]\(([^)]+)\)\s*(?:[—–-]\s*(.+))?$/);
+      if (m) {
+        const file = m[2];
+        const full = path.isAbsolute(file) ? file : path.join(memDir, file);
+        let type = "unknown", size = 0, mtime = null;
+        try {
+          const raw = fs.readFileSync(full, "utf8").slice(0, 2048);
+          const fm = raw.match(/^---\s*\n([\s\S]*?)\n---/);
+          if (fm) {
+            const tm = fm[1].match(/^type:\s*(.+)$/m);
+            if (tm) type = tm[1].trim();
+          }
+          const st = fs.statSync(full);
+          size = st.size; mtime = st.mtime;
+        } catch {}
+        result.entries.push({ title: m[1], file, hook: m[3] || "", type, size, mtime });
+      }
+    }
+  } catch {}
+  // Fallback: list *.md files in memDir (excluding MEMORY.md)
+  if (!result.entries.length) {
+    try {
+      const files = fs.readdirSync(memDir).filter(f => f.endsWith(".md") && f !== "MEMORY.md");
+      for (const f of files) {
+        const full = path.join(memDir, f);
+        let type = "unknown", title = f.replace(/\.md$/, ""), hook = "";
+        try {
+          const raw = fs.readFileSync(full, "utf8").slice(0, 2048);
+          const fm = raw.match(/^---\s*\n([\s\S]*?)\n---/);
+          if (fm) {
+            const tm = fm[1].match(/^type:\s*(.+)$/m);
+            const nm = fm[1].match(/^name:\s*(.+)$/m);
+            const dm = fm[1].match(/^description:\s*(.+)$/m);
+            if (tm) type = tm[1].trim();
+            if (nm) title = nm[1].trim();
+            if (dm) hook = dm[1].trim();
+          }
+        } catch {}
+        const st = fs.statSync(full);
+        result.entries.push({ title, file: f, hook, type, size: st.size, mtime: st.mtime });
+      }
+    } catch {}
+  }
+  // Bucket by type
+  const byType = {};
+  for (const e of result.entries) {
+    (byType[e.type] = byType[e.type] || []).push(e);
+  }
+  result.byType = byType;
+  result.count = result.entries.length;
+  res.json(result);
+});
+
+// 5.2 Memory Panel — read a single memory file
+app.get("/api/claude/sessions/:id/memory-file", requireAuth, (req, res) => {
+  const sess = claudeSessions.get(req.params.id);
+  if (!sess) return res.status(404).json({ error: "not found" });
+  const home = process.env.USERPROFILE || process.env.HOME || "";
+  const memDir = path.join(home, ".claude", "memory");
+  const file = String(req.query.file || "");
+  if (!file) return res.status(400).json({ error: "file required" });
+  const full = path.isAbsolute(file) ? file : path.join(memDir, file);
+  // Prevent escape above the memory dir (unless absolute path stays within allowed roots)
+  const resolved = path.resolve(full);
+  const memResolved = path.resolve(memDir);
+  if (!resolved.startsWith(memResolved)) {
+    return res.status(403).json({ error: "outside memory dir" });
+  }
+  try {
+    const content = fs.readFileSync(resolved, "utf8");
+    const st = fs.statSync(resolved);
+    res.json({ path: resolved, content, size: st.size, mtime: st.mtime });
+  } catch (e) {
+    res.status(404).json({ error: e.message });
+  }
+});
+
+// 5.5 Skills Panel — scan ~/.claude/skills/*/SKILL.md for frontmatter
+app.get("/api/claude/sessions/:id/skills-list", requireAuth, (req, res) => {
+  const sess = claudeSessions.get(req.params.id);
+  if (!sess) return res.status(404).json({ error: "not found" });
+  const home = process.env.USERPROFILE || process.env.HOME || "";
+  const skillsDir = path.join(home, ".claude", "skills");
+  const entries = [];
+  function scanDir(root, scope) {
+    try {
+      const items = fs.readdirSync(root, { withFileTypes: true });
+      for (const it of items) {
+        if (!it.isDirectory()) continue;
+        const skillFile = path.join(root, it.name, "SKILL.md");
+        try {
+          const raw = fs.readFileSync(skillFile, "utf8");
+          const fm = raw.match(/^---\s*\n([\s\S]*?)\n---/);
+          let name = it.name, description = "";
+          if (fm) {
+            const nm = fm[1].match(/^name:\s*(.+)$/m);
+            const dm = fm[1].match(/^description:\s*(.+)$/m);
+            if (nm) name = nm[1].trim();
+            if (dm) description = dm[1].trim();
+          }
+          const st = fs.statSync(skillFile);
+          entries.push({ name, description, path: skillFile, scope, size: st.size, mtime: st.mtime });
+        } catch {}
+      }
+    } catch {}
+  }
+  scanDir(skillsDir, "user");
+  // Also scan workspace-level skills (project/.claude/skills or cwd/.claude/skills)
+  const cwd = sess.cwd || home;
+  scanDir(path.join(cwd, ".claude", "skills"), "project");
+  res.json({ dir: skillsDir, count: entries.length, entries });
+});
+
+// 5.6 Subagents Panel — scan ~/.claude/agents/*.md
+app.get("/api/claude/sessions/:id/subagents-list", requireAuth, (req, res) => {
+  const sess = claudeSessions.get(req.params.id);
+  if (!sess) return res.status(404).json({ error: "not found" });
+  const home = process.env.USERPROFILE || process.env.HOME || "";
+  const cwd = sess.cwd || home;
+  const entries = [];
+  function scanAgentsDir(dir, scope) {
+    try {
+      const files = fs.readdirSync(dir).filter(f => f.endsWith(".md"));
+      for (const f of files) {
+        const full = path.join(dir, f);
+        try {
+          const raw = fs.readFileSync(full, "utf8");
+          const fm = raw.match(/^---\s*\n([\s\S]*?)\n---/);
+          let name = f.replace(/\.md$/, ""), description = "", model = null, tools = [];
+          if (fm) {
+            const nm = fm[1].match(/^name:\s*(.+)$/m);
+            const dm = fm[1].match(/^description:\s*(.+)$/m);
+            const mm = fm[1].match(/^model:\s*(.+)$/m);
+            const tm = fm[1].match(/^tools:\s*(.+)$/m);
+            if (nm) name = nm[1].trim();
+            if (dm) description = dm[1].trim().replace(/^["']|["']$/g, "");
+            if (mm) model = mm[1].trim();
+            if (tm) {
+              tools = tm[1].trim().replace(/^\[|\]$/g, "").split(",").map(s => s.trim()).filter(Boolean);
+            }
+          }
+          const st = fs.statSync(full);
+          entries.push({ name, description, model, tools, path: full, scope, size: st.size, mtime: st.mtime });
+        } catch {}
+      }
+    } catch {}
+  }
+  scanAgentsDir(path.join(home, ".claude", "agents"), "user");
+  scanAgentsDir(path.join(cwd, ".claude", "agents"), "project");
+  res.json({ count: entries.length, entries });
+});
+
 // File search for @ picker — shallow recursive walk rooted at cwd, filtered by query
 app.get("/api/claude/file-search", requireAuth, (req, res) => {
   const cwd = req.query.cwd || process.env.USERPROFILE || process.env.HOME;

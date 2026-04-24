@@ -2355,6 +2355,34 @@
     .cc-right-section { margin-bottom:14px; }
     .cc-right-section-title { font-size:10px; color:#6c63ff; text-transform:uppercase; letter-spacing:.8px; margin-bottom:6px; font-weight:600; }
     .cc-right-empty { text-align:center; color:#5a5a7a; font-size:11px; padding:24px 12px; }
+    /* Batch 11 — Right sidebar tabs (Info/Memory/MCP/Hooks/Skills/Subagents) */
+    .cc-right-tabs { display:flex; border-bottom:1px solid rgba(255,255,255,.08); flex-shrink:0; background:rgba(10,10,26,.4); overflow-x:auto; }
+    .cc-right-tabs::-webkit-scrollbar { height:0; }
+    .cc-right-tab { flex:0 0 auto; padding:7px 10px; font-size:10px; color:#7a7a9a; cursor:pointer; border-bottom:2px solid transparent; text-transform:uppercase; letter-spacing:.3px; font-weight:500; display:flex; align-items:center; gap:5px; white-space:nowrap; }
+    .cc-right-tab:hover { color:#c8c8d8; background:rgba(255,255,255,.03); }
+    .cc-right-tab.active { color:#6c63ff; border-bottom-color:#6c63ff; background:rgba(108,99,255,.05); }
+    .cc-right-tab .cc-right-tab-count { background:rgba(255,255,255,.08); color:#c8c8d8; font-size:9px; padding:1px 5px; border-radius:8px; font-weight:600; }
+    .cc-right-tab.active .cc-right-tab-count { background:rgba(108,99,255,.25); color:#a79fff; }
+    .cc-right-panel { display:none; }
+    .cc-right-panel.active { display:block; }
+    .cc-right-entry { background:rgba(10,10,26,.5); border:1px solid rgba(255,255,255,.06); border-radius:6px; padding:8px 10px; margin-bottom:8px; }
+    .cc-right-entry:hover { border-color:rgba(255,255,255,.12); background:rgba(15,15,35,.6); }
+    .cc-right-entry-title { font-size:12px; color:#e4e4ef; font-weight:600; margin-bottom:3px; display:flex; align-items:center; gap:6px; }
+    .cc-right-entry-badge { font-size:9px; padding:1px 6px; border-radius:8px; text-transform:uppercase; letter-spacing:.3px; font-weight:600; background:rgba(255,255,255,.06); color:#7a7a9a; }
+    .cc-right-entry-badge.t-user { background:rgba(56,189,248,.12); color:#38bdf8; }
+    .cc-right-entry-badge.t-feedback { background:rgba(236,72,153,.12); color:#f472b6; }
+    .cc-right-entry-badge.t-project { background:rgba(34,197,94,.12); color:#4ade80; }
+    .cc-right-entry-badge.t-reference { background:rgba(249,115,22,.12); color:#fb923c; }
+    .cc-right-entry-badge.scope-user { background:rgba(108,99,255,.12); color:#a79fff; }
+    .cc-right-entry-badge.scope-project { background:rgba(34,197,94,.12); color:#4ade80; }
+    .cc-right-entry-desc { font-size:11px; color:#9d9db5; line-height:1.45; }
+    .cc-right-entry-meta { font-size:10px; color:#5a5a7a; margin-top:4px; font-family:'JetBrains Mono',monospace; word-break:break-all; }
+    .cc-right-entry-cmd { font-family:'JetBrains Mono',monospace; font-size:10px; color:#9d9db5; background:rgba(0,0,0,.3); padding:4px 6px; border-radius:4px; margin-top:4px; word-break:break-all; }
+    .cc-right-group-title { font-size:10px; color:#7a7a9a; text-transform:uppercase; letter-spacing:.5px; margin:10px 0 6px; font-weight:600; }
+    .cc-right-group-title:first-child { margin-top:0; }
+    .cc-right-dot { display:inline-block; width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+    .cc-right-dot.on { background:#4ade80; box-shadow:0 0 4px rgba(74,222,128,.5); }
+    .cc-right-dot.off { background:#5a5a7a; }
     .cc-right-file { background:rgba(10,10,26,.5); border:1px solid rgba(255,255,255,.06); border-radius:6px; padding:8px 10px; margin-bottom:8px; }
     .cc-right-file-path { font-family:'JetBrains Mono',monospace; font-size:10px; color:#7a7a9a; margin-bottom:6px; word-break:break-all; }
     .cc-right-file-meta { font-size:9px; color:#5a5a7a; margin-bottom:6px; }
@@ -5178,13 +5206,51 @@
           </div>
           <div class="cc-right-sidebar collapsed" id="${tabId}-cc-right">
             <div class="cc-right-header">
-              <span>Info</span>
+              <span id="${tabId}-cc-right-title">Info</span>
               <button onclick="ccToggleRightSidebar('${tabId}')" title="Hide panel">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
               </button>
             </div>
+            <div class="cc-right-tabs" id="${tabId}-cc-right-tabs">
+              <div class="cc-right-tab active" data-cc-right-tab="info" onclick="ccSwitchRightTab('${tabId}', 'info', this)" title="CLAUDE.md + Context">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                <span>Info</span>
+              </div>
+              <div class="cc-right-tab" data-cc-right-tab="memory" onclick="ccSwitchRightTab('${tabId}', 'memory', this)" title="Auto-memory entries">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 8V4H8"/><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 12h4m8 0h4M4 16h4m8 0h4"/></svg>
+                <span>Memory</span>
+                <span class="cc-right-tab-count" id="${tabId}-cc-right-count-memory" style="display:none">0</span>
+              </div>
+              <div class="cc-right-tab" data-cc-right-tab="mcp" onclick="ccSwitchRightTab('${tabId}', 'mcp', this)" title="MCP servers">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 0 1 18 0"/><path d="M3 12a9 9 0 0 0 18 0"/><path d="M12 3v18"/></svg>
+                <span>MCP</span>
+                <span class="cc-right-tab-count" id="${tabId}-cc-right-count-mcp" style="display:none">0</span>
+              </div>
+              <div class="cc-right-tab" data-cc-right-tab="hooks" onclick="ccSwitchRightTab('${tabId}', 'hooks', this)" title="Configured hooks">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a4 4 0 0 0-8 0v10a4 4 0 0 1-8 0V6"/></svg>
+                <span>Hooks</span>
+                <span class="cc-right-tab-count" id="${tabId}-cc-right-count-hooks" style="display:none">0</span>
+              </div>
+              <div class="cc-right-tab" data-cc-right-tab="skills" onclick="ccSwitchRightTab('${tabId}', 'skills', this)" title="Available skills">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3 7h7l-5.5 4.5L18 21l-6-4-6 4 1.5-7.5L2 9h7z"/></svg>
+                <span>Skills</span>
+                <span class="cc-right-tab-count" id="${tabId}-cc-right-count-skills" style="display:none">0</span>
+              </div>
+              <div class="cc-right-tab" data-cc-right-tab="subagents" onclick="ccSwitchRightTab('${tabId}', 'subagents', this)" title="Subagents">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="7" r="4"/><circle cx="17" cy="17" r="4"/><path d="M3 21v-2a4 4 0 0 1 4-4h4"/></svg>
+                <span>Agents</span>
+                <span class="cc-right-tab-count" id="${tabId}-cc-right-count-subagents" style="display:none">0</span>
+              </div>
+            </div>
             <div class="cc-right-body" id="${tabId}-cc-right-body">
-              <div class="cc-right-empty">No session selected</div>
+              <div class="cc-right-panel active" data-cc-right-panel="info" id="${tabId}-cc-right-panel-info">
+                <div class="cc-right-empty">No session selected</div>
+              </div>
+              <div class="cc-right-panel" data-cc-right-panel="memory" id="${tabId}-cc-right-panel-memory"></div>
+              <div class="cc-right-panel" data-cc-right-panel="mcp" id="${tabId}-cc-right-panel-mcp"></div>
+              <div class="cc-right-panel" data-cc-right-panel="hooks" id="${tabId}-cc-right-panel-hooks"></div>
+              <div class="cc-right-panel" data-cc-right-panel="skills" id="${tabId}-cc-right-panel-skills"></div>
+              <div class="cc-right-panel" data-cc-right-panel="subagents" id="${tabId}-cc-right-panel-subagents"></div>
             </div>
           </div>
           </div>
@@ -5192,6 +5258,10 @@
         container.appendChild(paneEl);
         tabData.ccSessionId = null;
         tabData.ccRightOpen = false;
+        tabData.ccRightActiveTab = 'info';
+        tabData.ccMemoryList = null;
+        tabData.ccSkillsList = null;
+        tabData.ccSubagentsList = null;
         tabData.ccClaudeMd = null;
         tabData.ccModel = 'opus';
         tabData.ccEffort = 'high';
@@ -10606,6 +10676,9 @@
         ccRefreshSessionList(tabId);
         ccLoadClaudeMd(tabId);
         ccLoadSystemStatus(tabId);
+        ccLoadMemoryList(tabId);
+        ccLoadSkillsList(tabId);
+        ccLoadSubagentsList(tabId);
         _ccUpdateTabName(tabId);
         showToast('Claude Code session started', 'success');
       } catch (e) {
@@ -10679,6 +10752,9 @@
       ccRefreshSessionList(tabId);
       ccLoadClaudeMd(tabId);
       ccLoadSystemStatus(tabId);
+      ccLoadMemoryList(tabId);
+      ccLoadSkillsList(tabId);
+      ccLoadSubagentsList(tabId);
     }
 
     // 5.7 — Toggle right sidebar (Info panel)
@@ -10741,6 +10817,11 @@
         const data = await r.json();
         td.ccSystemStatus = data;
         _ccPaintSystemStatus(tabId, data);
+        // Update tab count badges + re-render if currently visible
+        _ccRightCountBadge(tabId, 'mcp', (data.mcp && data.mcp.count) || 0);
+        _ccRightCountBadge(tabId, 'hooks', (data.hooks && data.hooks.count) || 0);
+        if (td.ccRightActiveTab === 'mcp') _ccRenderRightMcp(tabId);
+        if (td.ccRightActiveTab === 'hooks') _ccRenderRightHooks(tabId);
         if (forceToast) showToast('System status refreshed', 'success');
       } catch {}
     }
@@ -10851,12 +10932,47 @@
       document.getElementById('cc-sys-modal-body').innerHTML = bodyHtml || '<em style="color:#7a7a9a">Empty</em>';
     }
 
+    // Batch 11 — Right sidebar tabbed panels
+    function ccSwitchRightTab(tabId, tab, el) {
+      const td = tabs.get(tabId);
+      if (!td) return;
+      td.ccRightActiveTab = tab;
+      const tabsRoot = document.getElementById(tabId + '-cc-right-tabs');
+      if (tabsRoot) {
+        tabsRoot.querySelectorAll('.cc-right-tab').forEach(t => t.classList.toggle('active', t.dataset.ccRightTab === tab));
+      }
+      const body = document.getElementById(tabId + '-cc-right-body');
+      if (body) {
+        body.querySelectorAll('[data-cc-right-panel]').forEach(p => p.classList.toggle('active', p.dataset.ccRightPanel === tab));
+      }
+      const titleEl = document.getElementById(tabId + '-cc-right-title');
+      if (titleEl) {
+        const map = { info:'Info', memory:'Memory', mcp:'MCP', hooks:'Hooks', skills:'Skills', subagents:'Subagents' };
+        titleEl.textContent = map[tab] || 'Info';
+      }
+      ccRenderRightSidebar(tabId);
+      // Persist to workspace state
+      if (typeof saveWorkspaceState === 'function') saveWorkspaceState();
+    }
+
     function ccRenderRightSidebar(tabId) {
       const td = tabs.get(tabId);
-      const body = document.getElementById(tabId + '-cc-right-body');
-      if (!td || !body) return;
+      if (!td) return;
+      const tab = td.ccRightActiveTab || 'info';
+      if (tab === 'info') _ccRenderRightInfo(tabId);
+      else if (tab === 'memory') _ccRenderRightMemory(tabId);
+      else if (tab === 'mcp') _ccRenderRightMcp(tabId);
+      else if (tab === 'hooks') _ccRenderRightHooks(tabId);
+      else if (tab === 'skills') _ccRenderRightSkills(tabId);
+      else if (tab === 'subagents') _ccRenderRightSubagents(tabId);
+    }
+
+    function _ccRenderRightInfo(tabId) {
+      const td = tabs.get(tabId);
+      const panel = document.getElementById(tabId + '-cc-right-panel-info');
+      if (!td || !panel) return;
       if (!td.ccSessionId) {
-        body.innerHTML = '<div class="cc-right-empty">No session selected</div>';
+        panel.innerHTML = '<div class="cc-right-empty">No session selected</div>';
         return;
       }
       const cmd = td.ccClaudeMd;
@@ -10880,7 +10996,6 @@
         }
       }
       html += '</div>';
-      // Context summary
       html += '<div class="cc-right-section"><div class="cc-right-section-title">Context</div>';
       html += `<div style="font-size:11px;color:#9d9db5;line-height:1.6">
         <div><span style="color:#7a7a9a">Session:</span> ${escHtml(td.ccSessionId || '—')}</div>
@@ -10888,7 +11003,176 @@
         <div><span style="color:#7a7a9a">Effort:</span> ${escHtml(td.ccEffort || '—')}</div>
         <div><span style="color:#7a7a9a">cwd:</span> <span style="font-family:'JetBrains Mono',monospace;font-size:10px;word-break:break-all">${escHtml(td.ccCwd || (cmd && cmd.cwd) || '—')}</span></div>
       </div></div>`;
-      body.innerHTML = html;
+      panel.innerHTML = html;
+    }
+
+    function _ccRightCountBadge(tabId, tab, n) {
+      const b = document.getElementById(`${tabId}-cc-right-count-${tab}`);
+      if (!b) return;
+      if (n > 0) { b.textContent = n; b.style.display = ''; } else { b.style.display = 'none'; }
+    }
+
+    async function ccLoadMemoryList(tabId) {
+      const td = tabs.get(tabId);
+      if (!td || !td.ccSessionId) return;
+      try {
+        const r = await fetch(`/api/claude/sessions/${td.ccSessionId}/memory-list`);
+        if (!r.ok) return;
+        td.ccMemoryList = await r.json();
+        _ccRightCountBadge(tabId, 'memory', td.ccMemoryList.count || 0);
+        if (td.ccRightActiveTab === 'memory') _ccRenderRightMemory(tabId);
+      } catch {}
+    }
+
+    function _ccRenderRightMemory(tabId) {
+      const td = tabs.get(tabId);
+      const panel = document.getElementById(tabId + '-cc-right-panel-memory');
+      if (!td || !panel) return;
+      const data = td.ccMemoryList;
+      if (!data) { panel.innerHTML = '<div class="cc-right-empty">Loading memory…</div>'; ccLoadMemoryList(tabId); return; }
+      if (!data.count) { panel.innerHTML = `<div class="cc-right-empty">No auto-memory entries<br><span style="font-size:10px;color:#5a5a7a">in ${escHtml(data.dir || '')}</span></div>`; return; }
+      const order = ['user', 'feedback', 'project', 'reference', 'unknown'];
+      const byType = data.byType || {};
+      let html = '';
+      for (const type of order) {
+        const list = byType[type];
+        if (!list || !list.length) continue;
+        html += `<div class="cc-right-group-title">${escHtml(type)} (${list.length})</div>`;
+        for (const e of list) {
+          const mdate = e.mtime ? new Date(e.mtime).toLocaleDateString() : '';
+          html += `<div class="cc-right-entry" onclick="ccShowMemoryEntry('${tabId}', '${escHtml(e.file).replace(/'/g, "\\'")}')" style="cursor:pointer">
+            <div class="cc-right-entry-title"><span>${escHtml(e.title)}</span><span class="cc-right-entry-badge t-${escHtml(type)}">${escHtml(type)}</span></div>
+            ${e.hook ? `<div class="cc-right-entry-desc">${escHtml(e.hook)}</div>` : ''}
+            <div class="cc-right-entry-meta">${escHtml(e.file)}${mdate ? ' · ' + mdate : ''}</div>
+          </div>`;
+        }
+      }
+      panel.innerHTML = html;
+    }
+
+    async function ccShowMemoryEntry(tabId, file) {
+      const td = tabs.get(tabId);
+      if (!td || !td.ccSessionId) return;
+      try {
+        const r = await fetch(`/api/claude/sessions/${td.ccSessionId}/memory-file?file=${encodeURIComponent(file)}`);
+        if (!r.ok) { showToast('Failed to read memory file', 'error'); return; }
+        const data = await r.json();
+        _ccShowSysModal(escHtml(file), `<pre style="margin:0;white-space:pre-wrap;word-break:break-word;font-family:'JetBrains Mono',monospace;font-size:11px;color:#c8c8d8">${escHtml(data.content || '')}</pre>`);
+      } catch {}
+    }
+
+    function _ccRenderRightMcp(tabId) {
+      const td = tabs.get(tabId);
+      const panel = document.getElementById(tabId + '-cc-right-panel-mcp');
+      if (!td || !panel) return;
+      const mcp = (td.ccSystemStatus && td.ccSystemStatus.mcp) || { servers: [] };
+      _ccRightCountBadge(tabId, 'mcp', mcp.count || 0);
+      if (!mcp.count) { panel.innerHTML = '<div class="cc-right-empty">No MCP servers<br><span style="font-size:10px;color:#5a5a7a">in ~/.claude.json or .mcp.json</span></div>'; return; }
+      let html = '';
+      for (const s of (mcp.servers || [])) {
+        const type = s.type || 'stdio';
+        html += `<div class="cc-right-entry">
+          <div class="cc-right-entry-title"><span class="cc-right-dot on"></span><span>${escHtml(s.name)}</span><span class="cc-right-entry-badge">${escHtml(type)}</span></div>
+          ${s.command ? `<div class="cc-right-entry-cmd">${escHtml(s.command)}</div>` : ''}
+        </div>`;
+      }
+      panel.innerHTML = html;
+    }
+
+    function _ccRenderRightHooks(tabId) {
+      const td = tabs.get(tabId);
+      const panel = document.getElementById(tabId + '-cc-right-panel-hooks');
+      if (!td || !panel) return;
+      const hooks = (td.ccSystemStatus && td.ccSystemStatus.hooks) || { entries: [] };
+      _ccRightCountBadge(tabId, 'hooks', hooks.count || 0);
+      if (!hooks.count) { panel.innerHTML = '<div class="cc-right-empty">No hooks configured<br><span style="font-size:10px;color:#5a5a7a">in ~/.claude/settings.json</span></div>'; return; }
+      // Group by event
+      const byEvent = {};
+      for (const h of (hooks.entries || [])) (byEvent[h.event] = byEvent[h.event] || []).push(h);
+      let html = '';
+      for (const event of Object.keys(byEvent)) {
+        html += `<div class="cc-right-group-title">${escHtml(event)} (${byEvent[event].length})</div>`;
+        for (const h of byEvent[event]) {
+          html += `<div class="cc-right-entry">
+            <div class="cc-right-entry-title"><span>${escHtml(event)}</span>${h.matcher ? `<span class="cc-right-entry-badge">${escHtml(h.matcher)}</span>` : ''}</div>
+            <div class="cc-right-entry-cmd">${escHtml(h.command || '(no command)')}</div>
+          </div>`;
+        }
+      }
+      panel.innerHTML = html;
+    }
+
+    async function ccLoadSkillsList(tabId) {
+      const td = tabs.get(tabId);
+      if (!td || !td.ccSessionId) return;
+      try {
+        const r = await fetch(`/api/claude/sessions/${td.ccSessionId}/skills-list`);
+        if (!r.ok) return;
+        td.ccSkillsList = await r.json();
+        _ccRightCountBadge(tabId, 'skills', td.ccSkillsList.count || 0);
+        if (td.ccRightActiveTab === 'skills') _ccRenderRightSkills(tabId);
+      } catch {}
+    }
+
+    function _ccRenderRightSkills(tabId) {
+      const td = tabs.get(tabId);
+      const panel = document.getElementById(tabId + '-cc-right-panel-skills');
+      if (!td || !panel) return;
+      const data = td.ccSkillsList;
+      if (!data) { panel.innerHTML = '<div class="cc-right-empty">Loading skills…</div>'; ccLoadSkillsList(tabId); return; }
+      if (!data.count) { panel.innerHTML = `<div class="cc-right-empty">No skills found<br><span style="font-size:10px;color:#5a5a7a">in ${escHtml(data.dir || '')}</span></div>`; return; }
+      // Group by scope
+      const byScope = { user: [], project: [] };
+      for (const s of data.entries) (byScope[s.scope] = byScope[s.scope] || []).push(s);
+      let html = '';
+      for (const scope of ['project', 'user']) {
+        if (!byScope[scope] || !byScope[scope].length) continue;
+        html += `<div class="cc-right-group-title">${escHtml(scope)} (${byScope[scope].length})</div>`;
+        for (const s of byScope[scope]) {
+          html += `<div class="cc-right-entry">
+            <div class="cc-right-entry-title"><span>${escHtml(s.name)}</span><span class="cc-right-entry-badge scope-${escHtml(scope)}">${escHtml(scope)}</span></div>
+            ${s.description ? `<div class="cc-right-entry-desc">${escHtml(s.description.length > 180 ? s.description.slice(0, 180) + '…' : s.description)}</div>` : ''}
+            <div class="cc-right-entry-meta">${escHtml(s.path)}</div>
+          </div>`;
+        }
+      }
+      panel.innerHTML = html;
+    }
+
+    async function ccLoadSubagentsList(tabId) {
+      const td = tabs.get(tabId);
+      if (!td || !td.ccSessionId) return;
+      try {
+        const r = await fetch(`/api/claude/sessions/${td.ccSessionId}/subagents-list`);
+        if (!r.ok) return;
+        td.ccSubagentsList = await r.json();
+        _ccRightCountBadge(tabId, 'subagents', td.ccSubagentsList.count || 0);
+        if (td.ccRightActiveTab === 'subagents') _ccRenderRightSubagents(tabId);
+      } catch {}
+    }
+
+    function _ccRenderRightSubagents(tabId) {
+      const td = tabs.get(tabId);
+      const panel = document.getElementById(tabId + '-cc-right-panel-subagents');
+      if (!td || !panel) return;
+      const data = td.ccSubagentsList;
+      if (!data) { panel.innerHTML = '<div class="cc-right-empty">Loading subagents…</div>'; ccLoadSubagentsList(tabId); return; }
+      if (!data.count) { panel.innerHTML = '<div class="cc-right-empty">No subagents defined<br><span style="font-size:10px;color:#5a5a7a">in ~/.claude/agents/</span></div>'; return; }
+      const byScope = { user: [], project: [] };
+      for (const a of data.entries) (byScope[a.scope] = byScope[a.scope] || []).push(a);
+      let html = '';
+      for (const scope of ['project', 'user']) {
+        if (!byScope[scope] || !byScope[scope].length) continue;
+        html += `<div class="cc-right-group-title">${escHtml(scope)} (${byScope[scope].length})</div>`;
+        for (const a of byScope[scope]) {
+          const toolsBadge = (a.tools && a.tools.length) ? `<span class="cc-right-entry-badge">${a.tools.length} tools</span>` : '';
+          html += `<div class="cc-right-entry">
+            <div class="cc-right-entry-title"><span>${escHtml(a.name)}</span><span class="cc-right-entry-badge scope-${escHtml(scope)}">${escHtml(scope)}</span>${a.model ? `<span class="cc-right-entry-badge">${escHtml(a.model)}</span>` : ''}${toolsBadge}</div>
+            ${a.description ? `<div class="cc-right-entry-desc">${escHtml(a.description.length > 240 ? a.description.slice(0, 240) + '…' : a.description)}</div>` : ''}
+          </div>`;
+        }
+      }
+      panel.innerHTML = html;
     }
 
     function ccToggleMdExpand(id, btn) {
@@ -11298,6 +11582,9 @@
       _ccRefreshGit(tabId);
       ccLoadClaudeMd(tabId);
       ccLoadSystemStatus(tabId);
+      ccLoadMemoryList(tabId);
+      ccLoadSkillsList(tabId);
+      ccLoadSubagentsList(tabId);
       _ccUpdateTabName(tabId);
     }
 
@@ -12132,6 +12419,9 @@
         // Batch 6 — load CLAUDE.md for this session
         ccLoadClaudeMd(tabId);
         ccLoadSystemStatus(tabId);
+        ccLoadMemoryList(tabId);
+        ccLoadSkillsList(tabId);
+        ccLoadSubagentsList(tabId);
       }
     }
 
@@ -14501,6 +14791,9 @@
             // 7.5 — persist tab name + todos snapshot so restore shows Tasks tab immediately
             entry.name = tab.name;
             entry.ccTodos = Array.isArray(tab.ccTodos) ? tab.ccTodos : [];
+            // Batch 11 — persist right sidebar state
+            entry.ccRightOpen = !!tab.ccRightOpen;
+            entry.ccRightActiveTab = tab.ccRightActiveTab || 'info';
           }
           if (tab.type === 'files') {
             entry.filesCwd = typeof fileCwd !== 'undefined' ? fileCwd : '';
@@ -14579,6 +14872,9 @@
               tab.ccThinking = !!entry.ccThinking;
               tab.ccFast = !!entry.ccFast;
               if (entry.ccCwd) tab.ccCwd = entry.ccCwd;
+              // Batch 11 — restore right sidebar state
+              tab.ccRightActiveTab = entry.ccRightActiveTab || 'info';
+              tab.ccRightOpen = !!entry.ccRightOpen;
               if (entry.ccSessionId) {
                 tab.ccSessionId = entry.ccSessionId;
                 // Will re-attach on WS connect
@@ -14608,6 +14904,20 @@
                 }
                 // 2.3.4 — render persisted budget for restored session
                 ccBudgetRender(tabId);
+                // Batch 11 — restore right sidebar open + active tab
+                if (tab.ccRightActiveTab && tab.ccRightActiveTab !== 'info') {
+                  const tBtn = document.querySelector(`#${tabId}-cc-right-tabs [data-cc-right-tab="${tab.ccRightActiveTab}"]`);
+                  if (tBtn) ccSwitchRightTab(tabId, tab.ccRightActiveTab, tBtn);
+                }
+                if (tab.ccRightOpen) {
+                  const side = document.getElementById(tabId + '-cc-right');
+                  const btn = document.getElementById(tabId + '-cc-right-toggle');
+                  if (side && side.classList.contains('collapsed')) {
+                    side.classList.remove('collapsed');
+                    if (btn) btn.classList.add('active');
+                    ccRenderRightSidebar(tabId);
+                  }
+                }
               }, 150);
             }
             restoredAny = true;
