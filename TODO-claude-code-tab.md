@@ -136,7 +136,7 @@
 | 4.1 | Text Input | Auto-resize textarea, `Enter` to send, `Shift+Enter` for newline | P0 | [x] |
 | 4.2 | Slash Commands | `/` at start of line shows autocomplete dropdown with all commands | P0 | [x] |
 | 4.3 | @ File Picker | `@` shows dropdown of files in cwd (walks tree, ignores node_modules/.git/dist). Endpoint `/api/claude/file-search` | P1 | [x] |
-| 4.4 | Voice Input | Hold `Space` for push-to-talk, transcribe via Whisper | P2 | [ ] |
+| 4.4 | Voice Input | Hold `Space` for push-to-talk, transcribe via Whisper | P2 | [~] (Web Speech API; Whisper server-side fallback deferred) |
 | 4.5 | Image Paste | Paste from clipboard → thumb preview → server writes temp file + Read tool hint | P1 | [x] |
 | 4.6 | File Attach | 📎 button multi-select. Text files inline as lang-aware code block. Drag & drop supported | P1 | [x] |
 | 4.7 | Command History | `Up/Down` arrow to cycle through previous prompts (per-tab) | P1 | [x] |

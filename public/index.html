@@ -2624,6 +2624,11 @@
     .cc-remove-attach { position:absolute; top:-4px; right:-4px; width:16px; height:16px; border-radius:50%; background:#ef4444; color:#fff; border:none; font-size:9px; cursor:pointer; display:flex; align-items:center; justify-content:center; line-height:1; }
     .cc-attach-btn { width:28px; height:28px; border-radius:8px; background:transparent; border:1px solid rgba(255,255,255,.08); color:#9d9db5; cursor:pointer; display:flex; align-items:center; justify-content:center; flex-shrink:0; transition:all .15s; }
     .cc-attach-btn:hover { background:rgba(147,51,234,.12); border-color:rgba(147,51,234,.35); color:#c084fc; }
+    .cc-voice-btn { width:28px; height:28px; border-radius:8px; background:transparent; border:1px solid rgba(255,255,255,.08); color:#9d9db5; cursor:pointer; display:flex; align-items:center; justify-content:center; flex-shrink:0; transition:all .15s; }
+    .cc-voice-btn:hover { background:rgba(239,68,68,.1); border-color:rgba(239,68,68,.3); color:#fca5a5; }
+    .cc-voice-btn.listening { background:rgba(239,68,68,.18); border-color:#ef4444; color:#fca5a5; animation:cc-voice-pulse 1.2s ease-in-out infinite; }
+    .cc-voice-btn.unsupported { opacity:.4; cursor:not-allowed; }
+    @keyframes cc-voice-pulse { 0%,100% { box-shadow:0 0 0 0 rgba(239,68,68,.5); } 50% { box-shadow:0 0 0 6px rgba(239,68,68,0); } }
     .cc-input-area.drag-over { background:rgba(147,51,234,.08); border-top:1px dashed rgba(147,51,234,.5); }
     .cc-input-hints { display:flex; flex-wrap:wrap; gap:6px 12px; padding:5px 4px 0; font-size:10px; color:#5a5a7a; user-select:none; }
     .cc-input-hints .cc-hint { display:inline-flex; align-items:center; gap:3px; white-space:nowrap; }
@@ -5254,6 +5259,10 @@
                 <button class="cc-attach-btn" onclick="document.getElementById('${tabId}-cc-file-input').click()" title="Attach file">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
                 </button>
+                <button class="cc-voice-btn" id="${tabId}-cc-voice-btn" onclick="ccToggleVoice('${tabId}')" title="Voice input (Web Speech API)">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+                </button>
+                <script>if (!(window.SpeechRecognition || window.webkitSpeechRecognition)) { const b = document.getElementById('${tabId}-cc-voice-btn'); if (b) { b.classList.add('unsupported'); b.title = 'Voice input not supported in this browser'; } }</script>
                 <textarea id="${tabId}-cc-input" placeholder="Ask Claude Code..." rows="1"></textarea>
                 <button class="cc-send-btn" onclick="ccSend('${tabId}')">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
@@ -12011,6 +12020,64 @@
       input.focus();
       setTimeout(() => { input.selectionStart = input.selectionEnd = newPos; }, 0);
       document.getElementById(tabId + '-cc-at').classList.remove('show');
+    }
+
+    // === 4.4 Voice Input (push-to-talk via Web Speech API) ===
+    const _ccVoice = {}; // tabId → { recognition, listening }
+    const _ccSpeechRecognition = (window.SpeechRecognition || window.webkitSpeechRecognition || null);
+    function ccToggleVoice(tabId) {
+      const btn = document.getElementById(tabId + '-cc-voice-btn');
+      if (!_ccSpeechRecognition) {
+        showToast('Voice input not supported in this browser', 'error');
+        if (btn) btn.classList.add('unsupported');
+        return;
+      }
+      const state = _ccVoice[tabId];
+      if (state && state.listening) {
+        try { state.recognition.stop(); } catch {}
+        return;
+      }
+      const recognition = new _ccSpeechRecognition();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = (navigator.language || 'en-US');
+      const input = document.getElementById(tabId + '-cc-input');
+      const baseVal = input ? input.value : '';
+      let finalAddition = '';
+      recognition.onresult = (ev) => {
+        let interim = '';
+        for (let i = ev.resultIndex; i < ev.results.length; i++) {
+          const t = ev.results[i][0].transcript;
+          if (ev.results[i].isFinal) finalAddition += t;
+          else interim += t;
+        }
+        if (input) {
+          const sep = baseVal && !baseVal.endsWith(' ') ? ' ' : '';
+          input.value = baseVal + sep + finalAddition + interim;
+          input.dispatchEvent(new Event('input'));
+        }
+      };
+      recognition.onend = () => {
+        if (btn) btn.classList.remove('listening');
+        _ccVoice[tabId] = null;
+      };
+      recognition.onerror = (ev) => {
+        if (btn) btn.classList.remove('listening');
+        _ccVoice[tabId] = null;
+        if (ev.error === 'not-allowed' || ev.error === 'service-not-allowed') {
+          showToast('Microphone permission denied', 'error');
+        } else if (ev.error !== 'aborted' && ev.error !== 'no-speech') {
+          showToast('Voice error: ' + ev.error, 'error');
+        }
+      };
+      try {
+        recognition.start();
+        _ccVoice[tabId] = { recognition, listening: true };
+        if (btn) btn.classList.add('listening');
+        showToast('Listening… click mic again to stop', 'info');
+      } catch (e) {
+        showToast('Voice start failed: ' + e.message, 'error');
+      }
     }
 
     // === File & Image Attach (4.5, 4.6) ===
