@@ -106,7 +106,7 @@
 | 3.2.6 | Write Block | Collapsible, show file path + content preview | P1 | [x] |
 | 3.2.7 | MCP Tool Block | Collapsible, show `mcp__server__tool` with args/result | P2 | [x] |
 | 3.2.8 | Status Indicator | Running (spinner) / Done (✓) / Error (✗) per tool block | P0 | [x] |
-| 3.2.9 | Click to Open | Click file path to open in editor tab (Monaco) | P2 | [ ] |
+| 3.2.9 | Click to Open | Click file path to open in editor tab (Monaco) | P2 | [x] |
 
 ### 3.3 Special Blocks
 
@@ -170,7 +170,7 @@
 | 6.6 | Git Status API | `GET /api/git/status` → branch, ahead/behind, dirty. PR status via `gh` TBD | P1 | [x] |
 | 6.7 | Context API | Endpoint for context usage % (parse from stream events) | P1 | [x] |
 | 6.8 | Cost Tracking | Parse `total_cost_usd` and token usage from result events | P1 | [x] |
-| 6.9 | File Watcher | Watch files changed by Claude, update sidebar in real-time | P2 | [ ] |
+| 6.9 | File Watcher | Watch files changed by Claude, update sidebar in real-time | P2 | [x] |
 | 6.10 | MCP Passthrough | Forward MCP tool calls/results to UI | P2 | [ ] |
 
 ---

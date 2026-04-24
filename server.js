@@ -3104,8 +3104,12 @@ function loadClaudeSessionsFromDisk() {
           checkpoints: Array.isArray(s.checkpoints) ? s.checkpoints : [],
           todos: Array.isArray(s.todos) ? s.todos : [],
           todosUpdatedAt: s.todosUpdatedAt || 0,
+          fsWatcher: null,
+          fsWatchTimer: null,
+          fsWatchPending: new Map(),
         };
         claudeSessions.set(sess.id, sess);
+        startClaudeFsWatcher(sess);
         loaded++;
       } catch (e) {
         console.error(`[Claude] Failed to load session from ${f}:`, e.message);
@@ -3166,11 +3170,64 @@ function createClaudeSession(opts = {}) {
     checkpoints: [],  // 1.9 / 3.3.4: { id, turn, msgIdx, text, ts }
     todos: [],        // 2.2.2: { content, activeForm, status, createdAt, updatedAt }
     todosUpdatedAt: 0,
+    fsWatcher: null,  // 6.9: fs.watch handle
+    fsWatchTimer: null, // debounce
+    fsWatchPending: new Map(), // path -> changeType
   };
   claudeSessions.set(id, sess);
   persistClaudeSession(sess);
+  startClaudeFsWatcher(sess);
   console.log(`[Claude] Created session "${sess.name}" (${id}), model=${sess.model}`);
   return sess;
+}
+
+// 6.9 — watch session cwd for external file changes and broadcast to clients
+const CC_FS_IGNORE = new Set(["node_modules", ".git", "dist", "build", ".next", ".cache", "coverage", "__pycache__", ".venv", "venv", ".vscode-test"]);
+function startClaudeFsWatcher(sess) {
+  if (!sess || !sess.cwd || sess.fsWatcher) return;
+  try {
+    if (!fs.existsSync(sess.cwd)) return;
+  } catch { return; }
+  try {
+    const watcher = fs.watch(sess.cwd, { recursive: true }, (eventType, filename) => {
+      if (!filename) return;
+      const rel = String(filename);
+      const top = rel.split(/[\\/]/)[0];
+      if (CC_FS_IGNORE.has(top)) return;
+      if (rel.endsWith("~") || rel.endsWith(".swp") || rel.endsWith(".tmp")) return;
+      sess.fsWatchPending.set(rel, eventType === "rename" ? "rename" : "change");
+      if (sess.fsWatchTimer) clearTimeout(sess.fsWatchTimer);
+      sess.fsWatchTimer = setTimeout(() => {
+        const changes = Array.from(sess.fsWatchPending.entries()).map(([p, t]) => ({ path: p, kind: t }));
+        sess.fsWatchPending.clear();
+        sess.fsWatchTimer = null;
+        if (!changes.length) return;
+        // Add external edits to sess.files so the Files sidebar reflects them
+        for (const c of changes) {
+          const abs = path.join(sess.cwd, c.path);
+          if (!sess.files.find(f => f.path === abs || f.path === c.path)) {
+            sess.files.push({ path: abs, action: "E", timestamp: Date.now() });
+          }
+        }
+        broadcastClaude(sess, { type: "file-changed", changes, ts: Date.now() });
+      }, 250);
+    });
+    watcher.on("error", (e) => {
+      console.error(`[Claude:${sess.id.slice(0,6)}] fs.watch error:`, e.message);
+    });
+    sess.fsWatcher = watcher;
+  } catch (e) {
+    console.error(`[Claude:${sess.id.slice(0,6)}] fs.watch failed:`, e.message);
+  }
+}
+
+function stopClaudeFsWatcher(sess) {
+  if (!sess) return;
+  if (sess.fsWatchTimer) { clearTimeout(sess.fsWatchTimer); sess.fsWatchTimer = null; }
+  if (sess.fsWatcher) {
+    try { sess.fsWatcher.close(); } catch {}
+    sess.fsWatcher = null;
+  }
 }
 
 // Send a message: spawns a new process per turn
@@ -3434,6 +3491,7 @@ app.delete("/api/claude/sessions/:id", requireAuth, (req, res) => {
   const sess = claudeSessions.get(req.params.id);
   if (!sess) return res.status(404).json({ error: "not found" });
   if (sess.proc) { try { sess.proc.kill(); } catch {} }
+  stopClaudeFsWatcher(sess);
   claudeSessions.delete(req.params.id);
   deleteClaudeSessionFromDisk(req.params.id);
   res.json({ ok: true });

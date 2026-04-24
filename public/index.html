@@ -2432,8 +2432,10 @@
     .cc-file-item:hover { background:rgba(255,255,255,.04); }
     .cc-file-badge { font-size:9px; padding:2px 5px; border-radius:3px; margin-left:auto; font-weight:600; text-transform:uppercase; }
     .cc-file-badge.m { background:rgba(251,191,36,.12); color:#fbbf24; } .cc-file-badge.c { background:rgba(74,222,128,.12); color:#4ade80; } .cc-file-badge.d { background:rgba(239,68,68,.12); color:#ef4444; }
+    .cc-file-badge.e { background:rgba(96,165,250,.14); color:#60a5fa; } .cc-file-badge.r { background:rgba(148,163,184,.14); color:#94a3b8; }
     /* 2.2.2 Tasks tab */
-    .cc-sidebar-tab-count { display:inline-block; margin-left:5px; padding:1px 5px; border-radius:7px; font-size:9px; font-weight:600; background:rgba(249,115,22,.18); color:#f97316; line-height:1.4; }
+    .cc-sidebar-tab-count { display:inline-block; margin-left:5px; padding:1px 5px; border-radius:7px; font-size:9px; font-weight:600; background:rgba(249,115,22,.18); color:#f97316; line-height:1.4; transition:background .3s, color .3s, box-shadow .3s; }
+    .cc-sidebar-tab-count.cc-count-pulse { background:rgba(96,165,250,.3); color:#60a5fa; box-shadow:0 0 0 3px rgba(96,165,250,.2); }
     .cc-task-list { flex:1; overflow-y:auto; padding:6px 6px 10px; font-size:12px; }
     .cc-task-item { display:flex; align-items:flex-start; gap:7px; padding:6px 8px; border-radius:6px; margin-bottom:3px; background:rgba(255,255,255,.02); border:1px solid rgba(255,255,255,.04); transition:background .15s; }
     .cc-task-item:hover { background:rgba(255,255,255,.045); }
@@ -2494,6 +2496,8 @@
     .cc-tool-icon { font-size:13px; }
     .cc-tool-name { font-weight:600; color:#b0b0c8; font-family:'JetBrains Mono',monospace; font-size:12px; }
     .cc-tool-file { color:#60a5fa; font-size:11px; }
+    .cc-tool-file-link { cursor:pointer; text-decoration:underline; text-decoration-color:rgba(96,165,250,.25); text-underline-offset:2px; transition:color .15s, text-decoration-color .15s; }
+    .cc-tool-file-link:hover { color:#93c5fd; text-decoration-color:#93c5fd; }
     .cc-tool-status { margin-left:auto; font-size:10px; padding:2px 7px; border-radius:4px; }
     .cc-tool-status.done { background:rgba(74,222,128,.12); color:#4ade80; }
     .cc-tool-status.running { background:rgba(251,191,36,.12); color:#fbbf24; animation:pulse 1.5s infinite; }
@@ -11991,6 +11995,22 @@
       </div>`;
     }
 
+    // 3.2.9 — tools whose primary arg is a file path the user can open
+    const CC_FILE_TOOLS = new Set(['Read', 'Edit', 'Write', 'NotebookEdit']);
+    function _ccFileSpan(tool, file) {
+      if (!file) return '<span class="cc-tool-file"></span>';
+      if (CC_FILE_TOOLS.has(tool)) {
+        return `<span class="cc-tool-file cc-tool-file-link" onclick="event.stopPropagation(); ccOpenFileFromTool('${escAttr(file)}')" title="Open in editor">${escHtml(file)}</span>`;
+      }
+      return `<span class="cc-tool-file">${escHtml(file)}</span>`;
+    }
+
+    function ccOpenFileFromTool(filePath) {
+      if (!filePath) return;
+      const name = filePath.split(/[\\/]/).pop() || filePath;
+      if (typeof openEditor === 'function') openEditor(filePath, name);
+    }
+
     function ccRenderToolBlock(tool, file, status, body, collapsed) {
       const icons = { Read: '📖', Edit: '✏️', Write: '📝', Bash: '⚡', Grep: '🔍', Glob: '📂', Agent: '🤖' };
       const statusCls = status === 'done' ? 'done' : status === 'error' ? 'error' : 'running';
@@ -12017,7 +12037,7 @@
         <div class="cc-tool-header" onclick="this.nextElementSibling.classList.toggle('open')">
           <span class="cc-tool-icon">${icon}</span>
           <span class="cc-tool-name">${escHtml(tool)}</span>
-          <span class="cc-tool-file">${escHtml(file || '')}</span>
+          ${_ccFileSpan(tool, file)}
           <span class="cc-tool-status ${statusCls}">${statusText}</span>
         </div>
         <div class="cc-tool-body${collapsed ? '' : ' open'}">${body || ''}</div>
@@ -12234,8 +12254,8 @@
       if (!el || !files || !files.length) return;
       el.innerHTML = files.map(f => {
         const name = f.path.split(/[/\\]/).pop();
-        const bcls = f.action === 'NEW' ? 'c' : f.action === 'M' ? 'm' : 'd';
-        return `<div class="cc-file-item"><span style="font-size:12px;width:14px;text-align:center">📄</span><span>${escHtml(name)}</span><span class="cc-file-badge ${bcls}">${f.action}</span></div>`;
+        const bcls = f.action === 'NEW' ? 'c' : f.action === 'M' ? 'm' : f.action === 'E' ? 'e' : f.action === 'R' ? 'r' : 'd';
+        return `<div class="cc-file-item" onclick="ccOpenFileFromTool('${escAttr(f.path)}')" title="${escAttr(f.path)}"><span style="font-size:12px;width:14px;text-align:center">📄</span><span>${escHtml(name)}</span><span class="cc-file-badge ${bcls}">${escHtml(f.action)}</span></div>`;
       }).join('');
       const countEl = document.getElementById(tabId + '-cc-files-count');
       if (countEl) {
@@ -12445,6 +12465,17 @@
       } else if (data.type === 'todos') {
         // 2.2.2 Tasks tab — live TodoWrite snapshot
         _ccRenderTodos(tabId, data.todos || []);
+      } else if (data.type === 'file-changed') {
+        // 6.9 — external file changes detected by fs.watch; refresh Files sidebar
+        ccUpdateFilesFromServer(tabId);
+        if (Array.isArray(data.changes) && data.changes.length) {
+          // Flash the Files tab badge briefly so the user notices external edits
+          const countEl = document.getElementById(tabId + '-cc-files-count');
+          if (countEl) {
+            countEl.classList.add('cc-count-pulse');
+            setTimeout(() => countEl.classList.remove('cc-count-pulse'), 900);
+          }
+        }
       } else if (data.type === 'checkpoint') {
         // 1.9 / 3.3.4 — new checkpoint from server; track for rewind UI
         if (!Array.isArray(td.ccCheckpoints)) td.ccCheckpoints = [];
