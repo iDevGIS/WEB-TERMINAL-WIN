@@ -27,7 +27,7 @@
 | Batch 16 | `ec0c3e2` | 4.4 Voice input via Web Speech API (partial: Whisper backend fallback deferred) |
 | Batch 17 | `2eeff1b` | Phase 3 finalize — Esc+Esc hotkey (3.3.4) · Whisper /api/stt fallback (4.4) · git-snapshot rewind with code restore (1.9) |
 | Batch 18 | `34ec167` | 3.3.5 Inline plan approval UI (ExitPlanMode interceptor → Approve/Revise card) |
-| Batch 19 | _pending_ | 2.4.5 VS Code serve-web LSP bridge (engine probe + "Open in VS Code" deep link) |
+| Batch 19 | `a3bdecf` | 2.4.5 VS Code serve-web LSP bridge (engine probe + "Open in VS Code" deep link) |
 
 ---
 
