@@ -75,8 +75,8 @@
 | 3.1.2 | AI Messages | Left-aligned with Claude avatar, model badge, timing | P0 | [x] |
 | 3.1.3 | Markdown Rendering | Full GFM markdown via marked.js (already in CYBERFRAME) | P0 | [x] |
 | 3.1.4 | Syntax Highlighting | Code blocks with language badge + copy button | P0 | [x] |
-| 3.1.5 | Turn Separators | Divider between turns showing turn number + duration | P1 | [ ] |
-| 3.1.6 | Thinking Badge | Show "thinking Xs" badge on AI messages that used extended thinking | P1 | [ ] |
+| 3.1.5 | Turn Separators | Divider between turns showing turn number + duration | P1 | [x] |
+| 3.1.6 | Thinking Badge | Show "thinking Xs" badge on AI messages that used extended thinking | P1 | [x] |
 
 ### 3.2 Tool Use Blocks
 
@@ -97,7 +97,7 @@
 | # | Feature | Description | Priority | Status |
 |---|---------|-------------|----------|--------|
 | 3.3.1 | Thinking Block | Collapsible, show extended thinking content + duration | P1 | [x] |
-| 3.3.2 | Subagent Block | Show agent name, task, status, summary result | P1 | [ ] |
+| 3.3.2 | Subagent Block | Show agent name, task, status, summary result | P1 | [x] |
 | 3.3.3 | Agent Team Block | Show multiple agents running in parallel with status | P2 | [ ] |
 | 3.3.4 | Rewind Checkpoints | Clickable markers between turns. Esc+Esc to open rewind menu | P1 | [ ] |
 | 3.3.5 | Permission Prompt | Inline approve/deny UI when Claude asks for permission | P0 | [~] (uses --permission-mode flag, no inline prompt in -p mode) |

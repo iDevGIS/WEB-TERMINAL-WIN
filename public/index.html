@@ -2395,8 +2395,30 @@
     .cc-tool-body .line-add { color:#4ade80; } .cc-tool-body .line-del { color:#ef4444; text-decoration:line-through; opacity:.6; }
     .cc-tool-body .line-num { color:#5a5a7a; user-select:none; display:inline-block; width:32px; text-align:right; margin-right:8px; }
     /* Turn separator */
-    .cc-turn-sep { display:flex; align-items:center; gap:10px; padding:4px 0; font-size:10px; color:#5a5a7a; text-transform:uppercase; letter-spacing:1px; }
+    .cc-turn-sep { display:flex; align-items:center; gap:10px; padding:6px 0; font-size:10px; color:#5a5a7a; text-transform:uppercase; letter-spacing:1px; }
     .cc-turn-sep::before, .cc-turn-sep::after { content:''; flex:1; height:1px; background:rgba(255,255,255,.06); }
+    .cc-turn-sep-meta { display:inline-flex; align-items:center; gap:6px; }
+    .cc-turn-sep-meta span { display:inline-flex; align-items:center; gap:3px; }
+    .cc-turn-sep-meta .dot { color:#3a3a5a; }
+    /* Thinking badge on AI header */
+    .cc-thinking-badge { display:inline-flex; align-items:center; gap:3px; font-size:9px; padding:1px 6px; border-radius:3px; background:rgba(108,99,255,.1); color:#6c63ff; font-weight:500; }
+    /* Subagent block */
+    .cc-subagent-block { margin:8px 0; border:1px solid rgba(168,85,247,.18); border-radius:8px; overflow:hidden; background:linear-gradient(135deg,rgba(168,85,247,.04),rgba(139,92,246,.06)); }
+    .cc-subagent-header { display:flex; align-items:center; gap:10px; padding:10px 14px; background:rgba(168,85,247,.05); border-bottom:1px solid rgba(168,85,247,.12); font-size:12px; cursor:pointer; }
+    .cc-subagent-icon { width:22px; height:22px; border-radius:6px; background:rgba(168,85,247,.15); color:#a855f7; display:flex; align-items:center; justify-content:center; font-size:13px; flex-shrink:0; }
+    .cc-subagent-meta { flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
+    .cc-subagent-name { font-weight:600; color:#c4a5ff; font-size:12px; display:flex; align-items:center; gap:6px; }
+    .cc-subagent-type { font-size:9px; padding:1px 6px; border-radius:3px; background:rgba(168,85,247,.15); color:#a855f7; text-transform:uppercase; letter-spacing:.5px; font-weight:500; }
+    .cc-subagent-task { color:#9d9db5; font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .cc-subagent-status { margin-left:auto; font-size:10px; padding:2px 8px; border-radius:4px; flex-shrink:0; }
+    .cc-subagent-status.running { background:rgba(251,191,36,.12); color:#fbbf24; animation:pulse 1.5s infinite; }
+    .cc-subagent-status.done { background:rgba(74,222,128,.12); color:#4ade80; }
+    .cc-subagent-status.error { background:rgba(239,68,68,.12); color:#ef4444; }
+    .cc-subagent-body { padding:10px 14px; font-size:12px; color:#b0b0c8; line-height:1.6; max-height:300px; overflow-y:auto; display:none; }
+    .cc-subagent-body.open { display:block; }
+    .cc-subagent-body .prompt { font-family:'JetBrains Mono',monospace; font-size:11px; color:#9d9db5; background:rgba(0,0,0,.25); padding:8px 10px; border-radius:5px; margin-bottom:10px; white-space:pre-wrap; max-height:120px; overflow-y:auto; }
+    .cc-subagent-body .summary { font-family:'Inter',sans-serif; color:#c4c4d8; }
+    .cc-subagent-body .summary pre { background:rgba(0,0,0,.25); padding:8px 10px; border-radius:5px; font-size:11px; }
     /* Permission prompt */
     .cc-perm-prompt { margin:10px 0; padding:14px 16px; border-radius:10px; background:rgba(251,191,36,.05); border:1px solid rgba(251,191,36,.2); }
     .cc-perm-prompt-title { font-size:13px; font-weight:600; color:#fbbf24; margin-bottom:8px; display:flex; align-items:center; gap:8px; }
@@ -10785,6 +10807,56 @@
       </div>`;
     }
 
+    function ccRenderSubagentBlock(toolUseId, subagentType, description, prompt, status, summary) {
+      const statusCls = status === 'done' ? 'done' : status === 'error' ? 'error' : 'running';
+      const statusText = status === 'done' ? '✓ Done' : status === 'error' ? '✗ Error' : '⟳ Running';
+      const desc = description || prompt.substring(0, 80);
+      let summaryHtml = '';
+      if (summary) {
+        let rendered = summary;
+        if (typeof marked !== 'undefined' && marked.parse) {
+          try { rendered = marked.parse(summary); } catch { rendered = escHtml(summary); }
+        } else { rendered = escHtml(summary); }
+        summaryHtml = `<div class="summary">${rendered}</div>`;
+      }
+      const promptHtml = prompt ? `<div class="prompt">${escHtml(prompt.substring(0, 600))}${prompt.length > 600 ? '…' : ''}</div>` : '';
+      return `<div class="cc-subagent-block" data-tool-use-id="${escHtml(toolUseId)}">
+        <div class="cc-subagent-header" onclick="this.nextElementSibling.classList.toggle('open')">
+          <div class="cc-subagent-icon">🤖</div>
+          <div class="cc-subagent-meta">
+            <div class="cc-subagent-name">Subagent <span class="cc-subagent-type">${escHtml(subagentType || 'agent')}</span></div>
+            <div class="cc-subagent-task">${escHtml(desc)}</div>
+          </div>
+          <span class="cc-subagent-status ${statusCls}">${statusText}</span>
+        </div>
+        <div class="cc-subagent-body${status === 'running' ? ' open' : ''}">${promptHtml}${summaryHtml}</div>
+      </div>`;
+    }
+
+    function ccUpdateSubagentBlock(toolUseId, status, summary) {
+      const block = document.querySelector(`.cc-subagent-block[data-tool-use-id="${CSS.escape(toolUseId)}"]`);
+      if (!block) return;
+      const statusEl = block.querySelector('.cc-subagent-status');
+      if (statusEl) {
+        const statusCls = status === 'done' ? 'done' : status === 'error' ? 'error' : 'running';
+        const statusText = status === 'done' ? '✓ Done' : status === 'error' ? '✗ Error' : '⟳ Running';
+        statusEl.className = 'cc-subagent-status ' + statusCls;
+        statusEl.textContent = statusText;
+      }
+      if (summary != null) {
+        const body = block.querySelector('.cc-subagent-body');
+        if (body) {
+          let rendered = summary;
+          if (typeof marked !== 'undefined' && marked.parse) {
+            try { rendered = marked.parse(summary); } catch { rendered = escHtml(summary); }
+          } else { rendered = escHtml(summary); }
+          const existing = body.querySelector('.summary');
+          if (existing) existing.innerHTML = rendered;
+          else body.insertAdjacentHTML('beforeend', `<div class="summary">${rendered}</div>`);
+        }
+      }
+    }
+
     function ccRenderPermPrompt(tabId, detail) {
       return `<div class="cc-perm-prompt">
         <div class="cc-perm-prompt-title">
@@ -10879,6 +10951,16 @@
         for (const block of blocks) {
           if (block.type === 'tool_result') {
             const msgsEl = document.getElementById(tabId + '-cc-messages');
+            const useId = block.tool_use_id;
+            // Route to subagent block if this tool_use_id is a Task
+            const subBlock = useId && msgsEl.querySelector(`.cc-subagent-block[data-tool-use-id="${CSS.escape(useId)}"]`);
+            if (subBlock) {
+              let summary = '';
+              if (typeof block.content === 'string') summary = block.content;
+              else if (Array.isArray(block.content)) summary = block.content.map(c => c.text || '').filter(Boolean).join('\n');
+              ccUpdateSubagentBlock(useId, block.is_error ? 'error' : 'done', summary);
+              continue;
+            }
             // Find the last running tool block
             const allTools = msgsEl.querySelectorAll('.cc-tool-block .cc-tool-status.running');
             const lastRunning = allTools[allTools.length - 1];
@@ -10903,6 +10985,9 @@
         const msgsEl = document.getElementById(tabId + '-cc-messages');
         let turnBody = msgsEl.querySelector('.cc-ai-turn-active .cc-msg-body');
         if (!turnBody) {
+          td.ccTurnStart = Date.now();
+          td.ccTurnThinkMs = 0;
+          td.ccTurnThinkChars = 0;
           const time = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
           const turnHtml = `<div class="cc-msg cc-ai-turn-active">
             <div class="cc-msg-avatar ai"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg></div>
@@ -10911,6 +10996,7 @@
                 <span class="cc-msg-name" style="color:#f97316">Claude Code</span>
                 <span>${time}</span>
                 <span style="font-size:9px;background:rgba(249,115,22,.1);color:#f97316;padding:1px 6px;border-radius:3px">${escHtml(td.ccModel || 'opus')}</span>
+                <span class="cc-thinking-badge" style="display:none" data-cc-think-badge>💭 <span data-cc-think-val>0s</span></span>
               </div>
             </div>
           </div>`;
@@ -10928,11 +11014,31 @@
             document.getElementById(tabId + '-cc-streaming-text').textContent = 'Claude is responding...';
           } else if (block.type === 'tool_use') {
             const toolName = block.name || 'Tool';
-            const file = block.input?.file_path || block.input?.command || block.input?.pattern || block.input?.path || '';
-            turnBody.insertAdjacentHTML('beforeend', ccRenderToolBlock(toolName, file, 'running', '', false));
-            document.getElementById(tabId + '-cc-streaming-text').textContent = 'Running ' + toolName + '...';
+            // Route Task tool → subagent block
+            if (toolName === 'Task') {
+              const subType = block.input?.subagent_type || 'agent';
+              const desc = block.input?.description || '';
+              const prompt = block.input?.prompt || '';
+              turnBody.insertAdjacentHTML('beforeend', ccRenderSubagentBlock(block.id || '', subType, desc, prompt, 'running', ''));
+              document.getElementById(tabId + '-cc-streaming-text').textContent = 'Subagent running: ' + subType;
+            } else {
+              const file = block.input?.file_path || block.input?.command || block.input?.pattern || block.input?.path || '';
+              turnBody.insertAdjacentHTML('beforeend', ccRenderToolBlock(toolName, file, 'running', '', false));
+              document.getElementById(tabId + '-cc-streaming-text').textContent = 'Running ' + toolName + '...';
+            }
             ccUpdateFilesFromServer(tabId);
           } else if (block.type === 'thinking' && block.thinking) {
+            // Track thinking duration using content size heuristic (~200 chars/sec at typical output rate)
+            const chars = block.thinking.length;
+            td.ccTurnThinkChars = (td.ccTurnThinkChars || 0) + chars;
+            // Badge shows elapsed seconds since turn start (shows "thinking happened")
+            const badge = turnBody.querySelector('[data-cc-think-badge]');
+            if (badge) {
+              badge.style.display = '';
+              const val = badge.querySelector('[data-cc-think-val]');
+              const elapsed = ((Date.now() - (td.ccTurnStart || Date.now())) / 1000).toFixed(1);
+              if (val) val.textContent = elapsed + 's';
+            }
             turnBody.insertAdjacentHTML('beforeend', `<div class="cc-tool-block" style="border-color:rgba(108,99,255,.15);background:rgba(108,99,255,.03)">
               <div class="cc-tool-header" onclick="this.nextElementSibling.classList.toggle('open')" style="border-color:rgba(108,99,255,.1)">
                 <span class="cc-tool-icon">💭</span><span class="cc-tool-name" style="color:#6c63ff">Thinking</span>
@@ -10967,7 +11073,16 @@
         if (activeTurn) activeTurn.classList.remove('cc-ai-turn-active');
         td.ccTurns = (td.ccTurns || 0) + 1;
         const dur = data.duration_ms ? (data.duration_ms / 1000).toFixed(1) + 's' : '';
-        ccAppendMessage(tabId, `<div class="cc-turn-sep">Turn ${td.ccTurns}${dur ? ' · ' + dur : ''}</div>`);
+        // Finalize thinking badge on just-completed turn
+        if (td.ccTurnThinkChars && activeTurn) {
+          const badge = activeTurn.querySelector('[data-cc-think-badge]');
+          if (badge) {
+            const val = badge.querySelector('[data-cc-think-val]');
+            const totalSec = data.duration_ms ? data.duration_ms / 1000 : ((Date.now() - (td.ccTurnStart || Date.now())) / 1000);
+            const estSec = Math.min(totalSec * 0.8, td.ccTurnThinkChars / 600).toFixed(1);
+            if (val) val.textContent = estSec + 's';
+          }
+        }
         // Use modelUsage for accurate counts
         let tokIn = data.usage?.input_tokens || 0;
         let tokOut = data.usage?.output_tokens || 0;
@@ -10976,6 +11091,14 @@
           const mu = Object.values(data.modelUsage)[0];
           if (mu) { tokIn = mu.inputTokens || tokIn; tokOut = mu.outputTokens || tokOut; tokCache = mu.cacheReadInputTokens || tokCache; }
         }
+        // Enhanced turn separator with metadata: turn #, duration, tokens, cost
+        const fmtTok = (n) => n >= 1000 ? (n/1000).toFixed(1) + 'k' : String(n);
+        const sepBits = [`Turn ${td.ccTurns}`];
+        if (dur) sepBits.push(`<span>⏱ ${dur}</span>`);
+        if (tokOut) sepBits.push(`<span>↑${fmtTok(tokOut)}</span>`);
+        if (tokIn || tokCache) sepBits.push(`<span>↓${fmtTok(tokIn + tokCache)}</span>`);
+        if (data.total_cost_usd != null && data.total_cost_usd > 0) sepBits.push(`<span>$${data.total_cost_usd.toFixed(4)}</span>`);
+        ccAppendMessage(tabId, `<div class="cc-turn-sep"><span class="cc-turn-sep-meta">${sepBits.join(' <span class="dot">·</span> ')}</span></div>`);
         if (data.total_cost_usd != null) {
           ccUpdateCost(tabId, data.total_cost_usd, tokIn, tokOut, td.ccTurns);
         }
@@ -10998,7 +11121,16 @@
             else if (m.type === 'assistant' && m.message?.content) {
               for (const block of m.message.content) {
                 if (block.type === 'text' && block.text) ccAppendMessage(tabId, ccRenderAiText(block.text, td.ccModel));
-                else if (block.type === 'tool_use') ccAppendMessage(tabId, ccRenderToolBlock(block.name || 'Tool', block.input?.file_path || '', 'done', '', true));
+                else if (block.type === 'tool_use') {
+                  if (block.name === 'Task') {
+                    const subType = block.input?.subagent_type || 'agent';
+                    const desc = block.input?.description || '';
+                    const prompt = block.input?.prompt || '';
+                    ccAppendMessage(tabId, ccRenderSubagentBlock(block.id || '', subType, desc, prompt, 'done', ''));
+                  } else {
+                    ccAppendMessage(tabId, ccRenderToolBlock(block.name || 'Tool', block.input?.file_path || '', 'done', '', true));
+                  }
+                }
               }
             }
           }
