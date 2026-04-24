@@ -3838,8 +3838,8 @@ app.get("/api/claude/sessions/:id/system-status", requireAuth, (req, res) => {
     } catch {}
   }
 
-  // 2.4.5 Code Intelligence — infer primary language from cwd markers (no real LSP yet)
-  const lang = { detected: false, language: null, marker: null };
+  // 2.4.5 Code Intelligence — infer primary language from cwd markers + check VS Code serve-web availability
+  const lang = { detected: false, language: null, marker: null, engine: "markers", vscodeUrl: null };
   const markers = [
     { file: "tsconfig.json", lang: "TypeScript" },
     { file: "package.json", lang: "JavaScript" },
@@ -3861,6 +3861,11 @@ app.get("/api/claude/sessions/:id/system-status", requireAuth, (req, res) => {
       }
     } catch {}
   }
+  // If VS Code serve-web is up, upgrade engine to "vscode" and include a deep-link URL
+  if (_vscodeAlive()) {
+    lang.engine = "vscode";
+    lang.vscodeUrl = "/vscode/?folder=" + encodeURIComponent(cwd);
+  }
 
   res.json({
     cwd,
@@ -3871,6 +3876,25 @@ app.get("/api/claude/sessions/:id/system-status", requireAuth, (req, res) => {
     lsp: lang,
   });
 });
+
+// Lightweight reachability cache (5s) for VS Code serve-web
+let _vscodeAliveAt = 0;
+let _vscodeAliveState = false;
+function _vscodeAlive() {
+  const now = Date.now();
+  if (now - _vscodeAliveAt < 5000) return _vscodeAliveState;
+  _vscodeAliveAt = now;
+  const port = parseInt(process.env.VSCODE_PORT || "8080", 10);
+  try {
+    const net = require("net");
+    const sock = net.createConnection({ host: "127.0.0.1", port, timeout: 400 });
+    _vscodeAliveState = false;
+    sock.on("connect", () => { _vscodeAliveState = true; try { sock.end(); } catch {} });
+    sock.on("error", () => {});
+    sock.on("timeout", () => { try { sock.destroy(); } catch {} });
+  } catch {}
+  return _vscodeAliveState;
+}
 
 // 5.2 Memory Panel — list auto-memory entries from ~/.claude/memory/
 app.get("/api/claude/sessions/:id/memory-list", requireAuth, (req, res) => {

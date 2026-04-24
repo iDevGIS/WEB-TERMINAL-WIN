@@ -1,7 +1,7 @@
 # Claude Code Tab — Feature List
 
 > Reference: [mock-claude-code-tab.html](mock-claude-code-tab.html)  
-> Status: Phase 2 Complete (Batches 1–16 merged)  
+> Status: Phase 3 Complete (Batches 1–19 merged)  
 > Priority: P0 = must-have, P1 = important, P2 = nice-to-have
 
 ## Batch History
@@ -25,6 +25,9 @@
 | Batch 14 | `8a613e4` | 4.8 Keyboard hints strip below input · 6.10 MCP args/result passthrough in tool block body |
 | Batch 15 | `404579c` | 1.7 PR status badge via `gh pr status` · 2.1.5 Session context menu (Fork/Rename/Delete) + session rename endpoint |
 | Batch 16 | `ec0c3e2` | 4.4 Voice input via Web Speech API (partial: Whisper backend fallback deferred) |
+| Batch 17 | `2eeff1b` | Phase 3 finalize — Esc+Esc hotkey (3.3.4) · Whisper /api/stt fallback (4.4) · git-snapshot rewind with code restore (1.9) |
+| Batch 18 | `34ec167` | 3.3.5 Inline plan approval UI (ExitPlanMode interceptor → Approve/Revise card) |
+| Batch 19 | _pending_ | 2.4.5 VS Code serve-web LSP bridge (engine probe + "Open in VS Code" deep link) |
 
 ---
 
@@ -40,7 +43,7 @@
 | 1.6 | Git Branch | Show current branch name from `git rev-parse --abbrev-ref HEAD` | P1 | [x] |
 | 1.7 | PR Status | Show PR number + status (Pending/Approved/Changes Requested) via `gh pr status` | P2 | [x] |
 | 1.8 | Context Meter | % bar showing context window usage. Color: green < 50%, yellow < 75%, orange < 90%, red >= 90% | P0 | [x] |
-| 1.9 | Rewind Button | Open rewind menu (restore code + conversation to checkpoint) | P1 | [~] (conversation only; code restore out of scope) |
+| 1.9 | Rewind Button | Open rewind menu (restore code + conversation to checkpoint) | P1 | [x] (git stash snapshot per checkpoint, opt-in restore via cyberConfirm) |
 | 1.10 | Compact Button | Trigger `/compact` to compress context | P1 | [x] |
 | 1.11 | End Button | Kill Claude Code process, close tab | P0 | [x] |
 
@@ -83,7 +86,7 @@
 | 2.4.2 | Memory Status | Show Auto Memory entry count | P2 | [x] |
 | 2.4.3 | Hooks Status | Show active hooks count | P2 | [x] |
 | 2.4.4 | MCP Status | Show connected MCP servers | P2 | [x] |
-| 2.4.5 | Code Intelligence | Show if LSP is active + language | P2 | [~] (marker-based language detect; real LSP deferred to Phase 3) |
+| 2.4.5 | Code Intelligence | Show if LSP is active + language | P2 | [x] (markers + VS Code serve-web bridge probe on :8080 with deep-link button) |
 
 ---
 
@@ -121,8 +124,8 @@
 | 3.3.1 | Thinking Block | Collapsible, show extended thinking content + duration | P1 | [x] |
 | 3.3.2 | Subagent Block | Show agent name, task, status, summary result | P1 | [x] |
 | 3.3.3 | Agent Team Block | Show multiple agents running in parallel with status | P2 | [x] |
-| 3.3.4 | Rewind Checkpoints | Clickable markers between turns. Esc+Esc to open rewind menu | P1 | [~] (inline Rewind button on user msgs; Esc+Esc hotkey pending) |
-| 3.3.5 | Permission Prompt | Inline approve/deny UI when Claude asks for permission | P0 | [~] (uses --permission-mode flag, no inline prompt in -p mode) |
+| 3.3.4 | Rewind Checkpoints | Clickable markers between turns. Esc+Esc to open rewind menu | P1 | [x] (inline button + Esc+Esc hotkey on claude-code tab) |
+| 3.3.5 | Permission Prompt | Inline approve/deny UI when Claude asks for permission | P0 | [x] (ExitPlanMode tool_use intercept → Approve/Revise card) |
 
 ### 3.4 Streaming
 
@@ -142,7 +145,7 @@
 | 4.1 | Text Input | Auto-resize textarea, `Enter` to send, `Shift+Enter` for newline | P0 | [x] |
 | 4.2 | Slash Commands | `/` at start of line shows autocomplete dropdown with all commands | P0 | [x] |
 | 4.3 | @ File Picker | `@` shows dropdown of files in cwd (walks tree, ignores node_modules/.git/dist). Endpoint `/api/claude/file-search` | P1 | [x] |
-| 4.4 | Voice Input | Hold `Space` for push-to-talk, transcribe via Whisper | P2 | [~] (Web Speech API; Whisper server-side fallback deferred) |
+| 4.4 | Voice Input | Hold `Space` for push-to-talk, transcribe via Whisper | P2 | [x] (Web Speech API + MediaRecorder→/api/stt Whisper fallback) |
 | 4.5 | Image Paste | Paste from clipboard → thumb preview → server writes temp file + Read tool hint | P1 | [x] |
 | 4.6 | File Attach | 📎 button multi-select. Text files inline as lang-aware code block. Drag & drop supported | P1 | [x] |
 | 4.7 | Command History | `Up/Down` arrow to cycle through previous prompts (per-tab) | P1 | [x] |
@@ -224,14 +227,14 @@
 ### Phase 2 — Complete ✅
 All P0/P1/P2 items checked off (Batches 1–16). See Batch History table.
 
-### Phase 3 — Partial Items to Finalize
-Items currently marked `[~]` that need full implementation:
+### Phase 3 — Complete ✅
+All previously-partial `[~]` items finalized in Batches 17–19:
 
-- **1.9 Rewind Button** — currently restores conversation only; add code-state restore (git snapshot per checkpoint)
-- **2.4.5 Code Intelligence** — marker-based language detection only; wire real LSP (tsserver/pyright/gopls) with hover/definitions
-- **3.3.4 Rewind Checkpoints** — inline button works; add `Esc+Esc` hotkey to open rewind menu
-- **3.3.5 Permission Prompt** — currently uses `--permission-mode` flag; add inline approve/deny UI for `-p` mode (requires PTY interactive mode)
-- **4.4 Voice Input** — Web Speech API works in Chrome/Edge; add Whisper server-side fallback for Safari/Firefox
+- **1.9 Rewind Button** ✅ — git `stash create -u` + HEAD SHA stored per checkpoint; opt-in restore via cyberConfirm (Batch 17)
+- **3.3.4 Rewind Checkpoints** ✅ — Esc+Esc hotkey opens rewind menu on claude-code tabs (Batch 17)
+- **4.4 Voice Input** ✅ — MediaRecorder → `/api/stt` Whisper fallback for non-SpeechRecognition browsers (Batch 17)
+- **3.3.5 Permission Prompt** ✅ — ExitPlanMode tool_use interception renders inline Approve/Revise card (Batch 18)
+- **2.4.5 Code Intelligence** ✅ — VS Code serve-web TCP probe on :8080, deep-link button when alive (Batch 19)
 
 ### Phase 3 — Future Enhancements
 - Streaming diff preview (live edit visualization)

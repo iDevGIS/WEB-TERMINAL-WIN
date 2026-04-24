@@ -11026,10 +11026,15 @@
       const lspPill = document.getElementById(tabId + '-cc-sys-lsp');
       const lspLabel = document.getElementById(tabId + '-cc-sys-lsp-label');
       if (lspPill && lspLabel) {
-        lspPill.classList.toggle('active', !!lsp.detected);
-        lspPill.classList.toggle('dim', !lsp.detected);
-        lspLabel.textContent = lsp.detected ? lsp.language : 'Code';
-        lspPill.title = lsp.detected ? `Detected: ${lsp.language} (from ${lsp.marker})` : 'No language markers detected (tsconfig.json, pyproject.toml, etc.)';
+        const hasVscode = lsp.engine === 'vscode';
+        lspPill.classList.toggle('active', !!lsp.detected || hasVscode);
+        lspPill.classList.toggle('dim', !lsp.detected && !hasVscode);
+        const langTxt = lsp.detected ? lsp.language : 'Code';
+        lspLabel.textContent = hasVscode ? ('VS Code · ' + langTxt) : langTxt;
+        const engineNote = hasVscode ? '\nEngine: VS Code serve-web (click to open)' : '\nEngine: markers only';
+        lspPill.title = (lsp.detected
+          ? `Detected: ${lsp.language} (from ${lsp.marker})`
+          : 'No language markers detected (tsconfig.json, pyproject.toml, etc.)') + engineNote;
       }
     }
 
@@ -11057,9 +11062,30 @@
       } else if (kind === 'lsp') {
         const l = data.lsp || {};
         title = 'Code Intelligence';
-        body = l.detected ? `<div><strong>Language:</strong> ${escHtml(l.language)}</div><div><strong>Marker file:</strong> ${escHtml(l.marker)}</div><div style="color:#7a7a9a;font-size:11px;margin-top:6px">Full LSP integration planned for Phase 3.</div>` : '<div>No language markers detected in current cwd.</div>';
+        const parts = [];
+        if (l.detected) {
+          parts.push(`<div><strong>Language:</strong> ${escHtml(l.language)}</div>`);
+          parts.push(`<div><strong>Marker file:</strong> ${escHtml(l.marker)}</div>`);
+        } else {
+          parts.push('<div>No language markers detected in current cwd.</div>');
+        }
+        const engine = l.engine || 'markers';
+        parts.push(`<div style="margin-top:8px"><strong>Engine:</strong> ${engine === 'vscode' ? '<span style="color:#22c55e">VS Code serve-web</span>' : '<span style="color:#7a7a9a">markers only</span>'}</div>`);
+        if (engine === 'vscode' && l.vscodeUrl) {
+          parts.push(`<div style="margin-top:10px"><button onclick="_ccOpenLspVscode('${escAttr(l.vscodeUrl)}')" style="padding:6px 12px;background:rgba(99,102,241,.2);border:1px solid #6366f1;border-radius:6px;color:#c7d2fe;cursor:pointer;font-size:11px">💻 Open in VS Code</button></div>`);
+        } else {
+          parts.push('<div style="color:#7a7a9a;font-size:11px;margin-top:6px">Start VS Code serve-web on port 8080 to enable hover/goto-definition via the VS Code bridge.</div>');
+        }
+        body = parts.join('');
       }
       _ccShowSysModal(title, body);
+    }
+
+    function _ccOpenLspVscode(vscodeUrl) {
+      const modal = document.getElementById('cc-sys-modal');
+      if (modal) modal.remove();
+      try { createTab('vscode', { name: 'VS Code', icon: '💻', vscodePath: vscodeUrl }); }
+      catch { window.open(vscodeUrl, '_blank'); }
     }
 
     function _ccShowSysModal(title, bodyHtml) {
