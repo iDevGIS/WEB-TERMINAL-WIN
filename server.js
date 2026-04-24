@@ -3482,6 +3482,29 @@ app.get("/api/claude/sessions/:id/cost", requireAuth, (req, res) => {
   });
 });
 
+// 2.4.1 / 5.1 — CLAUDE.md content + status (Batch 6)
+app.get("/api/claude/sessions/:id/claudemd", requireAuth, (req, res) => {
+  const sess = claudeSessions.get(req.params.id);
+  if (!sess) return res.status(404).json({ error: "not found" });
+  const cwd = sess.cwd || process.env.USERPROFILE || process.env.HOME;
+  const candidates = [
+    path.join(cwd, "CLAUDE.md"),
+    path.join(cwd, ".claude", "CLAUDE.md"),
+    path.join(process.env.USERPROFILE || process.env.HOME || "", ".claude", "CLAUDE.md"),
+  ];
+  const found = [];
+  for (const p of candidates) {
+    try {
+      const st = fs.statSync(p);
+      if (st.isFile()) {
+        const content = fs.readFileSync(p, "utf8");
+        found.push({ path: p, size: st.size, mtime: st.mtimeMs, content });
+      }
+    } catch {}
+  }
+  res.json({ cwd, files: found, exists: found.length > 0 });
+});
+
 // File search for @ picker — shallow recursive walk rooted at cwd, filtered by query
 app.get("/api/claude/file-search", requireAuth, (req, res) => {
   const cwd = req.query.cwd || process.env.USERPROFILE || process.env.HOME;

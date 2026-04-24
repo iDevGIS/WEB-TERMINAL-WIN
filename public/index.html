@@ -2340,6 +2340,30 @@
     .cc-topbar-btn.danger { color:#ef4444; border-color:rgba(239,68,68,.2); }
     .cc-topbar-btn.danger:hover { background:rgba(239,68,68,.12); }
     .cc-main { flex:1; display:flex; overflow:hidden; min-height:0; }
+    /* Batch 6 — CLAUDE.md badge + right sidebar */
+    .cc-claudemd-badge { display:flex; align-items:center; gap:4px; padding:4px 8px; border-radius:5px; background:rgba(56,189,248,.1); border:1px solid rgba(56,189,248,.2); color:#38bdf8; font-size:10px; cursor:pointer; transition:all .15s; white-space:nowrap; }
+    .cc-claudemd-badge:hover { background:rgba(56,189,248,.2); border-color:rgba(56,189,248,.35); }
+    .cc-claudemd-badge.missing { background:rgba(239,68,68,.08); border-color:rgba(239,68,68,.15); color:#ef4444; }
+    .cc-claudemd-badge.missing:hover { background:rgba(239,68,68,.15); }
+    .cc-right-sidebar { width:300px; background:rgba(17,17,40,.97); border-left:1px solid rgba(255,255,255,.08); display:flex; flex-direction:column; overflow:hidden; flex-shrink:0; transition:width .2s, margin-right .2s; }
+    .cc-right-sidebar.collapsed { width:0; border-left:0; overflow:hidden; }
+    .cc-right-header { padding:8px 10px; font-size:10px; color:#7a7a9a; text-transform:uppercase; letter-spacing:1px; border-bottom:1px solid rgba(255,255,255,.08); display:flex; align-items:center; justify-content:space-between; flex-shrink:0; }
+    .cc-right-header button { background:transparent; border:0; color:#7a7a9a; cursor:pointer; padding:2px 4px; border-radius:3px; }
+    .cc-right-header button:hover { background:rgba(255,255,255,.05); color:#e4e4ef; }
+    .cc-right-body { flex:1; overflow-y:auto; padding:10px 12px; font-size:12px; color:#b0b0c8; }
+    .cc-right-body::-webkit-scrollbar { width:4px; } .cc-right-body::-webkit-scrollbar-thumb { background:rgba(255,255,255,.1); border-radius:3px; }
+    .cc-right-section { margin-bottom:14px; }
+    .cc-right-section-title { font-size:10px; color:#6c63ff; text-transform:uppercase; letter-spacing:.8px; margin-bottom:6px; font-weight:600; }
+    .cc-right-empty { text-align:center; color:#5a5a7a; font-size:11px; padding:24px 12px; }
+    .cc-right-file { background:rgba(10,10,26,.5); border:1px solid rgba(255,255,255,.06); border-radius:6px; padding:8px 10px; margin-bottom:8px; }
+    .cc-right-file-path { font-family:'JetBrains Mono',monospace; font-size:10px; color:#7a7a9a; margin-bottom:6px; word-break:break-all; }
+    .cc-right-file-meta { font-size:9px; color:#5a5a7a; margin-bottom:6px; }
+    .cc-right-file-content { font-family:'JetBrains Mono',monospace; font-size:11px; color:#c8c8d8; white-space:pre-wrap; word-break:break-word; max-height:180px; overflow:auto; padding:6px 8px; background:rgba(0,0,0,.3); border-radius:4px; line-height:1.5; }
+    .cc-right-file-content.expanded { max-height:none; }
+    .cc-right-expand-btn { font-size:10px; color:#6c63ff; cursor:pointer; margin-top:4px; display:inline-block; }
+    .cc-right-expand-btn:hover { color:#8b84ff; }
+    .cc-topbar-btn.sidebar-toggle { padding:5px 8px; }
+    .cc-topbar-btn.sidebar-toggle.active { background:rgba(108,99,255,.18); border-color:rgba(108,99,255,.4); color:#a79fff; }
     /* Left Sidebar */
     .cc-sidebar { width:240px; background:rgba(17,17,40,.97); border-right:1px solid rgba(255,255,255,.08); display:flex; flex-direction:column; overflow:hidden; flex-shrink:0; }
     .cc-session-header { padding:8px 10px; font-size:10px; color:#7a7a9a; text-transform:uppercase; letter-spacing:1px; border-bottom:1px solid rgba(255,255,255,.08); display:flex; align-items:center; justify-content:space-between; }
@@ -4986,6 +5010,10 @@
                 <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
                 <span id="${tabId}-cc-cwd-label" style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;direction:rtl">~</span>
               </div>
+              <div class="cc-claudemd-badge missing" id="${tabId}-cc-claudemd" onclick="ccShowClaudeMd('${tabId}')" title="CLAUDE.md project instructions — click to view">
+                <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                <span id="${tabId}-cc-claudemd-label">No CLAUDE.md</span>
+              </div>
               <div class="cc-git-badge hidden" id="${tabId}-cc-git" title="Git branch + status">
                 <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M13 6h3a2 2 0 0 1 2 2v7"/><line x1="6" y1="9" x2="6" y2="21"/></svg>
                 <span class="cc-git-branch" id="${tabId}-cc-git-branch">-</span>
@@ -5004,6 +5032,10 @@
                   </button>
                   <div class="cc-rewind-dropdown" id="${tabId}-cc-rewind-dropdown" style="display:none;position:absolute;top:100%;right:0;margin-top:4px;background:#1a1a24;border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:4px;min-width:240px;max-width:340px;max-height:280px;overflow:auto;z-index:1000;box-shadow:0 8px 24px rgba(0,0,0,.4)"></div>
                 </div>
+                <button class="cc-topbar-btn sidebar-toggle" id="${tabId}-cc-right-toggle" onclick="ccToggleRightSidebar('${tabId}')" title="Toggle info panel (CLAUDE.md, context)">
+                  <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
+                  Info
+                </button>
                 <button class="cc-topbar-btn" onclick="ccCompact('${tabId}')" title="Compress context (/compact)">
                   <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 14h6v6"/><path d="M14 4h6v6"/><path d="M10 14L4 20"/><path d="M20 4l-6 6"/></svg>
                   Compact
@@ -5046,10 +5078,23 @@
               </div>
             </div>
           </div>
+          <div class="cc-right-sidebar collapsed" id="${tabId}-cc-right">
+            <div class="cc-right-header">
+              <span>Info</span>
+              <button onclick="ccToggleRightSidebar('${tabId}')" title="Hide panel">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+            <div class="cc-right-body" id="${tabId}-cc-right-body">
+              <div class="cc-right-empty">No session selected</div>
+            </div>
+          </div>
           </div>
         </div>`;
         container.appendChild(paneEl);
         tabData.ccSessionId = null;
+        tabData.ccRightOpen = false;
+        tabData.ccClaudeMd = null;
         tabData.ccModel = 'opus';
         tabData.ccEffort = 'high';
         tabData.ccThinking = false;
@@ -10459,6 +10504,7 @@
           <div class="cc-empty-sub">Session started — model: ${escHtml(model)}</div>
         </div>`;
         ccRefreshSessionList(tabId);
+        ccLoadClaudeMd(tabId);
         showToast('Claude Code session started', 'success');
       } catch (e) {
         showToast('Failed to create session: ' + e.message, 'error');
@@ -10474,12 +10520,32 @@
         if (!listEl) return;
         const td = tabs.get(tabId);
         const activeId = td?.ccSessionId;
-        listEl.innerHTML = sessions.map(s => `<div class="cc-session-item${s.id === activeId ? ' active' : ''}" onclick="ccSwitchSession('${tabId}','${s.id}')">
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-          ${escHtml(s.name)}
-          <span class="cc-time">${s.status === 'stopped' ? '●' : s.turns + 't'}</span>
-        </div>`).join('');
+        listEl.innerHTML = sessions.map(s => {
+          const ts = s.lastActivity || s.createdAt || Date.now();
+          const relTime = _ccTimeAgo(ts);
+          const running = s.status === 'streaming' || s.status === 'waiting';
+          const timeLabel = running ? '<span style="color:#fbbf24">●</span> ' + relTime : relTime;
+          return `<div class="cc-session-item${s.id === activeId ? ' active' : ''}" onclick="ccSwitchSession('${tabId}','${s.id}')" title="${escHtml(s.name)} • ${s.turns || 0} turns • ${new Date(ts).toLocaleString()}">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            ${escHtml(s.name)}
+            <span class="cc-time">${timeLabel}</span>
+          </div>`;
+        }).join('');
       } catch {}
+    }
+
+    // 2.1.3 — Short relative time for session sidebar (narrow format)
+    function _ccTimeAgo(ts) {
+      const s = Math.floor((Date.now() - ts) / 1000);
+      if (s < 60) return 'now';
+      const m = Math.floor(s / 60);
+      if (m < 60) return m + 'm';
+      const h = Math.floor(m / 60);
+      if (h < 24) return h + 'h';
+      const d = Math.floor(h / 24);
+      if (d < 30) return d + 'd';
+      const mo = Math.floor(d / 30);
+      return mo + 'mo';
     }
 
     async function ccSwitchSession(tabId, sessionId) {
@@ -10496,6 +10562,104 @@
         window._ws.send(JSON.stringify({ type: 'claude-attach', id: sessionId }));
       }
       ccRefreshSessionList(tabId);
+      ccLoadClaudeMd(tabId);
+    }
+
+    // 5.7 — Toggle right sidebar (Info panel)
+    function ccToggleRightSidebar(tabId) {
+      const td = tabs.get(tabId);
+      if (!td) return;
+      const side = document.getElementById(tabId + '-cc-right');
+      const btn = document.getElementById(tabId + '-cc-right-toggle');
+      if (!side) return;
+      const open = side.classList.toggle('collapsed') === false; // returns true if collapsed
+      td.ccRightOpen = open;
+      if (btn) btn.classList.toggle('active', open);
+      if (open) ccRenderRightSidebar(tabId);
+    }
+
+    // 5.1 / 2.4.1 — Load CLAUDE.md + update badge
+    async function ccLoadClaudeMd(tabId) {
+      const td = tabs.get(tabId);
+      if (!td || !td.ccSessionId) return;
+      try {
+        const r = await fetch(`/api/claude/sessions/${td.ccSessionId}/claudemd`);
+        if (!r.ok) return;
+        const data = await r.json();
+        td.ccClaudeMd = data;
+        // Update badge
+        const badge = document.getElementById(tabId + '-cc-claudemd');
+        const label = document.getElementById(tabId + '-cc-claudemd-label');
+        if (badge && label) {
+          if (data.exists) {
+            badge.classList.remove('missing');
+            label.textContent = 'CLAUDE.md';
+          } else {
+            badge.classList.add('missing');
+            label.textContent = 'No CLAUDE.md';
+          }
+        }
+        if (td.ccRightOpen) ccRenderRightSidebar(tabId);
+      } catch {}
+    }
+
+    function ccShowClaudeMd(tabId) {
+      const td = tabs.get(tabId);
+      if (!td) return;
+      // Open right sidebar if closed
+      const side = document.getElementById(tabId + '-cc-right');
+      if (side && side.classList.contains('collapsed')) {
+        ccToggleRightSidebar(tabId);
+      } else {
+        ccRenderRightSidebar(tabId);
+      }
+    }
+
+    function ccRenderRightSidebar(tabId) {
+      const td = tabs.get(tabId);
+      const body = document.getElementById(tabId + '-cc-right-body');
+      if (!td || !body) return;
+      if (!td.ccSessionId) {
+        body.innerHTML = '<div class="cc-right-empty">No session selected</div>';
+        return;
+      }
+      const cmd = td.ccClaudeMd;
+      let html = '<div class="cc-right-section"><div class="cc-right-section-title">CLAUDE.md</div>';
+      if (!cmd) {
+        html += '<div class="cc-right-empty">Loading…</div>';
+      } else if (!cmd.exists) {
+        html += `<div class="cc-right-empty">No CLAUDE.md found<br><span style="font-size:10px;color:#5a5a7a">in ${escHtml(cmd.cwd || '')}</span></div>`;
+      } else {
+        for (let i = 0; i < cmd.files.length; i++) {
+          const f = cmd.files[i];
+          const id = `${tabId}-cc-md-${i}`;
+          const preview = (f.content || '').slice(0, 2000);
+          const truncated = (f.content || '').length > 2000;
+          html += `<div class="cc-right-file">
+            <div class="cc-right-file-path">${escHtml(f.path)}</div>
+            <div class="cc-right-file-meta">${(f.size/1024).toFixed(1)} KB • ${new Date(f.mtime).toLocaleString()}</div>
+            <div class="cc-right-file-content" id="${id}">${escHtml(preview)}${truncated ? '\n\n[...truncated]' : ''}</div>
+            <span class="cc-right-expand-btn" onclick="ccToggleMdExpand('${id}', this)">Expand</span>
+          </div>`;
+        }
+      }
+      html += '</div>';
+      // Context summary
+      html += '<div class="cc-right-section"><div class="cc-right-section-title">Context</div>';
+      html += `<div style="font-size:11px;color:#9d9db5;line-height:1.6">
+        <div><span style="color:#7a7a9a">Session:</span> ${escHtml(td.ccSessionId || '—')}</div>
+        <div><span style="color:#7a7a9a">Model:</span> ${escHtml(td.ccModel || '—')}</div>
+        <div><span style="color:#7a7a9a">Effort:</span> ${escHtml(td.ccEffort || '—')}</div>
+        <div><span style="color:#7a7a9a">cwd:</span> <span style="font-family:'JetBrains Mono',monospace;font-size:10px;word-break:break-all">${escHtml(td.ccCwd || (cmd && cmd.cwd) || '—')}</span></div>
+      </div></div>`;
+      body.innerHTML = html;
+    }
+
+    function ccToggleMdExpand(id, btn) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.classList.toggle('expanded');
+      btn.textContent = el.classList.contains('expanded') ? 'Collapse' : 'Expand';
     }
 
     function ccSend(tabId) {
@@ -10896,6 +11060,7 @@
       const label = document.getElementById(tabId + '-cc-cwd-label');
       if (label) label.textContent = td.ccCwd.split('/').pop() || td.ccCwd || '~';
       _ccRefreshGit(tabId);
+      ccLoadClaudeMd(tabId);
     }
 
     function ccSwitchSideTab(tabId, tab, el) {
@@ -11565,6 +11730,8 @@
         if (data.files) ccUpdateFiles(tabId, data.files);
         // 1.9 — restore checkpoints
         td.ccCheckpoints = Array.isArray(data.checkpoints) ? data.checkpoints.slice() : [];
+        // Batch 6 — load CLAUDE.md for this session
+        ccLoadClaudeMd(tabId);
       }
     }
 
