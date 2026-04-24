@@ -3687,6 +3687,133 @@ app.get("/api/claude/sessions/:id/todos", requireAuth, (req, res) => {
   res.json({ todos: sess.todos || [], updatedAt: sess.todosUpdatedAt || 0 });
 });
 
+// Batch 20 — Session export (markdown transcript with tool blocks)
+function _exportMarkdown(sess) {
+  const lines = [];
+  const fmt = (ts) => ts ? new Date(ts).toISOString().replace("T", " ").slice(0, 19) + " UTC" : "";
+  const createdAt = sess.createdAt || (sess.messages[0] && sess.messages[0].timestamp) || Date.now();
+  lines.push(`# Claude Code Session — ${sess.id.slice(0, 8)}`);
+  lines.push("");
+  lines.push(`- **Created:** ${fmt(createdAt)}`);
+  lines.push(`- **Model:** ${sess.model || "default"}`);
+  if (sess.cwd) lines.push(`- **Working dir:** \`${sess.cwd}\``);
+  if (sess.turns) lines.push(`- **Turns:** ${sess.turns}`);
+  if (sess.cost != null) lines.push(`- **Cost:** $${(sess.cost || 0).toFixed(4)}`);
+  if (sess.tokens) {
+    const tot = (sess.tokens.input || 0) + (sess.tokens.output || 0) + (sess.tokens.cache || 0);
+    lines.push(`- **Tokens:** ${tot} (in: ${sess.tokens.input || 0}, out: ${sess.tokens.output || 0}, cache: ${sess.tokens.cache || 0})`);
+  }
+  lines.push("");
+  lines.push("---");
+  lines.push("");
+
+  const renderBlock = (block) => {
+    if (!block || typeof block !== "object") return;
+    if (block.type === "text") {
+      const t = (block.text || "").trim();
+      if (t) lines.push(t, "");
+    } else if (block.type === "thinking") {
+      lines.push("> **💭 Thinking**");
+      const t = (block.thinking || "").trim();
+      if (t) t.split(/\r?\n/).forEach(l => lines.push("> " + l));
+      lines.push("");
+    } else if (block.type === "tool_use") {
+      const name = block.name || "tool";
+      const input = block.input || {};
+      const fp = input.file_path || input.path || input.pattern || "";
+      const header = fp ? `🔧 **${name}** — \`${fp}\`` : `🔧 **${name}**`;
+      lines.push(header);
+      try {
+        const json = JSON.stringify(input, null, 2);
+        if (json && json !== "{}") {
+          lines.push("```json", json, "```");
+        }
+      } catch {}
+      lines.push("");
+    } else if (block.type === "tool_result") {
+      const content = Array.isArray(block.content)
+        ? block.content.map(c => (typeof c === "string" ? c : (c && c.text) || "")).join("\n")
+        : (typeof block.content === "string" ? block.content : "");
+      const truncated = content.length > 4000 ? content.slice(0, 4000) + "\n…[truncated]" : content;
+      if (truncated.trim()) {
+        lines.push(block.is_error ? "❌ **Tool error**" : "📄 **Tool result**");
+        lines.push("```", truncated, "```", "");
+      }
+    }
+  };
+
+  for (const msg of (sess.messages || [])) {
+    const when = fmt(msg.timestamp);
+    if (msg.type === "user") {
+      // User can be either plain input {content:string} or tool_result array from stream
+      if (typeof msg.content === "string" && msg.content.trim()) {
+        lines.push(`## 👤 User — ${when}`);
+        lines.push("");
+        lines.push(msg.content.trim());
+        lines.push("");
+        if (Array.isArray(msg.attachments) && msg.attachments.length) {
+          lines.push(`_Attachments: ${msg.attachments.map(a => a.name || a.path || a).join(", ")}_`);
+          lines.push("");
+        }
+      } else if (msg.message && Array.isArray(msg.message.content)) {
+        // tool_result messages from stream
+        for (const b of msg.message.content) renderBlock(b);
+      }
+    } else if (msg.type === "assistant") {
+      lines.push(`## 🤖 Assistant — ${when}`);
+      lines.push("");
+      const blocks = (msg.message && msg.message.content) || [];
+      for (const b of blocks) renderBlock(b);
+    } else if (msg.type === "system") {
+      const sub = msg.subtype || "init";
+      if (sub === "init") continue; // skip noisy init blobs
+      lines.push(`_System (${sub}) — ${when}_`);
+      lines.push("");
+    } else if (msg.type === "result") {
+      lines.push(`---`);
+      lines.push(`_Turn complete — ${when}${msg.total_cost_usd != null ? ` · $${Number(msg.total_cost_usd).toFixed(4)}` : ""}_`);
+      lines.push("");
+    } else if (msg.type === "error") {
+      lines.push(`❌ **Error** — ${when}`);
+      if (msg.message) lines.push("```", String(msg.message), "```");
+      lines.push("");
+    }
+  }
+
+  lines.push("");
+  lines.push(`_Exported ${fmt(Date.now())} from CYBERFRAME Claude Code tab._`);
+  return lines.join("\n");
+}
+
+app.get("/api/claude/sessions/:id/export", requireAuth, (req, res) => {
+  const sess = claudeSessions.get(req.params.id);
+  if (!sess) return res.status(404).json({ error: "not found" });
+  const format = (req.query.format || "md").toString().toLowerCase();
+  const safeId = sess.id.slice(0, 8);
+  const dateTag = new Date().toISOString().slice(0, 10);
+  if (format === "json") {
+    const payload = {
+      id: sess.id,
+      model: sess.model,
+      cwd: sess.cwd,
+      createdAt: sess.createdAt,
+      turns: sess.turns,
+      cost: sess.cost,
+      tokens: sess.tokens,
+      messages: sess.messages,
+      todos: sess.todos || [],
+      files: sess.files || [],
+    };
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="claude-session-${safeId}-${dateTag}.json"`);
+    return res.send(JSON.stringify(payload, null, 2));
+  }
+  const md = _exportMarkdown(sess);
+  res.setHeader("Content-Type", "text/markdown; charset=utf-8");
+  res.setHeader("Content-Disposition", `attachment; filename="claude-session-${safeId}-${dateTag}.md"`);
+  res.send(md);
+});
+
 // Context usage endpoint (6.7) — tokens + percentage against model's window
 app.get("/api/claude/sessions/:id/context", requireAuth, (req, res) => {
   const sess = claudeSessions.get(req.params.id);

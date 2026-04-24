@@ -239,9 +239,14 @@ All previously-partial `[~]` items finalized in Batches 17–19:
 ### Phase 3 — Future Enhancements
 - Streaming diff preview (live edit visualization)
 - Multi-project sidebar (switch between workspaces)
-- Session export (markdown transcript with tool blocks)
+- ~~Session export (markdown transcript with tool blocks)~~ ✅ Batch 20
 - Shared session (read-only link to watch someone's Claude Code session)
 - Plugin system for custom tool block renderers
+
+### Batch 20 — Session Export ✅
+- `GET /api/claude/sessions/:id/export?format=md|json` — serializes messages to Markdown (text/thinking/tool_use/tool_result blocks with fenced JSON input + truncated results at 4KB) or raw JSON payload.
+- Export button added to Claude Code top bar (between Compact and End); triggers download with `claude-session-<id8>-<YYYY-MM-DD>.md` filename.
+- Skips noisy `system:init` blobs; collapses thinking into `>` blockquote; wraps tool errors with ❌.
 
 ---
 
