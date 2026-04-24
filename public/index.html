@@ -11403,6 +11403,33 @@
       showToast('Compacting context...', 'info');
     }
 
+    // 3.3.5 Inline plan approval — approve/revise for ExitPlanMode
+    function _ccFreezePlanBlock(btn, label) {
+      const block = btn.closest('.cc-plan-approval');
+      if (!block) return;
+      const actions = block.querySelector('.cc-plan-actions');
+      if (actions) {
+        actions.innerHTML = `<div style="flex:1;text-align:center;padding:6px;font-size:11px;color:#7a7a9a">${escHtml(label)}</div>`;
+      }
+    }
+    function ccApprovePlan(tabId, btn) {
+      const td = tabs.get(tabId);
+      if (!td || !td.ccSessionId) return;
+      _ccFreezePlanBlock(btn, '✓ Plan approved — executing…');
+      // Switch permission mode so Claude can execute without re-asking
+      td.ccPermMode = 'acceptEdits';
+      const sel = document.getElementById(tabId + '-cc-perm-sel');
+      if (sel) sel.value = 'acceptEdits';
+      const input = document.getElementById(tabId + '-cc-input');
+      if (input) input.value = '';
+      ccDoSend(tabId, 'Plan approved. Please proceed to execute it now.', []);
+    }
+    function ccRevisePlan(tabId, btn) {
+      _ccFreezePlanBlock(btn, '✎ Revise — type your feedback in the input below');
+      const input = document.getElementById(tabId + '-cc-input');
+      if (input) { input.focus(); }
+    }
+
     // 1.9 Rewind Button — toggle dropdown with checkpoint list
     function ccToggleRewindMenu(tabId) {
       const dd = document.getElementById(tabId + '-cc-rewind-dropdown');
@@ -12677,6 +12704,24 @@
             document.getElementById(tabId + '-cc-streaming-text').textContent = 'Claude is responding...';
           } else if (block.type === 'tool_use') {
             const toolName = block.name || 'Tool';
+            // 3.3.5 ExitPlanMode → inline plan-approval block
+            if (toolName === 'ExitPlanMode') {
+              const plan = block.input?.plan || '';
+              let planHtml;
+              if (typeof marked !== 'undefined' && marked.parse) {
+                try { planHtml = marked.parse(plan); } catch { planHtml = escHtml(plan); }
+              } else { planHtml = escHtml(plan); }
+              turnBody.insertAdjacentHTML('beforeend', `<div class="cc-plan-approval" data-cc-plan-id="${block.id || ''}" style="border:1px solid rgba(168,85,247,.35);background:rgba(168,85,247,.05);border-radius:10px;padding:14px 16px;margin:8px 0">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><span style="font-size:14px">📋</span><span style="color:#d8b4fe;font-weight:600;font-size:12px">Plan — approve to proceed</span></div>
+                <div class="cc-plan-body" style="font-size:12px;line-height:1.5;color:#e5e7ff;max-height:420px;overflow:auto">${planHtml}</div>
+                <div class="cc-plan-actions" style="display:flex;gap:8px;margin-top:12px">
+                  <button class="cc-plan-approve" onclick="ccApprovePlan('${tabId}', this)" style="flex:1;padding:8px 14px;background:linear-gradient(135deg,#22c55e,#10b981);border:none;border-radius:6px;color:#fff;font-weight:600;font-size:12px;cursor:pointer">✓ Approve & Execute</button>
+                  <button class="cc-plan-revise" onclick="ccRevisePlan('${tabId}', this)" style="flex:1;padding:8px 14px;background:transparent;border:1px solid rgba(255,255,255,.15);border-radius:6px;color:#e5e7ff;font-weight:500;font-size:12px;cursor:pointer">✎ Revise</button>
+                </div>
+              </div>`);
+              document.getElementById(tabId + '-cc-streaming-text').textContent = 'Waiting for plan approval...';
+              continue;
+            }
             // Route Task tool → subagent block (auto-grouped into team if consecutive)
             if (toolName === 'Task') {
               const subType = block.input?.subagent_type || 'agent';
