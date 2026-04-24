@@ -221,21 +221,24 @@
 - Session store + resume (6.3)
 - Cost tracking (6.8)
 
-### Phase 2 — Remaining (P1)
-- 2.3.4 Budget bar
-- 3.3.3 Agent team block
-- 7.4 Multi-tab + 7.5 Workspace save
+### Phase 2 — Complete ✅
+All P0/P1/P2 items checked off (Batches 1–16). See Batch History table.
 
-### Phase 3 — Full Feature
-- Agent Teams tab + blocks (2.2.3, 3.3.3)
-- Voice input (4.4)
-- MCP panel + passthrough (5.3, 6.10)
-- Hooks/Skills/Memory panels (5.2, 5.4, 5.5)
-- File watcher (6.9)
-- Click to open in editor (3.2.9)
-- Fork session (2.1.5)
-- Workspace save/restore (7.5)
-- Multi-tab (7.4)
+### Phase 3 — Partial Items to Finalize
+Items currently marked `[~]` that need full implementation:
+
+- **1.9 Rewind Button** — currently restores conversation only; add code-state restore (git snapshot per checkpoint)
+- **2.4.5 Code Intelligence** — marker-based language detection only; wire real LSP (tsserver/pyright/gopls) with hover/definitions
+- **3.3.4 Rewind Checkpoints** — inline button works; add `Esc+Esc` hotkey to open rewind menu
+- **3.3.5 Permission Prompt** — currently uses `--permission-mode` flag; add inline approve/deny UI for `-p` mode (requires PTY interactive mode)
+- **4.4 Voice Input** — Web Speech API works in Chrome/Edge; add Whisper server-side fallback for Safari/Firefox
+
+### Phase 3 — Future Enhancements
+- Streaming diff preview (live edit visualization)
+- Multi-project sidebar (switch between workspaces)
+- Session export (markdown transcript with tool blocks)
+- Shared session (read-only link to watch someone's Claude Code session)
+- Plugin system for custom tool block renderers
 
 ---
 
