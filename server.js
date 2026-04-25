@@ -351,6 +351,312 @@ app.get("/api/logout", (req, res) => {
   res.redirect("/login");
 });
 
+// Batch 23 — Public read-only watch page (no auth required)
+app.get("/watch/:token", (req, res) => {
+  const token = String(req.params.token || "").trim();
+  // shareTokens validity is checked client-side via /api/watch/:token
+  // (we still serve the page so we can show a friendly "expired link" UI)
+  res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+  res.send(`<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Watch · Claude Code</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    background:#0a0a14;color:#e5e7ff;
+    font-family:'Inter',sans-serif;font-size:13px;line-height:1.55;
+    overflow:hidden;
+  }
+  body::before{
+    content:'';position:fixed;inset:0;
+    background:
+      radial-gradient(ellipse at 20% 0%, rgba(108,99,255,.10), transparent 50%),
+      radial-gradient(ellipse at 80% 100%, rgba(96,165,250,.08), transparent 50%);
+    pointer-events:none;z-index:0;
+  }
+  .layout{position:relative;z-index:1;height:100dvh;display:flex;flex-direction:column}
+  .topbar{
+    flex:0 0 auto;display:flex;align-items:center;gap:12px;
+    padding:10px 16px;
+    background:rgba(20,20,32,.7);backdrop-filter:blur(18px);
+    border-bottom:1px solid rgba(255,255,255,.08);
+  }
+  .topbar .logo{font-size:18px}
+  .topbar h1{font-size:13px;font-weight:600;letter-spacing:.5px;color:#e5e7ff}
+  .topbar .meta{font-size:11px;color:#7a7a9a;margin-left:auto;display:flex;gap:14px;align-items:center}
+  .badge{
+    display:inline-flex;align-items:center;gap:6px;
+    padding:4px 10px;border-radius:999px;font-size:10px;font-weight:600;letter-spacing:.5px;
+    background:rgba(245,158,11,.12);color:#fbbf24;border:1px solid rgba(245,158,11,.35);
+    text-transform:uppercase;
+  }
+  .badge .dot{width:6px;height:6px;border-radius:999px;background:#fbbf24;box-shadow:0 0 6px #fbbf24;animation:pulse 1.6s ease-in-out infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+  .stat{display:inline-flex;gap:5px;align-items:center}
+  .stat b{color:#e5e7ff;font-weight:600}
+
+  main{flex:1 1 auto;overflow:auto;padding:18px;display:flex;flex-direction:column;gap:14px}
+  main::-webkit-scrollbar{width:8px}
+  main::-webkit-scrollbar-thumb{background:rgba(108,99,255,.3);border-radius:8px}
+
+  .msg{
+    background:rgba(20,20,32,.55);
+    border:1px solid rgba(255,255,255,.05);
+    border-radius:10px;padding:11px 14px;
+    backdrop-filter:blur(10px);
+    animation:fadeIn .25s ease;
+  }
+  @keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+  .msg .role{
+    font-size:10px;text-transform:uppercase;letter-spacing:.6px;
+    font-weight:700;margin-bottom:6px;display:flex;align-items:center;gap:8px;
+  }
+  .msg .role .ts{font-weight:400;color:#5a5a7a;letter-spacing:0;text-transform:none}
+  .msg.user .role{color:#60a5fa}
+  .msg.user{border-color:rgba(96,165,250,.18)}
+  .msg.assistant .role{color:#a78bfa}
+  .msg.assistant{border-color:rgba(167,139,250,.15)}
+  .msg.system .role{color:#7a7a9a}
+  .msg.system{border-color:rgba(255,255,255,.04);background:rgba(20,20,32,.3)}
+  .body{white-space:pre-wrap;word-break:break-word;color:#e5e7ff;font-size:13px}
+  .think{
+    margin-top:6px;padding:8px 10px;
+    border-left:2px solid rgba(167,139,250,.4);
+    background:rgba(167,139,250,.05);
+    border-radius:0 6px 6px 0;
+    color:#cbd5ff;font-size:12px;font-style:italic;
+  }
+  .tool{
+    margin-top:6px;padding:8px 10px;
+    background:rgba(34,197,94,.06);border:1px solid rgba(34,197,94,.18);
+    border-radius:8px;font-size:12px;color:#bbf7d0;
+  }
+  .tool .name{color:#4ade80;font-weight:600;font-family:'JetBrains Mono',monospace;font-size:11px}
+  .tool pre{
+    margin-top:6px;background:rgba(0,0,0,.25);padding:8px 10px;border-radius:6px;
+    font-family:'JetBrains Mono',monospace;font-size:11px;color:#86efac;
+    overflow:auto;max-height:160px;
+  }
+  .tool-result{
+    margin-top:4px;padding:6px 10px;
+    background:rgba(255,255,255,.03);border-left:2px solid rgba(34,197,94,.4);
+    border-radius:0 6px 6px 0;font-family:'JetBrains Mono',monospace;font-size:11px;color:#94a3b8;
+    white-space:pre-wrap;max-height:200px;overflow:auto;
+  }
+  .tool-result.error{border-left-color:#f87171;color:#fca5a5}
+
+  .empty{margin:auto;text-align:center;color:#5a5a7a;font-size:13px}
+  .err{margin:auto;text-align:center;padding:30px;max-width:480px}
+  .err h2{color:#f87171;font-size:18px;margin-bottom:8px}
+  .err p{color:#7a7a9a;font-size:13px}
+
+  .footer{
+    flex:0 0 auto;padding:8px 16px;
+    background:rgba(15,15,25,.75);border-top:1px solid rgba(255,255,255,.06);
+    font-size:10px;color:#5a5a7a;text-align:center;letter-spacing:.5px;
+  }
+  .footer .live{color:#4ade80;font-weight:600}
+  .footer .stale{color:#f87171;font-weight:600}
+
+  @media(max-width:520px){
+    .topbar{flex-wrap:wrap;gap:8px;padding:10px 12px}
+    .topbar .meta{margin-left:0;width:100%;flex-wrap:wrap;gap:8px;font-size:10px}
+    main{padding:12px;gap:10px}
+    .msg{padding:9px 11px}
+  }
+</style></head><body>
+<div class="layout">
+  <div class="topbar">
+    <span class="logo">👁</span>
+    <h1 id="sess-name">Loading…</h1>
+    <span class="badge"><span class="dot"></span>Read-only Watch</span>
+    <div class="meta">
+      <span class="stat" id="meta-model">—</span>
+      <span class="stat">turns: <b id="meta-turns">0</b></span>
+      <span class="stat">cost: <b id="meta-cost">$0.00</b></span>
+      <span class="stat">ctx: <b id="meta-ctx">0%</b></span>
+    </div>
+  </div>
+  <main id="main"><div class="empty">Connecting…</div></main>
+  <div class="footer"><span id="conn" class="live">● Live</span> · Watching shared Claude Code session — you cannot send messages</div>
+</div>
+<script>
+const TOKEN = ${JSON.stringify(token)};
+const messagesEl = document.getElementById('main');
+const sessNameEl = document.getElementById('sess-name');
+const metaModel = document.getElementById('meta-model');
+const metaTurns = document.getElementById('meta-turns');
+const metaCost = document.getElementById('meta-cost');
+const metaCtx = document.getElementById('meta-ctx');
+const connEl = document.getElementById('conn');
+let session = null;
+
+function escHtml(s){
+  return String(s == null ? '' : s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+function fmtTime(ts){ if(!ts) return ''; const d=new Date(ts); return d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',second:'2-digit'}); }
+function fmtCost(n){ const v = Number(n)||0; return '$'+v.toFixed(v < 0.01 ? 4 : 2); }
+
+function renderEmpty(text){
+  messagesEl.innerHTML = '<div class="empty">'+escHtml(text)+'</div>';
+}
+function renderError(title, sub){
+  messagesEl.innerHTML = '<div class="err"><h2>'+escHtml(title)+'</h2><p>'+escHtml(sub||'')+'</p></div>';
+}
+
+function renderMsg(m){
+  if(!m || !m.type) return null;
+  const div = document.createElement('div');
+  div.className = 'msg ' + (m.type === 'user' ? 'user' : m.type === 'assistant' ? 'assistant' : 'system');
+  let role = m.type === 'user' ? 'User' : m.type === 'assistant' ? 'Assistant' : (m.type === 'result' ? 'Result' : (m.type === 'system' ? 'System' : m.type));
+  let html = '<div class="role">' + escHtml(role) + (m.timestamp ? ' <span class="ts">'+escHtml(fmtTime(m.timestamp))+'</span>' : '') + '</div>';
+
+  if(m.type === 'user'){
+    html += '<div class="body">' + escHtml(m.content || '') + '</div>';
+  } else if(m.type === 'assistant'){
+    const blocks = Array.isArray(m.content) ? m.content : [{type:'text', text: String(m.content||'')}];
+    for(const b of blocks){
+      if(!b) continue;
+      if(b.type === 'text' && b.text){
+        html += '<div class="body">' + escHtml(b.text) + '</div>';
+      } else if(b.type === 'thinking' && (b.thinking || b.text)){
+        html += '<div class="think">💭 ' + escHtml(b.thinking || b.text || '') + '</div>';
+      } else if(b.type === 'tool_use'){
+        const inp = b.input ? JSON.stringify(b.input, null, 2) : '';
+        html += '<div class="tool">🔧 <span class="name">' + escHtml(b.name || 'tool') + '</span>' +
+          (inp ? '<pre>' + escHtml(inp.slice(0, 2000)) + '</pre>' : '') + '</div>';
+      } else if(b.type === 'tool_result'){
+        const txt = typeof b.content === 'string' ? b.content : JSON.stringify(b.content || '');
+        const cls = 'tool-result' + (b.is_error ? ' error' : '');
+        html += '<div class="'+cls+'">' + escHtml((txt || '').slice(0, 2000)) + '</div>';
+      }
+    }
+  } else {
+    // system / result / other
+    const txt = typeof m.content === 'string' ? m.content : JSON.stringify(m.content || m);
+    html += '<div class="body">' + escHtml(txt.slice(0, 2000)) + '</div>';
+  }
+  div.innerHTML = html;
+  return div;
+}
+
+function paintAll(){
+  messagesEl.innerHTML = '';
+  if(!session || !Array.isArray(session.messages) || !session.messages.length){
+    renderEmpty('No messages yet — waiting for activity…');
+    return;
+  }
+  const frag = document.createDocumentFragment();
+  for(const m of session.messages){
+    const node = renderMsg(m);
+    if(node) frag.appendChild(node);
+  }
+  messagesEl.appendChild(frag);
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+
+function appendMsg(m){
+  const node = renderMsg(m);
+  if(node){
+    const wasNearBottom = (messagesEl.scrollHeight - messagesEl.scrollTop - messagesEl.clientHeight) < 200;
+    messagesEl.appendChild(node);
+    if(wasNearBottom) messagesEl.scrollTop = messagesEl.scrollHeight;
+  }
+}
+
+function paintMeta(){
+  if(!session) return;
+  sessNameEl.textContent = session.name || 'Claude Code Session';
+  metaModel.textContent = session.model || '—';
+  metaTurns.textContent = session.turns || 0;
+  metaCost.textContent = fmtCost(session.cost);
+  metaCtx.textContent = (session.contextPct || 0) + '%';
+}
+
+async function loadSnapshot(){
+  try {
+    const r = await fetch('/api/watch/' + encodeURIComponent(TOKEN));
+    if(!r.ok){
+      const err = await r.json().catch(() => ({error: 'unknown'}));
+      renderError('🔒 Watch link not active', err.error || ('Server returned ' + r.status));
+      return false;
+    }
+    session = await r.json();
+    paintMeta();
+    paintAll();
+    return true;
+  } catch(e){
+    renderError('Network error', e.message || String(e));
+    return false;
+  }
+}
+
+let ws = null;
+let reconnectTimer = null;
+function connect(){
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  ws = new WebSocket(proto + '//' + location.host + '/share-ws?token=' + encodeURIComponent(TOKEN));
+  ws.onopen = () => {
+    connEl.textContent = '● Live';
+    connEl.className = 'live';
+    ws.send(JSON.stringify({ type: 'claude-watch', token: TOKEN }));
+  };
+  ws.onmessage = (e) => {
+    let msg = null;
+    try { msg = JSON.parse(e.data); } catch { return; }
+    if(!msg) return;
+    if(msg.type === 'claude-attached'){
+      session = Object.assign(session || {}, msg);
+      paintMeta();
+      paintAll();
+    } else if(msg.type === 'claude-event' && msg.event){
+      const ev = msg.event;
+      if(ev.type === 'user' || ev.type === 'assistant' || ev.type === 'system' || ev.type === 'result'){
+        if(!session) session = { messages: [] };
+        if(!Array.isArray(session.messages)) session.messages = [];
+        session.messages.push(ev);
+        appendMsg(ev);
+      } else if(ev.type === 'turn-complete'){
+        // tick meta — we don't have full state; refetch lightweight snapshot
+        loadSnapshot();
+      } else if(ev.type === 'session-ended'){
+        renderError('Session ended', 'The session has been ended by its owner.');
+        try { ws.close(); } catch {}
+      } else if(ev.type === 'cost-update' || ev.type === 'token-update'){
+        if(typeof ev.cost === 'number') session.cost = ev.cost;
+        if(ev.tokens) session.tokens = ev.tokens;
+        if(typeof ev.contextPct === 'number') session.contextPct = ev.contextPct;
+        if(typeof ev.turns === 'number') session.turns = ev.turns;
+        paintMeta();
+      }
+    } else if(msg.type === 'error'){
+      renderError('🔒 Watch link not active', msg.message || '');
+      try { ws.close(); } catch {}
+    }
+  };
+  ws.onclose = () => {
+    connEl.textContent = '○ Reconnecting…';
+    connEl.className = 'stale';
+    if(reconnectTimer) clearTimeout(reconnectTimer);
+    reconnectTimer = setTimeout(connect, 2500);
+  };
+  ws.onerror = () => { try { ws.close(); } catch {} };
+}
+
+(async () => {
+  const ok = await loadSnapshot();
+  if(ok) connect();
+})();
+</script></body></html>`);
+});
+
 // Graceful shutdown endpoint
 app.post("/api/admin/shutdown", requireAuth, (req, res) => {
   res.json({ ok: true, message: "Shutting down..." });
@@ -2752,6 +3058,14 @@ const VNC_PORT = parseInt(process.env.VNC_PORT) || 5900;
 
 // Upgrade with session check — route terminal vs VNC
 server.on("upgrade", (req, socket, head) => {
+  // Batch 23 — Public read-only WS for shared-session watchers (no auth)
+  if (req.url && req.url.startsWith("/share-ws")) {
+    wss.handleUpgrade(req, socket, head, (ws) => {
+      ws._isWatcher = true;
+      wss.emit("connection", ws, req);
+    });
+    return;
+  }
   sessionMiddleware(req, {}, () => {
     if (!req.session || !req.session.authenticated) {
       socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
@@ -2835,7 +3149,7 @@ app.get("/api/admin/clients", requireAuth, (req, res) => {
 });
 
 wss.on("connection", (ws, req) => {
-  const user = req.session?.user || "unknown";
+  const user = ws._isWatcher ? "watcher" : (req.session?.user || "unknown");
   const ip = req.headers["x-forwarded-for"]?.split(",")[0]?.trim() || req.socket.remoteAddress || "unknown";
   const ua = req.headers["user-agent"] || "";
   console.log(`[+] ${user} WebSocket connected from ${ip}`);
@@ -2856,6 +3170,11 @@ wss.on("connection", (ws, req) => {
   ws.on("message", (msg) => {
     try {
       const parsed = JSON.parse(msg);
+
+      // Batch 23 — read-only watchers may only watch & ping; everything else is dropped
+      if (ws._isWatcher && parsed.type !== "claude-watch" && parsed.type !== "ping") {
+        return;
+      }
 
       switch (parsed.type) {
         case "attach": {
@@ -3030,6 +3349,27 @@ wss.on("connection", (ws, req) => {
         }
         case "claude-list": {
           ws.send(JSON.stringify({ type: "claude-sessions", sessions: listClaudeSessions() }));
+          break;
+        }
+        // Batch 23 — Read-only watch attach (no auth required, but token must be valid)
+        case "claude-watch": {
+          if (!ws._isWatcher) {
+            ws.send(JSON.stringify({ type: "error", message: "claude-watch requires the public /share-ws endpoint" }));
+            break;
+          }
+          const meta = shareTokens.get(parsed.token);
+          if (!meta) { ws.send(JSON.stringify({ type: "error", message: "Invalid or revoked share link" })); break; }
+          const cs = claudeSessions.get(meta.sessionId);
+          if (!cs) { ws.send(JSON.stringify({ type: "error", message: "Session no longer exists" })); break; }
+          cs.clients.add(ws);
+          if (!ws._claudeSessions) ws._claudeSessions = new Set();
+          ws._claudeSessions.add(cs.id);
+          ws.send(JSON.stringify({
+            type: "claude-attached", watch: true,
+            id: cs.id, name: cs.name, model: cs.model, status: cs.status,
+            messages: cs.messages, cost: cs.cost, tokens: cs.tokens, turns: cs.turns,
+            contextPct: cs.contextPct, files: cs.files, todos: cs.todos || [], cwd: cs.cwd,
+          }));
           break;
         }
       }
@@ -3269,6 +3609,53 @@ function listRecentProjects() {
 }
 
 _loadRecentProjects();
+
+// Batch 23 — Shared Session (read-only watch link)
+const SHARE_TOKENS_FILE = path.join(CLAUDE_SESSIONS_DIR, "share-tokens.json");
+const shareTokens = new Map();          // token -> { sessionId, createdAt }
+const sessionToShareToken = new Map();  // sessionId -> token
+
+let _shareTokensTimer = null;
+function _persistShareTokens() {
+  if (_shareTokensTimer) clearTimeout(_shareTokensTimer);
+  _shareTokensTimer = setTimeout(() => {
+    _shareTokensTimer = null;
+    try {
+      const arr = Array.from(shareTokens.entries()).map(([token, v]) => ({ token, sessionId: v.sessionId, createdAt: v.createdAt }));
+      fs.writeFileSync(SHARE_TOKENS_FILE, JSON.stringify(arr));
+    } catch (e) { console.error("[Claude] persist share-tokens error:", e.message); }
+  }, 500);
+}
+function _loadShareTokens() {
+  try {
+    if (!fs.existsSync(SHARE_TOKENS_FILE)) return;
+    const arr = JSON.parse(fs.readFileSync(SHARE_TOKENS_FILE, "utf8"));
+    if (!Array.isArray(arr)) return;
+    for (const e of arr) {
+      if (!e || !e.token || !e.sessionId) continue;
+      shareTokens.set(e.token, { sessionId: e.sessionId, createdAt: e.createdAt || Date.now() });
+      sessionToShareToken.set(e.sessionId, e.token);
+    }
+  } catch (e) { console.error("[Claude] load share-tokens error:", e.message); }
+}
+function createShareToken(sessionId) {
+  const existing = sessionToShareToken.get(sessionId);
+  if (existing && shareTokens.has(existing)) return existing;
+  const token = crypto.randomBytes(16).toString("hex");
+  shareTokens.set(token, { sessionId, createdAt: Date.now() });
+  sessionToShareToken.set(sessionId, token);
+  _persistShareTokens();
+  return token;
+}
+function revokeShareToken(sessionId) {
+  const token = sessionToShareToken.get(sessionId);
+  if (!token) return false;
+  shareTokens.delete(token);
+  sessionToShareToken.delete(sessionId);
+  _persistShareTokens();
+  return true;
+}
+_loadShareTokens();
 
 // Create a session object (no process yet — process spawns per message)
 // 1.9 / 3.3.4 — push a rewind checkpoint at the start of a user turn
@@ -3695,6 +4082,42 @@ app.post("/api/claude/sessions/:id/fork", requireAuth, (req, res) => {
   res.json({ id: newId, name: fork.name, forkedFrom: src.id });
 });
 
+// Batch 23 — Shared Session (read-only watch link)
+app.get("/api/claude/sessions/:id/share", requireAuth, (req, res) => {
+  const sess = claudeSessions.get(req.params.id);
+  if (!sess) return res.status(404).json({ error: "not found" });
+  const token = sessionToShareToken.get(req.params.id);
+  if (!token || !shareTokens.has(token)) return res.json({ shared: false });
+  const meta = shareTokens.get(token);
+  res.json({ shared: true, token, createdAt: meta.createdAt, url: "/watch/" + token });
+});
+app.post("/api/claude/sessions/:id/share", requireAuth, (req, res) => {
+  const sess = claudeSessions.get(req.params.id);
+  if (!sess) return res.status(404).json({ error: "not found" });
+  const token = createShareToken(req.params.id);
+  res.json({ shared: true, token, url: "/watch/" + token });
+});
+app.delete("/api/claude/sessions/:id/share", requireAuth, (req, res) => {
+  const sess = claudeSessions.get(req.params.id);
+  if (!sess) return res.status(404).json({ error: "not found" });
+  const ok = revokeShareToken(req.params.id);
+  res.json({ ok });
+});
+
+// Public read-only watch endpoints (no auth)
+app.get("/api/watch/:token", (req, res) => {
+  const meta = shareTokens.get(req.params.token);
+  if (!meta) return res.status(404).json({ error: "invalid or revoked share link" });
+  const sess = claudeSessions.get(meta.sessionId);
+  if (!sess) return res.status(404).json({ error: "session no longer exists" });
+  res.json({
+    id: sess.id, name: sess.name, model: sess.model, status: sess.status,
+    cost: sess.cost, tokens: sess.tokens, turns: sess.turns,
+    contextPct: sess.contextPct, files: sess.files, messages: sess.messages,
+    todos: sess.todos || [], cwd: sess.cwd, sharedAt: meta.createdAt,
+  });
+});
+
 app.post("/api/claude/sessions/:id/rename", requireAuth, (req, res) => {
   const sess = claudeSessions.get(req.params.id);
   if (!sess) return res.status(404).json({ error: "not found" });
@@ -3741,6 +4164,7 @@ app.delete("/api/claude/sessions/:id", requireAuth, (req, res) => {
   if (!sess) return res.status(404).json({ error: "not found" });
   if (sess.proc) { try { sess.proc.kill(); } catch {} }
   stopClaudeFsWatcher(sess);
+  revokeShareToken(req.params.id); // Batch 23 — invalidate any active share link
   claudeSessions.delete(req.params.id);
   deleteClaudeSessionFromDisk(req.params.id);
   res.json({ ok: true });

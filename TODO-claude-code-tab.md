@@ -253,9 +253,9 @@ All previously-partial `[~]` items finalized in Batches 17–19:
 - ✅ Multi-project sidebar (Batch 21)
 - ✅ Session export markdown/JSON (Batch 20)
 - ✅ Streaming diff preview (Batch 22)
+- ✅ Shared session (Batch 23)
 
 **Remaining:**
-- [ ] Shared session (read-only link to watch someone's Claude Code session)
 - [ ] Plugin system for custom tool block renderers
 
 ### Batch 20 — Session Export ✅
@@ -272,6 +272,14 @@ All previously-partial `[~]` items finalized in Batches 17–19:
 - On `tool_result`: tag flips to green `Applied` (or red `Failed` on `is_error`); diff body is preserved (not overwritten by raw text), result text appended as a small footer.
 - Resume hydration: `claude-attached` replay path now reconstructs the diff for past Edit/Write/MultiEdit calls and stamps them `Applied`.
 - Styling: `.cc-diff-block`, `.cc-diff-meta`, `.cc-diff-hunk`, `.cc-diff-line.add/.del/.ctx`, `.cc-diff-pending-tag` (pulse), `.cc-diff-applied`, `.cc-diff-result` footer.
+
+### Batch 23 — Shared Session (read-only watch link) ✅
+- Backend: `shareTokens` Map persisted to `.claude-sessions/share-tokens.json` (`token → { sessionId, createdAt }` + reverse `sessionToShareToken` Map for idempotent create). Loaded on startup; revoked automatically when the underlying session is deleted.
+- Endpoints (auth): `GET/POST/DELETE /api/claude/sessions/:id/share` — creates idempotently, returns `{ token, url: "/watch/<token>" }`, revokes.
+- Public endpoints (no auth): `GET /api/watch/:token` returns a stripped read-only snapshot; `GET /watch/:token` serves a self-contained HTML viewer.
+- WebSocket: upgrade handler bypasses `sessionMiddleware` for `/share-ws` paths and tags `ws._isWatcher = true`. Watcher sockets are gated to only `claude-watch` and `ping`. New `claude-watch` case validates the token, attaches `ws` to `cs.clients`, and pushes a one-shot `claude-attached` snapshot with `watch:true`.
+- Watch page: standalone HTML/CSS/JS (no shared dependency on `index.html`) — top bar with session name, model, turns, cost, ctx%, pulsing yellow "Read-only Watch" badge; live message stream rendered with text/thinking/tool_use/tool_result blocks; auto-scroll only when user is near bottom; auto-reconnects on WS drop.
+- Frontend Share button: top-bar button (between Export and End) → `ccShareSession(tabId)` GETs current state, POSTs to create if absent, then opens a glass-style modal with copyable `location.origin + /watch/<token>` URL, "Copy" feedback flip, and "Revoke" button.
 
 ### Batch 21 — Multi-Project Sidebar ✅
 - Backend: `recentProjects` Map persisted to `.claude-sessions/recent-projects.json` with `{ path, name, lastUsed, pinned }` (cap 50, drops oldest unpinned). Auto-track on `createClaudeSession` and WS cwd-change. Sessions count derived live from `claudeSessions` Map.
