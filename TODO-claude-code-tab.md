@@ -252,9 +252,9 @@ All previously-partial `[~]` items finalized in Batches 17–19:
 **Done:**
 - ✅ Multi-project sidebar (Batch 21)
 - ✅ Session export markdown/JSON (Batch 20)
+- ✅ Streaming diff preview (Batch 22)
 
 **Remaining:**
-- [ ] Streaming diff preview (live edit visualization)
 - [ ] Shared session (read-only link to watch someone's Claude Code session)
 - [ ] Plugin system for custom tool block renderers
 
@@ -262,6 +262,16 @@ All previously-partial `[~]` items finalized in Batches 17–19:
 - `GET /api/claude/sessions/:id/export?format=md|json` — serializes messages to Markdown (text/thinking/tool_use/tool_result blocks with fenced JSON input + truncated results at 4KB) or raw JSON payload.
 - Export button added to Claude Code top bar (between Compact and End); triggers download with `claude-session-<id8>-<YYYY-MM-DD>.md` filename.
 - Skips noisy `system:init` blobs; collapses thinking into `>` blockquote; wraps tool errors with ❌.
+
+### Batch 22 — Streaming Diff Preview ✅
+- Frontend-only: `_ccBuildDiffBody(toolName, input)` renders unified-style diff inside Edit/Write/MultiEdit tool blocks the moment Claude emits the `tool_use` (no waiting for `tool_result`).
+- Edit: shared prefix/suffix trimmed; up to 2 lines context before/after the changed slice; `@@ -ostart,olen +nstart,nlen @@` hunk header.
+- MultiEdit: each edit rendered as its own hunk with a 6px gap between hunks.
+- Write: full content rendered as `+` lines under a `@@ new file +1,N @@` header.
+- Meta strip shows file name + `+adds −dels` stats + hunk count + animated yellow `Pending` tag while running.
+- On `tool_result`: tag flips to green `Applied` (or red `Failed` on `is_error`); diff body is preserved (not overwritten by raw text), result text appended as a small footer.
+- Resume hydration: `claude-attached` replay path now reconstructs the diff for past Edit/Write/MultiEdit calls and stamps them `Applied`.
+- Styling: `.cc-diff-block`, `.cc-diff-meta`, `.cc-diff-hunk`, `.cc-diff-line.add/.del/.ctx`, `.cc-diff-pending-tag` (pulse), `.cc-diff-applied`, `.cc-diff-result` footer.
 
 ### Batch 21 — Multi-Project Sidebar ✅
 - Backend: `recentProjects` Map persisted to `.claude-sessions/recent-projects.json` with `{ path, name, lastUsed, pinned }` (cap 50, drops oldest unpinned). Auto-track on `createClaudeSession` and WS cwd-change. Sessions count derived live from `claudeSessions` Map.

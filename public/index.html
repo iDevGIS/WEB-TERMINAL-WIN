@@ -2525,6 +2525,27 @@
     .cc-tool-body.open { display:block; }
     .cc-tool-body .line-add { color:#4ade80; } .cc-tool-body .line-del { color:#ef4444; text-decoration:line-through; opacity:.6; }
     .cc-tool-body .line-num { color:#5a5a7a; user-select:none; display:inline-block; width:32px; text-align:right; margin-right:8px; }
+    /* Streaming diff preview (Batch 22) */
+    .cc-tool-block.cc-diff-block { border-color:rgba(74,222,128,.18); }
+    .cc-tool-block.cc-diff-block.cc-diff-pending { border-color:rgba(251,191,36,.22); background:rgba(251,191,36,.025); }
+    .cc-tool-block.cc-diff-block .cc-tool-body { max-height:none; padding:0; background:rgba(0,0,0,.18); }
+    .cc-diff-meta { display:flex; align-items:center; gap:8px; padding:6px 12px; background:rgba(255,255,255,.025); border-bottom:1px solid rgba(255,255,255,.05); font-size:10px; color:#7a7a9a; }
+    .cc-diff-meta .cc-diff-stat-add { color:#4ade80; }
+    .cc-diff-meta .cc-diff-stat-del { color:#ef4444; }
+    .cc-diff-meta .cc-diff-applied { margin-left:auto; padding:2px 8px; border-radius:3px; background:rgba(74,222,128,.14); color:#4ade80; font-size:9px; font-weight:600; letter-spacing:.4px; text-transform:uppercase; }
+    .cc-diff-meta .cc-diff-pending-tag { margin-left:auto; padding:2px 8px; border-radius:3px; background:rgba(251,191,36,.14); color:#fbbf24; font-size:9px; font-weight:600; letter-spacing:.4px; text-transform:uppercase; animation:pulse 1.5s infinite; }
+    .cc-diff-hunk { padding:0; max-height:360px; overflow:auto; }
+    .cc-diff-hunk-head { padding:4px 12px; font-size:10px; color:#a78bfa; background:rgba(167,139,250,.06); border-bottom:1px solid rgba(255,255,255,.04); font-family:'JetBrains Mono',monospace; }
+    .cc-diff-line { display:flex; padding:2px 12px 2px 8px; font-family:'JetBrains Mono',monospace; font-size:11.5px; line-height:1.55; white-space:pre; }
+    .cc-diff-line .cc-diff-marker { display:inline-block; width:14px; flex:0 0 14px; text-align:center; user-select:none; opacity:.85; }
+    .cc-diff-line.add { background:rgba(74,222,128,.08); color:#a7f3d0; }
+    .cc-diff-line.add .cc-diff-marker { color:#4ade80; }
+    .cc-diff-line.del { background:rgba(239,68,68,.08); color:#fecaca; }
+    .cc-diff-line.del .cc-diff-marker { color:#ef4444; }
+    .cc-diff-line.ctx { color:#7a7a9a; }
+    .cc-diff-line.ctx .cc-diff-marker { color:#5a5a7a; }
+    .cc-diff-empty { padding:8px 12px; font-size:11px; color:#7a7a9a; font-style:italic; }
+    .cc-diff-result { padding:8px 12px; font-size:10.5px; color:#7a7a9a; background:rgba(255,255,255,.025); border-top:1px solid rgba(255,255,255,.05); white-space:pre-wrap; max-height:120px; overflow:auto; font-family:'JetBrains Mono',monospace; }
     /* 3.2.7 MCP tool block — cyan accent */
     .cc-tool-block.mcp { border-color:rgba(6,182,212,.2); background:rgba(6,182,212,.04); }
     .cc-tool-block.mcp .cc-tool-header { background:rgba(6,182,212,.06); border-bottom-color:rgba(6,182,212,.12); }
@@ -12532,6 +12553,76 @@
       if (typeof openEditor === 'function') openEditor(filePath, name);
     }
 
+    // Batch 22 — Streaming diff preview
+    function _ccRenderDiffLines(oldStr, newStr) {
+      const oldLines = String(oldStr || '').split('\n');
+      const newLines = String(newStr || '').split('\n');
+      // Trim shared prefix/suffix to keep diff focused
+      let pre = 0;
+      while (pre < oldLines.length && pre < newLines.length && oldLines[pre] === newLines[pre]) pre++;
+      let suf = 0;
+      while (suf < oldLines.length - pre && suf < newLines.length - pre && oldLines[oldLines.length - 1 - suf] === newLines[newLines.length - 1 - suf]) suf++;
+      const ctxBefore = Math.min(pre, 2);
+      const ctxAfter = Math.min(suf, 2);
+      const dels = oldLines.slice(pre, oldLines.length - suf);
+      const adds = newLines.slice(pre, newLines.length - suf);
+      const ctxHeadStart = pre - ctxBefore;
+      const ctxTailStart = oldLines.length - suf;
+      const out = [];
+      let addCount = 0, delCount = 0;
+      // Hunk header roughly approximating @@ -ostart,olen +nstart,nlen @@
+      const oStart = ctxHeadStart + 1;
+      const oLen = ctxBefore + dels.length + ctxAfter;
+      const nStart = oStart;
+      const nLen = ctxBefore + adds.length + ctxAfter;
+      out.push(`<div class="cc-diff-hunk-head">@@ -${oStart},${oLen} +${nStart},${nLen} @@</div>`);
+      for (let i = 0; i < ctxBefore; i++) {
+        out.push(`<div class="cc-diff-line ctx"><span class="cc-diff-marker"> </span><span>${escHtml(oldLines[ctxHeadStart + i] || '')}</span></div>`);
+      }
+      for (const l of dels) { delCount++; out.push(`<div class="cc-diff-line del"><span class="cc-diff-marker">-</span><span>${escHtml(l)}</span></div>`); }
+      for (const l of adds) { addCount++; out.push(`<div class="cc-diff-line add"><span class="cc-diff-marker">+</span><span>${escHtml(l)}</span></div>`); }
+      for (let i = 0; i < ctxAfter; i++) {
+        out.push(`<div class="cc-diff-line ctx"><span class="cc-diff-marker"> </span><span>${escHtml(oldLines[ctxTailStart + i] || '')}</span></div>`);
+      }
+      return { html: out.join(''), addCount, delCount };
+    }
+
+    function _ccBuildDiffBody(toolName, input) {
+      const filePath = input?.file_path || input?.path || '';
+      let hunksHtml = '';
+      let totalAdd = 0, totalDel = 0, hunkCount = 0;
+      if (toolName === 'Edit') {
+        const r = _ccRenderDiffLines(input?.old_string, input?.new_string);
+        hunksHtml = `<div class="cc-diff-hunk">${r.html}</div>`;
+        totalAdd = r.addCount; totalDel = r.delCount; hunkCount = 1;
+      } else if (toolName === 'MultiEdit' && Array.isArray(input?.edits)) {
+        const parts = [];
+        for (const e of input.edits) {
+          const r = _ccRenderDiffLines(e?.old_string, e?.new_string);
+          parts.push(r.html);
+          totalAdd += r.addCount; totalDel += r.delCount; hunkCount++;
+        }
+        hunksHtml = `<div class="cc-diff-hunk">${parts.join('<div style="height:6px"></div>')}</div>`;
+      } else if (toolName === 'Write') {
+        const lines = String(input?.content || '').split('\n');
+        const head = `<div class="cc-diff-hunk-head">@@ new file +1,${lines.length} @@</div>`;
+        const body = lines.map(l => `<div class="cc-diff-line add"><span class="cc-diff-marker">+</span><span>${escHtml(l)}</span></div>`).join('');
+        hunksHtml = `<div class="cc-diff-hunk">${head}${body}</div>`;
+        totalAdd = lines.length; totalDel = 0; hunkCount = 1;
+      } else {
+        return '';
+      }
+      if (!hunksHtml) hunksHtml = '<div class="cc-diff-empty">(no changes)</div>';
+      const meta = `<div class="cc-diff-meta">
+        <span>📋 ${escHtml(filePath.split(/[\\/]/).pop() || filePath)}</span>
+        <span class="cc-diff-stat-add">+${totalAdd}</span>
+        <span class="cc-diff-stat-del">−${totalDel}</span>
+        ${hunkCount > 1 ? `<span style="color:#a78bfa">· ${hunkCount} hunks</span>` : ''}
+        <span class="cc-diff-pending-tag" data-cc-diff-tag>Pending</span>
+      </div>`;
+      return meta + hunksHtml;
+    }
+
     function ccRenderToolBlock(tool, file, status, body, collapsed) {
       const icons = { Read: '📖', Edit: '✏️', Write: '📝', Bash: '⚡', Grep: '🔍', Glob: '📂', Agent: '🤖' };
       const statusCls = status === 'done' ? 'done' : status === 'error' ? 'error' : 'running';
@@ -12851,6 +12942,20 @@
                     } else {
                       body.insertAdjacentHTML('beforeend', `<div class="cc-mcp-result"><div class="cc-mcp-section-label">result</div>${resultHtml}</div>`);
                     }
+                  } else if (toolBlock.classList.contains('cc-diff-block')) {
+                    // Batch 22 — preserve diff, swap Pending → Applied/Failed, append result footer
+                    toolBlock.classList.remove('cc-diff-pending');
+                    const tag = body.querySelector('[data-cc-diff-tag]');
+                    if (tag) {
+                      tag.classList.remove('cc-diff-pending-tag');
+                      tag.classList.add('cc-diff-applied');
+                      tag.textContent = block.is_error ? 'Failed' : 'Applied';
+                      if (block.is_error) tag.style.background = 'rgba(239,68,68,.14)', tag.style.color = '#ef4444';
+                    }
+                    const existingFoot = body.querySelector('.cc-diff-result');
+                    const footHtml = `<div class="cc-diff-result">${escHtml(txt.substring(0, 800))}</div>`;
+                    if (existingFoot) existingFoot.outerHTML = footHtml;
+                    else body.insertAdjacentHTML('beforeend', footHtml);
                   } else {
                     body.innerHTML = resultHtml;
                   }
@@ -12927,6 +13032,7 @@
             } else {
               let file = block.input?.file_path || block.input?.command || block.input?.pattern || block.input?.path || '';
               let body = '';
+              let extraClass = '';
               if (toolName.startsWith('mcp__')) {
                 // MCP tools have varied arg names — pick the first string-ish arg for the header
                 if (!file && block.input) {
@@ -12942,8 +13048,14 @@
                   try { json = JSON.stringify(block.input, null, 2); } catch { json = String(block.input); }
                   body = `<div class="cc-mcp-args"><div class="cc-mcp-section-label">args</div><pre>${escHtml(json.substring(0, 2000))}</pre></div><div class="cc-mcp-result"></div>`;
                 }
+              } else if (toolName === 'Edit' || toolName === 'Write' || toolName === 'MultiEdit') {
+                // Batch 22 — live diff preview while tool runs
+                const diff = _ccBuildDiffBody(toolName, block.input || {});
+                if (diff) { body = diff; extraClass = ' cc-diff-block cc-diff-pending'; }
               }
-              turnBody.insertAdjacentHTML('beforeend', ccRenderToolBlock(toolName, file, 'running', body, false));
+              const blockHtml = ccRenderToolBlock(toolName, file, 'running', body, false);
+              const wrapped = extraClass ? blockHtml.replace('<div class="cc-tool-block">', `<div class="cc-tool-block${extraClass}">`) : blockHtml;
+              turnBody.insertAdjacentHTML('beforeend', wrapped);
               document.getElementById(tabId + '-cc-streaming-text').textContent = 'Running ' + toolName + '...';
             }
             ccUpdateFilesFromServer(tabId);
@@ -13085,6 +13197,22 @@
                     const desc = block.input?.description || '';
                     const prompt = block.input?.prompt || '';
                     ccAppendMessage(tabId, ccRenderSubagentBlock(block.id || '', subType, desc, prompt, 'done', ''));
+                  } else if (block.name === 'Edit' || block.name === 'Write' || block.name === 'MultiEdit') {
+                    // Batch 22 — restore diff preview as Applied
+                    const diff = _ccBuildDiffBody(block.name, block.input || {});
+                    const tb = ccRenderToolBlock(block.name, block.input?.file_path || '', 'done', diff, true);
+                    const wrapped = tb.replace('<div class="cc-tool-block">', '<div class="cc-tool-block cc-diff-block">');
+                    ccAppendMessage(tabId, wrapped);
+                    // After append, swap Pending → Applied tag
+                    setTimeout(() => {
+                      const all = document.querySelectorAll('#' + tabId + '-cc-messages [data-cc-diff-tag]');
+                      const last = all[all.length - 1];
+                      if (last) {
+                        last.classList.remove('cc-diff-pending-tag');
+                        last.classList.add('cc-diff-applied');
+                        last.textContent = 'Applied';
+                      }
+                    }, 0);
                   } else {
                     ccAppendMessage(tabId, ccRenderToolBlock(block.name || 'Tool', block.input?.file_path || '', 'done', '', true));
                   }
