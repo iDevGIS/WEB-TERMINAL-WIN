@@ -4,7 +4,12 @@
   "description": "Web-based terminal with xterm.js + node-pty",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "test:ui": "playwright test --ui",
+    "test:smoke": "playwright test smoke",
+    "test:report": "playwright show-report"
   },
   "dependencies": {
     "@anthropic-ai/claude-code": "^2.1.112",
@@ -19,5 +24,8 @@
     "multer": "^2.1.1",
     "node-pty": "^1.1.0",
     "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.59.1"
   }
 }

@@ -23,3 +23,8 @@ Desktop.ini
 voices/
 workspaces/
 .claude-sessions/
+
+# Playwright
+playwright-report/
+test-results/
+playwright/.cache/
