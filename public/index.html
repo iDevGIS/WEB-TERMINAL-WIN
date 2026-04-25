@@ -2366,7 +2366,7 @@
     .cc-right-section-title { font-size:10px; color:#6c63ff; text-transform:uppercase; letter-spacing:.8px; margin-bottom:6px; font-weight:600; }
     .cc-right-empty { text-align:center; color:#5a5a7a; font-size:11px; padding:24px 12px; }
     /* Batch 11 — Right sidebar tabs (Info/Memory/MCP/Hooks/Skills/Subagents) */
-    .cc-right-tabs { display:flex; border-bottom:1px solid rgba(255,255,255,.08); flex-shrink:0; background:rgba(10,10,26,.4); overflow-x:auto; overflow-y:hidden; scroll-behavior:smooth; scrollbar-width:none; -ms-overflow-style:none; }
+    .cc-right-tabs { display:flex; border-bottom:1px solid rgba(255,255,255,.08); flex-shrink:0; background:rgba(10,10,26,.4); overflow-x:auto; overflow-y:hidden; scroll-behavior:smooth; scrollbar-width:none; -ms-overflow-style:none; cursor:grab; user-select:none; }
     .cc-right-tabs::-webkit-scrollbar { display:none; width:0; height:0; }
     .cc-right-tab { flex:0 0 auto; padding:8px 12px; font-size:10px; color:#7a7a9a; cursor:pointer; border-bottom:2px solid transparent; text-transform:uppercase; letter-spacing:.4px; font-weight:500; display:flex; align-items:center; justify-content:center; gap:5px; white-space:nowrap; }
     .cc-right-tab:hover { color:#c8c8d8; background:rgba(255,255,255,.03); }
@@ -10918,7 +10918,11 @@
       const open = side.classList.toggle('collapsed') === false; // returns true if collapsed
       td.ccRightOpen = open;
       if (btn) btn.classList.toggle('active', open);
-      if (open) ccRenderRightSidebar(tabId);
+      if (open) {
+        ccRenderRightSidebar(tabId);
+        const tabsRoot = document.getElementById(tabId + '-cc-right-tabs');
+        if (tabsRoot) _ccEnableDragScroll(tabsRoot);
+      }
     }
 
     // 5.1 / 2.4.1 — Load CLAUDE.md + update badge
@@ -11109,6 +11113,32 @@
       document.getElementById('cc-sys-modal-body').innerHTML = bodyHtml || '<em style="color:#7a7a9a">Empty</em>';
     }
 
+    // Mouse drag-to-scroll (horizontal). Idempotent via dataset guard.
+    function _ccEnableDragScroll(el) {
+      if (!el || el.dataset.dragInit === '1') return;
+      el.dataset.dragInit = '1';
+      let isDown = false, startX = 0, startScroll = 0, moved = 0;
+      el.addEventListener('mousedown', (e) => {
+        if (e.button !== 0) return;
+        isDown = true; moved = 0;
+        startX = e.clientX; startScroll = el.scrollLeft;
+        el.style.cursor = 'grabbing';
+      });
+      const end = () => { if (isDown) { isDown = false; el.style.cursor = ''; } };
+      el.addEventListener('mouseleave', end);
+      el.addEventListener('mouseup', end);
+      el.addEventListener('mousemove', (e) => {
+        if (!isDown) return;
+        const dx = e.clientX - startX;
+        moved = Math.max(moved, Math.abs(dx));
+        el.scrollLeft = startScroll - dx;
+      });
+      // Suppress click after drag (>5px)
+      el.addEventListener('click', (e) => {
+        if (moved > 5) { e.stopPropagation(); e.preventDefault(); moved = 0; }
+      }, true);
+    }
+
     // Batch 11 — Right sidebar tabbed panels
     function ccSwitchRightTab(tabId, tab, el) {
       const td = tabs.get(tabId);
@@ -11116,6 +11146,7 @@
       td.ccRightActiveTab = tab;
       const tabsRoot = document.getElementById(tabId + '-cc-right-tabs');
       if (tabsRoot) {
+        _ccEnableDragScroll(tabsRoot);
         tabsRoot.querySelectorAll('.cc-right-tab').forEach(t => t.classList.toggle('active', t.dataset.ccRightTab === tab));
       }
       const body = document.getElementById(tabId + '-cc-right-body');
