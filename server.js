@@ -462,6 +462,26 @@ app.get("/watch/:token", (req, res) => {
   }
   .footer .live{color:#4ade80;font-weight:600}
   .footer .stale{color:#f87171;font-weight:600}
+  /* Batch 26 — collab write input */
+  .badge.write{background:rgba(34,197,94,.12);color:#4ade80;border-color:rgba(34,197,94,.35)}
+  .badge.write .dot{background:#4ade80;box-shadow:0 0 6px #4ade80}
+  .composer{
+    flex:0 0 auto;display:none;gap:8px;align-items:flex-end;
+    padding:10px 14px;background:rgba(15,15,25,.85);border-top:1px solid rgba(255,255,255,.08);
+  }
+  .composer.show{display:flex}
+  .composer textarea{
+    flex:1;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);
+    border-radius:10px;padding:9px 12px;color:#e5e7ff;font-family:'Inter',sans-serif;font-size:13px;
+    resize:none;min-height:38px;max-height:140px;line-height:1.45;outline:none;
+  }
+  .composer textarea:focus{border-color:rgba(108,99,255,.45);box-shadow:0 0 0 2px rgba(108,99,255,.08)}
+  .composer button{
+    height:38px;padding:0 14px;border:none;border-radius:10px;
+    background:linear-gradient(135deg,#6c63ff,#9333ea);color:#fff;font-weight:600;font-size:12px;cursor:pointer;
+  }
+  .composer button:disabled{opacity:.5;cursor:not-allowed}
+  .composer-hint{font-size:10px;color:#5a5a7a;padding:0 14px 6px}
 
   @media(max-width:520px){
     .topbar{flex-wrap:wrap;gap:8px;padding:10px 12px}
@@ -474,7 +494,7 @@ app.get("/watch/:token", (req, res) => {
   <div class="topbar">
     <span class="logo">👁</span>
     <h1 id="sess-name">Loading…</h1>
-    <span class="badge"><span class="dot"></span>Read-only Watch</span>
+    <span class="badge" id="mode-badge"><span class="dot"></span>Read-only Watch</span>
     <div class="meta">
       <span class="stat" id="meta-model">—</span>
       <span class="stat">turns: <b id="meta-turns">0</b></span>
@@ -483,7 +503,11 @@ app.get("/watch/:token", (req, res) => {
     </div>
   </div>
   <main id="main"><div class="empty">Connecting…</div></main>
-  <div class="footer"><span id="conn" class="live">● Live</span> · Watching shared Claude Code session — you cannot send messages</div>
+  <div class="composer" id="composer">
+    <textarea id="composer-input" placeholder="Type a message and press Enter to send…" rows="1"></textarea>
+    <button id="composer-send">Send</button>
+  </div>
+  <div class="footer"><span id="conn" class="live">● Live</span> · <span id="footer-msg">Watching shared Claude Code session — you cannot send messages</span></div>
 </div>
 <script>
 const TOKEN = ${JSON.stringify(token)};
@@ -494,7 +518,51 @@ const metaTurns = document.getElementById('meta-turns');
 const metaCost = document.getElementById('meta-cost');
 const metaCtx = document.getElementById('meta-ctx');
 const connEl = document.getElementById('conn');
+const modeBadge = document.getElementById('mode-badge');
+const composerEl = document.getElementById('composer');
+const composerInput = document.getElementById('composer-input');
+const composerSend = document.getElementById('composer-send');
+const footerMsg = document.getElementById('footer-msg');
 let session = null;
+let writable = false;
+
+function applyWriteMode(on){
+  writable = !!on;
+  if(writable){
+    composerEl.classList.add('show');
+    modeBadge.classList.add('write');
+    modeBadge.lastChild.textContent = 'Live · You can send';
+    footerMsg.textContent = 'Collaborative Claude Code session — your messages will be visible to the host.';
+  } else {
+    composerEl.classList.remove('show');
+    modeBadge.classList.remove('write');
+    modeBadge.lastChild.textContent = 'Read-only Watch';
+    footerMsg.textContent = 'Watching shared Claude Code session — you cannot send messages';
+  }
+}
+
+function sendComposerMessage(){
+  if(!writable || !ws || ws.readyState !== 1) return;
+  const text = composerInput.value.trim();
+  if(!text) return;
+  if(session && session.status && session.status !== 'idle'){
+    // Pulse the input briefly to signal "wait for turn"
+    composerInput.style.borderColor = '#f87171';
+    setTimeout(() => { composerInput.style.borderColor = ''; }, 600);
+    return;
+  }
+  ws.send(JSON.stringify({ type: 'claude-send', id: (session && session.id) || null, message: text, attachments: [] }));
+  composerInput.value = '';
+  composerInput.style.height = 'auto';
+}
+composerSend.onclick = sendComposerMessage;
+composerInput.addEventListener('keydown', (e) => {
+  if(e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); sendComposerMessage(); }
+});
+composerInput.addEventListener('input', () => {
+  composerInput.style.height = 'auto';
+  composerInput.style.height = Math.min(140, composerInput.scrollHeight) + 'px';
+});
 
 function escHtml(s){
   return String(s == null ? '' : s)
@@ -589,6 +657,7 @@ async function loadSnapshot(){
       return false;
     }
     session = await r.json();
+    applyWriteMode(!!session.writable);
     paintMeta();
     paintAll();
     return true;
@@ -614,6 +683,7 @@ function connect(){
     if(!msg) return;
     if(msg.type === 'claude-attached'){
       session = Object.assign(session || {}, msg);
+      applyWriteMode(!!msg.writable);
       paintMeta();
       paintAll();
     } else if(msg.type === 'claude-event' && msg.event){
@@ -3171,9 +3241,10 @@ wss.on("connection", (ws, req) => {
     try {
       const parsed = JSON.parse(msg);
 
-      // Batch 23 — read-only watchers may only watch & ping; everything else is dropped
-      if (ws._isWatcher && parsed.type !== "claude-watch" && parsed.type !== "ping") {
-        return;
+      // Batch 23 — read-only watchers may only watch & ping; Batch 26 — write-mode watchers may also send
+      if (ws._isWatcher) {
+        const allowed = parsed.type === "claude-watch" || parsed.type === "ping" || (ws._writable && parsed.type === "claude-send");
+        if (!allowed) return;
       }
 
       switch (parsed.type) {
@@ -3266,6 +3337,11 @@ wss.on("connection", (ws, req) => {
           break;
         }
         case "claude-send": {
+          // Batch 26 — write-mode watcher: lock to its own session and reject attachments
+          if (ws._isWatcher) {
+            if (!ws._writable || parsed.id !== ws._watchSessionId) break;
+            parsed.attachments = [];
+          }
           const cs = claudeSessions.get(parsed.id);
           if (!cs || cs.dead) break;
           if (cs.proc) { ws.send(JSON.stringify({ type: "error", message: "Claude is still processing" })); break; }
@@ -3351,7 +3427,7 @@ wss.on("connection", (ws, req) => {
           ws.send(JSON.stringify({ type: "claude-sessions", sessions: listClaudeSessions() }));
           break;
         }
-        // Batch 23 — Read-only watch attach (no auth required, but token must be valid)
+        // Batch 23/26 — Watch attach (no auth required, but token must be valid; writable controlled by token)
         case "claude-watch": {
           if (!ws._isWatcher) {
             ws.send(JSON.stringify({ type: "error", message: "claude-watch requires the public /share-ws endpoint" }));
@@ -3361,11 +3437,13 @@ wss.on("connection", (ws, req) => {
           if (!meta) { ws.send(JSON.stringify({ type: "error", message: "Invalid or revoked share link" })); break; }
           const cs = claudeSessions.get(meta.sessionId);
           if (!cs) { ws.send(JSON.stringify({ type: "error", message: "Session no longer exists" })); break; }
+          ws._writable = !!meta.writable;
+          ws._watchSessionId = cs.id;
           cs.clients.add(ws);
           if (!ws._claudeSessions) ws._claudeSessions = new Set();
           ws._claudeSessions.add(cs.id);
           ws.send(JSON.stringify({
-            type: "claude-attached", watch: true,
+            type: "claude-attached", watch: true, writable: ws._writable,
             id: cs.id, name: cs.name, model: cs.model, status: cs.status,
             messages: cs.messages, cost: cs.cost, tokens: cs.tokens, turns: cs.turns,
             contextPct: cs.contextPct, files: cs.files, todos: cs.todos || [], cwd: cs.cwd,
@@ -3621,7 +3699,7 @@ function _persistShareTokens() {
   _shareTokensTimer = setTimeout(() => {
     _shareTokensTimer = null;
     try {
-      const arr = Array.from(shareTokens.entries()).map(([token, v]) => ({ token, sessionId: v.sessionId, createdAt: v.createdAt }));
+      const arr = Array.from(shareTokens.entries()).map(([token, v]) => ({ token, sessionId: v.sessionId, createdAt: v.createdAt, writable: !!v.writable }));
       fs.writeFileSync(SHARE_TOKENS_FILE, JSON.stringify(arr));
     } catch (e) { console.error("[Claude] persist share-tokens error:", e.message); }
   }, 500);
@@ -3633,16 +3711,24 @@ function _loadShareTokens() {
     if (!Array.isArray(arr)) return;
     for (const e of arr) {
       if (!e || !e.token || !e.sessionId) continue;
-      shareTokens.set(e.token, { sessionId: e.sessionId, createdAt: e.createdAt || Date.now() });
+      shareTokens.set(e.token, { sessionId: e.sessionId, createdAt: e.createdAt || Date.now(), writable: !!e.writable });
       sessionToShareToken.set(e.sessionId, e.token);
     }
   } catch (e) { console.error("[Claude] load share-tokens error:", e.message); }
 }
-function createShareToken(sessionId) {
+function createShareToken(sessionId, opts) {
+  const writable = !!(opts && opts.writable);
   const existing = sessionToShareToken.get(sessionId);
-  if (existing && shareTokens.has(existing)) return existing;
+  if (existing && shareTokens.has(existing)) {
+    const meta = shareTokens.get(existing);
+    if (meta.writable !== writable) {
+      meta.writable = writable;
+      _persistShareTokens();
+    }
+    return existing;
+  }
   const token = crypto.randomBytes(16).toString("hex");
-  shareTokens.set(token, { sessionId, createdAt: Date.now() });
+  shareTokens.set(token, { sessionId, createdAt: Date.now(), writable });
   sessionToShareToken.set(sessionId, token);
   _persistShareTokens();
   return token;
@@ -4089,13 +4175,14 @@ app.get("/api/claude/sessions/:id/share", requireAuth, (req, res) => {
   const token = sessionToShareToken.get(req.params.id);
   if (!token || !shareTokens.has(token)) return res.json({ shared: false });
   const meta = shareTokens.get(token);
-  res.json({ shared: true, token, createdAt: meta.createdAt, url: "/watch/" + token });
+  res.json({ shared: true, token, createdAt: meta.createdAt, writable: !!meta.writable, url: "/watch/" + token });
 });
-app.post("/api/claude/sessions/:id/share", requireAuth, (req, res) => {
+app.post("/api/claude/sessions/:id/share", requireAuth, express.json(), (req, res) => {
   const sess = claudeSessions.get(req.params.id);
   if (!sess) return res.status(404).json({ error: "not found" });
-  const token = createShareToken(req.params.id);
-  res.json({ shared: true, token, url: "/watch/" + token });
+  const writable = !!(req.body && req.body.writable);
+  const token = createShareToken(req.params.id, { writable });
+  res.json({ shared: true, token, writable, url: "/watch/" + token });
 });
 app.delete("/api/claude/sessions/:id/share", requireAuth, (req, res) => {
   const sess = claudeSessions.get(req.params.id);
@@ -4115,6 +4202,7 @@ app.get("/api/watch/:token", (req, res) => {
     cost: sess.cost, tokens: sess.tokens, turns: sess.turns,
     contextPct: sess.contextPct, files: sess.files, messages: sess.messages,
     todos: sess.todos || [], cwd: sess.cwd, sharedAt: meta.createdAt,
+    writable: !!meta.writable,
   });
 });
 

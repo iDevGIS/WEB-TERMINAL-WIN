@@ -11572,7 +11572,7 @@
       }
     }
 
-    // Batch 23 — Shared session (read-only watch link)
+    // Batch 23/26 — Shared session (read-only watch link + write-mode collab)
     async function ccShareSession(tabId) {
       const td = tabs.get(tabId);
       if (!td || !td.ccSessionId) {
@@ -11587,34 +11587,55 @@
       } catch {}
       if (!state || !state.shared) {
         try {
-          const r2 = await fetch('/api/claude/sessions/' + sid + '/share', { method: 'POST' });
+          const r2 = await fetch('/api/claude/sessions/' + sid + '/share', {
+            method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ writable: false }),
+          });
           if (!r2.ok) { showToast('Could not create share link', 'error'); return; }
           state = await r2.json();
         } catch (e) { showToast('Share error: ' + e.message, 'error'); return; }
       }
       _ccShowShareModal(sid, state);
     }
+    async function _ccUpdateShareWritable(sid, writable) {
+      try {
+        const r = await fetch('/api/claude/sessions/' + sid + '/share', {
+          method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ writable: !!writable }),
+        });
+        if (!r.ok) { showToast('Could not update share mode', 'error'); return null; }
+        return await r.json();
+      } catch (e) { showToast('Update error: ' + e.message, 'error'); return null; }
+    }
     function _ccShowShareModal(sid, state) {
       let modal = document.getElementById('cc-share-modal');
       if (modal) modal.remove();
       const url = location.origin + (state.url || ('/watch/' + state.token));
+      const writable = !!state.writable;
       modal = document.createElement('div');
       modal.id = 'cc-share-modal';
       modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);backdrop-filter:blur(6px);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
       modal.innerHTML = `
         <div style="background:#15151f;border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:24px;width:100%;max-width:480px;box-shadow:0 20px 60px rgba(0,0,0,.5)" onclick="event.stopPropagation()">
           <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
-            <span style="font-size:22px">👁</span>
-            <h3 style="margin:0;font-size:15px;color:#e5e7ff;font-weight:600">Share read-only watch link</h3>
+            <span style="font-size:22px">${writable ? '✍️' : '👁'}</span>
+            <h3 id="cc-share-title" style="margin:0;font-size:15px;color:#e5e7ff;font-weight:600">${writable ? 'Share collaborative session' : 'Share read-only watch link'}</h3>
           </div>
-          <div style="font-size:12px;color:#9ca3c5;margin-bottom:14px;line-height:1.55">
-            Anyone with this link can <b style="color:#e5e7ff">view</b> the conversation in real time. They cannot send messages or modify anything. Revoke any time.
+          <div id="cc-share-desc" style="font-size:12px;color:#9ca3c5;margin-bottom:14px;line-height:1.55">
+            ${writable
+              ? 'Anyone with this link can <b style="color:#e5e7ff">view and send messages</b> in this session in real time. Treat it like giving them keyboard access.'
+              : 'Anyone with this link can <b style="color:#e5e7ff">view</b> the conversation in real time. They cannot send messages or modify anything. Revoke any time.'}
           </div>
+          <label style="display:flex;align-items:center;gap:9px;padding:9px 11px;background:rgba(108,99,255,.06);border:1px solid rgba(108,99,255,.18);border-radius:8px;font-size:12px;color:#cbd5ff;cursor:pointer;margin-bottom:14px">
+            <input type="checkbox" id="cc-share-writable" ${writable ? 'checked' : ''} style="width:16px;height:16px;accent-color:#6c63ff;cursor:pointer">
+            <div style="flex:1">
+              <div style="font-weight:600">Allow visitors to send messages</div>
+              <div style="font-size:10px;color:#7a7a9a;margin-top:2px">⚠️ Anyone with the link can talk to Claude as you</div>
+            </div>
+          </label>
           <div style="display:flex;gap:6px;margin-bottom:10px">
             <input id="cc-share-url" readonly value="${escAttr(url)}" style="flex:1;background:#0a0a14;border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:9px 11px;color:#e5e7ff;font-family:'JetBrains Mono',monospace;font-size:11px;outline:none">
             <button onclick="_ccCopyShareUrl(this)" style="background:linear-gradient(135deg,#6c63ff,#5a52e0);border:none;color:#fff;padding:9px 14px;border-radius:8px;font-size:11px;font-weight:600;cursor:pointer;letter-spacing:.5px">Copy</button>
           </div>
-          <div style="font-size:10px;color:#6b6b8a;margin-bottom:18px">Created ${state.createdAt ? new Date(state.createdAt).toLocaleString() : 'just now'}</div>
+          <div style="font-size:10px;color:#6b6b8a;margin-bottom:18px">Created ${state.createdAt ? new Date(state.createdAt).toLocaleString() : 'just now'} · Mode: <span id="cc-share-mode-label">${writable ? 'collaborative' : 'read-only'}</span></div>
           <div style="display:flex;gap:8px;justify-content:flex-end">
             <button onclick="_ccRevokeShare('${escAttr(sid)}')" style="background:rgba(248,113,113,.1);border:1px solid rgba(248,113,113,.3);color:#fca5a5;padding:9px 14px;border-radius:8px;font-size:11px;font-weight:600;cursor:pointer">Revoke</button>
             <button onclick="document.getElementById('cc-share-modal').remove()" style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:#cbd5ff;padding:9px 14px;border-radius:8px;font-size:11px;font-weight:600;cursor:pointer">Close</button>
@@ -11622,6 +11643,22 @@
         </div>`;
       modal.onclick = () => modal.remove();
       document.body.appendChild(modal);
+      const cb = document.getElementById('cc-share-writable');
+      if (cb) cb.addEventListener('change', async () => {
+        const wantWritable = cb.checked;
+        const next = await _ccUpdateShareWritable(sid, wantWritable);
+        const title = document.getElementById('cc-share-title');
+        const desc = document.getElementById('cc-share-desc');
+        const lbl = document.getElementById('cc-share-mode-label');
+        const isWrite = !!(next && next.writable);
+        if (title) title.textContent = isWrite ? 'Share collaborative session' : 'Share read-only watch link';
+        if (lbl) lbl.textContent = isWrite ? 'collaborative' : 'read-only';
+        if (desc) desc.innerHTML = isWrite
+          ? 'Anyone with this link can <b style="color:#e5e7ff">view and send messages</b> in this session in real time. Treat it like giving them keyboard access.'
+          : 'Anyone with this link can <b style="color:#e5e7ff">view</b> the conversation in real time. They cannot send messages or modify anything. Revoke any time.';
+        cb.checked = isWrite;
+        showToast(isWrite ? 'Collaborative mode enabled' : 'Switched to read-only', 'success');
+      });
     }
     function _ccCopyShareUrl(btn) {
       const inp = document.getElementById('cc-share-url');
