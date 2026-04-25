@@ -4769,6 +4769,95 @@ app.get("/api/claude/plugins", requireAuth, async (req, res) => {
   }
 });
 
+// Batch 25 — Plugin Marketplace: registry + install/uninstall
+const PLUGIN_MAX_BYTES = 256 * 1024;
+const PLUGIN_FETCH_TIMEOUT_MS = 8000;
+const PLUGIN_ID_RE = /^[a-z0-9_-]{2,40}$/i;
+
+const BUILTIN_PLUGIN_REGISTRY = [
+  {
+    id: "bash-pretty",
+    name: "Bash Pretty",
+    description: "Adds Copy button to Bash tool blocks",
+    author: "GYOZEN",
+    version: "1.0",
+    url: "/plugins/bash-pretty.js",
+    builtin: true,
+  },
+];
+
+app.get("/api/claude/plugins/registry", requireAuth, (_req, res) => {
+  res.json({ entries: BUILTIN_PLUGIN_REGISTRY });
+});
+
+app.post("/api/claude/plugins/install", requireAuth, express.json({ limit: "1mb" }), async (req, res) => {
+  const url = String(req.body?.url || "").trim();
+  if (!/^https?:\/\//i.test(url) && !url.startsWith("/")) {
+    return res.status(400).json({ error: "url must be http(s) or absolute path" });
+  }
+  try {
+    let buf;
+    if (url.startsWith("/")) {
+      const local = path.join(__dirname, "public", url.replace(/^\//, ""));
+      if (!local.startsWith(path.join(__dirname, "public"))) return res.status(400).json({ error: "path escape" });
+      buf = await fs.promises.readFile(local);
+    } else {
+      const ac = new AbortController();
+      const t = setTimeout(() => ac.abort(), PLUGIN_FETCH_TIMEOUT_MS);
+      const r = await fetch(url, { signal: ac.signal, redirect: "follow" });
+      clearTimeout(t);
+      if (!r.ok) return res.status(400).json({ error: `fetch failed: HTTP ${r.status}` });
+      const ct = (r.headers.get("content-type") || "").toLowerCase();
+      if (ct.includes("text/html")) return res.status(400).json({ error: "URL returned HTML, not JS" });
+      buf = Buffer.from(await r.arrayBuffer());
+    }
+    if (buf.length > PLUGIN_MAX_BYTES) return res.status(400).json({ error: `plugin too large (${buf.length}B > ${PLUGIN_MAX_BYTES}B)` });
+    const text = buf.toString("utf-8");
+    if (!/window\.ccPlugins\s*\.\s*register\b/.test(text)) {
+      return res.status(400).json({ error: "missing window.ccPlugins.register call — not a CYBERFRAME plugin" });
+    }
+    const meta = { id: "", name: "", description: "", author: "", version: "" };
+    const m = text.slice(0, 4096).match(/@cc-plugin\b([\s\S]*?)\*\//);
+    if (m) {
+      m[1].split("\n").forEach((line) => {
+        const kv = line.replace(/^\s*\*\s*/, "").trim();
+        const i = kv.indexOf(":");
+        if (i > 0) {
+          const k = kv.slice(0, i).trim().toLowerCase();
+          const v = kv.slice(i + 1).trim();
+          if (k && v && k in meta) meta[k] = v;
+        }
+      });
+    }
+    let id = meta.id || String(req.body?.id || "").trim();
+    if (!id) {
+      try { id = new URL(url, "http://x").pathname.split("/").pop().replace(/\.js$/i, ""); } catch {}
+    }
+    id = String(id).toLowerCase().replace(/[^a-z0-9_-]/g, "-").replace(/^-+|-+$/g, "");
+    if (!PLUGIN_ID_RE.test(id)) return res.status(400).json({ error: "invalid plugin id (need /^[a-z0-9_-]{2,40}$/)" });
+    const dir = path.join(__dirname, "public", "plugins");
+    await fs.promises.mkdir(dir, { recursive: true });
+    const dest = path.join(dir, id + ".js");
+    const tagged = `// @cc-source: ${url}\n${text}`;
+    await fs.promises.writeFile(dest, tagged, "utf-8");
+    res.json({ ok: true, id, file: id + ".js", url: "/plugins/" + id + ".js", bytes: tagged.length, source: url });
+  } catch (e) {
+    res.status(400).json({ error: String(e.message || e) });
+  }
+});
+
+app.delete("/api/claude/plugins/:id", requireAuth, async (req, res) => {
+  const id = String(req.params.id).toLowerCase().replace(/[^a-z0-9_-]/g, "");
+  if (!PLUGIN_ID_RE.test(id)) return res.status(400).json({ error: "invalid id" });
+  const file = path.join(__dirname, "public", "plugins", id + ".js");
+  try {
+    await fs.promises.unlink(file);
+    res.json({ ok: true, id });
+  } catch (e) {
+    res.status(400).json({ error: String(e.message || e) });
+  }
+});
+
 // File search for @ picker — shallow recursive walk rooted at cwd, filtered by query
 app.get("/api/claude/file-search", requireAuth, (req, res) => {
   const cwd = req.query.cwd || process.env.USERPROFILE || process.env.HOME;

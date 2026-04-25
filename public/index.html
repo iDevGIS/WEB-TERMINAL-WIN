@@ -2642,6 +2642,21 @@
     .cc-plugins-reload { background:rgba(108,99,255,.2); color:#a79fff; border:1px solid rgba(108,99,255,.3); padding:5px 12px; font-size:11px; border-radius:6px; cursor:pointer; }
     .cc-plugins-reload:hover { background:rgba(108,99,255,.3); }
     .cc-plugins-hint { color:#7a7a9a; font-size:10px; }
+    /* Batch 25 — Marketplace */
+    .cc-plugins-section-title { padding:14px 18px 6px; font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.08em; color:#7a7a9a; }
+    .cc-plugins-section-title:first-child { padding-top:8px; }
+    .cc-plugins-uninstall { background:transparent; border:1px solid rgba(239,68,68,.25); color:#fca5a5; cursor:pointer; padding:4px 8px; font-size:13px; border-radius:6px; flex-shrink:0; align-self:flex-start; }
+    .cc-plugins-uninstall:hover { background:rgba(239,68,68,.15); border-color:#ef4444; }
+    .cc-plugins-install-row { display:flex; gap:8px; padding:6px 18px 8px; }
+    .cc-plugins-install-row input { flex:1; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.1); border-radius:7px; padding:7px 10px; color:#e8e8f0; font-size:12px; font-family:'JetBrains Mono',monospace; outline:none; }
+    .cc-plugins-install-row input:focus { border-color:rgba(108,99,255,.5); }
+    .cc-plugins-install-row button { background:linear-gradient(135deg,#6c63ff,#9333ea); color:#fff; border:none; padding:7px 14px; font-size:12px; font-weight:600; border-radius:7px; cursor:pointer; }
+    .cc-plugins-install-row button:hover { filter:brightness(1.15); }
+    .cc-plugins-install-status { padding:0 18px 8px; font-size:11px; min-height:14px; }
+    .cc-plugins-marketplace-icon { font-size:22px; padding-top:2px; flex-shrink:0; width:34px; text-align:center; }
+    .cc-plugins-mp-install { background:rgba(108,99,255,.15); color:#a79fff; border:1px solid rgba(108,99,255,.3); cursor:pointer; padding:5px 12px; font-size:11px; border-radius:6px; flex-shrink:0; align-self:flex-start; }
+    .cc-plugins-mp-install:hover { background:rgba(108,99,255,.3); }
+    .cc-plugins-badge { display:inline-block; margin-left:6px; padding:1px 6px; font-size:9px; background:rgba(34,197,94,.15); border:1px solid rgba(34,197,94,.3); border-radius:4px; color:#86efac; font-weight:500; vertical-align:middle; }
     /* Streaming bar */
     .cc-streaming-bar { display:none; align-items:center; gap:10px; padding:8px 20px; background:rgba(249,115,22,.04); border-top:1px solid rgba(249,115,22,.12); font-size:12px; color:#f97316; flex-shrink:0; }
     .cc-streaming-bar.active { display:flex; }
@@ -14272,7 +14287,7 @@
       return { register, unregister, setEnabled, isEnabled, list, getAvailable, init, _scan, _runAll };
     })();
 
-    function ccPluginsModal() {
+    async function ccPluginsModal() {
       const reg = window.ccPlugins.list();
       const avail = window.ccPlugins.getAvailable();
       const map = new Map();
@@ -14284,6 +14299,11 @@
         map.set(r.id, cur);
       }
       const items = Array.from(map.values());
+      let registry = [];
+      try {
+        const r = await fetch('/api/claude/plugins/registry');
+        if (r.ok) { const j = await r.json(); registry = j.entries || []; }
+      } catch {}
       const overlay = document.createElement('div');
       overlay.className = 'cc-plugins-modal-overlay';
       overlay.innerHTML = `
@@ -14293,8 +14313,9 @@
             <button class="cc-plugins-close" title="Close">×</button>
           </div>
           <div class="cc-plugins-modal-body">
-            ${items.length === 0 ? '<div class="cc-plugins-empty">No plugins installed.<br><br>Drop <code>.js</code> files into <code>public/plugins/</code> and reload the page.</div>' : items.map((p) => `
-              <div class="cc-plugins-row">
+            <div class="cc-plugins-section-title">Installed</div>
+            ${items.length === 0 ? '<div class="cc-plugins-empty">No plugins installed yet.</div>' : items.map((p) => `
+              <div class="cc-plugins-row" data-cc-plugin-row="${escAttr(p.id)}">
                 <label class="cc-plugins-toggle">
                   <input type="checkbox" ${p.enabled ? 'checked' : ''} data-cc-plugin-id="${escAttr(p.id)}">
                   <span></span>
@@ -14304,12 +14325,32 @@
                   ${p.description ? `<div class="cc-plugins-desc">${escHtml(p.description)}</div>` : ''}
                   <div class="cc-plugins-foot">${p.author ? `by ${escHtml(p.author)} · ` : ''}<code>${escHtml(p.id)}</code>${p.loaded ? '' : ' · <span style="color:#fbbf24">not loaded — refresh page</span>'}</div>
                 </div>
+                <button class="cc-plugins-uninstall" data-cc-uninstall="${escAttr(p.id)}" title="Uninstall">🗑</button>
               </div>
             `).join('')}
+
+            <div class="cc-plugins-section-title">Install from URL</div>
+            <div class="cc-plugins-install-row">
+              <input type="text" id="cc-plugin-url" placeholder="https://example.com/my-plugin.js" />
+              <button id="cc-plugin-install-btn">Install</button>
+            </div>
+            <div class="cc-plugins-install-status" id="cc-plugin-install-status"></div>
+
+            ${registry.length > 0 ? `<div class="cc-plugins-section-title">Marketplace</div>${registry.map((m) => `
+              <div class="cc-plugins-row">
+                <div class="cc-plugins-marketplace-icon">📦</div>
+                <div class="cc-plugins-meta">
+                  <div class="cc-plugins-name">${escHtml(m.name)} ${m.version ? `<span class="cc-plugins-ver">v${escHtml(m.version)}</span>` : ''} ${m.builtin ? '<span class="cc-plugins-badge">built-in</span>' : ''}</div>
+                  ${m.description ? `<div class="cc-plugins-desc">${escHtml(m.description)}</div>` : ''}
+                  <div class="cc-plugins-foot">${m.author ? `by ${escHtml(m.author)} · ` : ''}<code>${escHtml(m.id)}</code></div>
+                </div>
+                <button class="cc-plugins-mp-install" data-cc-mp-url="${escAttr(m.url)}" data-cc-mp-id="${escAttr(m.id)}">Install</button>
+              </div>
+            `).join('')}` : ''}
           </div>
           <div class="cc-plugins-modal-foot">
             <button class="cc-plugins-reload" onclick="location.reload()">Reload page</button>
-            <span class="cc-plugins-hint">Drop <code>*.js</code> into <code>public/plugins/</code></span>
+            <span class="cc-plugins-hint">Reload to activate newly installed plugins</span>
           </div>
         </div>`;
       overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
@@ -14317,6 +14358,56 @@
       overlay.addEventListener('change', (e) => {
         const cb = e.target;
         if (cb && cb.matches && cb.matches('input[data-cc-plugin-id]')) window.ccPlugins.setEnabled(cb.dataset.ccPluginId, cb.checked);
+      });
+      const status = overlay.querySelector('#cc-plugin-install-status');
+      const setStatus = (msg, err) => {
+        if (!status) return;
+        status.textContent = msg || '';
+        status.style.color = err ? '#f87171' : '#86efac';
+      };
+      const installFromUrl = async (rawUrl, idHint) => {
+        const url = (rawUrl || '').trim();
+        if (!url) { setStatus('URL required', true); return; }
+        setStatus('Installing…', false);
+        try {
+          const r = await fetch('/api/claude/plugins/install', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ url, id: idHint || undefined })
+          });
+          const j = await r.json();
+          if (!r.ok) { setStatus(j.error || 'install failed', true); return; }
+          setStatus(`Installed ${j.id} — reload to activate`, false);
+          const inp = overlay.querySelector('#cc-plugin-url');
+          if (inp) inp.value = '';
+        } catch (e) {
+          setStatus(String(e.message || e), true);
+        }
+      };
+      const installBtn = overlay.querySelector('#cc-plugin-install-btn');
+      if (installBtn) installBtn.onclick = () => {
+        const inp = overlay.querySelector('#cc-plugin-url');
+        installFromUrl(inp ? inp.value : '');
+      };
+      overlay.querySelectorAll('.cc-plugins-mp-install').forEach((btn) => {
+        btn.onclick = () => installFromUrl(btn.dataset.ccMpUrl, btn.dataset.ccMpId);
+      });
+      overlay.querySelectorAll('[data-cc-uninstall]').forEach((btn) => {
+        btn.onclick = async () => {
+          const id = btn.dataset.ccUninstall;
+          if (!confirm(`Uninstall plugin "${id}"? File will be deleted.`)) return;
+          try {
+            const r = await fetch('/api/claude/plugins/' + encodeURIComponent(id), { method: 'DELETE' });
+            const j = await r.json();
+            if (!r.ok) { setStatus(j.error || 'uninstall failed', true); return; }
+            try { window.ccPlugins.unregister(id); } catch {}
+            const row = overlay.querySelector(`[data-cc-plugin-row="${CSS.escape(id)}"]`);
+            if (row) row.remove();
+            setStatus(`Uninstalled ${id}`, false);
+          } catch (e) {
+            setStatus(String(e.message || e), true);
+          }
+        };
       });
       const onKey = (e) => { if (e.key === 'Escape') { overlay.remove(); document.removeEventListener('keydown', onKey); } };
       document.addEventListener('keydown', onKey);
