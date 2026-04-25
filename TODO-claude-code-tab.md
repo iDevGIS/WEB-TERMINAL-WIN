@@ -1,7 +1,7 @@
 # Claude Code Tab — Feature List
 
 > Reference: [mock-claude-code-tab.html](mock-claude-code-tab.html)  
-> Status: Phase 3 Complete · Future Enhancements partial (Batches 1–21 merged + UX/bug-fix sweep)  
+> Status: Phase 3 Complete · Future Enhancements complete (Batches 1–24 merged + UX/bug-fix sweep)  
 > Priority: P0 = must-have, P1 = important, P2 = nice-to-have
 
 ## Batch History
@@ -30,6 +30,9 @@
 | Batch 19 | `a3bdecf` | 2.4.5 VS Code serve-web LSP bridge (engine probe + "Open in VS Code" deep link) |
 | Batch 20 | `c45e21d` | Session export `.md`/`.json` (transcript + tool blocks, truncate large results) |
 | Batch 21 | `571ca73` | Multi-project sidebar (recent projects with pin/remove + auto-track) |
+| Batch 22 | `acd01f2` | Streaming diff preview for Edit/Write/MultiEdit (Pending → Applied) |
+| Batch 23 | `3dbd863` | Shared session — read-only watch link (`/watch/<token>` + `/share-ws`) |
+| Batch 24 | `_pending_` | Plugin system (custom tool block renderers via `window.ccPlugins`) |
 
 ### UX / Bug-fix Sweep (post Batch 21)
 
@@ -254,9 +257,9 @@ All previously-partial `[~]` items finalized in Batches 17–19:
 - ✅ Session export markdown/JSON (Batch 20)
 - ✅ Streaming diff preview (Batch 22)
 - ✅ Shared session (Batch 23)
+- ✅ Plugin system for custom tool block renderers (Batch 24)
 
-**Remaining:**
-- [ ] Plugin system for custom tool block renderers
+**Remaining:** _(none — Phase 3 future enhancements complete)_
 
 ### Batch 20 — Session Export ✅
 - `GET /api/claude/sessions/:id/export?format=md|json` — serializes messages to Markdown (text/thinking/tool_use/tool_result blocks with fenced JSON input + truncated results at 4KB) or raw JSON payload.
@@ -280,6 +283,14 @@ All previously-partial `[~]` items finalized in Batches 17–19:
 - WebSocket: upgrade handler bypasses `sessionMiddleware` for `/share-ws` paths and tags `ws._isWatcher = true`. Watcher sockets are gated to only `claude-watch` and `ping`. New `claude-watch` case validates the token, attaches `ws` to `cs.clients`, and pushes a one-shot `claude-attached` snapshot with `watch:true`.
 - Watch page: standalone HTML/CSS/JS (no shared dependency on `index.html`) — top bar with session name, model, turns, cost, ctx%, pulsing yellow "Read-only Watch" badge; live message stream rendered with text/thinking/tool_use/tool_result blocks; auto-scroll only when user is near bottom; auto-reconnects on WS drop.
 - Frontend Share button: top-bar button (between Export and End) → `ccShareSession(tabId)` GETs current state, POSTs to create if absent, then opens a glass-style modal with copyable `location.origin + /watch/<token>` URL, "Copy" feedback flip, and "Revoke" button.
+
+### Batch 24 — Plugin System ✅
+- Backend: `GET /api/claude/plugins` walks `public/plugins/*.js`, parses optional `/* @cc-plugin */` JSDoc-style metadata block (`id/name/description/author/version`) and returns `[{ id, name, ..., file, url }]`. Static serving of plugin files reuses existing `express.static('public')`.
+- Frontend `window.ccPlugins`: registry (`register/unregister`), enable map persisted to `localStorage[cc-plugins-enabled]`, MutationObserver on `<body>` to decorate any new `.cc-tool-block` (incl. attribute changes on `.cc-tool-status` for late re-runs). Each plugin opts in via `match(tool, file, ctx)` and mutates the DOM in `decorate(blockEl, ctx)`. Idempotent: per-plugin `data-cc-plugin-<id>` flag prevents double decoration.
+- Loader: on init, fetch list, default-enable any newly-seen plugin, inject `<script src="/plugins/<file>.js">` for enabled plugins, then `_scan(document.body)` to backfill blocks added before script arrived.
+- Disable cleanup: removes nodes tagged `[data-cc-plugin-owner=<id>]` and clears the per-plugin attribute marker on every existing block.
+- UI: 🧩 **Plugins** button in top bar (between Share and End) opens a glass modal listing both server-available metadata and runtime-registered plugins; toggles call `ccPlugins.setEnabled(id, on)` immediately. Shows "not loaded — refresh page" hint when a server-available plugin hasn't registered yet (e.g., toggled on after page load).
+- Sample plugin (`public/plugins/bash-pretty.js`): adds a 📋 Copy button to `Bash` tool blocks that copies the command from `.cc-tool-file` text content.
 
 ### Batch 21 — Multi-Project Sidebar ✅
 - Backend: `recentProjects` Map persisted to `.claude-sessions/recent-projects.json` with `{ path, name, lastUsed, pinned }` (cap 50, drops oldest unpinned). Auto-track on `createClaudeSession` and WS cwd-change. Sessions count derived live from `claudeSessions` Map.

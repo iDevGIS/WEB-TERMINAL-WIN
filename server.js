@@ -4737,6 +4737,38 @@ app.get("/api/claude/sessions/:id/subagents-list", requireAuth, (req, res) => {
   res.json({ count: entries.length, entries });
 });
 
+// Batch 24 — Plugin system: list available tool-renderer plugins
+app.get("/api/claude/plugins", requireAuth, async (req, res) => {
+  const dir = path.join(__dirname, "public", "plugins");
+  try {
+    const entries = await fs.promises.readdir(dir);
+    const items = [];
+    for (const f of entries) {
+      if (!f.endsWith(".js")) continue;
+      const full = path.join(dir, f);
+      let head = "";
+      try { head = (await fs.promises.readFile(full, "utf-8")).slice(0, 2048); } catch {}
+      const meta = { id: f.replace(/\.js$/, ""), name: f.replace(/\.js$/, ""), description: "", author: "", version: "" };
+      const m = head.match(/@cc-plugin\b([\s\S]*?)\*\//);
+      if (m) {
+        m[1].split("\n").forEach((line) => {
+          const kv = line.replace(/^\s*\*\s*/, "").trim();
+          const i = kv.indexOf(":");
+          if (i > 0) {
+            const k = kv.slice(0, i).trim().toLowerCase();
+            const v = kv.slice(i + 1).trim();
+            if (k && v) meta[k] = v;
+          }
+        });
+      }
+      items.push({ ...meta, file: f, url: "/plugins/" + f });
+    }
+    res.json({ plugins: items });
+  } catch (e) {
+    res.json({ plugins: [], error: e.code === "ENOENT" ? "plugins-dir-missing" : String(e.message || e) });
+  }
+});
+
 // File search for @ picker — shallow recursive walk rooted at cwd, filtered by query
 app.get("/api/claude/file-search", requireAuth, (req, res) => {
   const cwd = req.query.cwd || process.env.USERPROFILE || process.env.HOME;

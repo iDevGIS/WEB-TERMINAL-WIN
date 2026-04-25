@@ -2616,6 +2616,32 @@
     .cc-perm-btn.allow:hover { background:rgba(74,222,128,.3); }
     .cc-perm-btn.deny { background:rgba(239,68,68,.1); color:#ef4444; }
     .cc-perm-btn.deny:hover { background:rgba(239,68,68,.2); }
+    /* Batch 24 — Plugins modal */
+    .cc-plugins-modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.55); backdrop-filter:blur(6px); z-index:10000; display:flex; align-items:center; justify-content:center; }
+    .cc-plugins-modal { background:rgba(20,20,30,.97); border:1px solid rgba(255,255,255,.1); border-radius:12px; width:min(560px,92vw); max-height:80vh; display:flex; flex-direction:column; box-shadow:0 20px 60px rgba(0,0,0,.5); overflow:hidden; }
+    .cc-plugins-modal-header { display:flex; align-items:center; justify-content:space-between; padding:14px 18px; border-bottom:1px solid rgba(255,255,255,.06); font-weight:600; color:#e8e8f0; font-size:14px; }
+    .cc-plugins-close { background:transparent; border:none; color:#a8a8b8; font-size:22px; cursor:pointer; line-height:1; padding:0 6px; }
+    .cc-plugins-close:hover { color:#fff; }
+    .cc-plugins-modal-body { padding:6px 0; overflow-y:auto; flex:1; }
+    .cc-plugins-row { display:flex; gap:14px; align-items:flex-start; padding:12px 18px; border-bottom:1px solid rgba(255,255,255,.04); }
+    .cc-plugins-row:last-child { border-bottom:none; }
+    .cc-plugins-toggle { position:relative; display:inline-block; width:34px; height:20px; flex-shrink:0; margin-top:2px; }
+    .cc-plugins-toggle input { opacity:0; width:0; height:0; }
+    .cc-plugins-toggle span { position:absolute; inset:0; background:rgba(255,255,255,.1); border-radius:999px; transition:.2s; cursor:pointer; }
+    .cc-plugins-toggle span::before { content:''; position:absolute; left:2px; top:2px; width:16px; height:16px; background:#a8a8b8; border-radius:50%; transition:.2s; }
+    .cc-plugins-toggle input:checked + span { background:rgba(108,99,255,.55); }
+    .cc-plugins-toggle input:checked + span::before { transform:translateX(14px); background:#fff; }
+    .cc-plugins-meta { flex:1; min-width:0; }
+    .cc-plugins-name { color:#e8e8f0; font-size:13px; font-weight:600; }
+    .cc-plugins-ver { color:#7a7a9a; font-size:10px; font-weight:400; margin-left:6px; }
+    .cc-plugins-desc { color:#a8a8b8; font-size:12px; margin-top:4px; line-height:1.45; }
+    .cc-plugins-foot { color:#7a7a9a; font-size:10px; margin-top:5px; font-family:'JetBrains Mono',monospace; }
+    .cc-plugins-empty { padding:30px 20px; color:#7a7a9a; text-align:center; font-size:13px; line-height:1.6; }
+    .cc-plugins-empty code, .cc-plugins-hint code { background:rgba(255,255,255,.06); padding:1px 6px; border-radius:3px; font-family:'JetBrains Mono',monospace; }
+    .cc-plugins-modal-foot { padding:10px 18px; border-top:1px solid rgba(255,255,255,.06); display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; }
+    .cc-plugins-reload { background:rgba(108,99,255,.2); color:#a79fff; border:1px solid rgba(108,99,255,.3); padding:5px 12px; font-size:11px; border-radius:6px; cursor:pointer; }
+    .cc-plugins-reload:hover { background:rgba(108,99,255,.3); }
+    .cc-plugins-hint { color:#7a7a9a; font-size:10px; }
     /* Streaming bar */
     .cc-streaming-bar { display:none; align-items:center; gap:10px; padding:8px 20px; background:rgba(249,115,22,.04); border-top:1px solid rgba(249,115,22,.12); font-size:12px; color:#f97316; flex-shrink:0; }
     .cc-streaming-bar.active { display:flex; }
@@ -5238,6 +5264,10 @@
                 <button class="cc-topbar-btn" onclick="ccShareSession('${tabId}')" title="Generate read-only watch link">
                   <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
                   Share
+                </button>
+                <button class="cc-topbar-btn" onclick="ccPluginsModal()" title="Manage plugins (custom tool renderers)">
+                  <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M14 7V5a3 3 0 0 0-6 0v2H5a2 2 0 0 0-2 2v3h2a2 2 0 0 1 0 4H3v3a2 2 0 0 0 2 2h3v-2a2 2 0 0 1 4 0v2h3a2 2 0 0 0 2-2v-3h2a2 2 0 0 0 0-4h-2V9a2 2 0 0 0-2-2h-3z"/></svg>
+                  Plugins
                 </button>
                 <button class="cc-topbar-btn danger" onclick="ccEndSession('${tabId}')" title="End session">
                   <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/></svg>
@@ -14142,6 +14172,158 @@
     }
     function escAttr(s) { return String(s||'').replace(/\\/g, '\\\\').replace(/'/g, "\\'"); }
 
+    // === Batch 24 — Plugin system (custom tool block renderers) ===
+    window.ccPlugins = (() => {
+      const registry = new Map();
+      const order = [];
+      let enabledMap = {};
+      let availableMeta = [];
+      let observerInstalled = false;
+      try { enabledMap = JSON.parse(localStorage.getItem('cc-plugins-enabled') || '{}'); } catch { enabledMap = {}; }
+      function persist() { try { localStorage.setItem('cc-plugins-enabled', JSON.stringify(enabledMap)); } catch {} }
+      function _ctxFromBlock(el) {
+        const tool = el.querySelector('.cc-tool-name')?.textContent?.trim() || '';
+        const file = el.querySelector('.cc-tool-file')?.textContent?.trim() || '';
+        const sEl = el.querySelector('.cc-tool-status');
+        const status = sEl?.classList.contains('done') ? 'done' : sEl?.classList.contains('error') ? 'error' : 'running';
+        const body = el.querySelector('.cc-tool-body');
+        return { tool, file, status, body, blockEl: el };
+      }
+      function _runOne(plugin, el) {
+        if (!plugin || typeof plugin.decorate !== 'function') return;
+        if (!enabledMap[plugin.id]) return;
+        const flag = 'data-cc-plugin-' + plugin.id;
+        if (el.hasAttribute(flag)) return;
+        const ctx = _ctxFromBlock(el);
+        try { if (typeof plugin.match === 'function' && !plugin.match(ctx.tool, ctx.file, ctx)) return; } catch (e) { console.warn('[ccPlugins] match error', plugin.id, e); return; }
+        el.setAttribute(flag, '1');
+        try { plugin.decorate(el, ctx); } catch (e) { console.warn('[ccPlugins] decorate error', plugin.id, e); }
+      }
+      function _runAll(el) {
+        if (!el || !el.classList || !el.classList.contains('cc-tool-block')) return;
+        for (const id of order) { const p = registry.get(id); if (p) _runOne(p, el); }
+      }
+      function _scan(root) {
+        if (!root || root.nodeType !== 1) return;
+        if (root.classList && root.classList.contains('cc-tool-block')) _runAll(root);
+        if (root.querySelectorAll) root.querySelectorAll('.cc-tool-block').forEach(_runAll);
+      }
+      function _installObserver() {
+        if (observerInstalled) return; observerInstalled = true;
+        const obs = new MutationObserver((muts) => {
+          for (const m of muts) {
+            if (m.addedNodes) m.addedNodes.forEach((n) => { if (n && n.nodeType === 1) _scan(n); });
+            if (m.type === 'attributes' && m.target && m.target.classList && m.target.classList.contains('cc-tool-status')) {
+              const block = m.target.closest('.cc-tool-block'); if (block) _runAll(block);
+            }
+          }
+        });
+        obs.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
+      }
+      function register(plugin) {
+        if (!plugin || !plugin.id) { console.warn('[ccPlugins] register: missing id'); return; }
+        if (!registry.has(plugin.id)) order.push(plugin.id);
+        registry.set(plugin.id, plugin);
+        if (!(plugin.id in enabledMap)) enabledMap[plugin.id] = plugin.defaultEnabled !== false;
+        persist();
+        document.querySelectorAll('.cc-tool-block').forEach((el) => _runOne(plugin, el));
+      }
+      function unregister(id) { registry.delete(id); const i = order.indexOf(id); if (i >= 0) order.splice(i, 1); }
+      function setEnabled(id, on) {
+        enabledMap[id] = !!on; persist();
+        if (on) {
+          const p = registry.get(id);
+          if (p) document.querySelectorAll('.cc-tool-block').forEach((el) => _runOne(p, el));
+        } else {
+          document.querySelectorAll('[data-cc-plugin-owner="' + id + '"]').forEach((n) => n.remove());
+          document.querySelectorAll('.cc-tool-block[data-cc-plugin-' + id + ']').forEach((el) => el.removeAttribute('data-cc-plugin-' + id));
+        }
+      }
+      function isEnabled(id) { return !!enabledMap[id]; }
+      function list() {
+        return order.map((id) => {
+          const p = registry.get(id) || {};
+          return { id, name: p.name || id, description: p.description || '', author: p.author || '', version: p.version || '', enabled: !!enabledMap[id], loaded: true };
+        });
+      }
+      function getAvailable() { return availableMeta.slice(); }
+      async function _loadAvailable() {
+        try { const r = await fetch('/api/claude/plugins'); const d = await r.json(); availableMeta = (d.plugins || []).slice(); } catch { availableMeta = []; }
+        return availableMeta;
+      }
+      function _injectScript(url, pluginId) {
+        return new Promise((resolve) => {
+          if (document.querySelector('script[data-cc-plugin-src="' + url + '"]')) return resolve(true);
+          const s = document.createElement('script');
+          s.src = url; s.async = true; s.dataset.ccPluginSrc = url; if (pluginId) s.dataset.ccPluginId = pluginId;
+          s.onload = () => resolve(true);
+          s.onerror = () => { console.warn('[ccPlugins] failed to load', url); resolve(false); };
+          document.head.appendChild(s);
+        });
+      }
+      async function init() {
+        _installObserver();
+        const items = await _loadAvailable();
+        for (const it of items) { if (!(it.id in enabledMap)) enabledMap[it.id] = true; }
+        persist();
+        await Promise.all(items.filter((it) => enabledMap[it.id]).map((it) => _injectScript(it.url, it.id)));
+        _scan(document.body);
+      }
+      return { register, unregister, setEnabled, isEnabled, list, getAvailable, init, _scan, _runAll };
+    })();
+
+    function ccPluginsModal() {
+      const reg = window.ccPlugins.list();
+      const avail = window.ccPlugins.getAvailable();
+      const map = new Map();
+      for (const a of avail) map.set(a.id, { id: a.id, name: a.name || a.id, description: a.description || '', author: a.author || '', version: a.version || '', enabled: window.ccPlugins.isEnabled(a.id), loaded: false });
+      for (const r of reg) {
+        const cur = map.get(r.id) || { id: r.id, name: r.name, description: r.description, author: r.author, version: r.version };
+        cur.loaded = true; cur.enabled = r.enabled;
+        cur.name = cur.name || r.name; cur.description = cur.description || r.description; cur.author = cur.author || r.author; cur.version = cur.version || r.version;
+        map.set(r.id, cur);
+      }
+      const items = Array.from(map.values());
+      const overlay = document.createElement('div');
+      overlay.className = 'cc-plugins-modal-overlay';
+      overlay.innerHTML = `
+        <div class="cc-plugins-modal" onclick="event.stopPropagation()">
+          <div class="cc-plugins-modal-header">
+            <span>🧩 Plugins</span>
+            <button class="cc-plugins-close" title="Close">×</button>
+          </div>
+          <div class="cc-plugins-modal-body">
+            ${items.length === 0 ? '<div class="cc-plugins-empty">No plugins installed.<br><br>Drop <code>.js</code> files into <code>public/plugins/</code> and reload the page.</div>' : items.map((p) => `
+              <div class="cc-plugins-row">
+                <label class="cc-plugins-toggle">
+                  <input type="checkbox" ${p.enabled ? 'checked' : ''} data-cc-plugin-id="${escAttr(p.id)}">
+                  <span></span>
+                </label>
+                <div class="cc-plugins-meta">
+                  <div class="cc-plugins-name">${escHtml(p.name)} ${p.version ? `<span class="cc-plugins-ver">v${escHtml(p.version)}</span>` : ''}</div>
+                  ${p.description ? `<div class="cc-plugins-desc">${escHtml(p.description)}</div>` : ''}
+                  <div class="cc-plugins-foot">${p.author ? `by ${escHtml(p.author)} · ` : ''}<code>${escHtml(p.id)}</code>${p.loaded ? '' : ' · <span style="color:#fbbf24">not loaded — refresh page</span>'}</div>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+          <div class="cc-plugins-modal-foot">
+            <button class="cc-plugins-reload" onclick="location.reload()">Reload page</button>
+            <span class="cc-plugins-hint">Drop <code>*.js</code> into <code>public/plugins/</code></span>
+          </div>
+        </div>`;
+      overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+      overlay.querySelector('.cc-plugins-close').onclick = () => overlay.remove();
+      overlay.addEventListener('change', (e) => {
+        const cb = e.target;
+        if (cb && cb.matches && cb.matches('input[data-cc-plugin-id]')) window.ccPlugins.setEnabled(cb.dataset.ccPluginId, cb.checked);
+      });
+      const onKey = (e) => { if (e.key === 'Escape') { overlay.remove(); document.removeEventListener('keydown', onKey); } };
+      document.addEventListener('keydown', onKey);
+      document.body.appendChild(overlay);
+    }
+    window.ccPluginsModal = ccPluginsModal;
+
     // === Events ===
     document.getElementById('btn-new').onclick = () => createSession();
     document.getElementById('btn-new-welcome').onclick = () => createSession();
@@ -15898,6 +16080,11 @@
 
 
     connect();
+
+    // Batch 24 — Plugin system bootstrap
+    if (window.ccPlugins && typeof window.ccPlugins.init === 'function') {
+      window.ccPlugins.init().catch((e) => console.warn('[ccPlugins] init failed:', e));
+    }
   </script>
 </body>
 </html>
