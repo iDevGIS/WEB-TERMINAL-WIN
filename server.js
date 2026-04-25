@@ -2992,9 +2992,10 @@ wss.on("connection", (ws, req) => {
             }
           }
           // If images present, append Read hint so Claude Code uses Read tool on them
+          // Use forward slashes — Windows backslashes get mangled as escape chars when LLM reads the path
           const images = attachmentRefs.filter(r => r.kind === "image");
           if (images.length) {
-            const hint = images.map(i => i.path).join(", ");
+            const hint = images.map(i => i.path.replace(/\\/g, "/")).join(", ");
             promptForClaude = (promptForClaude ? promptForClaude + "\n\n" : "") +
               `Attached image${images.length > 1 ? "s" : ""} (use the Read tool): ${hint}`;
           }
