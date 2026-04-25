@@ -11785,6 +11785,7 @@
           <span style="font-size:14px;font-weight:600;color:#e4e4ef">Select Working Directory</span>
           <button onclick="this.closest('.cyber-overlay').remove()" style="margin-left:auto;background:none;border:none;color:#7a7a9a;font-size:18px;cursor:pointer">✕</button>
         </div>
+        <div id="cc-cwd-recent" style="border-bottom:1px solid rgba(255,255,255,.06);max-height:180px;overflow-y:auto"></div>
         <div id="cc-cwd-drives" style="padding:8px 12px;display:flex;gap:6px;flex-wrap:wrap;border-bottom:1px solid rgba(255,255,255,.06)"></div>
         <div id="cc-cwd-breadcrumb" style="padding:6px 12px;font-size:11px;color:#7a7a9a;font-family:'JetBrains Mono',monospace;display:flex;gap:4px;flex-wrap:wrap;border-bottom:1px solid rgba(255,255,255,.06)"></div>
         <div id="cc-cwd-list" style="flex:1;overflow-y:auto;padding:4px 0;min-height:200px;max-height:400px">
@@ -11797,9 +11798,102 @@
       </div>`;
       document.body.appendChild(overlay);
       overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
-      // Load drives + files
+      // Load recent projects + drives + files
+      ccCwdLoadRecent(tabId);
       ccCwdLoadDrives(tabId);
       ccCwdLoadFiles(tabId, td.ccCwd || '');
+    }
+
+    // Batch 21 — Recent Projects (multi-project sidebar)
+    function _ccRelTime(ts) {
+      const d = Date.now() - (ts || 0);
+      if (d < 60_000) return 'just now';
+      if (d < 3600_000) return Math.floor(d / 60_000) + 'm ago';
+      if (d < 86400_000) return Math.floor(d / 3600_000) + 'h ago';
+      if (d < 604800_000) return Math.floor(d / 86400_000) + 'd ago';
+      return new Date(ts).toLocaleDateString();
+    }
+
+    async function ccCwdLoadRecent(tabId) {
+      const el = document.getElementById('cc-cwd-recent');
+      if (!el) return;
+      el.innerHTML = '';
+      try {
+        const r = await fetch('/api/claude/projects');
+        const list = await r.json();
+        if (!Array.isArray(list) || list.length === 0) {
+          el.innerHTML = '<div style="padding:10px 14px;color:#5a5a7a;font-size:11px">No recent projects yet — pick a folder below.</div>';
+          return;
+        }
+        el.innerHTML = `
+          <div style="padding:8px 14px 4px;font-size:10px;font-weight:600;color:#7a7a9a;text-transform:uppercase;letter-spacing:.06em;display:flex;align-items:center;gap:6px">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            Recent Projects
+          </div>
+          <div id="cc-cwd-recent-list"></div>`;
+        const listEl = el.querySelector('#cc-cwd-recent-list');
+        listEl.innerHTML = list.map(p => {
+          const name = escHtml(p.name || (p.path.split('/').pop() || p.path));
+          const fullPath = escHtml(p.path);
+          const sessionsBadge = (p.sessions > 0)
+            ? `<span style="background:rgba(34,197,94,.12);color:#22c55e;border:1px solid rgba(34,197,94,.2);border-radius:4px;padding:1px 6px;font-size:9px;font-weight:600">${p.sessions} session${p.sessions === 1 ? '' : 's'}</span>`
+            : '';
+          const pinIcon = p.pinned
+            ? '<svg width="13" height="13" viewBox="0 0 24 24" fill="#fbbf24" stroke="#fbbf24" stroke-width="2"><path d="M12 2 L15 9 L22 10 L17 15 L18 22 L12 19 L6 22 L7 15 L2 10 L9 9 Z"/></svg>'
+            : '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#5a5a7a" stroke-width="2"><path d="M12 2 L15 9 L22 10 L17 15 L18 22 L12 19 L6 22 L7 15 L2 10 L9 9 Z"/></svg>';
+          return `
+            <div data-cwd="${fullPath}" style="display:flex;align-items:center;gap:10px;padding:8px 14px;cursor:pointer;border-left:2px solid ${p.pinned ? '#fbbf24' : 'transparent'};transition:background .12s"
+              onmouseover="this.style.background='rgba(251,191,36,.06)'" onmouseout="this.style.background=''"
+              onclick="(function(ev){ if(ev.target.closest('[data-act]')) return; ccCwdSelect('${tabId}','${fullPath}'); ev.currentTarget.closest('.cyber-overlay').remove(); })(event)">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fbbf24" stroke-width="2" style="flex-shrink:0"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:12px;font-weight:600;color:#e4e4ef;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${name}</div>
+                <div style="font-size:10px;color:#7a7a9a;font-family:'JetBrains Mono',monospace;direction:rtl;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${fullPath}">${fullPath}</div>
+              </div>
+              <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0">
+                ${sessionsBadge}
+                <span style="font-size:9px;color:#5a5a7a">${_ccRelTime(p.lastUsed)}</span>
+              </div>
+              <button data-act="pin" title="${p.pinned ? 'Unpin' : 'Pin'}" onclick="ccProjectTogglePin('${tabId}','${fullPath}',${!p.pinned})" style="background:none;border:none;cursor:pointer;padding:4px;display:flex;align-items:center;flex-shrink:0">${pinIcon}</button>
+              <button data-act="del" title="Remove from list" onclick="ccProjectRemove('${tabId}','${fullPath}')" style="background:none;border:none;color:#5a5a7a;cursor:pointer;padding:4px;font-size:13px;line-height:1;flex-shrink:0" onmouseover="this.style.color='#ef4444'" onmouseout="this.style.color='#5a5a7a'">✕</button>
+            </div>`;
+        }).join('');
+      } catch (e) {
+        el.innerHTML = `<div style="padding:10px 14px;color:#ef4444;font-size:11px">${escHtml(e.message)}</div>`;
+      }
+    }
+
+    async function ccProjectTogglePin(tabId, path, pinned) {
+      try {
+        await fetch('/api/claude/projects/pin', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ path, pinned })
+        });
+        ccCwdLoadRecent(tabId);
+      } catch {}
+    }
+
+    async function ccProjectRemove(tabId, path) {
+      try {
+        await fetch('/api/claude/projects', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ path })
+        });
+        ccCwdLoadRecent(tabId);
+      } catch {}
+    }
+
+    async function ccProjectTrack(path) {
+      if (!path) return;
+      try {
+        await fetch('/api/claude/projects/track', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ path })
+        });
+      } catch {}
     }
 
     async function ccCwdLoadDrives(tabId) {
@@ -11877,6 +11971,7 @@
       ccLoadSkillsList(tabId);
       ccLoadSubagentsList(tabId);
       _ccUpdateTabName(tabId);
+      ccProjectTrack(td.ccCwd);
     }
 
     function ccSwitchSideTab(tabId, tab, el) {

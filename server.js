@@ -2960,6 +2960,7 @@ wss.on("connection", (ws, req) => {
             cs.cwd = parsed.cwd;
             // Reset claudeSessionId when cwd changes (conversations are per-project)
             cs.claudeSessionId = null;
+            trackRecentProject(cs.cwd);
             console.log(`[Claude:${cs.id.slice(0,6)}] CWD changed to ${cs.cwd}, reset claudeSessionId`);
           }
           // Process attachments → augment prompt
@@ -3177,6 +3178,97 @@ function deleteClaudeSessionFromDisk(id) {
   } catch {}
 }
 
+// Batch 21 — Recent Projects (multi-project sidebar)
+const RECENT_PROJECTS_FILE = path.join(CLAUDE_SESSIONS_DIR, "recent-projects.json");
+const RECENT_PROJECTS_CAP = 50;
+const recentProjects = new Map(); // normalizedPath -> { path, name, lastUsed, pinned }
+
+function _normProjectPath(p) {
+  if (!p) return "";
+  return String(p).replace(/\\/g, "/").replace(/\/+$/, "").trim();
+}
+function _projectName(p) {
+  const norm = _normProjectPath(p);
+  const parts = norm.split("/").filter(Boolean);
+  return parts[parts.length - 1] || norm || "(root)";
+}
+
+let _recentProjectsTimer = null;
+function _persistRecentProjects() {
+  if (_recentProjectsTimer) clearTimeout(_recentProjectsTimer);
+  _recentProjectsTimer = setTimeout(() => {
+    _recentProjectsTimer = null;
+    try {
+      const arr = Array.from(recentProjects.values());
+      fs.writeFileSync(RECENT_PROJECTS_FILE, JSON.stringify(arr, null, 2));
+    } catch (e) {
+      console.error("[Claude] persist recent-projects error:", e.message);
+    }
+  }, 1000);
+}
+
+function _loadRecentProjects() {
+  try {
+    if (!fs.existsSync(RECENT_PROJECTS_FILE)) return;
+    const raw = fs.readFileSync(RECENT_PROJECTS_FILE, "utf8");
+    const arr = JSON.parse(raw);
+    if (!Array.isArray(arr)) return;
+    for (const p of arr) {
+      const norm = _normProjectPath(p && p.path);
+      if (!norm) continue;
+      recentProjects.set(norm, {
+        path: norm,
+        name: p.name || _projectName(norm),
+        lastUsed: Number(p.lastUsed) || Date.now(),
+        pinned: !!p.pinned,
+      });
+    }
+  } catch (e) {
+    console.error("[Claude] load recent-projects error:", e.message);
+  }
+}
+
+function trackRecentProject(cwd, name) {
+  const norm = _normProjectPath(cwd);
+  if (!norm) return;
+  const existing = recentProjects.get(norm);
+  recentProjects.set(norm, {
+    path: norm,
+    name: name || (existing && existing.name) || _projectName(norm),
+    lastUsed: Date.now(),
+    pinned: existing ? !!existing.pinned : false,
+  });
+  // Cap unpinned entries — drop oldest non-pinned beyond CAP
+  if (recentProjects.size > RECENT_PROJECTS_CAP) {
+    const arr = Array.from(recentProjects.values())
+      .filter(p => !p.pinned)
+      .sort((a, b) => a.lastUsed - b.lastUsed);
+    while (recentProjects.size > RECENT_PROJECTS_CAP && arr.length) {
+      const drop = arr.shift();
+      if (drop) recentProjects.delete(drop.path);
+    }
+  }
+  _persistRecentProjects();
+}
+
+function listRecentProjects() {
+  // Inject sessionCount derived from current sessions Map
+  const counts = new Map();
+  for (const sess of claudeSessions.values()) {
+    const n = _normProjectPath(sess.cwd);
+    if (!n) continue;
+    counts.set(n, (counts.get(n) || 0) + 1);
+  }
+  return Array.from(recentProjects.values())
+    .map(p => ({ ...p, sessions: counts.get(p.path) || 0 }))
+    .sort((a, b) => {
+      if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+      return b.lastUsed - a.lastUsed;
+    });
+}
+
+_loadRecentProjects();
+
 // Create a session object (no process yet — process spawns per message)
 // 1.9 / 3.3.4 — push a rewind checkpoint at the start of a user turn
 function _gitSnapshot(cwd) {
@@ -3247,6 +3339,7 @@ function createClaudeSession(opts = {}) {
   claudeSessions.set(id, sess);
   persistClaudeSession(sess);
   startClaudeFsWatcher(sess);
+  trackRecentProject(sess.cwd);
   console.log(`[Claude] Created session "${sess.name}" (${id}), model=${sess.model}`);
   return sess;
 }
@@ -3512,6 +3605,35 @@ app.post("/api/claude/sessions", requireAuth, (req, res) => {
 
 app.get("/api/claude/sessions", requireAuth, (req, res) => {
   res.json(listClaudeSessions());
+});
+
+// Batch 21 — Recent Projects (multi-project sidebar)
+app.get("/api/claude/projects", requireAuth, (_req, res) => {
+  res.json(listRecentProjects());
+});
+app.post("/api/claude/projects/track", requireAuth, (req, res) => {
+  const cwd = req.body && req.body.path;
+  if (!cwd) return res.status(400).json({ error: "path required" });
+  trackRecentProject(cwd, req.body.name);
+  res.json({ ok: true });
+});
+app.post("/api/claude/projects/pin", requireAuth, (req, res) => {
+  const cwd = req.body && req.body.path;
+  if (!cwd) return res.status(400).json({ error: "path required" });
+  const norm = _normProjectPath(cwd);
+  const ent = recentProjects.get(norm);
+  if (!ent) return res.status(404).json({ error: "not tracked" });
+  ent.pinned = !!(req.body.pinned);
+  _persistRecentProjects();
+  res.json({ ok: true, pinned: ent.pinned });
+});
+app.delete("/api/claude/projects", requireAuth, (req, res) => {
+  const cwd = (req.body && req.body.path) || req.query.path;
+  if (!cwd) return res.status(400).json({ error: "path required" });
+  const norm = _normProjectPath(cwd);
+  const removed = recentProjects.delete(norm);
+  if (removed) _persistRecentProjects();
+  res.json({ ok: removed });
 });
 
 app.get("/api/claude/sessions/:id", requireAuth, (req, res) => {

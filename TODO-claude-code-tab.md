@@ -238,7 +238,7 @@ All previously-partial `[~]` items finalized in Batches 17–19:
 
 ### Phase 3 — Future Enhancements
 - Streaming diff preview (live edit visualization)
-- Multi-project sidebar (switch between workspaces)
+- ~~Multi-project sidebar (switch between workspaces)~~ ✅ Batch 21
 - ~~Session export (markdown transcript with tool blocks)~~ ✅ Batch 20
 - Shared session (read-only link to watch someone's Claude Code session)
 - Plugin system for custom tool block renderers
@@ -247,6 +247,11 @@ All previously-partial `[~]` items finalized in Batches 17–19:
 - `GET /api/claude/sessions/:id/export?format=md|json` — serializes messages to Markdown (text/thinking/tool_use/tool_result blocks with fenced JSON input + truncated results at 4KB) or raw JSON payload.
 - Export button added to Claude Code top bar (between Compact and End); triggers download with `claude-session-<id8>-<YYYY-MM-DD>.md` filename.
 - Skips noisy `system:init` blobs; collapses thinking into `>` blockquote; wraps tool errors with ❌.
+
+### Batch 21 — Multi-Project Sidebar ✅
+- Backend: `recentProjects` Map persisted to `.claude-sessions/recent-projects.json` with `{ path, name, lastUsed, pinned }` (cap 50, drops oldest unpinned). Auto-track on `createClaudeSession` and WS cwd-change. Sessions count derived live from `claudeSessions` Map.
+- Endpoints: `GET /api/claude/projects`, `POST /api/claude/projects/track`, `POST /api/claude/projects/pin`, `DELETE /api/claude/projects`.
+- Frontend: "Recent Projects" section injected at the top of the cwd picker modal — folder name + RTL path + sessions badge + relative-time + pin (★) + remove (✕). Pinned entries sort first with a yellow accent rail. Click row → instant cwd select + close modal. `ccCwdSelect` now fires `ccProjectTrack` so file-browser picks also update the list.
 
 ---
 
