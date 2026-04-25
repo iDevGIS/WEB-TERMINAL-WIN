@@ -2300,7 +2300,9 @@
     .cc-model-picker:hover { background:rgba(249,115,22,.2); }
     .cc-model-picker .cc-chevron { font-size:8px; opacity:.6; }
     .cc-model-dropdown { position:absolute; top:100%; left:0; margin-top:4px; min-width:200px; background:#1a1a35; border:1px solid rgba(255,255,255,.1); border-radius:8px; padding:4px; z-index:200; display:none; box-shadow:0 8px 32px rgba(0,0,0,.6); }
-    .cc-model-picker:hover .cc-model-dropdown { display:block; }
+    .cc-model-dropdown::before { content:''; position:absolute; top:-6px; left:0; right:0; height:6px; }
+    .cc-model-picker:hover .cc-model-dropdown,
+    .cc-model-dropdown:hover { display:block; }
     .cc-model-opt { padding:8px 12px; border-radius:6px; font-size:12px; cursor:pointer; display:flex; align-items:center; justify-content:space-between; gap:8px; color:#9d9db5; }
     .cc-model-opt:hover { background:rgba(255,255,255,.06); }
     .cc-model-opt.active { background:rgba(249,115,22,.1); color:#f97316; }
@@ -2331,7 +2333,9 @@
     .cc-effort-picker { font-size:11px; padding:4px 8px; border-radius:5px; cursor:pointer; position:relative; background:rgba(96,165,250,.08); color:#60a5fa; border:1px solid rgba(96,165,250,.18); display:flex; align-items:center; gap:4px; font-weight:500; }
     .cc-effort-picker:hover { background:rgba(96,165,250,.16); }
     .cc-effort-dropdown { position:absolute; top:100%; left:0; margin-top:4px; min-width:140px; background:#1a1a35; border:1px solid rgba(255,255,255,.1); border-radius:6px; padding:3px; z-index:200; display:none; box-shadow:0 8px 32px rgba(0,0,0,.6); }
-    .cc-effort-picker:hover .cc-effort-dropdown { display:block; }
+    .cc-effort-dropdown::before { content:''; position:absolute; top:-6px; left:0; right:0; height:6px; }
+    .cc-effort-picker:hover .cc-effort-dropdown,
+    .cc-effort-dropdown:hover { display:block; }
     .cc-effort-opt { padding:6px 10px; border-radius:4px; font-size:11px; cursor:pointer; display:flex; align-items:center; justify-content:space-between; gap:8px; color:#9d9db5; }
     .cc-effort-opt:hover { background:rgba(255,255,255,.06); }
     .cc-effort-opt.active { background:rgba(96,165,250,.12); color:#60a5fa; }
