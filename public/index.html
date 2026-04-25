@@ -3992,10 +3992,13 @@
   <div class="toast-container" id="toast-container"></div>
 
   <!-- PWA Install Button (Batch 27) -->
-  <button id="cc-install-btn" type="button" onclick="window._ccTriggerInstall && window._ccTriggerInstall()" title="Install CYBERFRAME as an app" style="display:none;position:fixed;bottom:12px;left:12px;z-index:9500;align-items:center;gap:6px;padding:8px 12px;background:linear-gradient(135deg,#6c63ff,#58a6ff);color:#fff;border:1px solid rgba(255,255,255,.18);border-radius:999px;font-size:12px;font-weight:600;box-shadow:0 4px 16px rgba(108,99,255,.4);cursor:pointer;">
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-    Install App
-  </button>
+  <div id="cc-install-wrap" style="display:none;position:fixed;bottom:10px;right:14px;z-index:9500;align-items:center;gap:0;background:linear-gradient(135deg,#6c63ff,#58a6ff);border:1px solid rgba(255,255,255,.18);border-radius:999px;box-shadow:0 4px 16px rgba(108,99,255,.4);overflow:hidden;">
+    <button id="cc-install-btn" type="button" onclick="window._ccTriggerInstall && window._ccTriggerInstall()" title="Install CYBERFRAME as an app" style="display:inline-flex;align-items:center;gap:6px;padding:7px 12px;background:transparent;color:#fff;border:none;font-size:11px;font-weight:600;cursor:pointer;">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Install App
+    </button>
+    <button id="cc-install-dismiss" type="button" title="Dismiss (won't show again)" style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:30px;background:rgba(0,0,0,.18);color:#fff;border:none;border-left:1px solid rgba(255,255,255,.18);cursor:pointer;font-size:14px;line-height:1;">×</button>
+  </div>
 
   <!-- Snippets Drawer -->
   <div class="snippets-overlay" id="snippets-overlay"></div>
@@ -16341,16 +16344,18 @@
         });
       }
       let _ccDeferredPrompt = null;
+      const _ccInstallDismissed = () => { try { return localStorage.getItem('cc-pwa-dismissed') === '1'; } catch { return false; } };
       window.addEventListener('beforeinstallprompt', (e) => {
         e.preventDefault();
         _ccDeferredPrompt = e;
-        const btn = document.getElementById('cc-install-btn');
-        if (btn) btn.style.display = 'inline-flex';
+        if (_ccInstallDismissed()) return;
+        const wrap = document.getElementById('cc-install-wrap');
+        if (wrap) wrap.style.display = 'inline-flex';
       });
       window.addEventListener('appinstalled', () => {
         _ccDeferredPrompt = null;
-        const btn = document.getElementById('cc-install-btn');
-        if (btn) btn.style.display = 'none';
+        const wrap = document.getElementById('cc-install-wrap');
+        if (wrap) wrap.style.display = 'none';
         if (typeof showToast === 'function') showToast('CYBERFRAME installed', 'success');
       });
       window._ccTriggerInstall = async function() {
@@ -16358,10 +16363,18 @@
         _ccDeferredPrompt.prompt();
         try { await _ccDeferredPrompt.userChoice; } catch {}
         _ccDeferredPrompt = null;
-        const btn = document.getElementById('cc-install-btn');
-        if (btn) btn.style.display = 'none';
+        const wrap = document.getElementById('cc-install-wrap');
+        if (wrap) wrap.style.display = 'none';
         return true;
       };
+      document.addEventListener('DOMContentLoaded', () => {
+        const dismiss = document.getElementById('cc-install-dismiss');
+        if (dismiss) dismiss.addEventListener('click', () => {
+          try { localStorage.setItem('cc-pwa-dismissed', '1'); } catch {}
+          const wrap = document.getElementById('cc-install-wrap');
+          if (wrap) wrap.style.display = 'none';
+        });
+      });
     })();
   </script>
 </body>
