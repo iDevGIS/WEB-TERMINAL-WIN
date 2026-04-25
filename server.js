@@ -727,6 +727,208 @@ function connect(){
 </script></body></html>`);
 });
 
+// === Batch 29 — Session Replay (timeline + jump-to-turn) ===
+app.get("/replay/:id", requireAuth, (req, res) => {
+  const id = String(req.params.id || "").trim();
+  res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+  res.send(`<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Replay · Claude Code</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%}
+body{background:#0a0a14;color:#e5e7ff;font-family:'Inter',sans-serif;font-size:13px;line-height:1.55;overflow:hidden}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse at 20% 0%,rgba(108,99,255,.10),transparent 50%),radial-gradient(ellipse at 80% 100%,rgba(96,165,250,.08),transparent 50%);pointer-events:none;z-index:0}
+.layout{position:relative;z-index:1;height:100dvh;display:flex;flex-direction:column}
+.topbar{flex:0 0 auto;display:flex;align-items:center;gap:12px;padding:10px 16px;background:rgba(20,20,32,.7);backdrop-filter:blur(18px);border-bottom:1px solid rgba(255,255,255,.08)}
+.topbar .logo{font-size:18px}
+.topbar h1{font-size:13px;font-weight:600;letter-spacing:.5px;color:#e5e7ff}
+.topbar .meta{font-size:11px;color:#7a7a9a;margin-left:auto;display:flex;gap:14px;align-items:center}
+.badge{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;font-size:10px;font-weight:600;letter-spacing:.5px;background:rgba(167,139,250,.12);color:#a78bfa;border:1px solid rgba(167,139,250,.35);text-transform:uppercase}
+.stat{display:inline-flex;gap:5px;align-items:center}
+.stat b{color:#e5e7ff;font-weight:600}
+main{flex:1 1 auto;overflow:auto;padding:18px;display:flex;flex-direction:column;gap:14px}
+main::-webkit-scrollbar{width:8px}
+main::-webkit-scrollbar-thumb{background:rgba(108,99,255,.3);border-radius:8px}
+.msg{background:rgba(20,20,32,.55);border:1px solid rgba(255,255,255,.05);border-radius:10px;padding:11px 14px;backdrop-filter:blur(10px);cursor:pointer;transition:border-color .15s,box-shadow .15s}
+.msg:hover{border-color:rgba(108,99,255,.35)}
+.msg.cur{border-color:rgba(108,99,255,.6);box-shadow:0 0 0 2px rgba(108,99,255,.15)}
+.msg.future{opacity:.18}
+.msg .role{font-size:10px;text-transform:uppercase;letter-spacing:.6px;font-weight:700;margin-bottom:6px;display:flex;align-items:center;gap:8px}
+.msg .role .ts{font-weight:400;color:#5a5a7a;letter-spacing:0;text-transform:none}
+.msg.user .role{color:#60a5fa}.msg.user{border-color:rgba(96,165,250,.18)}
+.msg.assistant .role{color:#a78bfa}.msg.assistant{border-color:rgba(167,139,250,.15)}
+.msg.system .role{color:#7a7a9a}.msg.system{border-color:rgba(255,255,255,.04);background:rgba(20,20,32,.3)}
+.body{white-space:pre-wrap;word-break:break-word;color:#e5e7ff;font-size:13px}
+.think{margin-top:6px;padding:8px 10px;border-left:2px solid rgba(167,139,250,.4);background:rgba(167,139,250,.05);border-radius:0 6px 6px 0;color:#cbd5ff;font-size:12px;font-style:italic}
+.tool{margin-top:6px;padding:8px 10px;background:rgba(34,197,94,.06);border:1px solid rgba(34,197,94,.18);border-radius:8px;font-size:12px;color:#bbf7d0}
+.tool .name{color:#4ade80;font-weight:600;font-family:'JetBrains Mono',monospace;font-size:11px}
+.tool pre{margin-top:6px;background:rgba(0,0,0,.25);padding:8px 10px;border-radius:6px;font-family:'JetBrains Mono',monospace;font-size:11px;color:#86efac;overflow:auto;max-height:160px}
+.tool-result{margin-top:4px;padding:6px 10px;background:rgba(255,255,255,.03);border-left:2px solid rgba(34,197,94,.4);border-radius:0 6px 6px 0;font-family:'JetBrains Mono',monospace;font-size:11px;color:#94a3b8;white-space:pre-wrap;max-height:200px;overflow:auto}
+.tool-result.error{border-left-color:#f87171;color:#fca5a5}
+.empty,.err{margin:auto;text-align:center;color:#5a5a7a;font-size:13px;padding:30px}
+.err h2{color:#f87171;font-size:18px;margin-bottom:8px}
+.controls{flex:0 0 auto;background:rgba(15,15,25,.85);border-top:1px solid rgba(255,255,255,.08);padding:10px 16px;display:flex;flex-direction:column;gap:8px}
+.timeline{position:relative;height:6px;background:rgba(255,255,255,.06);border-radius:99px;cursor:pointer;overflow:hidden}
+.timeline .fill{position:absolute;inset:0 auto 0 0;width:0;background:linear-gradient(90deg,#6c63ff,#9333ea);border-radius:99px;transition:width .15s}
+.row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.btn{background:rgba(108,99,255,.15);border:1px solid rgba(108,99,255,.35);color:#cbd5ff;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif}
+.btn:hover{background:rgba(108,99,255,.25)}
+.btn.primary{background:linear-gradient(135deg,#6c63ff,#9333ea);color:#fff;border-color:transparent}
+.btn.icon{padding:6px 9px}
+.label{font-size:11px;color:#7a7a9a}
+select{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);color:#e5e7ff;font-size:11px;padding:5px 8px;border-radius:6px;font-family:'Inter',sans-serif;cursor:pointer}
+.cnt{font-family:'JetBrains Mono',monospace;font-size:11px;color:#a78bfa;font-weight:600}
+</style></head><body>
+<div class="layout">
+  <header class="topbar">
+    <span class="logo">⏯</span>
+    <h1 id="title">Replay</h1>
+    <span class="badge"><span>REPLAY</span></span>
+    <div class="meta">
+      <span class="stat">Turns <b id="m-turns">—</b></span>
+      <span class="stat">Cost <b id="m-cost">—</b></span>
+    </div>
+  </header>
+  <main id="main"><div class="empty">Loading session…</div></main>
+  <div class="controls">
+    <div class="timeline" id="tl"><div class="fill" id="tl-fill"></div></div>
+    <div class="row">
+      <button class="btn icon" id="btn-prev" title="Previous turn">⏮</button>
+      <button class="btn primary" id="btn-play">▶ Play</button>
+      <button class="btn icon" id="btn-next" title="Next turn">⏭</button>
+      <span class="label">Speed</span>
+      <select id="speed">
+        <option value="2000">0.5×</option>
+        <option value="1000" selected>1×</option>
+        <option value="500">2×</option>
+        <option value="250">4×</option>
+      </select>
+      <span class="cnt"><span id="cur-idx">0</span> / <span id="total-idx">0</span></span>
+    </div>
+  </div>
+</div>
+<script>
+const SID = ${JSON.stringify(id)};
+let messages = [];
+let cur = 0;
+let timer = null;
+const els = {
+  main: document.getElementById('main'),
+  title: document.getElementById('title'),
+  mTurns: document.getElementById('m-turns'),
+  mCost: document.getElementById('m-cost'),
+  tl: document.getElementById('tl'),
+  tlFill: document.getElementById('tl-fill'),
+  play: document.getElementById('btn-play'),
+  prev: document.getElementById('btn-prev'),
+  next: document.getElementById('btn-next'),
+  speed: document.getElementById('speed'),
+  cur: document.getElementById('cur-idx'),
+  total: document.getElementById('total-idx'),
+};
+function escHtml(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+function fmtTs(t){if(!t)return'';const d=new Date(t);return d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'})}
+function renderMsg(m,idx){
+  const role = m.role || 'system';
+  const ts = m.timestamp || m.ts || 0;
+  let body = '';
+  if (typeof m.content === 'string') body = '<div class="body">'+escHtml(m.content)+'</div>';
+  else if (Array.isArray(m.content)) {
+    body = m.content.map(c => {
+      if (!c || typeof c !== 'object') return '';
+      if (c.type === 'text') return '<div class="body">'+escHtml(c.text||'')+'</div>';
+      if (c.type === 'thinking') return '<div class="think">'+escHtml(c.thinking||c.text||'')+'</div>';
+      if (c.type === 'tool_use') return '<div class="tool"><div class="name">🔧 '+escHtml(c.name||'tool')+'</div><pre>'+escHtml(JSON.stringify(c.input||{},null,2))+'</pre></div>';
+      if (c.type === 'tool_result') {
+        const cont = typeof c.content === 'string' ? c.content : JSON.stringify(c.content);
+        const cls = c.is_error ? 'tool-result error' : 'tool-result';
+        return '<div class="'+cls+'">'+escHtml((cont||'').slice(0,2000))+'</div>';
+      }
+      return '';
+    }).join('');
+  }
+  return '<div class="msg '+role+'" data-idx="'+idx+'"><div class="role">'+role+'<span class="ts">'+fmtTs(ts)+'</span></div>'+body+'</div>';
+}
+function renderAll(){
+  if (!messages.length){ els.main.innerHTML = '<div class="empty">(no messages in this session)</div>'; return; }
+  els.main.innerHTML = messages.map(renderMsg).join('');
+  els.main.querySelectorAll('.msg').forEach(el => {
+    el.addEventListener('click', () => {
+      const i = parseInt(el.dataset.idx,10);
+      if (!isNaN(i)) jumpTo(i);
+    });
+  });
+}
+function updateView(){
+  const nodes = els.main.querySelectorAll('.msg');
+  nodes.forEach((el, i) => {
+    el.classList.toggle('future', i > cur);
+    el.classList.toggle('cur', i === cur);
+  });
+  els.cur.textContent = messages.length ? (cur + 1) : 0;
+  els.total.textContent = messages.length;
+  const pct = messages.length > 1 ? (cur / (messages.length - 1)) * 100 : 0;
+  els.tlFill.style.width = pct + '%';
+  const target = nodes[cur];
+  if (target) target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+function jumpTo(i){
+  cur = Math.max(0, Math.min(messages.length - 1, i));
+  updateView();
+}
+function step(dir){ jumpTo(cur + dir); }
+function play(){
+  if (timer){ pause(); return; }
+  els.play.textContent = '⏸ Pause';
+  const interval = parseInt(els.speed.value, 10) || 1000;
+  timer = setInterval(() => {
+    if (cur >= messages.length - 1){ pause(); return; }
+    cur += 1; updateView();
+  }, interval);
+}
+function pause(){
+  if (timer){ clearInterval(timer); timer = null; }
+  els.play.textContent = '▶ Play';
+}
+els.play.addEventListener('click', play);
+els.prev.addEventListener('click', () => { pause(); step(-1); });
+els.next.addEventListener('click', () => { pause(); step(1); });
+els.speed.addEventListener('change', () => { if (timer){ pause(); play(); } });
+els.tl.addEventListener('click', (e) => {
+  pause();
+  const r = els.tl.getBoundingClientRect();
+  const ratio = (e.clientX - r.left) / r.width;
+  jumpTo(Math.round(ratio * (messages.length - 1)));
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === ' '){ e.preventDefault(); play(); }
+  else if (e.key === 'ArrowLeft'){ pause(); step(-1); }
+  else if (e.key === 'ArrowRight'){ pause(); step(1); }
+});
+async function load(){
+  try {
+    const r = await fetch('/api/claude/sessions/' + encodeURIComponent(SID), { credentials: 'same-origin' });
+    if (!r.ok){ els.main.innerHTML = '<div class="err"><h2>Session not found</h2><p>It may have been deleted or the link is invalid.</p></div>'; return; }
+    const data = await r.json();
+    messages = (data.messages || []).filter(m => m && (m.role || m.content));
+    els.title.textContent = data.name || 'Replay';
+    els.mTurns.textContent = data.turns ?? messages.length;
+    els.mCost.textContent = (typeof data.cost === 'number') ? ('$' + data.cost.toFixed(4)) : '—';
+    cur = messages.length ? messages.length - 1 : 0;
+    renderAll(); updateView();
+  } catch (e) {
+    els.main.innerHTML = '<div class="err"><h2>Load failed</h2><p>' + escHtml(e.message || e) + '</p></div>';
+  }
+}
+load();
+</script></body></html>`);
+});
+
 // Graceful shutdown endpoint
 app.post("/api/admin/shutdown", requireAuth, (req, res) => {
   res.json({ ok: true, message: "Shutting down..." });
