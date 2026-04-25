@@ -13927,7 +13927,7 @@
       const onKey = (e) => { if (e.key === 'Escape') { modal.remove(); document.removeEventListener('keydown', onKey); } };
       document.addEventListener('keydown', onKey);
     }
-    function escAttr(s) { return String(s||'').replace(/'/g, "\\'"); }
+    function escAttr(s) { return String(s||'').replace(/\\/g, '\\\\').replace(/'/g, "\\'"); }
 
     // === Events ===
     document.getElementById('btn-new').onclick = () => createSession();
