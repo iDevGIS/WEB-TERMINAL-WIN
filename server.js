@@ -834,12 +834,16 @@ const els = {
 function escHtml(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
 function fmtTs(t){if(!t)return'';const d=new Date(t);return d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'})}
 function renderMsg(m,idx){
-  const role = m.role || 'system';
+  // Stored shape varies: top-level user msgs use { type:'user', content:string },
+  // CLI stream events nest content under m.message.content (assistant/user tool_result)
+  const inner = m.message || m;
+  const role = inner.role || (m.type === 'user' ? 'user' : (m.type === 'assistant' ? 'assistant' : (m.type || 'system')));
   const ts = m.timestamp || m.ts || 0;
+  const content = inner.content !== undefined ? inner.content : m.content;
   let body = '';
-  if (typeof m.content === 'string') body = '<div class="body">'+escHtml(m.content)+'</div>';
-  else if (Array.isArray(m.content)) {
-    body = m.content.map(c => {
+  if (typeof content === 'string') body = '<div class="body">'+escHtml(content)+'</div>';
+  else if (Array.isArray(content)) {
+    body = content.map(c => {
       if (!c || typeof c !== 'object') return '';
       if (c.type === 'text') return '<div class="body">'+escHtml(c.text||'')+'</div>';
       if (c.type === 'thinking') return '<div class="think">'+escHtml(c.thinking||c.text||'')+'</div>';
@@ -915,7 +919,7 @@ async function load(){
     const r = await fetch('/api/claude/sessions/' + encodeURIComponent(SID), { credentials: 'same-origin' });
     if (!r.ok){ els.main.innerHTML = '<div class="err"><h2>Session not found</h2><p>It may have been deleted or the link is invalid.</p></div>'; return; }
     const data = await r.json();
-    messages = (data.messages || []).filter(m => m && (m.role || m.content));
+    messages = (data.messages || []).filter(m => m && (m.role || m.type || m.content || m.message));
     els.title.textContent = data.name || 'Replay';
     els.mTurns.textContent = data.turns ?? messages.length;
     els.mCost.textContent = (typeof data.cost === 'number') ? ('$' + data.cost.toFixed(4)) : '—';
@@ -3539,10 +3543,13 @@ wss.on("connection", (ws, req) => {
           break;
         }
         case "claude-send": {
-          // Batch 26 — write-mode watcher: lock to its own session and reject attachments
+          // Batch 26 — write-mode watcher: lock to its own session, reject attachments,
+          // and reject session-config mutations (model/permMode/cwd/effort/thinking/fast).
           if (ws._isWatcher) {
             if (!ws._writable || parsed.id !== ws._watchSessionId) break;
             parsed.attachments = [];
+            delete parsed.model; delete parsed.permMode; delete parsed.cwd;
+            delete parsed.effort; delete parsed.thinking; delete parsed.fast;
           }
           const cs = claudeSessions.get(parsed.id);
           if (!cs || cs.dead) break;
