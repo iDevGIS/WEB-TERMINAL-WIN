@@ -4386,6 +4386,110 @@
       console.warn('[Monaco] Failed to load:', e);
       window.monacoReady = new Promise(() => {}); // never resolves, editor won't open but app works
     }
+
+    // Batch 28 — Inline LSP-lite: workspace-aware completions, hover, go-to-definition
+    (function ccLspBoot(){
+      let registered = false;
+      const _peekCache = new Map();   // path:line -> {text, ts}
+      const _symCache  = new Map();   // q -> {items, ts}
+      const TTL = 5000;
+      function _cwd() {
+        try { return (window._ccCurrentCwd && window._ccCurrentCwd()) || (window.activeTabId && window.tabs && window.tabs[window.activeTabId] && window.tabs[window.activeTabId].cwd) || ''; } catch { return ''; }
+      }
+      async function _api(url) {
+        try { const r = await fetch(url, { credentials: 'same-origin' }); if (!r.ok) return null; return await r.json(); } catch { return null; }
+      }
+      function _fileExtsForLang(lang) {
+        if (lang === 'typescript' || lang === 'javascript') return '.js,.jsx,.mjs,.cjs,.ts,.tsx,.json';
+        if (lang === 'python') return '.py';
+        if (lang === 'go') return '.go';
+        if (lang === 'rust') return '.rs';
+        return '';
+      }
+      function _registerProviders() {
+        if (registered || !window.monaco) return;
+        const langs = ['javascript', 'typescript', 'python', 'go', 'rust'];
+
+        // Path completion provider — triggers inside string literals containing / or ./ or ../
+        for (const lang of langs) {
+          monaco.languages.registerCompletionItemProvider(lang, {
+            triggerCharacters: ['/', '.', '"', "'", '`'],
+            async provideCompletionItems(model, position) {
+              const line = model.getLineContent(position.lineNumber);
+              const upto = line.slice(0, position.column - 1);
+              const m = upto.match(/['"`]([^'"`]*)$/);
+              if (!m) return { suggestions: [] };
+              const prefix = m[1];
+              if (!/[\.\/]/.test(prefix) && prefix.length < 2) return { suggestions: [] };
+              const cwd = _cwd();
+              const exts = _fileExtsForLang(lang);
+              const url = `/api/lsp/list?cwd=${encodeURIComponent(cwd)}&q=${encodeURIComponent(prefix)}${exts ? `&ext=${encodeURIComponent(exts)}` : ''}`;
+              const data = await _api(url);
+              if (!data || !Array.isArray(data.items)) return { suggestions: [] };
+              const word = model.getWordUntilPosition(position);
+              const range = { startLineNumber: position.lineNumber, endLineNumber: position.lineNumber, startColumn: word.startColumn, endColumn: word.endColumn };
+              return {
+                suggestions: data.items.slice(0, 30).map(it => ({
+                  label: it.rel,
+                  kind: monaco.languages.CompletionItemKind.File,
+                  insertText: it.rel,
+                  detail: it.ext || 'file',
+                  range,
+                })),
+              };
+            },
+          });
+        }
+
+        // Hover provider — show first lines of files referenced as imports/strings, and symbol definitions
+        for (const lang of langs) {
+          monaco.languages.registerHoverProvider(lang, {
+            async provideHover(model, position) {
+              const word = model.getWordAtPosition(position);
+              if (!word) return null;
+              const cacheKey = `sym:${word.word}`;
+              let items = null;
+              const cached = _symCache.get(cacheKey);
+              if (cached && Date.now() - cached.ts < TTL) items = cached.items;
+              else {
+                const cwd = _cwd();
+                const data = await _api(`/api/lsp/symbols?cwd=${encodeURIComponent(cwd)}&q=${encodeURIComponent(word.word)}`);
+                items = (data && data.items) || [];
+                _symCache.set(cacheKey, { items, ts: Date.now() });
+              }
+              if (!items.length) return null;
+              const lines = items.slice(0, 4).map(it => `- **${it.kind}** \`${it.name}\` — \`${it.rel}:${it.line}\`\n  \`\`\`\n  ${it.snippet}\n  \`\`\``);
+              return { contents: [{ value: `**Workspace symbol** \`${word.word}\`\n\n` + lines.join('\n\n') }] };
+            },
+          });
+        }
+
+        // Definition provider — Ctrl+Click to jump to first matching workspace symbol
+        for (const lang of langs) {
+          monaco.languages.registerDefinitionProvider(lang, {
+            async provideDefinition(model, position) {
+              const word = model.getWordAtPosition(position);
+              if (!word) return null;
+              const cwd = _cwd();
+              const data = await _api(`/api/lsp/symbols?cwd=${encodeURIComponent(cwd)}&q=${encodeURIComponent(word.word)}`);
+              const items = (data && data.items) || [];
+              if (!items.length) return null;
+              const root = data.root || cwd || '';
+              return items.slice(0, 5).map(it => ({
+                uri: monaco.Uri.parse('file:///' + (root ? root.replace(/\\/g,'/') + '/' : '') + it.rel),
+                range: { startLineNumber: it.line, startColumn: 1, endLineNumber: it.line, endColumn: 1 },
+              }));
+            },
+          });
+        }
+
+        registered = true;
+        console.log('[LSP-lite] Monaco providers registered for', langs.join(', '));
+      }
+      if (window.monacoReady && window.monacoReady.then) {
+        window.monacoReady.then(_registerProviders).catch(() => {});
+      }
+    })();
   </script>
   <script>
     // === Global Error Handler (debug mobile) ===

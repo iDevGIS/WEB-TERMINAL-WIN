@@ -4946,6 +4946,120 @@ app.delete("/api/claude/plugins/:id", requireAuth, async (req, res) => {
   }
 });
 
+// === Batch 28 — Lightweight LSP-like helpers (no daemon, just workspace walks) ===
+const LSP_IGNORE_DIRS = new Set(["node_modules", ".git", "dist", "build", "out", "__pycache__", ".next", ".venv", "venv", ".cache", "target", "coverage", ".idea", ".vscode"]);
+const LSP_LIST_LIMIT = 60;
+const LSP_LIST_MAX_DEPTH = 5;
+const LSP_SYM_LIMIT = 30;
+const LSP_SYM_MAX_BYTES = 256 * 1024;
+const LSP_SYM_MAX_FILES = 200;
+const LSP_PEEK_MAX_LINES = 80;
+
+function _lspWalk(root, depth, rel, want, results) {
+  if (results.length >= LSP_LIST_LIMIT || depth > LSP_LIST_MAX_DEPTH) return;
+  let entries;
+  try { entries = fs.readdirSync(root, { withFileTypes: true }); } catch { return; }
+  for (const e of entries) {
+    if (results.length >= LSP_LIST_LIMIT) break;
+    if (e.name.startsWith(".") && e.name !== ".env" && e.name !== ".gitignore") continue;
+    if (LSP_IGNORE_DIRS.has(e.name)) continue;
+    const childRel = rel ? rel + "/" + e.name : e.name;
+    const childAbs = path.join(root, e.name);
+    if (e.isDirectory()) _lspWalk(childAbs, depth + 1, childRel, want, results);
+    else {
+      const ext = path.extname(e.name).toLowerCase();
+      if (want.size && !want.has(ext)) continue;
+      if (results.length < LSP_LIST_LIMIT) results.push({ rel: childRel, ext, name: e.name });
+    }
+  }
+}
+
+app.get("/api/lsp/list", requireAuth, (req, res) => {
+  try {
+    const cwd = req.query.cwd || process.env.WORKSPACE_DIR || process.cwd();
+    const q = String(req.query.q || "").toLowerCase();
+    const exts = String(req.query.ext || "").split(",").map(s => s.trim().toLowerCase()).filter(Boolean);
+    const want = new Set(exts);
+    const root = path.resolve(cwd);
+    const results = [];
+    _lspWalk(root, 0, "", want, results);
+    const filtered = q
+      ? results.filter(r => r.rel.toLowerCase().includes(q) || r.name.toLowerCase().includes(q))
+      : results;
+    res.json({ root, items: filtered.slice(0, LSP_LIST_LIMIT) });
+  } catch (e) {
+    res.status(400).json({ error: String(e.message || e) });
+  }
+});
+
+const LSP_SYM_PATTERNS = [
+  // language: pattern, kind
+  { re: /^\s*(?:export\s+)?(?:async\s+)?function\s+([A-Za-z_$][\w$]*)/gm, kind: "function" },
+  { re: /^\s*(?:export\s+)?class\s+([A-Za-z_$][\w$]*)/gm, kind: "class" },
+  { re: /^\s*(?:export\s+)?(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=/gm, kind: "variable" },
+  { re: /^\s*def\s+([A-Za-z_][\w]*)/gm, kind: "function" },
+  { re: /^\s*class\s+([A-Za-z_][\w]*)/gm, kind: "class" },
+  { re: /^\s*func\s+(?:\([^)]*\)\s*)?([A-Za-z_][\w]*)/gm, kind: "function" },
+  { re: /^\s*(?:pub\s+)?(?:async\s+)?fn\s+([A-Za-z_][\w]*)/gm, kind: "function" },
+];
+
+app.get("/api/lsp/symbols", requireAuth, (req, res) => {
+  try {
+    const cwd = req.query.cwd || process.env.WORKSPACE_DIR || process.cwd();
+    const q = String(req.query.q || "").trim();
+    if (!q || !/^[A-Za-z_$][\w$]*$/.test(q)) return res.json({ items: [] });
+    const exts = new Set([".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx", ".py", ".go", ".rs"]);
+    const root = path.resolve(cwd);
+    const files = [];
+    _lspWalk(root, 0, "", exts, files);
+    const items = [];
+    for (const f of files.slice(0, LSP_SYM_MAX_FILES)) {
+      if (items.length >= LSP_SYM_LIMIT) break;
+      const abs = path.join(root, f.rel);
+      let text;
+      try {
+        const st = fs.statSync(abs);
+        if (st.size > LSP_SYM_MAX_BYTES) continue;
+        text = fs.readFileSync(abs, "utf8");
+      } catch { continue; }
+      for (const p of LSP_SYM_PATTERNS) {
+        const re = new RegExp(p.re.source, p.re.flags);
+        let m;
+        while ((m = re.exec(text)) !== null) {
+          if (m[1] !== q) continue;
+          const before = text.slice(0, m.index);
+          const line = before.split("\n").length;
+          items.push({ rel: f.rel, line, kind: p.kind, name: m[1], snippet: text.slice(m.index, m.index + 200).split("\n")[0] });
+          if (items.length >= LSP_SYM_LIMIT) break;
+        }
+        if (items.length >= LSP_SYM_LIMIT) break;
+      }
+    }
+    res.json({ root, items });
+  } catch (e) {
+    res.status(400).json({ error: String(e.message || e) });
+  }
+});
+
+app.get("/api/lsp/peek", requireAuth, (req, res) => {
+  try {
+    const p = req.query.path;
+    if (!p) return res.status(400).json({ error: "path required" });
+    const startLine = Math.max(1, parseInt(req.query.line || "1", 10) || 1);
+    const lines = Math.min(LSP_PEEK_MAX_LINES, Math.max(1, parseInt(req.query.lines || "30", 10) || 30));
+    const abs = path.resolve(p);
+    const st = fs.statSync(abs);
+    if (!st.isFile()) return res.status(400).json({ error: "not a file" });
+    if (st.size > 2 * 1024 * 1024) return res.status(400).json({ error: "file too large" });
+    const text = fs.readFileSync(abs, "utf8");
+    const all = text.split("\n");
+    const slice = all.slice(startLine - 1, startLine - 1 + lines).join("\n");
+    res.json({ path: abs, startLine, endLine: Math.min(all.length, startLine - 1 + lines), total: all.length, text: slice });
+  } catch (e) {
+    res.status(400).json({ error: String(e.message || e) });
+  }
+});
+
 // File search for @ picker — shallow recursive walk rooted at cwd, filtered by query
 app.get("/api/claude/file-search", requireAuth, (req, res) => {
   const cwd = req.query.cwd || process.env.USERPROFILE || process.env.HOME;
