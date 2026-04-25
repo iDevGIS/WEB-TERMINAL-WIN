@@ -1,0 +1,16 @@
+{
+  "name": "CYBERFRAME",
+  "short_name": "CYBERFRAME",
+  "description": "Claude Code web terminal — sessions, plugins, multi-user collab.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "theme_color": "#6c63ff",
+  "background_color": "#0a0a0a",
+  "categories": ["developer", "productivity"],
+  "icons": [
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}
