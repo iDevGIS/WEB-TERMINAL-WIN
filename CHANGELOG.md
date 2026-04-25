@@ -5,6 +5,76 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [3.0.0] — 2026-04-25 — Claude Code Tab: Production
+
+Major release covering the complete Claude Code Tab roadmap (Phase 2 Enhanced, Phase 3 Finalize, Phase 3 Future Enhancements, plus an extended set of marketplace/collab/PWA/LSP/replay features), an end-to-end test infrastructure, full user manual + manual test plan, and a UX/regression bug-fix sweep.
+
+### Added — Phase 2 Enhanced (Batches 1–16)
+- **Batch 1 — Top Bar Enhancements** (`1560952`): Compact button, End session, Context meter %, Permission cycling polish, Effort picker scaffold
+- **Batch 2 — Turn separators + thinking badge + subagent block** (`acc70cd`): "TURN N · Xs" dividers, 💭 thinking inline badge, subagent (Task) tool block with delegation header
+- **Batch 3 — Input enhancements** (`e999dc7`): `@` file picker (recursive walk, `node_modules/.git/dist` ignored, starts-with > contains ranking), image paste from clipboard, multi-file 📎 attach, drag-and-drop, command history (↑/↓), per-language code-block fencing
+- **Batch 4 — Backend persistence + Context/Cost APIs** (`91a3ffa`): Session Store persisted to `.claude-sessions/<id>.json` (debounced 1s), restored on startup with status=idle, `GET /api/claude/sessions/:id/context` + `GET .../cost` endpoints, cache-token row + `ccUpdateCost` wired
+- **Batch 5 — Rewind checkpoints** (`2ca5c75`): conversation-level rewind/branch points (1.9, 1.10, 3.3.4)
+- **Batch 6 — CLAUDE.md right-sidebar Info + relative time + collapsible right sidebar** (`2a2ba82`): "5m ago" timestamps, foldable right pane, CLAUDE.md preview
+- **Batch 7 — Tasks tab** (`39999e0`): TodoWrite live status panel (2.2.2)
+- **Batch 8 — Multi-tab + Workspace save** (`cec8b2e`): tab-aware persistence (7.4, 7.5)
+- **Batch 9 — Budget bar + Agent Team Block** (`4edd3d5`): visual budget tracking + agent_team event renderer (2.3.4 + 3.3.3)
+- **Batch 10 — System Status bar** (`ec0c377`): live agent / model / git / cwd pills (2.4.1–2.4.5)
+- **Batch 11 — Right-sidebar panels** (`a239515`): Memory / MCP / Hooks / Skills / Subagents tabs in collapsible right sidebar
+- **Batch 12 — MCP tool block + Agents sidebar tab** (`cb35b94`): dedicated MCP renderer (3.2.7) + Agents tab (2.2.3)
+- **Batch 13 — Click-to-Open in Monaco + File Watcher** (`9b049ba`): click any tool-block path → Monaco tab; file watcher repaints Files panel (3.2.9, 6.9)
+- **Batch 14 — Keyboard Hints + MCP Passthrough** (`8a613e4`): footer hints + MCP server passthrough (4.8, 6.10)
+- **Batch 15 — PR Status + Fork Session** (`404579c`): GitHub PR status pill + Fork existing session (1.7, 2.1.5)
+- **Batch 16 — Voice input** (`ec0c3e2`): Web Speech API mic button (4.4)
+
+### Added — Phase 3 Finalize Partials (Batches 17–19)
+- **Batch 17 — Phase 3 Finalize** (`2eeff1b`): Esc+Esc rewind hotkey, Whisper server-side fallback for voice STT, git-snapshot rewind (3.3.4 hotkey, 4.4 fallback, 1.9 code-restore base)
+- **Batch 18 — Inline plan approval UI** (`34ec167`): inline `-p` prompt approval (3.3.5)
+- **Batch 19 — VS Code serve-web LSP bridge** (`a3bdecf`): "💻 Open in VS Code" button + LSP pill toggling between built-in lite and `VS Code · <lang>` when serve-web is running on `$VSCODE_PORT` (2.4.5)
+
+### Added — Phase 3 Future Enhancements (Batches 20–24)
+- **Batch 20 — Session export** (`c45e21d`): `GET /api/claude/sessions/:id/export?format=md|json` — Markdown render with 🔧 fenced JSON tool input, 📄 truncated tool result (4KB), header with model/cwd/turns/cost/tokens, ⬇ download button in top bar
+- **Batch 21 — Multi-project sidebar** (`571ca73`): Recent Projects rows on cwd picker — pinned ⭐, sessions badge, relative time, ✕ remove, auto-track on cwd change; persisted at `.claude-sessions/projects.json` (cap 50, debounced 1s)
+- **Batch 22 — Streaming diff preview** (`acd01f2`): unified diff rendered immediately on `tool_use` for Edit/MultiEdit/Write — `+adds −dels` + 🟡 Pending → 🟢 Applied / 🔴 Failed transition on `tool_result`; resume hydration replays past edits
+- **Batch 23 — Shared Session read-only watch link** (`3dbd863`): `POST/GET/DELETE /api/claude/sessions/:id/share` + public `GET /watch/:token` viewer + `/share-ws` WS bypass; auto-revoke on session delete; Share modal in top bar
+- **Batch 24 — Plugin system** (`dea9074`): `window.ccPlugins` API, MutationObserver decoration with idempotent `data-cc-plugin-<id>` markers, `localStorage[cc-plugins-enabled]`, JSDoc `/* @cc-plugin id/name/description/author/version */` parser, sample `public/plugins/bash-pretty.js` adding 📋 Copy to Bash blocks, 🧩 Plugins toggle modal in top bar
+
+### Added — Extended Features (Batches 25–30)
+- **Batch 25 — Plugin Marketplace** (`999ccb9`): install-from-URL, plugin registry, uninstall flow with `localStorage` cleanup
+- **Batch 26 — Multi-user collab (writable share)** (`859f17e`): writable share token + composer in `/watch/:token` viewer
+- **Batch 27 — Mobile PWA** (`e2b8b2a`): `manifest.json` + `sw.js` service worker + install FAB (re-positioned in `27ab8a0` to bottom-right + dismiss button)
+- **Batch 28 — Inline LSP-lite** (`84e8a03`): Monaco path completions, hover, go-to-def via lightweight static analysis (no LSP server required)
+- **Batch 29 — Session Replay** (`57c7d74`): `/replay/:id` timeline + scrubber + variable speed + jump-to-turn
+- **Batch 30 — Bug-hunt sweep** (`c378ea0`): hardened writable share against config mutation, fixed replay rendering shape, plugged misc rough edges from extended batches
+
+### Added — Documentation
+- **`TEST-PLAN.md`** (`0972111`): 19-section manual test plan with ~140+ checkbox cases across Phase 1 smoke, Top Bar, Sidebars, Chat, Input, Multi-tab, File Watcher, Session Export, Multi-Project, Shared/Collab, Plugins, PWA, LSP, Replay, REST smoke, regression, and sign-off
+- **`USER-MANUAL.md`** (`f50acee`): end-user guide covering all Claude Code tab features (19 sections), keyboard cheatsheet, troubleshooting Q&A, file map, and REST/WS API reference
+
+### Added — Testing Infrastructure
+- **Playwright e2e setup** (`b9228d7`): `@playwright/test ^1.59.1`, all 3 browsers installed (Chromium · Firefox · WebKit + Winldd, ~270MB)
+- **`playwright.config.js`**: 5 projects (chromium, firefox, webkit, mobile-chrome Pixel 7, mobile-safari iPhone 14), 60s timeout, HTML report, trace on retry, screenshot on failure
+- **`tests/e2e/helpers/auth.js`**: login helper reading `TERM_USER`/`TERM_PASS` from `.env`
+- **`tests/e2e/smoke.spec.js`**: 4 smoke cases passing on chromium (12.5s) — server alive, login page reachable, post-login shell loads, REST `/api/claude/sessions`
+- npm scripts: `npm test`, `npm run test:headed`, `npm run test:ui`, `npm run test:smoke`, `npm run test:report`
+
+### Fixed — UX / Regression Sweep
+- **Image path Windows backslash** (`1cc86d4` + `11f9614`): `i.path.replace(/\\/g, "/")` before passing to Claude; `escAttr` now escapes `\` so HTML-attribute string literals like `'D:\TEST-UPLOAD\file.png'` survive JS string parsing (was collapsing to `D:TEST-UPLOADfile.png` → ENOENT). Affects file preview, click-to-open, files-changed list, download/edit overlay buttons.
+- **Right sidebar tabs overflow** (`1cc86d4` → `d18168c` → `ef6436e` → `2735990`): squish → horizontal scroll → hidden scrollbar (`scrollbar-width:none` + `::-webkit-scrollbar{display:none}`) → mouse drag-to-scroll with `grab`/`grabbing` cursor + 5px-threshold click suppression. 6 tabs (Info/Memory/MCP/Hooks/Skills/Agents) all visible; mobile/touch swipe still native.
+- **Number-input spinner on Budget field** (`6c7726b`): hidden via `appearance:textfield` + `::-webkit-outer/inner-spin-button { -webkit-appearance:none }`
+- **Topbar dropdown hover gap** (`f214ba8`): invisible `::before` bridge between Model/Effort pickers and their dropdowns prevents hover loss when the cursor crosses the gap
+- **PWA install pill repositioning** (`27ab8a0`): moved from `bottom:12px;left:12px` (overlapping Sessions panel) → `bottom:20px;right:20px` + × dismiss button persisted via `localStorage.cc-pwa-dismissed`
+
+### Changed
+- `package.json` version bumped `2.6.1` → `3.0.0`
+
+### Notes
+- All 30 batches in this release are tagged in commit messages with `Batch N:` for traceability.
+- The TODO checklist (`docs/CLAUDE-CODE-TAB-TODO.md`) was updated alongside each batch.
+- Server must be restarted to pick up backend changes (Batches 4, 17, 19, 20, 21, 23, 25, 26).
+
+---
+
 ## [2.6.1] — 2026-04-19
 
 ### Added — Dynamic Model Configuration
