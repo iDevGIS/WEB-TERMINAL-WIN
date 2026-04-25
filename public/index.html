@@ -2366,11 +2366,8 @@
     .cc-right-section-title { font-size:10px; color:#6c63ff; text-transform:uppercase; letter-spacing:.8px; margin-bottom:6px; font-weight:600; }
     .cc-right-empty { text-align:center; color:#5a5a7a; font-size:11px; padding:24px 12px; }
     /* Batch 11 — Right sidebar tabs (Info/Memory/MCP/Hooks/Skills/Subagents) */
-    .cc-right-tabs { display:flex; border-bottom:1px solid rgba(255,255,255,.08); flex-shrink:0; background:rgba(10,10,26,.4); overflow-x:auto; overflow-y:hidden; scroll-behavior:smooth; scrollbar-width:thin; scrollbar-color:rgba(108,99,255,.3) transparent; }
-    .cc-right-tabs::-webkit-scrollbar { height:3px; }
-    .cc-right-tabs::-webkit-scrollbar-track { background:transparent; }
-    .cc-right-tabs::-webkit-scrollbar-thumb { background:rgba(108,99,255,.3); border-radius:3px; }
-    .cc-right-tabs::-webkit-scrollbar-thumb:hover { background:rgba(108,99,255,.5); }
+    .cc-right-tabs { display:flex; border-bottom:1px solid rgba(255,255,255,.08); flex-shrink:0; background:rgba(10,10,26,.4); overflow-x:auto; overflow-y:hidden; scroll-behavior:smooth; scrollbar-width:none; -ms-overflow-style:none; }
+    .cc-right-tabs::-webkit-scrollbar { display:none; width:0; height:0; }
     .cc-right-tab { flex:0 0 auto; padding:8px 12px; font-size:10px; color:#7a7a9a; cursor:pointer; border-bottom:2px solid transparent; text-transform:uppercase; letter-spacing:.4px; font-weight:500; display:flex; align-items:center; justify-content:center; gap:5px; white-space:nowrap; }
     .cc-right-tab:hover { color:#c8c8d8; background:rgba(255,255,255,.03); }
     .cc-right-tab.active { color:#6c63ff; border-bottom-color:#6c63ff; background:rgba(108,99,255,.05); }
