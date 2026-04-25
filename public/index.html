@@ -2571,7 +2571,9 @@
     .cc-agent-team-body .cc-subagent-block { margin:0; border-color:rgba(168,85,247,.14); }
     /* 2.3.4 Budget bar */
     .cc-budget-row { display:flex; align-items:center; gap:6px; margin-top:6px; }
-    .cc-budget-input { flex:0 0 56px; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); border-radius:4px; padding:2px 6px; font-size:10px; color:#b0b0c8; font-family:'JetBrains Mono',monospace; outline:none; }
+    .cc-budget-input { flex:0 0 56px; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); border-radius:4px; padding:2px 6px; font-size:10px; color:#b0b0c8; font-family:'JetBrains Mono',monospace; outline:none; -moz-appearance:textfield; appearance:textfield; }
+    .cc-budget-input::-webkit-outer-spin-button,
+    .cc-budget-input::-webkit-inner-spin-button { -webkit-appearance:none; appearance:none; margin:0; }
     .cc-budget-input:focus { border-color:rgba(108,99,255,.4); }
     .cc-budget-bar { flex:1; height:6px; background:rgba(255,255,255,.05); border-radius:3px; overflow:hidden; position:relative; }
     .cc-budget-fill { height:100%; transition:width .3s ease, background .3s ease; background:#4ade80; }
