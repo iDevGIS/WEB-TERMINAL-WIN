@@ -4,7 +4,7 @@
 
 ![Node.js](https://img.shields.io/badge/Node.js-18+-339933?logo=nodedotjs&logoColor=white)
 ![Platform](https://img.shields.io/badge/Platform-Windows-0078D6?logo=windows&logoColor=white)
-![Version](https://img.shields.io/badge/Version-2.6.1-6c63ff)
+![Version](https://img.shields.io/badge/Version-3.0.0-6c63ff)
 ![License](https://img.shields.io/badge/License-MIT-blue)
 
 ## ✨ Features
@@ -208,6 +208,19 @@
 - **Permission & model** — changeable mid-session per message
 - **Dynamic model picker** — models loaded from platform config with deduplication
 - **Tab persistence** — save/restore on browser refresh
+- **@ file picker** — type `@` in input → fuzzy file search dropdown for inline mention
+- **Image paste / attach / drag-drop** — paste image from clipboard, attach files, drag&drop into composer; Windows path backslashes auto-normalized
+- **Voice input** — push-to-talk Whisper transcription, append to input
+- **Command history** — ↑/↓ navigate previous prompts per session
+- **Session Export** — download conversation as Markdown / JSON / HTML
+- **Multi-project sidebar** — Recent Projects panel with auto-tracked cwd, pin/unpin, session count
+- **Streaming diff preview** — Edit/MultiEdit/Write tool blocks render unified diff with `@@ -ostart +nstart @@` hunks immediately on `tool_use` (Pending → Applied/Failed on `tool_result`)
+- **Shared Sessions** — read-only watch link (`/watch/:token`) with live `claude-watch` WebSocket; writable share allows remote participants to send messages too
+- **Plugin system** — `public/plugins/*.js` with JSDoc front-matter, MutationObserver decoration on tool blocks, idempotent via `data-cc-plugin-<id>`, toggle on/off in 🧩 Plugins modal
+- **Plugin Marketplace** — install plugins from URL/Git, registry browser, uninstall from UI
+- **Inline LSP-lite** — Monaco editor with path completion, hover info, go-to-definition for local files
+- **Replay mode** — `/replay/:id` re-renders past session as video timeline with scrubber + speed control
+- **Sidebar tabs (6)** — Info / Memory / MCP / Hooks / Skills / Agents with drag-to-scroll and hidden scrollbar
 
 ### 💬 AI Chat (OpenClaw)
 - **SSE streaming** - real-time token-by-token response via Server-Sent Events
@@ -869,6 +882,16 @@ CYBERFRAME
 
 ## 🚧 Roadmap
 
+### ✅ Recently Shipped (v3.0.0)
+- **Streaming diff preview** in Claude Code tool blocks
+- **Shared Session** (read-only + writable collab)
+- **Plugin system + Marketplace**
+- **Mobile PWA** with install button + service worker
+- **Inline LSP-lite** for Monaco
+- **Replay mode** with timeline scrubber
+- **Multi-project sidebar** with pinning
+- **Playwright e2e** test suite (5 projects)
+
 ### 🔜 Next Up
 - **⌨️ Command Palette** - `Ctrl+K` quick access to all actions
 - **🐳 Docker Compose** - detect compose projects, up/down/restart, per-service logs
@@ -876,12 +899,10 @@ CYBERFRAME
 ### 📋 Planned
 - **Terminal built-in commands** - `!status`, `!sessions`, `!kill`
 - **2FA / TOTP** - two-factor authentication
-- **Terminal Sharing** - read-only collaboration links
-- **Session Recording** - asciinema-style playback
+- **Session Recording** - asciinema-style playback for terminals
 - **Custom Keybindings** - user-configurable shortcuts
 
 ### 🔮 Future
-- **Multi-user support** - currently single user
 - **HTTPS built-in** - currently relies on Tailscale
 - **Docker image** - one-click deploy CYBERFRAME itself
 - **Linux support** - currently Windows-only
