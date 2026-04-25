@@ -32,7 +32,7 @@
 | Batch 21 | `571ca73` | Multi-project sidebar (recent projects with pin/remove + auto-track) |
 | Batch 22 | `acd01f2` | Streaming diff preview for Edit/Write/MultiEdit (Pending → Applied) |
 | Batch 23 | `3dbd863` | Shared session — read-only watch link (`/watch/<token>` + `/share-ws`) |
-| Batch 24 | `_pending_` | Plugin system (custom tool block renderers via `window.ccPlugins`) |
+| Batch 24 | `dea9074` | Plugin system (custom tool block renderers via `window.ccPlugins`) |
 
 ### UX / Bug-fix Sweep (post Batch 21)
 
