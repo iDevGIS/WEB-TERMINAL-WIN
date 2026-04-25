@@ -1,7 +1,7 @@
 # Claude Code Tab — Feature List
 
 > Reference: [mock-claude-code-tab.html](mock-claude-code-tab.html)  
-> Status: Phase 3 Complete (Batches 1–19 merged)  
+> Status: Phase 3 Complete · Future Enhancements partial (Batches 1–21 merged + UX/bug-fix sweep)  
 > Priority: P0 = must-have, P1 = important, P2 = nice-to-have
 
 ## Batch History
@@ -28,6 +28,18 @@
 | Batch 17 | `2eeff1b` | Phase 3 finalize — Esc+Esc hotkey (3.3.4) · Whisper /api/stt fallback (4.4) · git-snapshot rewind with code restore (1.9) |
 | Batch 18 | `34ec167` | 3.3.5 Inline plan approval UI (ExitPlanMode interceptor → Approve/Revise card) |
 | Batch 19 | `a3bdecf` | 2.4.5 VS Code serve-web LSP bridge (engine probe + "Open in VS Code" deep link) |
+| Batch 20 | `c45e21d` | Session export `.md`/`.json` (transcript + tool blocks, truncate large results) |
+| Batch 21 | `571ca73` | Multi-project sidebar (recent projects with pin/remove + auto-track) |
+
+### UX / Bug-fix Sweep (post Batch 21)
+
+| Commit | Fix |
+|--------|-----|
+| `1cc86d4` | Image attach Windows path (`server.js:2998` backslash → forward slash before sending to Claude) + initial right-sidebar tabs overflow CSS |
+| `d18168c` | Right sidebar tabs: switch from squish layout to horizontal scroll (`flex:0 0 auto` + larger hit targets) |
+| `ef6436e` | Hide native scrollbar on right sidebar tabs (still scrollable via wheel/touch) |
+| `2735990` | Mouse drag-to-scroll on right sidebar tabs (5px threshold suppresses click after drag) |
+| `11f9614` | `escAttr` now escapes backslashes — fixes Windows file paths in Files panel preview, Click-to-Open, Files Changed list |
 
 ---
 
@@ -237,11 +249,14 @@ All previously-partial `[~]` items finalized in Batches 17–19:
 - **2.4.5 Code Intelligence** ✅ — VS Code serve-web TCP probe on :8080, deep-link button when alive (Batch 19)
 
 ### Phase 3 — Future Enhancements
-- Streaming diff preview (live edit visualization)
-- ~~Multi-project sidebar (switch between workspaces)~~ ✅ Batch 21
-- ~~Session export (markdown transcript with tool blocks)~~ ✅ Batch 20
-- Shared session (read-only link to watch someone's Claude Code session)
-- Plugin system for custom tool block renderers
+**Done:**
+- ✅ Multi-project sidebar (Batch 21)
+- ✅ Session export markdown/JSON (Batch 20)
+
+**Remaining:**
+- [ ] Streaming diff preview (live edit visualization)
+- [ ] Shared session (read-only link to watch someone's Claude Code session)
+- [ ] Plugin system for custom tool block renderers
 
 ### Batch 20 — Session Export ✅
 - `GET /api/claude/sessions/:id/export?format=md|json` — serializes messages to Markdown (text/thinking/tool_use/tool_result blocks with fenced JSON input + truncated results at 4KB) or raw JSON payload.
