@@ -13917,7 +13917,14 @@
 
     const sessionListEl = document.getElementById('session-list');
     const sessionCountEl = document.getElementById('session-count');
-    fetch('/api/version').then(r=>r.json()).then(d=>{if(d.version)sessionCountEl.textContent='v'+d.version;}).catch(()=>{});
+    fetch('/api/version').then(r=>r.json()).then(d=>{
+      if(d.version)sessionCountEl.textContent='v'+d.version;
+      if(d.hostname){
+        document.title='CYBERFRAME · '+d.hostname;
+        const apt=document.querySelector('meta[name="apple-mobile-web-app-title"]');
+        if(apt)apt.setAttribute('content','CYBERFRAME · '+d.hostname);
+      }
+    }).catch(()=>{});
     const toolbarTitle = document.getElementById('current-session-name');
     const toolbarStatus = document.getElementById('toolbar-status');
     // btnDetach moved to session card

@@ -1144,7 +1144,7 @@ function loadSnippets() {
 }
 function saveSnippets(arr) { fs.writeFileSync(SNIPPETS_FILE, JSON.stringify(arr, null, 2)); }
 
-app.get("/api/version", requireAuth, (req, res) => { res.json({ version: require('./package.json').version }); });
+app.get("/api/version", requireAuth, (req, res) => { res.json({ version: require('./package.json').version, hostname: os.hostname() }); });
 app.get("/api/snippets", requireAuth, (req, res) => { res.json(loadSnippets()); });
 app.post("/api/snippets", requireAuth, (req, res) => {
   const { name, command, category } = req.body;

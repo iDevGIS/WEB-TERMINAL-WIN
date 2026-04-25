@@ -840,6 +840,7 @@
 
       // Network
       document.getElementById('net-hostname').textContent = d.network.hostname;
+      if (d.network.hostname) document.title = 'CYBERFRAME · ' + d.network.hostname + ' — Admin';
       document.getElementById('net-local').textContent = d.network.localIP;
       document.getElementById('net-tailscale').textContent = d.network.tailscaleIP || '—';
       document.getElementById('net-port').textContent = d.network.port;
