@@ -16,6 +16,7 @@ const crypto = require("crypto");
 const { createProxyMiddleware } = require("http-proxy-middleware");
 const { execSync } = require("child_process");
 const cookie = require("cookie");
+const os = require("os");
 
 const PORT = process.env.PORT || 3000;
 const DEFAULT_SHELL = process.env.SHELL || "pwsh.exe";
