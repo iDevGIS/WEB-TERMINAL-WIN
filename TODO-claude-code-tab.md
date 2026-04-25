@@ -1,7 +1,7 @@
 # Claude Code Tab — Feature List
 
 > Reference: [mock-claude-code-tab.html](mock-claude-code-tab.html)  
-> Status: Phase 3 Complete · Future Enhancements complete (Batches 1–24 merged + UX/bug-fix sweep)  
+> Status: **v3.0.0 — Production** · Phases 1–3 + Extended Batches 25–30 + Playwright tests + USER-MANUAL + TEST-PLAN  
 > Priority: P0 = must-have, P1 = important, P2 = nice-to-have
 
 ## Batch History
@@ -33,6 +33,12 @@
 | Batch 22 | `acd01f2` | Streaming diff preview for Edit/Write/MultiEdit (Pending → Applied) |
 | Batch 23 | `3dbd863` | Shared session — read-only watch link (`/watch/<token>` + `/share-ws`) |
 | Batch 24 | `dea9074` | Plugin system (custom tool block renderers via `window.ccPlugins`) |
+| Batch 25 | `999ccb9` | Plugin Marketplace — install/uninstall + registry, fetch plugin from URL, persisted enable map |
+| Batch 26 | `859f17e` | Multi-user collab — write-mode shared session, composer + send button on `/watch/<token>` |
+| Batch 27 | `e2b8b2a` | Mobile PWA — `manifest.json` + `sw.js` service worker + Install App pill |
+| Batch 28 | `84e8a03` | Inline LSP-lite — Monaco path completion / hover / go-to-def via static project index |
+| Batch 29 | `57c7d74` | Session Replay — `/replay/:id` timeline + scrubber + speed control + jump-to-turn |
+| Batch 30 | `c378ea0` | Bug hunt sweep — harden writable share auth + fix replay tool block shape |
 
 ### UX / Bug-fix Sweep (post Batch 21)
 
@@ -43,6 +49,21 @@
 | `ef6436e` | Hide native scrollbar on right sidebar tabs (still scrollable via wheel/touch) |
 | `2735990` | Mouse drag-to-scroll on right sidebar tabs (5px threshold suppresses click after drag) |
 | `11f9614` | `escAttr` now escapes backslashes — fixes Windows file paths in Files panel preview, Click-to-Open, Files Changed list |
+| `6c7726b` | Hide number-input spinner arrows on Budget field (Cost panel) — `appearance:textfield` + `::-webkit-*-spin-button:none` |
+| `f214ba8` | Bridge invisible gap between top-bar pickers (Model/Effort/Thinking) and their dropdowns so hover doesn't break when crossing the gap |
+| `27ab8a0` | PWA Install App pill: relocate from bottom-left (covering sidebar) to bottom-right + add dismiss × button (`localStorage[cc-pwa-dismissed]`) |
+| `25ba660` | Show hostname in browser tab title (`CYBERFRAME · <hostname>` for main + admin + PWA `apple-mobile-web-app-title`) |
+| `557a8e4` | Make `/api/version` public (no auth) + add modern `<meta name="mobile-web-app-capable">` alongside Apple-specific tag (deprecated warning) |
+| `13fb5ac` | Require missing `os` module at top of `server.js` — fixes `/api/version` 500 (`os.hostname()` ReferenceError) |
+
+### Documentation & Tests
+
+| Commit | Artifact |
+|--------|----------|
+| `0972111` | `TEST-PLAN.md` — 19 sections · 140+ manual test cases (Phases 1–3 + Batches 25–30 + UX sweep) |
+| `f50acee` | `USER-MANUAL.md` — 19-section end-user guide for every Claude Code tab feature |
+| `b9228d7` | Playwright e2e setup — `playwright.config.js` + `tests/e2e/helpers/auth.js` + `tests/e2e/smoke.spec.js` (4 cases pass on chromium) + npm scripts (`test`, `test:headed`, `test:ui`, `test:smoke`, `test:report`) |
+| `851f86c` | Release v3.0.0 — `package.json` version bump + `CHANGELOG.md` (full Phase 1–3 + Batches 25–30 + UX sweep + tests + docs entry) |
 
 ---
 
@@ -251,15 +272,26 @@ All previously-partial `[~]` items finalized in Batches 17–19:
 - **3.3.5 Permission Prompt** ✅ — ExitPlanMode tool_use interception renders inline Approve/Revise card (Batch 18)
 - **2.4.5 Code Intelligence** ✅ — VS Code serve-web TCP probe on :8080, deep-link button when alive (Batch 19)
 
-### Phase 3 — Future Enhancements
-**Done:**
-- ✅ Multi-project sidebar (Batch 21)
+### Phase 3 — Future Enhancements ✅
 - ✅ Session export markdown/JSON (Batch 20)
+- ✅ Multi-project sidebar (Batch 21)
 - ✅ Streaming diff preview (Batch 22)
-- ✅ Shared session (Batch 23)
+- ✅ Shared session read-only (Batch 23)
 - ✅ Plugin system for custom tool block renderers (Batch 24)
 
-**Remaining:** _(none — Phase 3 future enhancements complete)_
+### Phase 3 — Extended (Batches 25–30) ✅
+- ✅ Plugin Marketplace — install from URL/registry + uninstall (Batch 25)
+- ✅ Multi-user collab — writable share with composer on `/watch/<token>` (Batch 26)
+- ✅ Mobile PWA — manifest + service worker + Install App pill (Batch 27)
+- ✅ Inline LSP-lite — Monaco path completion / hover / go-to-def (Batch 28)
+- ✅ Session Replay — `/replay/:id` timeline scrubber + speed control + jump-to-turn (Batch 29)
+- ✅ Bug hunt sweep — writable share auth gate + replay tool block shape fix (Batch 30)
+
+### Documentation & Tests ✅
+- ✅ `TEST-PLAN.md` — 19 sections, 140+ manual test cases
+- ✅ `USER-MANUAL.md` — 19-section end-user guide
+- ✅ Playwright e2e setup — chromium / firefox / webkit / mobile-chrome / mobile-safari (smoke spec passes on chromium)
+- ✅ `CHANGELOG.md` — v3.0.0 release entry covering all 30 batches + sweep + tests + docs
 
 ### Batch 20 — Session Export ✅
 - `GET /api/claude/sessions/:id/export?format=md|json` — serializes messages to Markdown (text/thinking/tool_use/tool_result blocks with fenced JSON input + truncated results at 4KB) or raw JSON payload.
@@ -296,6 +328,32 @@ All previously-partial `[~]` items finalized in Batches 17–19:
 - Backend: `recentProjects` Map persisted to `.claude-sessions/recent-projects.json` with `{ path, name, lastUsed, pinned }` (cap 50, drops oldest unpinned). Auto-track on `createClaudeSession` and WS cwd-change. Sessions count derived live from `claudeSessions` Map.
 - Endpoints: `GET /api/claude/projects`, `POST /api/claude/projects/track`, `POST /api/claude/projects/pin`, `DELETE /api/claude/projects`.
 - Frontend: "Recent Projects" section injected at the top of the cwd picker modal — folder name + RTL path + sessions badge + relative-time + pin (★) + remove (✕). Pinned entries sort first with a yellow accent rail. Click row → instant cwd select + close modal. `ccCwdSelect` now fires `ccProjectTrack` so file-browser picks also update the list.
+
+### Batch 25 — Plugin Marketplace ✅
+- Backend: `pluginRegistry` Map persisted to `.claude-sessions/plugin-registry.json`. New endpoints: `POST /api/claude/plugins/install` (download from URL → save to `public/plugins/<id>.js` → register), `DELETE /api/claude/plugins/:id` (uninstall + remove file), `GET /api/claude/plugins/registry` (list known plugins from registry index).
+- Frontend: 🛒 Marketplace tab inside the existing Plugins modal — input URL, click Install; on success the plugin appears in the runtime list with its enable toggle.
+
+### Batch 26 — Multi-user Collab (writable share) ✅
+- Backend: Share token now carries `mode: 'read' | 'write'`. `POST /api/claude/sessions/:id/share` accepts `mode`. WS upgrade for `/share-ws` honors the mode; write-mode watchers can post `claude-watch-input` (text + image attachments). Strict per-token authorization; revoke works for both modes.
+- Frontend: Share modal adds a Read/Write toggle. `/watch/<token>` viewer renders an input composer + send button when token mode is `write`. Read-only mode (Batch 23) unchanged.
+
+### Batch 27 — Mobile PWA ✅
+- `public/manifest.json` (name, icons, theme color, `display: standalone`) + `public/sw.js` (basic precache + offline fallback for static assets).
+- Service worker registered from `index.html`. `Install App` pill appears when `beforeinstallprompt` fires; clicking calls `prompt()`. Persistent dismiss via `localStorage[cc-pwa-dismissed]`.
+- iOS support via `apple-mobile-web-app-capable` + `apple-mobile-web-app-title` (set per host).
+
+### Batch 28 — Inline LSP-lite ✅
+- Backend: lightweight project index (file paths + heuristic symbol scan via regex). Endpoints `GET /api/lsp/index?cwd=...`, `GET /api/lsp/symbols?file=...`.
+- Frontend (Monaco): completion provider for path strings (after `'`/`"`/backtick); hover provider showing first symbol summary; go-to-def via Ctrl/Cmd-click on file paths and same-project identifiers.
+- Falls back gracefully when no project index — provider returns empty.
+
+### Batch 29 — Session Replay ✅
+- Backend: `GET /api/claude/sessions/:id/replay` returns ordered turn timeline (text + tool_use + tool_result + thinking + system flags). `GET /replay/:id` serves a self-contained HTML viewer (no shared deps).
+- Frontend viewer: top bar (session name, model, total turns, total cost) + scrubber bar (drag to jump to turn N) + speed control (0.5×/1×/2×/4×/Max) + Play/Pause + Step. Renders messages and tool blocks identically to live mode.
+
+### Batch 30 — Bug hunt sweep ✅
+- Hardened writable share: `claude-watch-input` now re-validates token + mode every message, ignores config mutate attempts (`set-model`, `set-cwd`, `set-permission`, etc.).
+- Replay rendering fix: tool block shape mismatch when reconstructing `tool_result` blobs from log files (some entries had `content` as string vs array). Normalizer added.
 
 ---
 
