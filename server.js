@@ -102,10 +102,24 @@ function createTermSession(name, cols = 120, rows = 30, shellId = "pwsh") {
     if (sess.buffer.length > SCROLLBACK_LIMIT) {
       sess.buffer = sess.buffer.slice(-SCROLLBACK_LIMIT);
     }
-    // Forward to all attached clients
+    // Forward to all attached clients as a binary frame:
+    //   [0x01][16 bytes ASCII hex sessionId][utf-8 data]
+    // Skips JSON.stringify + parse roundtrip and avoids permessage-deflate.
+    const dataBuf = Buffer.from(data, 'utf8');
+    const frame = Buffer.allocUnsafe(17 + dataBuf.length);
+    frame[0] = 0x01;
+    frame.write(sess.id, 1, 16, 'ascii');
+    dataBuf.copy(frame, 17);
     sess.clients.forEach(c => {
       if (c.readyState === 1) {
-        try { c.send(JSON.stringify({ type: "output", id: sess.id, data })); } catch (e) {}
+        try {
+          if (c._wantsBinary === false) {
+            // Legacy client that didn't opt into binary — fall back to JSON
+            c.send(JSON.stringify({ type: "output", id: sess.id, data }));
+          } else {
+            c.send(frame, { binary: true, compress: false });
+          }
+        } catch (e) {}
       }
     });
   });
@@ -3254,7 +3268,8 @@ app.get("/api/agent/sessions/info", requireAuth, (req, res) => {
 });
 
 const server = http.createServer(app);
-const wss = new WebSocketServer({ noServer: true });
+// perMessageDeflate disabled on hot-path WS to remove compression latency for keystrokes/PTY output
+const wss = new WebSocketServer({ noServer: true, perMessageDeflate: false });
 const vncWss = new WebSocketServer({ noServer: true });
 const spyWss = new WebSocketServer({ noServer: true });
 
@@ -3344,6 +3359,8 @@ const VNC_PORT = parseInt(process.env.VNC_PORT) || 5900;
 
 // Upgrade with session check — route terminal vs VNC
 server.on("upgrade", (req, socket, head) => {
+  // Disable Nagle on the underlying TCP socket so single keystrokes ship immediately
+  try { socket.setNoDelay(true); } catch {}
   // Batch 23 — Public read-only WS for shared-session watchers (no auth)
   if (req.url && req.url.startsWith("/share-ws")) {
     wss.handleUpgrade(req, socket, head, (ws) => {
@@ -3453,7 +3470,18 @@ wss.on("connection", (ws, req) => {
   // Track all sessions attached by this WS client (multi-tab support)
   const attachedSessions = new Map(); // id → session
 
-  ws.on("message", (msg) => {
+  ws.on("message", (msg, isBinary) => {
+    // Binary input frame (fast path, keystrokes):
+    //   [0x02][16 bytes ASCII hex sessionId][utf-8 data]
+    if (isBinary && Buffer.isBuffer(msg) && msg.length >= 17 && msg[0] === 0x02) {
+      if (ws._isWatcher) return; // watchers may not write to PTY
+      const sid = msg.slice(1, 17).toString('ascii');
+      const sess = attachedSessions.get(sid);
+      if (sess && !sess.dead) {
+        try { sess.pty.write(msg.slice(17).toString('utf8')); } catch {}
+      }
+      return;
+    }
     try {
       const parsed = JSON.parse(msg);
 

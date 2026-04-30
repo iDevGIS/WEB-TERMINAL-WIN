@@ -10028,16 +10028,12 @@
             let seq = '';
             if (mods.ctrl) seq = String.fromCharCode(data.charCodeAt(0) & 0x1f);
             else if (mods.alt) seq = '\x1b' + data;
-            if (seq && ws && ws.readyState === WebSocket.OPEN) {
-              ws.send(JSON.stringify({ type: 'input', id: pane.sessionId, data: seq }));
-            }
+            if (seq && pane.sessionId) wsSendInput(pane.sessionId, seq);
             Object.keys(mods).forEach(m => { mods[m] = false; document.querySelector(`.mkey[data-mod="${m}"]`)?.classList.remove('active'); });
             return;
           }
         }
-        if (ws && ws.readyState === WebSocket.OPEN && pane.sessionId) {
-          ws.send(JSON.stringify({ type: 'input', id: pane.sessionId, data }));
-        }
+        if (pane.sessionId) wsSendInput(pane.sessionId, data);
       });
 
       // Focus click → set active pane + highlight + sync sidebar
@@ -13978,6 +13974,7 @@
     function connect() {
       const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
       ws = new WebSocket(`${proto}//${location.host}`);
+      ws.binaryType = 'arraybuffer';
       window._ws = ws;
 
       ws.onopen = () => {
@@ -13997,8 +13994,59 @@
         }
       };
 
+      // Binary helpers (matches server frame format)
+      window._wsTextDec = window._wsTextDec || new TextDecoder('utf-8');
+      window._wsTextEnc = window._wsTextEnc || new TextEncoder();
+      window.wsSendInput = function(sessionId, data){
+        try {
+          if (ws && ws.readyState === WebSocket.OPEN && typeof sessionId === 'string' && sessionId.length === 16) {
+            const dataBytes = window._wsTextEnc.encode(data);
+            const frame = new Uint8Array(17 + dataBytes.length);
+            frame[0] = 0x02;
+            for (let i = 0; i < 16; i++) frame[1 + i] = sessionId.charCodeAt(i);
+            frame.set(dataBytes, 17);
+            ws.send(frame.buffer);
+            return;
+          }
+        } catch (e) {}
+        // Fallback (legacy or unexpected sessionId shape)
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'input', id: sessionId, data }));
+        }
+      };
+
+      function _wsRouteOutput(id, data){
+        const targetTab = findTabBySessionId(id || currentSessionId);
+        if (targetTab) {
+          const t = tabs.get(targetTab);
+          if (t && t.panes && t.panes.length > 1) {
+            const pane = t.panes.find(p => p.sessionId === id);
+            if (pane) pane.term.write(data);
+            else if (t.term) t.term.write(data);
+          } else if (t && t.term) {
+            t.term.write(data);
+          }
+        } else if (term) {
+          term.write(data);
+        }
+      }
+
       ws.onmessage = (e) => {
-        hbBytes += e.data.length;
+        // Fast path: binary PTY output frame [0x01][16 hex id][utf-8 data]
+        if (e.data instanceof ArrayBuffer) {
+          hbBytes += e.data.byteLength;
+          const view = new Uint8Array(e.data);
+          if (view.length >= 17 && view[0] === 0x01) {
+            let id = '';
+            for (let i = 1; i <= 16; i++) id += String.fromCharCode(view[i]);
+            const payload = window._wsTextDec.decode(view.subarray(17));
+            _wsRouteOutput(id, payload);
+            return;
+          }
+          // Unknown binary — ignore
+          return;
+        }
+        hbBytes += (e.data.length || 0);
         const msg = JSON.parse(e.data);
         switch (msg.type) {
           case 'sessions':
