@@ -77,7 +77,9 @@ function createTermSession(name, cols = 120, rows = 30, shellId = "pwsh") {
     rows,
     cwd: process.env.USERPROFILE || process.env.HOME,
     env: freshEnv(),
-    useConpty: false,
+    // Prefer ConPTY on Windows (Win10 1809+) — much faster than winpty fallback for keystroke I/O
+    useConpty: process.platform === "win32",
+    conptyInheritCursor: false,
   });
 
   const sess = {
