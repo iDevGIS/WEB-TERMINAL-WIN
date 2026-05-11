@@ -973,6 +973,75 @@
       border: none;
     }
 
+    .tab-pane .browser-tab-wrap {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      border-radius: 0 0 16px 16px;
+      overflow: hidden;
+      border: 1px solid rgba(255,255,255,.06);
+      border-top: none;
+      background: #0a0a1a;
+    }
+    .browser-tab-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 10px;
+      background: #0d0d22;
+      border-bottom: 1px solid rgba(108,99,255,.15);
+    }
+    .browser-tab-toolbar button {
+      background: rgba(255,255,255,.05);
+      border: 1px solid rgba(255,255,255,.08);
+      color: var(--text2);
+      padding: 5px 10px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      font-family: inherit;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 28px;
+      height: 28px;
+      transition: all .12s;
+    }
+    .browser-tab-toolbar button:hover:not(:disabled) {
+      background: rgba(108,99,255,.15);
+      color: var(--text);
+      border-color: rgba(108,99,255,.3);
+    }
+    .browser-tab-toolbar button:disabled { opacity: .35; cursor: default; }
+    .browser-tab-url {
+      flex: 1;
+      padding: 6px 12px;
+      height: 28px;
+      box-sizing: border-box;
+      border-radius: 6px;
+      background: rgba(0,0,0,.25);
+      border: 1px solid rgba(255,255,255,.08);
+      color: var(--text);
+      font-size: 13px;
+      font-family: inherit;
+      outline: none;
+    }
+    .browser-tab-url:focus { border-color: rgba(108,99,255,.4); background: rgba(0,0,0,.35); }
+    .browser-tab-frame {
+      flex: 1;
+      min-height: 0;
+      width: 100%;
+      border: none;
+      background: #fff;
+    }
+    .browser-tab-status {
+      font-size: 11px;
+      color: var(--text2);
+      padding: 0 6px;
+      white-space: nowrap;
+    }
+
     /* Files tab — file drawer displayed inline in tab */
     .files-tab-pane {
       overflow: hidden;
@@ -4356,6 +4425,11 @@
               <span class="feat-label">Docker</span>
               <span class="feat-sub">Containers</span>
             </div>
+            <div class="feature" onclick="openBrowserTab()" title="Web Browser">
+              <span class="fi"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></span>
+              <span class="feat-label">Browser</span>
+              <span class="feat-sub">Web pages</span>
+            </div>
             <div class="feature" onclick="openClaudeCodeTab()" title="Claude Code — AI Coding Agent">
               <span class="fi"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#f97316" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg></span>
               <span class="feat-label">Claude Code</span>
@@ -4523,6 +4597,104 @@
       createTab('vnc', { name: 'Remote Desktop', icon: '🖥️' });
     }
 
+    // === Browser tab ===
+    function openBrowserTab(url) {
+      createTab('browser', { name: 'Browser', icon: '🌐', url });
+    }
+
+    function _browserNormalizeUrl(input) {
+      const s = String(input || '').trim();
+      if (!s) return 'about:blank';
+      // Already has protocol
+      if (/^[a-z][a-z0-9+.-]*:/i.test(s)) return s;
+      // Looks like host with TLD or localhost
+      if (/^[\w.-]+\.[a-z]{2,}([:\/?#].*)?$/i.test(s) || /^localhost(:\d+)?([\/?#].*)?$/i.test(s) || /^\d{1,3}(\.\d{1,3}){3}(:\d+)?([\/?#].*)?$/.test(s)) return 'https://' + s;
+      // Otherwise treat as search query
+      return 'https://www.bing.com/search?q=' + encodeURIComponent(s);
+    }
+
+    function browserTabGo(tabId, url, skipHistory) {
+      const tab = tabs.get(tabId);
+      if (!tab || tab.type !== 'browser') return;
+      const target = _browserNormalizeUrl(url);
+      const frame = document.getElementById(tabId + '-bb-frame');
+      const urlInp = document.getElementById(tabId + '-bb-url');
+      if (urlInp && document.activeElement !== urlInp) urlInp.value = target;
+      if (!skipHistory) {
+        // truncate forward history, push new
+        tab.history = (tab.history || []).slice(0, tab.histIdx + 1);
+        tab.history.push(target);
+        tab.histIdx = tab.history.length - 1;
+      } else if (tab.histIdx < 0) {
+        tab.history = [target];
+        tab.histIdx = 0;
+      }
+      tab.url = target;
+      // Update tab label to reflect domain
+      try {
+        const u = new URL(target);
+        const newName = u.hostname || 'Browser';
+        if (tab.tabEl) {
+          const lbl = tab.tabEl.querySelector('.tab-label');
+          if (lbl) lbl.textContent = newName;
+        }
+        tab.name = newName;
+      } catch {}
+      if (frame) frame.src = target;
+      _browserUpdateNav(tabId);
+    }
+
+    function browserTabBack(tabId) {
+      const tab = tabs.get(tabId);
+      if (!tab || tab.histIdx <= 0) return;
+      tab.histIdx--;
+      const u = tab.history[tab.histIdx];
+      tab.url = u;
+      const frame = document.getElementById(tabId + '-bb-frame');
+      const urlInp = document.getElementById(tabId + '-bb-url');
+      if (frame) frame.src = u;
+      if (urlInp) urlInp.value = u;
+      _browserUpdateNav(tabId);
+    }
+
+    function browserTabForward(tabId) {
+      const tab = tabs.get(tabId);
+      if (!tab || tab.histIdx >= (tab.history || []).length - 1) return;
+      tab.histIdx++;
+      const u = tab.history[tab.histIdx];
+      tab.url = u;
+      const frame = document.getElementById(tabId + '-bb-frame');
+      const urlInp = document.getElementById(tabId + '-bb-url');
+      if (frame) frame.src = u;
+      if (urlInp) urlInp.value = u;
+      _browserUpdateNav(tabId);
+    }
+
+    function browserTabReload(tabId) {
+      const tab = tabs.get(tabId);
+      if (!tab) return;
+      const frame = document.getElementById(tabId + '-bb-frame');
+      if (!frame) return;
+      try { frame.contentWindow.location.reload(); } catch { frame.src = tab.url || frame.src; }
+    }
+
+    function browserTabHome(tabId) { browserTabGo(tabId, 'https://www.bing.com'); }
+
+    function browserTabOpenExternal(tabId) {
+      const tab = tabs.get(tabId);
+      if (!tab || !tab.url) return;
+      window.open(tab.url, '_blank', 'noopener');
+    }
+
+    function _browserUpdateNav(tabId) {
+      const tab = tabs.get(tabId);
+      if (!tab) return;
+      const bk = document.getElementById(tabId + '-bb-back');
+      const fw = document.getElementById(tabId + '-bb-fwd');
+      if (bk) bk.disabled = tab.histIdx <= 0;
+      if (fw) fw.disabled = tab.histIdx >= (tab.history || []).length - 1;
+    }
+
     // === Terminal Themes ===
     const THEMES = {
       cyberframe: {
@@ -4658,8 +4830,8 @@
       const tabEl = document.createElement('div');
       tabEl.className = 'tab-item';
       tabEl.dataset.tabId = tabId;
-      const icon = opts.icon || (type === 'terminal' ? '⚡' : type === 'editor' ? '📝' : type === 'preview' ? '👁' : type === 'admin' ? '🛡️' : type === 'chat' ? '💬' : type === 'agent-monitor' ? '🤖' : type === 'vscode' ? '💻' : type === 'vnc' ? '🖥️' : type === 'docker' ? '🐳' : type === 'spy' ? '👁' : type === 'claude-code' ? '⚡' : '📂');
-      const label = opts.name || (type === 'terminal' ? 'Shell' : type === 'editor' ? 'Editor' : type === 'preview' ? 'Preview' : type === 'admin' ? 'Admin' : type === 'chat' ? 'AI Chat' : type === 'agent-monitor' ? 'Agent Monitor' : type === 'vscode' ? 'VS Code' : type === 'vnc' ? 'Remote Desktop' : type === 'docker' ? 'Docker' : type === 'spy' ? 'Spy' : type === 'claude-code' ? 'Claude Code' : 'Files');
+      const icon = opts.icon || (type === 'terminal' ? '⚡' : type === 'editor' ? '📝' : type === 'preview' ? '👁' : type === 'admin' ? '🛡️' : type === 'chat' ? '💬' : type === 'agent-monitor' ? '🤖' : type === 'vscode' ? '💻' : type === 'vnc' ? '🖥️' : type === 'docker' ? '🐳' : type === 'spy' ? '👁' : type === 'claude-code' ? '⚡' : type === 'browser' ? '🌐' : '📂');
+      const label = opts.name || (type === 'terminal' ? 'Shell' : type === 'editor' ? 'Editor' : type === 'preview' ? 'Preview' : type === 'admin' ? 'Admin' : type === 'chat' ? 'AI Chat' : type === 'agent-monitor' ? 'Agent Monitor' : type === 'vscode' ? 'VS Code' : type === 'vnc' ? 'Remote Desktop' : type === 'docker' ? 'Docker' : type === 'spy' ? 'Spy' : type === 'claude-code' ? 'Claude Code' : type === 'browser' ? 'Browser' : 'Files');
       tabEl.innerHTML = `<span class="tab-icon">${icon}</span><span class="tab-label">${escHtml(label)}</span><span class="tab-close" onclick="event.stopPropagation();closeTab('${tabId}')">✕</span>`;
       if (type === 'claude-code') tabEl.style.color = '#f97316';
       tabEl.onclick = () => switchTab(tabId);
@@ -4974,6 +5146,37 @@
         const vncUrl = '/novnc/index.html?host=' + h + '&port=' + location.port + '&path=vnc-ws&resize=remote&autoconnect=true&reconnect=true&reconnect_delay=3000';
         paneEl.innerHTML = '<div class="vnc-tab-wrap"><iframe src="' + vncUrl + '" allow="clipboard-read; clipboard-write"></iframe></div>';
         container.appendChild(paneEl);
+
+      } else if (type === 'browser') {
+        const startUrl = opts.url || 'https://www.bing.com';
+        paneEl.innerHTML = `<div class="browser-tab-wrap">
+          <div class="browser-tab-toolbar">
+            <button onclick="browserTabBack('${tabId}')" id="${tabId}-bb-back" title="Back" disabled>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>
+            </button>
+            <button onclick="browserTabForward('${tabId}')" id="${tabId}-bb-fwd" title="Forward" disabled>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+            </button>
+            <button onclick="browserTabReload('${tabId}')" title="Reload">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+            </button>
+            <button onclick="browserTabHome('${tabId}')" title="Home">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+            </button>
+            <input class="browser-tab-url" id="${tabId}-bb-url" placeholder="URL or search…" value="${escAttr(startUrl)}" onkeydown="if(event.key==='Enter'){browserTabGo('${tabId}',this.value)}" onfocus="this.select()">
+            <button onclick="browserTabGo('${tabId}',document.getElementById('${tabId}-bb-url').value)" title="Go" style="padding:5px 12px">Go</button>
+            <button onclick="browserTabOpenExternal('${tabId}')" title="Open in real browser">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+            </button>
+          </div>
+          <iframe class="browser-tab-frame" id="${tabId}-bb-frame" referrerpolicy="no-referrer-when-downgrade" sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads" allow="clipboard-read; clipboard-write; fullscreen"></iframe>
+        </div>`;
+        container.appendChild(paneEl);
+        tabData.history = [];
+        tabData.histIdx = -1;
+        tabData.url = startUrl;
+        // Defer initial nav so DOM is ready
+        setTimeout(() => browserTabGo(tabId, startUrl, true), 30);
 
       } else if (type === 'admin') {
         paneEl.innerHTML = '<div class="admin-tab-wrap"><iframe src="/admin.html"></iframe></div>';
@@ -16258,6 +16461,9 @@
           if (tab.type === 'preview') {
             entry.filePath = tab.filePath;
           }
+          if (tab.type === 'browser') {
+            entry.url = tab.url || 'https://www.bing.com';
+          }
           state.tabs.push(entry);
           if (tabId === activeTabId) state.activeTabIndex = idx;
           idx++;
@@ -16397,6 +16603,9 @@
               const name = entry.filePath.split('/').pop().split('\\').pop();
               previewFile(entry.filePath, name);
             }, 300);
+            restoredAny = true;
+          } else if (entry.type === 'browser') {
+            createTab('browser', { name: entry.name || 'Browser', icon: entry.icon || '🌐', url: entry.url });
             restoredAny = true;
           }
         }
