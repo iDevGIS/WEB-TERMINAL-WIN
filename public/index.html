@@ -5640,17 +5640,91 @@
       if (tab && tab.scrap && tab.scrap._batchCtrl) tab.scrap._batchCtrl.abort();
     }
 
-    async function scrapPopulateAIAgents(tabId) {
-      const sel = document.getElementById(tabId + '-sc-ai-agent');
-      if (!sel || sel.dataset.loaded === '1') return;
-      try {
-        const data = await _fetchAgents();
-        const agents = Array.isArray(data?.agents) ? data.agents : ['main'];
-        const cur = sel.value || 'main';
-        sel.innerHTML = agents.map(a => `<option value="${a}">${a === 'main' ? 'main (default)' : a}</option>`).join('');
-        sel.value = agents.includes(cur) ? cur : 'main';
-        sel.dataset.loaded = '1';
-      } catch {}
+    function _scrapProviderStyle(provider) {
+      const p = provider || 'openclaw';
+      if (p === 'claude-code') return { color: '#f97316', bg: 'rgba(249,115,22,.1)', label: 'claude-code' };
+      if (p === 'ollama')      return { color: '#fbbf24', bg: 'rgba(251,191,36,.1)', label: 'ollama' };
+      return { color: '#c084fc', bg: 'rgba(192,132,252,.1)', label: p };
+    }
+
+    function _scrapUpdateAIModelBtn(tabId, model, data) {
+      const tab = tabs.get(tabId); if (!tab) return;
+      const btn = document.getElementById(tabId + '-sc-ai-model-btn'); if (!btn) return;
+      const lbl = document.getElementById(tabId + '-sc-ai-model-label');
+      const bdg = document.getElementById(tabId + '-sc-ai-model-badge');
+      const ctx = document.getElementById(tabId + '-sc-ai-model-ctx');
+      const allModels = (data && data.models) || (_agentData && _agentData.models) || [];
+      const m = allModels.find(x => x.id === model);
+      if (m) {
+        const s = _scrapProviderStyle(m.provider);
+        if (bdg) { bdg.textContent = s.label; bdg.style.background = s.bg; bdg.style.color = s.color; }
+        if (lbl) lbl.textContent = m.name;
+        if (ctx) ctx.textContent = typeof _chatMaxTokensStr === 'function' ? _chatMaxTokensStr(m.id) : '';
+      } else {
+        if (bdg) { bdg.textContent = 'openclaw'; bdg.style.background = 'rgba(192,132,252,.1)'; bdg.style.color = '#c084fc'; }
+        if (lbl) lbl.textContent = model || 'main (default)';
+        if (ctx) ctx.textContent = '';
+      }
+    }
+
+    async function scrapInitAIModel(tabId) {
+      const tab = tabs.get(tabId); if (!tab) return;
+      const data = await _fetchAgents();
+      const models = (data && data.models) || [];
+      // Pick default: saved > tab > localStorage > data.default (first with default:true) > anthropic primary > first model
+      let pick = tab.scrap.aiModel || localStorage.getItem('cf-scrap-ai-model') || '';
+      if (!pick && data.defaultModel) {
+        const cand = 'anthropic/' + String(data.defaultModel).replace(/^anthropic\//, '');
+        if (models.some(m => m.id === cand)) pick = cand;
+      }
+      if (!pick) {
+        const defModel = models.find(m => m.default);
+        pick = defModel ? defModel.id : (models[0]?.id || '');
+      }
+      tab.scrap.aiModel = pick;
+      _scrapUpdateAIModelBtn(tabId, pick, data);
+    }
+
+    async function scrapPickAIModel(tabId) {
+      const tab = tabs.get(tabId); if (!tab) return;
+      const data = await _fetchAgents();
+      const models = (data && data.models) || [];
+      if (!models.length) { if (typeof showToast === 'function') showToast('No models available', 'error'); return; }
+      document.querySelectorAll('.sess-info-overlay').forEach(e => e.remove());
+      const overlay = document.createElement('div');
+      overlay.className = 'sess-info-overlay';
+      overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+      const currentModel = tab.scrap.aiModel || '';
+      overlay.innerHTML = `<div class="sess-info-modal" style="width:380px">
+        <h3 style="margin-bottom:14px">Pick AI Model <button class="dip-close" onclick="this.closest('.sess-info-overlay').remove()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></h3>
+        <div style="font-size:10px;color:var(--text3);margin-bottom:8px">Used for Scrap Tool AI Selector Generator</div>
+        <div id="scrap-model-list" style="display:flex;flex-direction:column;gap:4px;max-height:340px;overflow-y:auto"></div>
+      </div>`;
+      document.body.appendChild(overlay);
+      const container = document.getElementById('scrap-model-list');
+      const formatSize = (b) => b > 1e9 ? (b/1e9).toFixed(1) + 'GB' : b > 1e6 ? (b/1e6).toFixed(0) + 'MB' : '';
+      container.innerHTML = models.map(m => {
+        const s = _scrapProviderStyle(m.provider);
+        const isCurrent = m.id === currentModel;
+        return `<button class="chat-action-sm" style="padding:8px 12px;font-size:11px;justify-content:flex-start;gap:8px${isCurrent ? ';border-color:rgba(108,99,255,.5);background:rgba(108,99,255,.1)' : ''}" data-model-id="${m.id}">
+          <span style="font-size:8px;padding:1px 5px;border-radius:3px;background:${s.bg};color:${s.color};font-weight:600">${s.label}</span>
+          <span style="font-weight:500">${m.name}</span>
+          <span style="font-size:9px;color:var(--text3);margin-left:auto">${typeof _chatMaxTokensStr === 'function' ? _chatMaxTokensStr(m.id) : ''}</span>
+          ${m.size ? '<span style="font-size:9px;color:var(--text3)">' + formatSize(m.size) + '</span>' : ''}
+          ${isCurrent ? '<span style="font-size:8px;color:#6c63ff;background:rgba(108,99,255,.1);padding:1px 5px;border-radius:3px">current</span>' : ''}
+          ${m.default ? '<span style="font-size:8px;color:#4ade80;background:rgba(74,222,128,.1);padding:1px 5px;border-radius:3px">default</span>' : ''}
+        </button>`;
+      }).join('');
+      container.querySelectorAll('[data-model-id]').forEach(btn => {
+        btn.onclick = () => {
+          const id = btn.dataset.modelId;
+          tab.scrap.aiModel = id;
+          try { localStorage.setItem('cf-scrap-ai-model', id); } catch {}
+          _scrapUpdateAIModelBtn(tabId, id, data);
+          overlay.remove();
+          if (typeof showToast === 'function') showToast('AI model: ' + id, 'success');
+        };
+      });
     }
 
     async function scrapAIGenerate(tabId) {
@@ -5658,14 +5732,14 @@
       if (!tab || !tab.scrap.html) { scrapSetStatus(tabId, 'run page first', 'err'); return; }
       const goal = document.getElementById(tabId + '-sc-goal').value.trim();
       if (!goal) { scrapSetStatus(tabId, 'enter goal', 'err'); return; }
-      const agentId = (document.getElementById(tabId + '-sc-ai-agent')?.value) || 'main';
+      const model = tab.scrap.aiModel || '';
       const btn = document.getElementById(tabId + '-sc-ai-btn');
       btn.disabled = true; const oldText = btn.textContent; btn.textContent = '⏳ Thinking…';
       scrapSetStatus(tabId, 'AI generating…');
       try {
         const r = await fetch('/api/scrap/ai-selectors', {
           method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-          body: JSON.stringify({ html: tab.scrap.html, goal, agentId }),
+          body: JSON.stringify({ html: tab.scrap.html, goal, model, agentId: 'main' }),
         });
         const d = await scrapJson(r);
         if (!r.ok || d.error) throw new Error(d.error || 'AI failed');
@@ -6425,7 +6499,7 @@
             <div class="scrap-side">
               <div class="scrap-side-tabs">
                 <div class="scrap-side-tab active" data-sc-tab="selectors" onclick="scrapSwitchTab('${tabId}','selectors',this)">Selectors</div>
-                <div class="scrap-side-tab" data-sc-tab="ai" onclick="scrapSwitchTab('${tabId}','ai',this);scrapPopulateAIAgents('${tabId}')">✨ AI</div>
+                <div class="scrap-side-tab" data-sc-tab="ai" onclick="scrapSwitchTab('${tabId}','ai',this);scrapInitAIModel('${tabId}')">✨ AI</div>
                 <div class="scrap-side-tab" data-sc-tab="recipes" onclick="scrapSwitchTab('${tabId}','recipes',this);scrapLoadRecipes('${tabId}')">Recipes</div>
               </div>
               <div class="scrap-side-body" id="${tabId}-sc-side">
@@ -6445,16 +6519,19 @@
                     <div class="scrap-section-title" style="margin-top:0">Tell AI what to extract</div>
                     <textarea id="${tabId}-sc-goal" placeholder="e.g. 'product name, price, image' — AI จะ generate selectors ให้"></textarea>
                     <div style="display:flex;gap:6px;margin-top:6px;align-items:center">
-                      <span style="font-size:11.5px;color:var(--text2);min-width:48px">Agent</span>
-                      <select id="${tabId}-sc-ai-agent" style="flex:1;background:var(--bg1);color:var(--text);border:1px solid var(--bd);border-radius:6px;padding:5px 8px;font-size:12px">
-                        <option value="main">main (default)</option>
-                      </select>
+                      <span style="font-size:11.5px;color:var(--text2);min-width:42px">Model</span>
+                      <button id="${tabId}-sc-ai-model-btn" onclick="scrapPickAIModel('${tabId}')" style="flex:1;display:flex;align-items:center;gap:6px;background:var(--bg1);color:var(--text);border:1px solid var(--bd);border-radius:6px;padding:5px 8px;font-size:12px;cursor:pointer;text-align:left;justify-content:flex-start" title="Click to change model">
+                        <span id="${tabId}-sc-ai-model-badge" style="font-size:8px;padding:1px 5px;border-radius:3px;background:rgba(192,132,252,.1);color:#c084fc;font-weight:600">openclaw</span>
+                        <span id="${tabId}-sc-ai-model-label" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">loading…</span>
+                        <span id="${tabId}-sc-ai-model-ctx" style="font-size:9px;color:var(--text3)"></span>
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="opacity:.6"><polyline points="6 9 12 15 18 9"/></svg>
+                      </button>
                     </div>
                     <button class="scrap-btn primary" style="margin-top:6px;width:100%" onclick="scrapAIGenerate('${tabId}')" id="${tabId}-sc-ai-btn">✨ Generate selectors</button>
                   </div>
                   <div style="font-size:11px;color:var(--text3);line-height:1.5">
-                    ใช้ OpenClaw Gateway (เหมือน AI Chat) — ไม่ต้องตั้ง API key แยก.<br>
-                    เลือก agent ที่ต้องการ (default = main agent ของลูกพี่)<br>
+                    เลือก model ได้ทั้ง OpenClaw Gateway, Claude Code CLI, หรือ Ollama (local).<br>
+                    Gateway ใช้ token เดียวกับ AI Chat — ไม่ต้องตั้ง API key แยก.<br>
                     ต้อง Run page ก่อน (ต้องมี HTML ใน memory)
                   </div>
                 </div>
@@ -6553,6 +6630,7 @@
           mode: opts.scrapMode || 'static',
           url: startUrl,
           auth: opts.scrapAuth || { cookie: '', headers: {} },
+          aiModel: opts.scrapAIModel || (localStorage.getItem('cf-scrap-ai-model') || ''),
         };
         setTimeout(() => {
           scrapRenderFields(tabId);

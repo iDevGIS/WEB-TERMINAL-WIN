@@ -5571,8 +5571,11 @@ app.post("/api/scrap/ai-selectors", requireAuth, express.json({ limit: "10mb" })
   const userMsg = `Goal: ${goal}\n\nHTML:\n\`\`\`html\n${compact}\n\`\`\`\n\nReturn JSON in this exact shape:\n{\n  "rootSelector": "selector for each item (empty string if single record)",\n  "selectors": {\n    "fieldName": { "selector": "css-selector relative to rootSelector", "attr": "text|html|href|src|alt|title|..." }\n  }\n}`;
 
   const provider = String(req.body.provider || "").toLowerCase();
-  const wantAnthropic = provider === "anthropic";
-  const useGateway = !wantAnthropic && !!OPENCLAW_TOKEN;
+  const wantAnthropicSdk = provider === "anthropic";
+  const reqModel = String(req.body.model || "").trim();
+  const isOllama = reqModel.startsWith("ollama/");
+  const isClaudeCode = reqModel.startsWith("claude-code/");
+  const useGateway = !wantAnthropicSdk && !isOllama && !isClaudeCode && !!OPENCLAW_TOKEN;
 
   try {
     let text = "";
@@ -5580,10 +5583,58 @@ app.post("/api/scrap/ai-selectors", requireAuth, express.json({ limit: "10mb" })
     let modelUsed = "";
     let providerUsed = "";
 
-    if (useGateway) {
+    if (isOllama) {
+      const ollamaModel = reqModel.replace(/^ollama\//, "");
+      modelUsed = reqModel;
+      providerUsed = "ollama";
+      const r = await fetch("http://127.0.0.1:11434/v1/chat/completions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: ollamaModel,
+          messages: [
+            { role: "system", content: sys },
+            { role: "user", content: userMsg },
+          ],
+          stream: false,
+          response_format: { type: "json_object" },
+        }),
+      });
+      if (!r.ok) {
+        const errText = await r.text();
+        return res.status(r.status).json({ error: "ollama error: " + errText.slice(0, 500) });
+      }
+      const d = await r.json();
+      text = d?.choices?.[0]?.message?.content || "";
+      usage = d?.usage;
+    } else if (isClaudeCode) {
+      const alias = reqModel.replace(/^claude-code\//, "") || "haiku";
+      modelUsed = reqModel;
+      providerUsed = "claude-code";
+      const { spawn } = require("child_process");
+      const cliBin = path.join(__dirname, "node_modules", "@anthropic-ai", "claude-code", "cli.js");
+      const args = [cliBin, "-p", "--model", alias, "--output-format", "text", "--dangerously-skip-permissions"];
+      const proc = spawn(process.execPath, args, {
+        cwd: process.env.WORKSPACE_DIR || process.cwd(),
+        env: { ...process.env, FORCE_COLOR: "0" },
+        stdio: ["pipe", "pipe", "pipe"],
+      });
+      const fullPrompt = sys + "\n\n" + userMsg;
+      proc.stdin.write(fullPrompt);
+      proc.stdin.end();
+      text = await new Promise((resolve, reject) => {
+        let out = "", err = "";
+        const to = setTimeout(() => { try { proc.kill(); } catch {} reject(new Error("claude-code timeout (60s)")); }, 60000);
+        proc.stdout.on("data", d => out += d.toString());
+        proc.stderr.on("data", d => err += d.toString());
+        proc.on("close", code => { clearTimeout(to); code === 0 ? resolve(out) : reject(new Error("claude-code exit " + code + (err ? ": " + err.slice(0, 300) : ""))); });
+        proc.on("error", e => { clearTimeout(to); reject(e); });
+      });
+    } else if (useGateway) {
       const agentId = String(req.body.agentId || "main");
+      // If model is anthropic/* select primary; otherwise use openclaw or openclaw/<agent>
       const gwModel = agentId && agentId !== "main" ? "openclaw/" + agentId : "openclaw";
-      modelUsed = gwModel;
+      modelUsed = reqModel || gwModel;
       providerUsed = "gateway";
       const payload = {
         model: gwModel,
@@ -5634,7 +5685,7 @@ app.post("/api/scrap/ai-selectors", requireAuth, express.json({ limit: "10mb" })
       if (!apiKey) return res.status(400).json({ error: "AI not configured: set OPENCLAW_TOKEN (recommended) or ANTHROPIC_API_KEY" });
       const Anthropic = require("@anthropic-ai/sdk").default;
       const client = new Anthropic({ apiKey });
-      modelUsed = String(req.body.model || "claude-haiku-4-5-20251001");
+      modelUsed = reqModel.replace(/^anthropic\//, "") || "claude-haiku-4-5-20251001";
       providerUsed = "anthropic";
       const msg = await client.messages.create({
         model: modelUsed,

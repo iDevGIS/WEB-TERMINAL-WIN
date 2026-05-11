@@ -5,6 +5,37 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [3.3.0] — 2026-05-12 — Scrap Tool AI Model Picker (multi-provider)
+
+Minor release — Scrap Tool ✨ AI pane swaps the single "Agent" `<select>` for a full **Model Picker** that mirrors the AI Chat "New Chat" dialog. You can now pick any model the server knows about — OpenClaw Gateway (`anthropic/*`), Claude Code CLI (`claude-code/*`), or Ollama local (`ollama/*`) — per-tab, persisted in `localStorage`.
+
+### Added — Client UI
+- **Model picker button** replaces `<select>`: shows provider badge (purple/orange/yellow) · model name · context window · GB size (Ollama) · `default` marker
+- Click → overlay modal with the full model list (same renderer style as AI Chat `chatChangeModel()`)
+- Selection persists across tabs/reloads via `localStorage["cf-scrap-ai-model"]`
+- Tab-level state in `tab.scrap.aiModel`
+
+### Changed — `/api/scrap/ai-selectors`
+- New `model` body field (full id like `anthropic/claude-opus-4-7`, `claude-code/opus`, `ollama/qwen2.5-coder:32b`)
+- Routing logic:
+  - `ollama/*` → POST `http://127.0.0.1:11434/v1/chat/completions` (non-stream, `response_format: json_object`)
+  - `claude-code/*` → spawn bundled `@anthropic-ai/claude-code/cli.js -p --model <alias> --output-format text` (60s timeout)
+  - `anthropic/*` or unspecified → OpenClaw Gateway (previous default; unchanged)
+  - `provider: "anthropic"` request → direct Anthropic SDK (kept for users without `OPENCLAW_TOKEN`)
+- Response includes the resolved `model` + `provider` ("ollama"/"claude-code"/"gateway"/"anthropic")
+
+### Why
+- ลูกพี่อยากเลือกได้ทั้ง 3 providers จาก dropdown แบบ AI Chat (ภาพ "New Chat" modal)
+- Local Ollama = cost zero สำหรับ selector gen / Claude Code = ใช้ subscription / Gateway = main
+- Per-tab + persistent → recipe-friendly (open Scrap tab → AI pane → picked model already remembered)
+
+### Files touched
+- `server.js` — `/api/scrap/ai-selectors` adds 3-route dispatcher (~80 lines)
+- `public/index.html` — replace `<select>` with picker button; add `scrapInitAIModel`, `scrapPickAIModel`, `_scrapUpdateAIModelBtn`, `_scrapProviderStyle`; thread `aiModel` through tab state
+- `package.json` — 3.2.0 → 3.3.0
+
+---
+
 ## [3.2.0] — 2026-05-12 — Scrap Tool AI uses OpenClaw Gateway
 
 Minor release — AI Selector Generator now routes through the OpenClaw Gateway (same plumbing as the AI Chat tab). **No separate `ANTHROPIC_API_KEY` required** — reuses the existing `OPENCLAW_TOKEN` already configured for AI Chat.
