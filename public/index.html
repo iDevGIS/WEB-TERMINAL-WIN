@@ -1520,15 +1520,35 @@
     .scrap-batch-modal input:focus, .scrap-batch-modal textarea:focus { border-color: rgba(167,139,250,.45); background: rgba(0,0,0,.4); }
     .scrap-batch-modal textarea { resize: vertical; min-height: 90px; font-family: ui-monospace, 'JetBrains Mono', monospace; }
     .scrap-script-modal { width: min(820px, 96%); max-height: 92%; }
-    .scrap-script-pre {
-      margin: 0; padding: 12px 14px; background: rgba(0,0,0,.5);
-      border: 1px solid rgba(255,255,255,.08); border-radius: 8px;
+    .scrap-script-editor {
+      display: flex; background: #0b0b1d; border: 1px solid rgba(167,139,250,.22);
+      border-radius: 8px; max-height: 48vh; overflow: hidden;
       font-family: ui-monospace, 'JetBrains Mono', 'Consolas', monospace;
-      font-size: 12px; line-height: 1.55; color: #d8e0ff;
-      white-space: pre; overflow: auto; max-height: 42vh;
+      font-size: 12.5px; line-height: 1.6;
+      box-shadow: inset 0 0 0 1px rgba(0,0,0,.4);
     }
+    .scrap-script-gutter {
+      flex: 0 0 auto; min-width: 42px; padding: 12px 0;
+      background: rgba(0,0,0,.32); color: rgba(167,139,250,.55);
+      text-align: right; user-select: none; overflow: hidden;
+      border-right: 1px solid rgba(255,255,255,.06);
+    }
+    .scrap-script-gutter-inner { padding: 0 8px 0 10px; white-space: pre; will-change: transform; }
+    .scrap-script-pre {
+      flex: 1 1 auto; margin: 0; padding: 12px 14px;
+      background: transparent; border: none; color: #d8e0ff;
+      white-space: pre; overflow: auto; box-sizing: border-box;
+    }
+    .scrap-script-pre code.hljs,
+    .scrap-script-pre code {
+      background: transparent !important; padding: 0 !important;
+      font: inherit; display: block;
+    }
+    .scrap-script-editor::-webkit-scrollbar,
     .scrap-script-pre::-webkit-scrollbar { width: 10px; height: 10px; }
     .scrap-script-pre::-webkit-scrollbar-thumb { background: rgba(167,139,250,.32); border-radius: 5px; }
+    .scrap-script-pre::-webkit-scrollbar-thumb:hover { background: rgba(167,139,250,.5); }
+    .scrap-script-pre::-webkit-scrollbar-track { background: rgba(0,0,0,.2); }
     .scrap-batch-modal .row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
     .scrap-batch-modal .mode-toggle { display: flex; gap: 4px; background: rgba(0,0,0,.25); padding: 3px; border-radius: 8px; border: 1px solid rgba(255,255,255,.06); }
     .scrap-batch-modal .mode-toggle button { flex: 1; background: transparent; border: none; color: var(--text2); padding: 6px 10px; border-radius: 5px; cursor: pointer; font-size: 12px; }
@@ -5793,8 +5813,31 @@
       const useAuth = !!document.getElementById(tabId + '-sc-sx-auth').checked;
       const opts = scrapCollectScriptOpts(tabId, useBatch, useAuth);
       const code = scrapBuildScript(tab, lang, lib, opts);
-      const pre = document.getElementById(tabId + '-sc-sx-preview');
-      if (pre) pre.textContent = code;
+      const codeEl = document.getElementById(tabId + '-sc-sx-preview');
+      const gutterEl = document.getElementById(tabId + '-sc-sx-gutter');
+      const preEl = document.getElementById(tabId + '-sc-sx-pre');
+      const hlLang = lang === 'python' ? 'python' : 'javascript';
+      if (codeEl) {
+        codeEl.dataset.raw = code;
+        codeEl.className = 'hljs language-' + hlLang;
+        try {
+          codeEl.innerHTML = (window.hljs && hljs.getLanguage(hlLang))
+            ? hljs.highlight(code, { language: hlLang, ignoreIllegals: true }).value
+            : code.replace(/[&<>]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;' }[c]));
+        } catch (e) {
+          codeEl.textContent = code;
+        }
+      }
+      if (gutterEl) {
+        const nLines = code.split('\n').length;
+        gutterEl.textContent = Array.from({ length: nLines }, (_, i) => i + 1).join('\n');
+      }
+      if (preEl && gutterEl && !preEl.dataset.scrollBound) {
+        preEl.dataset.scrollBound = '1';
+        preEl.addEventListener('scroll', () => {
+          gutterEl.style.transform = 'translateY(' + (-preEl.scrollTop) + 'px)';
+        });
+      }
       tab.scrap.scriptExport = { lang, lib, batch: useBatch, auth: useAuth };
       const ext = scrapScriptExt(lang);
       const fname = (tab.name || 'scrap').replace(/[^a-z0-9_-]+/gi,'_') + '.' + ext;
@@ -5838,10 +5881,11 @@
     }
     function scrapScriptExt(lang) { return lang === 'python' ? 'py' : 'mjs'; }
     function scrapExportScriptCopy(tabId) {
-      const pre = document.getElementById(tabId + '-sc-sx-preview');
-      if (!pre) return;
+      const codeEl = document.getElementById(tabId + '-sc-sx-preview');
+      if (!codeEl) return;
+      const raw = codeEl.dataset.raw || codeEl.textContent || '';
       try {
-        navigator.clipboard.writeText(pre.textContent);
+        navigator.clipboard.writeText(raw);
         const st = document.getElementById(tabId + '-sc-sx-status');
         if (st) st.textContent = 'copied ✓';
       } catch (e) {
@@ -5852,11 +5896,12 @@
     function scrapExportScriptDownload(tabId) {
       const tab = tabs.get(tabId);
       if (!tab) return;
-      const pre = document.getElementById(tabId + '-sc-sx-preview');
-      if (!pre) return;
+      const codeEl = document.getElementById(tabId + '-sc-sx-preview');
+      if (!codeEl) return;
+      const raw = codeEl.dataset.raw || codeEl.textContent || '';
       const lang = document.getElementById(tabId + '-sc-sx-lang').value;
       const fname = (tab.name || 'scrap').replace(/[^a-z0-9_-]+/gi,'_') + '.' + scrapScriptExt(lang);
-      const blob = new Blob([pre.textContent], { type: 'text/plain;charset=utf-8' });
+      const blob = new Blob([raw], { type: 'text/plain;charset=utf-8' });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
       a.download = fname;
@@ -7729,7 +7774,10 @@ ${fields}
               </label>
               <div class="hint" id="${tabId}-sc-sx-hint" style="margin-top:8px">Generates a standalone runnable script using your current selectors, mode, auth, and batch config. No CYBERFRAME runtime needed.</div>
               <label style="margin-top:10px">Code preview</label>
-              <pre class="scrap-script-pre" id="${tabId}-sc-sx-preview"></pre>
+              <div class="scrap-script-editor">
+                <div class="scrap-script-gutter"><div class="scrap-script-gutter-inner" id="${tabId}-sc-sx-gutter">1</div></div>
+                <pre class="scrap-script-pre" id="${tabId}-sc-sx-pre"><code id="${tabId}-sc-sx-preview" class="hljs"></code></pre>
+              </div>
               <div class="actions">
                 <span style="flex:1;font-size:11px;color:var(--text3)" id="${tabId}-sc-sx-status">—</span>
                 <button class="scrap-btn" onclick="scrapExportScriptCopy('${tabId}')">📋 Copy</button>
