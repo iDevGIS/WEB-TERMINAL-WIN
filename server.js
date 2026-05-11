@@ -5559,22 +5559,40 @@ app.post("/api/scrap/extract", requireAuth, express.json({ limit: "10mb" }), (re
 
 const SCRAP_AI_SYS = `You are an expert web scraping engineer. Given HTML and a user goal, produce robust CSS selectors that survive small page changes.
 
+CRITICAL — THE GOAL IS THE DIRECTIVE:
+The user's goal tells you WHICH region of the page to extract. It is NOT a hint — it is the instruction. Different goals on the same page produce different selectors. The most visible content (e.g. product grid) is not always what the user wants.
+
+Read the goal in any language (English, Thai, etc.) and map it to a content region:
+  • "category", "categories", "หมวด", "หมวดหมู่", "ประเภท", "เมนู", "sidebar", "navigation", "nav", "menu"
+     → side navigation list: <aside>, <nav>, sidebar <ul> of links. NOT the main product/article grid.
+  • "product", "products", "สินค้า", "หนังสือ", "book", "item", "listing"
+     → main repeating product/item grid.
+  • "article", "post", "news", "ข่าว", "บทความ"
+     → article cards or list rows in the main content area.
+  • "comment", "review", "ความเห็น", "รีวิว"
+     → repeating comment/review blocks inside a discussion thread.
+  • "search result", "ผลการค้นหา" → repeating search-result rows.
+  • single-record goals ("get title of this page", "extract product detail") → set rootSelector "".
+
+When the goal is ambiguous, use the most specific region that fits. Re-read the goal before writing rootSelector. If your draft rootSelector points to a different region than the goal asks for, FIX IT before responding.
+
 ANALYSIS PROCESS:
-1. Identify the page type (listing, detail, search results, category, mixed).
-2. Locate the REPEATING item container — that is "rootSelector". It must match MULTIPLE elements. If the page describes a single record (e.g. product detail), leave rootSelector "".
-3. For each requested field, write a selector RELATIVE to rootSelector (no full path).
-4. Prefer stable, semantic class names. Avoid auto-generated hash classes (e.g. "css-1k3xyz", "sc-abc123", random hex/uuid suffixes). Prefer :nth-child only when no semantic class exists.
-5. Pick the correct attribute:
+1. Re-read the user goal. Identify the requested region (sidebar nav, main grid, single record, etc.).
+2. Identify the page type (listing, detail, search results, category, mixed).
+3. Locate the REPEATING item container in the requested region — that is "rootSelector". It must match MULTIPLE elements. If the page describes a single record, leave rootSelector "".
+4. For each requested field, write a selector RELATIVE to rootSelector (no full path).
+5. Prefer stable, semantic class names. Avoid auto-generated hash classes (e.g. "css-1k3xyz", "sc-abc123", random hex/uuid suffixes). Prefer :nth-child only when no semantic class exists.
+6. Pick the correct attribute:
    - "text" → visible text content
    - "html" → raw inner HTML
    - "href" / "src" / "alt" / "title" / "data-*" → attribute value
    - For images: if you see "data-src", "data-original", "data-lazy" instead of "src", use those (lazy loading)
-6. Detect pagination: a visible "next" link, a numeric page list, a URL pattern like ?page=N or /page-N.html, or infinite scroll.
-7. Flag any quirks in "notes": lazy images, multi-language tabs, hidden filters, requires JS, login wall, captcha, etc.
+7. Detect pagination ONLY when the goal implies a paginated dataset. A category sidebar typically has no pagination → "none".
+8. Flag any quirks in "notes": lazy images, multi-language tabs, hidden filters, requires JS, login wall, captcha, etc.
 
 OUTPUT — return ONLY valid JSON (no markdown fences, no commentary outside JSON). Schema:
 {
-  "thinking": "1-3 sentences explaining the page structure and your selector strategy",
+  "thinking": "1-3 sentences. Start with: 'Goal asks for X, so I target Y region.' Then explain selector strategy.",
   "rootSelector": "CSS selector that matches each item (or \\"\\" for single record)",
   "selectors": {
     "fieldName": { "selector": "relative-to-root", "attr": "text|html|href|src|alt|title|data-..." }
@@ -5588,9 +5606,9 @@ OUTPUT — return ONLY valid JSON (no markdown fences, no commentary outside JSO
   "notes": "warnings, caveats, or extra context (empty string if none)"
 }
 
-EXAMPLE (for a books listing page):
+EXAMPLE 1 — goal "list books on this page" (main product grid):
 {
-  "thinking": "Books listing — each book is in 'article.product_pod'. Title is in 'h3 a title' attr (cleaner than text). Pagination uses '/catalogue/page-N.html' pattern.",
+  "thinking": "Goal asks for books listing, so I target the main product grid. Each book is in 'article.product_pod'. Title is cleaner in the 'title' attribute. Pagination is a URL pattern.",
   "rootSelector": "article.product_pod",
   "selectors": {
     "title": { "selector": "h3 a", "attr": "title" },
@@ -5598,14 +5616,42 @@ EXAMPLE (for a books listing page):
     "image": { "selector": ".image_container img", "attr": "src" },
     "link":  { "selector": "h3 a", "attr": "href" }
   },
-  "paginationHint": {
-    "type": "url-pattern",
-    "selector": "li.next a",
-    "pattern": "https://books.toscrape.com/catalogue/page-{N}.html",
-    "totalPages": 50
+  "paginationHint": { "type": "url-pattern", "selector": "li.next a", "pattern": "https://books.toscrape.com/catalogue/page-{N}.html", "totalPages": 50 },
+  "notes": ""
+}
+
+EXAMPLE 2 — goal "list รายการ category" / "list categories" / "หมวดหมู่" (sidebar navigation, NOT products):
+{
+  "thinking": "Goal asks for category list, so I target the sidebar nav (NOT the product grid). Categories sit inside the side nav as <li><a> links. No pagination — it is a static navigation list.",
+  "rootSelector": "div.side_categories ul li ul li",
+  "selectors": {
+    "name": { "selector": "a", "attr": "text" },
+    "link": { "selector": "a", "attr": "href" }
   },
+  "paginationHint": { "type": "none", "selector": "", "pattern": "", "totalPages": 0 },
+  "notes": "Top-level link 'Books' is the parent group; the requested categories are nested children."
+}
+
+EXAMPLE 3 — goal "get article title and body" (single record):
+{
+  "thinking": "Goal describes a single record (one article), so rootSelector is empty. Selectors are absolute from the page root.",
+  "rootSelector": "",
+  "selectors": {
+    "title": { "selector": "h1.entry-title", "attr": "text" },
+    "body":  { "selector": "div.entry-content", "attr": "html" },
+    "author":{ "selector": ".author-name", "attr": "text" }
+  },
+  "paginationHint": { "type": "none", "selector": "", "pattern": "", "totalPages": 0 },
   "notes": ""
 }`;
+
+// Goal classifier — picks up navigation/category keywords (TH + EN) so the
+// HTML preprocessor preserves <nav>/<aside> regions that contain the answer.
+const SCRAP_NAV_GOAL_RE = /\b(categor(y|ies)|nav(igation)?|menu|sidebar|breadcrumb|footer|header|sitemap|tag list|tag cloud)\b|หมวด|หมวดหมู่|ประเภท|เมนู|รายการเมนู|นาวิเกชั่น|แท็ก|ไซด์บาร์|ลิงก์ทั้งหมด/i;
+function _scrapGoalWantsChrome(goal) {
+  if (!goal) return false;
+  return SCRAP_NAV_GOAL_RE.test(String(goal));
+}
 
 // HTML preprocessor — keep structure, strip noise, preserve class/id for AI to learn from
 function _scrapAIClean(html, opts) {
@@ -5779,7 +5825,10 @@ app.post("/api/scrap/ai-selectors", requireAuth, express.json({ limit: "16mb" })
   const reqModel = String(req.body.model || "").trim();
   const agentId = String(req.body.agentId || "main");
   const currentFields = Array.isArray(req.body.currentFields) ? req.body.currentFields : [];
-  const keepChrome = !!req.body.keepChrome;
+  const goalWantsChrome = _scrapGoalWantsChrome(goal);
+  // Auto-keep chrome (nav/aside/header/footer) when the goal asks for them —
+  // otherwise the preprocessor strips the very region the user wants.
+  const keepChrome = !!req.body.keepChrome || goalWantsChrome;
 
   const cleaned = _scrapAIClean(html, { keepChrome });
   // Limit ~150k chars — Opus 4.7 = 1M ctx, comfortably handles this even with system+reasoning
@@ -5833,6 +5882,8 @@ app.post("/api/scrap/ai-selectors", requireAuth, express.json({ limit: "16mb" })
       model: r1.modelUsed,
       provider: r1.providerUsed,
       htmlChars: compact.length,
+      keepChromeApplied: keepChrome,
+      goalHint: goalWantsChrome ? "nav/categories" : null,
     });
   } catch (e) {
     res.status(500).json({ error: String(e.message || e) });
