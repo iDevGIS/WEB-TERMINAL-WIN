@@ -5394,6 +5394,38 @@ function _scrapExtractValue($, node, attr) {
   return String(node.attr(attr) || "");
 }
 
+// Build extra HTTP headers from auth.cookie + auth.headers
+function _scrapAuthHeaders(auth) {
+  const out = {};
+  if (!auth) return out;
+  if (auth.cookie && typeof auth.cookie === "string") out["Cookie"] = auth.cookie;
+  if (auth.headers && typeof auth.headers === "object") {
+    for (const k of Object.keys(auth.headers)) {
+      const v = auth.headers[k];
+      if (v == null) continue;
+      // Block hop-by-hop + dangerous overrides
+      if (/^host$|^connection$|^content-length$|^transfer-encoding$/i.test(k)) continue;
+      out[k] = String(v);
+    }
+  }
+  return out;
+}
+// Convert "k=v; k2=v2" cookie string to Playwright cookie array (scoped to host of url)
+function _scrapCookieArrayForUrl(cookieStr, url) {
+  if (!cookieStr || typeof cookieStr !== "string") return [];
+  let u; try { u = new URL(url); } catch { return []; }
+  const out = [];
+  for (const part of cookieStr.split(/;\s*/)) {
+    const i = part.indexOf("=");
+    if (i <= 0) continue;
+    const name = part.slice(0, i).trim();
+    const value = part.slice(i + 1).trim();
+    if (!name) continue;
+    out.push({ name, value, domain: u.hostname, path: "/" });
+  }
+  return out;
+}
+
 // Tier 1 — static fetch (no JS)
 app.post("/api/scrap/fetch", requireAuth, express.json({ limit: "512kb" }), async (req, res) => {
   const url = String(req.body.url || "").trim();
@@ -5404,6 +5436,7 @@ app.post("/api/scrap/fetch", requireAuth, express.json({ limit: "512kb" }), asyn
         "User-Agent": SCRAP_UA,
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         "Accept-Language": "en-US,en;q=0.7,th;q=0.5",
+        ..._scrapAuthHeaders(req.body.auth),
       },
       redirect: "follow",
     });
@@ -5429,6 +5462,10 @@ app.post("/api/scrap/browser", requireAuth, express.json({ limit: "512kb" }), as
       userAgent: SCRAP_UA,
       viewport: { width: 1366, height: 900 },
     });
+    const extraHeaders = _scrapAuthHeaders(req.body.auth);
+    if (Object.keys(extraHeaders).length) await context.setExtraHTTPHeaders(extraHeaders);
+    const cookieArr = _scrapCookieArrayForUrl(req.body.auth && req.body.auth.cookie, url);
+    if (cookieArr.length) await context.addCookies(cookieArr);
     const page = await context.newPage();
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 });
     if (waitFor) { try { await page.waitForSelector(waitFor, { timeout: 15000 }); } catch (e) { /* keep going */ } }
@@ -5625,11 +5662,16 @@ async function _scrapRunRecipe(recipe) {
   const url = String(recipe.url || "").trim();
   if (!/^https?:\/\//i.test(url)) throw new Error("invalid recipe url");
   const mode = ["static", "browser"].includes(recipe.mode) ? recipe.mode : "static";
+  const auth = recipe.auth || {};
   let html, finalUrl, status;
   if (mode === "browser") {
     const browser = await _getScrapBrowser();
     const context = await browser.newContext({ userAgent: SCRAP_UA, viewport: { width: 1366, height: 900 } });
     try {
+      const extraHeaders = _scrapAuthHeaders(auth);
+      if (Object.keys(extraHeaders).length) await context.setExtraHTTPHeaders(extraHeaders);
+      const cookieArr = _scrapCookieArrayForUrl(auth.cookie, url);
+      if (cookieArr.length) await context.addCookies(cookieArr);
       const page = await context.newPage();
       await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 });
       if (recipe.waitFor) { try { await page.waitForSelector(recipe.waitFor, { timeout: 15000 }); } catch {} }
@@ -5653,7 +5695,7 @@ async function _scrapRunRecipe(recipe) {
     } finally { try { await context.close(); } catch {} }
   } else {
     const r = await fetch(url, {
-      headers: { "User-Agent": SCRAP_UA, "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8", "Accept-Language": "en-US,en;q=0.7,th;q=0.5" },
+      headers: { "User-Agent": SCRAP_UA, "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8", "Accept-Language": "en-US,en;q=0.7,th;q=0.5", ..._scrapAuthHeaders(auth) },
       redirect: "follow",
     });
     html = await r.text();
@@ -5814,6 +5856,10 @@ app.post("/api/scrap/recipes", requireAuth, express.json({ limit: "512kb" }), (r
     waitFor: String(body.waitFor || existing.waitFor || ""),
     waitMs: parseInt(body.waitMs) || existing.waitMs || 0,
     scroll: body.scroll != null ? !!body.scroll : !!existing.scroll,
+    auth: (body.auth && typeof body.auth === "object") ? {
+      cookie: String(body.auth.cookie || ""),
+      headers: (body.auth.headers && typeof body.auth.headers === "object") ? body.auth.headers : {},
+    } : (existing.auth || { cookie: "", headers: {} }),
     schedule: {
       enabled: !!sch.enabled,
       intervalMin: Math.max(1, parseInt(sch.intervalMin) || 60),
@@ -5878,6 +5924,7 @@ app.post("/api/scrap/batch", requireAuth, express.json({ limit: "1mb" }), async 
   const waitMs = Math.min(20000, Math.max(0, parseInt(body.waitMs) || 0));
   const scroll = !!body.scroll;
   const addSourceCol = body.addSourceCol !== false;
+  const auth = body.auth || {};
   const streamMode = String(req.query.stream || "").toLowerCase() === "1";
 
   const cheerio = require("cheerio");
@@ -5911,6 +5958,10 @@ app.post("/api/scrap/batch", requireAuth, express.json({ limit: "1mb" }), async 
         const browser = await _getScrapBrowser();
         const context = await browser.newContext({ userAgent: SCRAP_UA, viewport: { width: 1366, height: 900 } });
         try {
+          const extraHeaders = _scrapAuthHeaders(auth);
+          if (Object.keys(extraHeaders).length) await context.setExtraHTTPHeaders(extraHeaders);
+          const cookieArr = _scrapCookieArrayForUrl(auth.cookie, url);
+          if (cookieArr.length) await context.addCookies(cookieArr);
           const page = await context.newPage();
           await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 });
           if (waitFor) { try { await page.waitForSelector(waitFor, { timeout: 15000 }); } catch {} }
@@ -5934,7 +5985,7 @@ app.post("/api/scrap/batch", requireAuth, express.json({ limit: "1mb" }), async 
         } finally { try { await context.close(); } catch {} }
       } else {
         const r = await fetch(url, {
-          headers: { "User-Agent": SCRAP_UA, "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8", "Accept-Language": "en-US,en;q=0.7,th;q=0.5" },
+          headers: { "User-Agent": SCRAP_UA, "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8", "Accept-Language": "en-US,en;q=0.7,th;q=0.5", ..._scrapAuthHeaders(auth) },
           redirect: "follow",
         });
         html = await r.text();

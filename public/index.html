@@ -5335,6 +5335,7 @@
       try {
         const endpoint = mode === 'browser' ? '/api/scrap/browser' : '/api/scrap/fetch';
         const body = mode === 'browser' ? { url, scroll, waitMs: 800 } : { url };
+        if (tab.scrap.auth && (tab.scrap.auth.cookie || (tab.scrap.auth.headers && Object.keys(tab.scrap.auth.headers).length))) body.auth = tab.scrap.auth;
         const r = await fetch(endpoint, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' }, body: JSON.stringify(body) });
         const d = await scrapJson(r);
         if (!r.ok || d.error) throw new Error(d.error || ('HTTP ' + r.status));
@@ -5432,6 +5433,63 @@
       }
     }
 
+    // === Auth (Cookies + Headers) ===
+    function scrapParseHeaderText(txt) {
+      const out = {};
+      if (!txt) return out;
+      for (const line of String(txt).split(/\r?\n/)) {
+        const i = line.indexOf(':');
+        if (i <= 0) continue;
+        const k = line.slice(0, i).trim();
+        const v = line.slice(i + 1).trim();
+        if (k && v) out[k] = v;
+      }
+      return out;
+    }
+    function scrapStringifyHeaders(obj) {
+      if (!obj) return '';
+      return Object.keys(obj).map(k => `${k}: ${obj[k]}`).join('\n');
+    }
+    function scrapAuthOpen(tabId) {
+      const tab = tabs.get(tabId);
+      if (!tab || !tab.scrap) return;
+      const auth = tab.scrap.auth || {};
+      const ckEl = document.getElementById(tabId + '-sc-au-cookie');
+      const hdEl = document.getElementById(tabId + '-sc-au-headers');
+      if (ckEl) ckEl.value = auth.cookie || '';
+      if (hdEl) hdEl.value = scrapStringifyHeaders(auth.headers);
+      const bd = document.getElementById(tabId + '-sc-auth-bd');
+      if (bd) bd.classList.add('open');
+      const st = document.getElementById(tabId + '-sc-au-status');
+      if (st) st.textContent = (auth.cookie || (auth.headers && Object.keys(auth.headers).length)) ? 'Auth active for this tab' : '—';
+    }
+    function scrapAuthClose(tabId) {
+      const bd = document.getElementById(tabId + '-sc-auth-bd');
+      if (bd) bd.classList.remove('open');
+    }
+    function scrapAuthApply(tabId) {
+      const tab = tabs.get(tabId);
+      if (!tab || !tab.scrap) return;
+      const cookie = (document.getElementById(tabId + '-sc-au-cookie').value || '').trim();
+      const headers = scrapParseHeaderText(document.getElementById(tabId + '-sc-au-headers').value || '');
+      tab.scrap.auth = { cookie, headers };
+      const has = !!(cookie || Object.keys(headers).length);
+      const btn = document.getElementById(tabId + '-sc-auth-btn');
+      if (btn) btn.classList.toggle('primary', has);
+      const st = document.getElementById(tabId + '-sc-au-status');
+      if (st) st.textContent = has ? `applied (${cookie ? 'cookie+' : ''}${Object.keys(headers).length} headers)` : 'cleared';
+      scrapSetStatus(tabId, has ? 'auth applied' : 'auth cleared', 'ok');
+      setTimeout(() => scrapAuthClose(tabId), 600);
+    }
+    function scrapAuthClear(tabId) {
+      const tab = tabs.get(tabId);
+      if (tab && tab.scrap) tab.scrap.auth = { cookie: '', headers: {} };
+      const ck = document.getElementById(tabId + '-sc-au-cookie'); if (ck) ck.value = '';
+      const hd = document.getElementById(tabId + '-sc-au-headers'); if (hd) hd.value = '';
+      const btn = document.getElementById(tabId + '-sc-auth-btn'); if (btn) btn.classList.remove('primary');
+      const st = document.getElementById(tabId + '-sc-au-status'); if (st) st.textContent = 'cleared';
+    }
+
     // === Batch Scrape ===
     function scrapBatchOpen(tabId) {
       const tab = tabs.get(tabId);
@@ -5505,6 +5563,7 @@
       spec.selectors = selectors;
       if (!Object.keys(selectors).length) { scrapBatchLog(tabId, 'no field selectors set — add at least one field', 'err'); return; }
       if (mode === 'browser') { spec.scroll = !!document.getElementById(tabId + '-sc-scroll').checked; spec.waitMs = 800; }
+      if (tab.scrap.auth && (tab.scrap.auth.cookie || (tab.scrap.auth.headers && Object.keys(tab.scrap.auth.headers).length))) spec.auth = tab.scrap.auth;
 
       // UI start
       const runBtn = document.getElementById(tabId + '-sc-bp-run');
@@ -5634,6 +5693,7 @@
             rootSelector: document.getElementById(tabId + '-sc-root').value,
             selectors,
             scroll: !!document.getElementById(tabId + '-sc-scroll').checked,
+            auth: tab.scrap.auth || { cookie: '', headers: {} },
           }),
         });
         const d = await scrapJson(r);
@@ -5846,6 +5906,9 @@
       tab.scrap.rootSelector = rec.rootSelector || '';
       tab.scrap.fields = Object.keys(rec.selectors || {}).map(name => ({ name, selector: rec.selectors[name].selector || '', attr: rec.selectors[name].attr || 'text' }));
       if (!tab.scrap.fields.length) tab.scrap.fields = [{ name: 'field1', selector: '', attr: 'text' }];
+      tab.scrap.auth = rec.auth || { cookie: '', headers: {} };
+      const authBtn = document.getElementById(tabId + '-sc-auth-btn');
+      if (authBtn) authBtn.classList.toggle('primary', !!(tab.scrap.auth.cookie || (tab.scrap.auth.headers && Object.keys(tab.scrap.auth.headers).length)));
       scrapRenderFields(tabId);
       tab.name = rec.name;
       if (tab.tabEl) { const lbl = tab.tabEl.querySelector('.tab-label'); if (lbl) lbl.textContent = rec.name; }
@@ -6333,6 +6396,7 @@
             <button class="scrap-btn" onclick="scrapExtract('${tabId}')" id="${tabId}-sc-extract" disabled>Extract</button>
             <button class="scrap-btn" onclick="scrapTogglePick('${tabId}')" id="${tabId}-sc-pick" title="Visual selector picker — click element in preview" disabled>🎯 Pick</button>
             <button class="scrap-btn" onclick="scrapBatchOpen('${tabId}')" id="${tabId}-sc-batch-btn" title="Batch scrape multiple URLs / paginated">🔁 Batch</button>
+            <button class="scrap-btn" onclick="scrapAuthOpen('${tabId}')" id="${tabId}-sc-auth-btn" title="Cookies / custom headers">🔐 Auth</button>
             <button class="scrap-btn" onclick="scrapSave('${tabId}')" title="Save as recipe">💾</button>
           </div>
           <div class="scrap-body">
@@ -6389,6 +6453,21 @@
               <button class="scrap-btn" onclick="scrapExport('${tabId}','md')">MD</button>
             </div>
             <div id="${tabId}-sc-rows"><div class="scrap-empty">Run a page and extract to see results.</div></div>
+          </div>
+          <div class="scrap-batch-backdrop" id="${tabId}-sc-auth-bd" onclick="if(event.target.id==='${tabId}-sc-auth-bd')scrapAuthClose('${tabId}')">
+            <div class="scrap-batch-modal">
+              <h3>🔐 Auth — Cookies / Headers <button class="x" onclick="scrapAuthClose('${tabId}')">✕</button></h3>
+              <label>Cookie header (paste from DevTools, format: <code>k=v; k2=v2</code>)</label>
+              <textarea id="${tabId}-sc-au-cookie" placeholder="sessionid=abc123; csrftoken=xyz"></textarea>
+              <label>Custom HTTP headers (one per line, format: <code>Header-Name: value</code>)</label>
+              <textarea id="${tabId}-sc-au-headers" placeholder="Authorization: Bearer abc123&#10;X-Api-Key: key_xyz&#10;Referer: https://example.com"></textarea>
+              <div class="hint">⚠️ ใช้ในเครื่องลูกพี่เท่านั้น — auth credentials ส่งจาก browser → server CYBERFRAME → target site. ไม่ leak นอกเครื่อง แต่ถูกเก็บใน recipe ถ้า save.</div>
+              <div class="actions">
+                <span style="flex:1;font-size:11px;color:var(--text3)" id="${tabId}-sc-au-status">—</span>
+                <button class="scrap-btn" onclick="scrapAuthClear('${tabId}')">Clear</button>
+                <button class="scrap-btn primary" onclick="scrapAuthApply('${tabId}')">Apply to tab</button>
+              </div>
+            </div>
           </div>
           <div class="scrap-batch-backdrop" id="${tabId}-sc-batch-bd" onclick="if(event.target.id==='${tabId}-sc-batch-bd')scrapBatchClose('${tabId}')">
             <div class="scrap-batch-modal">
@@ -6452,6 +6531,7 @@
           rootSelector: opts.scrapRoot || '',
           mode: opts.scrapMode || 'static',
           url: startUrl,
+          auth: opts.scrapAuth || { cookie: '', headers: {} },
         };
         setTimeout(() => {
           scrapRenderFields(tabId);
