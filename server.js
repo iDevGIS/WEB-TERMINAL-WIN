@@ -218,6 +218,8 @@ function requireAuth(req, res, next) {
 // Login page
 app.get("/login", (req, res) => {
   if (req.session && req.session.authenticated) return res.redirect("/");
+  let appVersion = '0.0.0';
+  try { appVersion = require('./package.json').version || appVersion; } catch {}
   res.send(`<!DOCTYPE html>
 <html><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1,user-scalable=no">
@@ -340,7 +342,7 @@ app.get("/login", (req, res) => {
     </div>
     <button type="submit">▶ AUTHENTICATE</button>
   </form>
-  <div class="footer">Secured by <span>CYBERFRAME</span> v2.0</div>
+  <div class="footer">Secured by <span>CYBERFRAME</span> v${appVersion}</div>
 </div>
 <script>
 document.getElementById('f').onsubmit=async e=>{
