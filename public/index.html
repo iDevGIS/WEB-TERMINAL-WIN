@@ -5268,6 +5268,20 @@
       p.className = 'pill' + (kind ? ' ' + kind : '');
     }
 
+    // Safe response→JSON. Detects HTML/login-redirect cases gracefully.
+    async function scrapJson(r) {
+      const ct = (r.headers.get('content-type') || '').toLowerCase();
+      const text = await r.text();
+      if (r.status === 401 || /\/login/.test(r.url) && r.redirected) {
+        const e = new Error('session expired — please re-login'); e.code = 'auth'; throw e;
+      }
+      if (!ct.includes('application/json')) {
+        const e = new Error(r.ok ? 'unexpected non-JSON response (HTTP ' + r.status + ')' : 'HTTP ' + r.status); e.code = 'non_json'; throw e;
+      }
+      try { return JSON.parse(text); }
+      catch (err) { const e = new Error('bad JSON: ' + (err.message || err)); e.code = 'parse'; throw e; }
+    }
+
     async function scrapRun(tabId) {
       const tab = tabs.get(tabId);
       if (!tab) return;
@@ -5284,8 +5298,8 @@
       try {
         const endpoint = mode === 'browser' ? '/api/scrap/browser' : '/api/scrap/fetch';
         const body = mode === 'browser' ? { url, scroll, waitMs: 800 } : { url };
-        const r = await fetch(endpoint, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-        const d = await r.json();
+        const r = await fetch(endpoint, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' }, body: JSON.stringify(body) });
+        const d = await scrapJson(r);
         if (!r.ok || d.error) throw new Error(d.error || ('HTTP ' + r.status));
         tab.scrap.html = d.html || '';
         tab.scrap.finalUrl = d.final_url || url;
@@ -5320,10 +5334,10 @@
       scrapSetStatus(tabId, 'extracting…');
       try {
         const r = await fetch('/api/scrap/extract', {
-          method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+          method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
           body: JSON.stringify({ html: tab.scrap.html, selectors, rootSelector, baseUrl: tab.scrap.finalUrl }),
         });
-        const d = await r.json();
+        const d = await scrapJson(r);
         if (!r.ok || d.error) throw new Error(d.error || 'extract failed');
         tab.scrap.rows = d.rows || [];
         scrapRenderRows(tabId);
@@ -5391,10 +5405,10 @@
       scrapSetStatus(tabId, 'AI generating…');
       try {
         const r = await fetch('/api/scrap/ai-selectors', {
-          method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+          method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
           body: JSON.stringify({ html: tab.scrap.html, goal }),
         });
-        const d = await r.json();
+        const d = await scrapJson(r);
         if (!r.ok || d.error) throw new Error(d.error || 'AI failed');
         // Replace fields with AI suggestion
         tab.scrap.rootSelector = d.rootSelector || '';
@@ -5428,7 +5442,7 @@
       for (const f of tab.scrap.fields) if (f.name) selectors[f.name] = { selector: f.selector, attr: f.attr || 'text' };
       try {
         const r = await fetch('/api/scrap/recipes', {
-          method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+          method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
           body: JSON.stringify({
             name, url, mode: document.getElementById(tabId + '-sc-mode').value,
             rootSelector: document.getElementById(tabId + '-sc-root').value,
@@ -5436,7 +5450,7 @@
             scroll: !!document.getElementById(tabId + '-sc-scroll').checked,
           }),
         });
-        const d = await r.json();
+        const d = await scrapJson(r);
         if (!r.ok || d.error) throw new Error(d.error || 'save failed');
         scrapSetStatus(tabId, 'recipe saved', 'ok');
       } catch (e) {
@@ -5449,8 +5463,8 @@
       if (!host) return;
       host.innerHTML = '<div class="scrap-empty">Loading…</div>';
       try {
-        const r = await fetch('/api/scrap/recipes', { credentials: 'same-origin' });
-        const d = await r.json();
+        const r = await fetch('/api/scrap/recipes', { credentials: 'same-origin', headers: { 'Accept': 'application/json' } });
+        const d = await scrapJson(r);
         const list = (d.recipes || []).sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
         if (!list.length) { host.innerHTML = '<div class="scrap-empty">No recipes yet — save current setup with 💾</div>'; return; }
         host.innerHTML = list.map(r => `
