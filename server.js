@@ -5548,6 +5548,251 @@ app.post("/api/scrap/ai-selectors", requireAuth, express.json({ limit: "10mb" })
   }
 });
 
+// === Snapshots + Scheduler =====================================================
+const SCRAP_SNAP_DIR = path.join(SCRAP_DIR, "snapshots");
+if (!fs.existsSync(SCRAP_SNAP_DIR)) fs.mkdirSync(SCRAP_SNAP_DIR, { recursive: true });
+
+function _scrapHashRows(rows) {
+  try {
+    const crypto = require("crypto");
+    return crypto.createHash("sha256").update(JSON.stringify(rows)).digest("hex").slice(0, 16);
+  } catch { return ""; }
+}
+function _scrapRecipeDir(recipeId) {
+  const safe = String(recipeId).replace(/[^a-z0-9_-]+/gi, "_");
+  const dir = path.join(SCRAP_SNAP_DIR, safe);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  return dir;
+}
+function _scrapSaveSnapshot(recipeId, payload) {
+  const dir = _scrapRecipeDir(recipeId);
+  const ts = (payload.at || new Date().toISOString()).replace(/[:.]/g, "-");
+  const file = path.join(dir, ts + ".json");
+  fs.writeFileSync(file, JSON.stringify(payload, null, 2));
+  // Prune: keep latest 50 snapshots per recipe
+  try {
+    const files = fs.readdirSync(dir).filter(f => f.endsWith(".json")).sort();
+    while (files.length > 50) {
+      try { fs.unlinkSync(path.join(dir, files.shift())); } catch {}
+    }
+  } catch {}
+  return file;
+}
+function _scrapListSnapshots(recipeId) {
+  try {
+    const dir = _scrapRecipeDir(recipeId);
+    return fs.readdirSync(dir)
+      .filter(f => f.endsWith(".json"))
+      .map(f => {
+        const ts = f.replace(/\.json$/, "").replace(/-/g, (m, i, s) => {
+          // Restore ISO format: replace dashes back to ':' / '.' at fixed positions
+          // YYYY-MM-DDTHH-MM-SS-mmmZ → YYYY-MM-DDTHH:MM:SS.mmmZ
+          return m; // We'll just store/return as filename token
+        });
+        try {
+          const p = path.join(dir, f);
+          const st = fs.statSync(p);
+          const j = JSON.parse(fs.readFileSync(p, "utf8"));
+          return { ts: f.replace(/\.json$/, ""), at: j.at, rowCount: j.rowCount, hash: j.hash, size: st.size };
+        } catch { return null; }
+      })
+      .filter(Boolean)
+      .sort((a, b) => (a.at || "").localeCompare(b.at || ""));
+  } catch { return []; }
+}
+function _scrapLoadSnapshot(recipeId, ts) {
+  const safeTs = String(ts).replace(/[^a-z0-9_-]+/gi, "_");
+  const file = path.join(_scrapRecipeDir(recipeId), safeTs + ".json");
+  try { return JSON.parse(fs.readFileSync(file, "utf8")); } catch { return null; }
+}
+function _scrapDiffRows(a, b) {
+  const ka = JSON.stringify(a || []);
+  const kb = JSON.stringify(b || []);
+  if (ka === kb) return { changed: false, added: [], removed: [], modified: [] };
+  // Diff by hashable row string
+  const hashRow = (r) => JSON.stringify(r);
+  const setA = new Map((a || []).map(r => [hashRow(r), r]));
+  const setB = new Map((b || []).map(r => [hashRow(r), r]));
+  const added = [], removed = [];
+  for (const [k, v] of setB) if (!setA.has(k)) added.push(v);
+  for (const [k, v] of setA) if (!setB.has(k)) removed.push(v);
+  return { changed: true, added, removed };
+}
+
+async function _scrapRunRecipe(recipe) {
+  // Reuse batch pipeline for single URL or list (just one element)
+  const cheerio = require("cheerio");
+  const url = String(recipe.url || "").trim();
+  if (!/^https?:\/\//i.test(url)) throw new Error("invalid recipe url");
+  const mode = ["static", "browser"].includes(recipe.mode) ? recipe.mode : "static";
+  let html, finalUrl, status;
+  if (mode === "browser") {
+    const browser = await _getScrapBrowser();
+    const context = await browser.newContext({ userAgent: SCRAP_UA, viewport: { width: 1366, height: 900 } });
+    try {
+      const page = await context.newPage();
+      await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 });
+      if (recipe.waitFor) { try { await page.waitForSelector(recipe.waitFor, { timeout: 15000 }); } catch {} }
+      if (recipe.waitMs) await page.waitForTimeout(Math.min(20000, recipe.waitMs));
+      if (recipe.scroll) {
+        await page.evaluate(async () => {
+          await new Promise(resolve => {
+            const start = Date.now();
+            let last = 0;
+            const t = setInterval(() => {
+              window.scrollBy(0, 900);
+              if (document.body.scrollHeight === last || Date.now() - start > 8000) { clearInterval(t); resolve(); }
+              last = document.body.scrollHeight;
+            }, 250);
+          });
+        });
+      }
+      html = await page.content();
+      finalUrl = page.url();
+      status = 200;
+    } finally { try { await context.close(); } catch {} }
+  } else {
+    const r = await fetch(url, {
+      headers: { "User-Agent": SCRAP_UA, "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8", "Accept-Language": "en-US,en;q=0.7,th;q=0.5" },
+      redirect: "follow",
+    });
+    html = await r.text();
+    finalUrl = r.url || url;
+    status = r.status;
+  }
+  const $ = cheerio.load(html);
+  const selectors = recipe.selectors || {};
+  const rootSelector = String(recipe.rootSelector || "").trim();
+  const fields = Object.keys(selectors);
+  const rows = [];
+  const absolutize = (v, attr) => {
+    if (!finalUrl) return v;
+    const a = (attr || "").toLowerCase();
+    if ((a === "href" || a === "src" || a === "data-src") && /^(\/|\.|[a-z]+:?\/\/)/i.test(v)) {
+      try { return new URL(v, finalUrl).toString(); } catch { return v; }
+    }
+    return v;
+  };
+  if (rootSelector) {
+    $(rootSelector).each((idx, el) => {
+      const row = {};
+      for (const f of fields) {
+        const def = selectors[f] || {};
+        const sel = String(def.selector || "");
+        const attr = def.attr || "text";
+        const node = sel ? $(el).find(sel).first() : $(el);
+        row[f] = absolutize(_scrapExtractValue($, node, attr), attr);
+      }
+      rows.push(row);
+    });
+  } else {
+    const row = {};
+    for (const f of fields) {
+      const def = selectors[f] || {};
+      const sel = String(def.selector || "");
+      const attr = def.attr || "text";
+      const node = sel ? $(sel).first() : $("html");
+      row[f] = absolutize(_scrapExtractValue($, node, attr), attr);
+    }
+    rows.push(row);
+  }
+  return { rows, status, finalUrl, fetchedAt: new Date().toISOString() };
+}
+
+// Scheduler tick — run recipes whose schedule is due
+let _scrapTickInFlight = false;
+async function _scrapTick() {
+  if (_scrapTickInFlight) return;
+  _scrapTickInFlight = true;
+  try {
+    const recipes = loadScrapRecipes();
+    let mutated = false;
+    const now = Date.now();
+    for (const rec of recipes) {
+      const sch = rec.schedule || {};
+      if (!sch.enabled) continue;
+      const intervalMs = Math.max(60, parseInt(sch.intervalMin) || 60) * 60 * 1000;
+      const lastMs = rec.lastRunAt ? Date.parse(rec.lastRunAt) : 0;
+      if (lastMs && (now - lastMs) < intervalMs) continue;
+      try {
+        const result = await _scrapRunRecipe(rec);
+        const hash = _scrapHashRows(result.rows);
+        const changed = hash !== rec.lastHash;
+        rec.lastRunAt = new Date().toISOString();
+        rec.lastRowCount = result.rows.length;
+        rec.lastHash = hash;
+        rec.lastError = null;
+        if (changed) rec.lastChangedAt = rec.lastRunAt;
+        // Snapshot on first run or change
+        if (changed || !rec.lastHash || sch.alwaysSnapshot) {
+          _scrapSaveSnapshot(rec.id, { at: rec.lastRunAt, hash, rowCount: result.rows.length, rows: result.rows, source: result.finalUrl, status: result.status, trigger: "schedule" });
+        }
+        mutated = true;
+      } catch (e) {
+        rec.lastError = String(e.message || e);
+        rec.lastRunAt = new Date().toISOString();
+        mutated = true;
+      }
+    }
+    if (mutated) saveScrapRecipes(recipes);
+  } catch (e) {
+    console.error("[scrap-tick]", e.message || e);
+  } finally {
+    _scrapTickInFlight = false;
+  }
+}
+const SCRAP_TICK_MS = 60_000;
+setInterval(_scrapTick, SCRAP_TICK_MS).unref();
+// Kick once after startup
+setTimeout(_scrapTick, 15_000).unref?.();
+
+// Run recipe on demand
+app.post("/api/scrap/recipes/:id/run", requireAuth, async (req, res) => {
+  const recipes = loadScrapRecipes();
+  const rec = recipes.find(r => r.id === req.params.id);
+  if (!rec) return res.status(404).json({ error: "recipe not found" });
+  try {
+    const result = await _scrapRunRecipe(rec);
+    const hash = _scrapHashRows(result.rows);
+    const changed = hash !== rec.lastHash;
+    rec.lastRunAt = new Date().toISOString();
+    rec.lastRowCount = result.rows.length;
+    rec.lastHash = hash;
+    rec.lastError = null;
+    if (changed) rec.lastChangedAt = rec.lastRunAt;
+    _scrapSaveSnapshot(rec.id, { at: rec.lastRunAt, hash, rowCount: result.rows.length, rows: result.rows, source: result.finalUrl, status: result.status, trigger: "manual" });
+    saveScrapRecipes(recipes);
+    res.json({ ok: true, rows: result.rows, count: result.rows.length, hash, changed, recipe: rec });
+  } catch (e) {
+    rec.lastError = String(e.message || e); rec.lastRunAt = new Date().toISOString(); saveScrapRecipes(recipes);
+    res.status(500).json({ error: rec.lastError });
+  }
+});
+
+// List snapshots
+app.get("/api/scrap/recipes/:id/snapshots", requireAuth, (req, res) => {
+  const recipes = loadScrapRecipes();
+  const rec = recipes.find(r => r.id === req.params.id);
+  if (!rec) return res.status(404).json({ error: "recipe not found" });
+  res.json({ ok: true, snapshots: _scrapListSnapshots(req.params.id) });
+});
+
+// Get one snapshot
+app.get("/api/scrap/recipes/:id/snapshot/:ts", requireAuth, (req, res) => {
+  const snap = _scrapLoadSnapshot(req.params.id, req.params.ts);
+  if (!snap) return res.status(404).json({ error: "snapshot not found" });
+  res.json({ ok: true, snapshot: snap });
+});
+
+// Diff two snapshots
+app.get("/api/scrap/recipes/:id/diff", requireAuth, (req, res) => {
+  const a = _scrapLoadSnapshot(req.params.id, String(req.query.from || ""));
+  const b = _scrapLoadSnapshot(req.params.id, String(req.query.to || ""));
+  if (!a || !b) return res.status(404).json({ error: "snapshot(s) not found" });
+  const diff = _scrapDiffRows(a.rows || [], b.rows || []);
+  res.json({ ok: true, from: { at: a.at, rowCount: a.rowCount, hash: a.hash }, to: { at: b.at, rowCount: b.rowCount, hash: b.hash }, ...diff });
+});
+
 // Recipes CRUD
 app.get("/api/scrap/recipes", requireAuth, (req, res) => {
   res.json({ ok: true, recipes: loadScrapRecipes() });
@@ -5557,17 +5802,29 @@ app.post("/api/scrap/recipes", requireAuth, express.json({ limit: "512kb" }), (r
   const recipes = loadScrapRecipes();
   const body = req.body || {};
   const id = body.id || ("r_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6));
+  const existing = recipes.find(r => r.id === id) || {};
+  const sch = body.schedule || existing.schedule || {};
   const recipe = {
     id,
-    name: String(body.name || "Untitled").slice(0, 100),
-    url: String(body.url || ""),
-    mode: ["static", "browser", "ai"].includes(body.mode) ? body.mode : "static",
-    rootSelector: String(body.rootSelector || ""),
-    selectors: body.selectors || {},
-    waitFor: String(body.waitFor || ""),
-    waitMs: parseInt(body.waitMs) || 0,
-    scroll: !!body.scroll,
-    createdAt: body.createdAt || new Date().toISOString(),
+    name: String(body.name || existing.name || "Untitled").slice(0, 100),
+    url: String(body.url != null ? body.url : (existing.url || "")),
+    mode: ["static", "browser", "ai"].includes(body.mode) ? body.mode : (existing.mode || "static"),
+    rootSelector: String(body.rootSelector != null ? body.rootSelector : (existing.rootSelector || "")),
+    selectors: body.selectors || existing.selectors || {},
+    waitFor: String(body.waitFor || existing.waitFor || ""),
+    waitMs: parseInt(body.waitMs) || existing.waitMs || 0,
+    scroll: body.scroll != null ? !!body.scroll : !!existing.scroll,
+    schedule: {
+      enabled: !!sch.enabled,
+      intervalMin: Math.max(1, parseInt(sch.intervalMin) || 60),
+      alwaysSnapshot: !!sch.alwaysSnapshot,
+    },
+    lastRunAt: existing.lastRunAt || null,
+    lastRowCount: existing.lastRowCount || 0,
+    lastHash: existing.lastHash || "",
+    lastChangedAt: existing.lastChangedAt || null,
+    lastError: existing.lastError || null,
+    createdAt: existing.createdAt || body.createdAt || new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
   const idx = recipes.findIndex(r => r.id === id);

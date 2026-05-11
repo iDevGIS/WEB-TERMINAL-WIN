@@ -1312,6 +1312,19 @@
     }
     .scrap-recipe-actions button:hover { background: rgba(167,139,250,.15); color: var(--text); }
     .scrap-recipe-actions button.del:hover { background: rgba(248,113,113,.15); color: #fca5a5; border-color: rgba(248,113,113,.3); }
+    .scrap-recipe-sched { display: flex; align-items: center; gap: 6px; margin-top: 6px; font-size: 10.5px; color: var(--text3); flex-wrap: wrap; }
+    .scrap-recipe-sched input[type=number] { width: 50px; background: rgba(0,0,0,.25); border: 1px solid rgba(255,255,255,.06); color: var(--text2); border-radius: 4px; padding: 1px 4px; font: 10.5px inherit; }
+    .scrap-recipe-sched .badge { padding: 1px 6px; border-radius: 999px; font-size: 9.5px; }
+    .scrap-recipe-sched .badge.ok { background: rgba(74,222,128,.12); color: #86efac; }
+    .scrap-recipe-sched .badge.err { background: rgba(248,113,113,.15); color: #fca5a5; }
+    .scrap-recipe-sched .badge.chg { background: rgba(251,191,36,.18); color: #fbbf24; }
+    .scrap-snap-list { max-height: 320px; overflow: auto; }
+    .scrap-snap-row { display: grid; grid-template-columns: 1fr auto auto auto; gap: 6px; align-items: center; padding: 6px 8px; border-bottom: 1px solid rgba(255,255,255,.04); font-size: 12px; color: var(--text2); }
+    .scrap-snap-row:hover { background: rgba(167,139,250,.06); }
+    .scrap-snap-row code { font-size: 10.5px; color: var(--text3); }
+    .scrap-snap-row button { background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08); color: var(--text2); font-size: 10.5px; padding: 2px 8px; border-radius: 4px; cursor: pointer; }
+    .scrap-snap-row button:hover { background: rgba(167,139,250,.18); color: var(--text); }
+    .scrap-snap-row.selected { background: rgba(167,139,250,.12); }
 
     .scrap-result {
       max-height: 40%;
@@ -5631,6 +5644,15 @@
       }
     }
 
+    function scrapTimeAgo(iso) {
+      if (!iso) return 'never';
+      const t = Date.parse(iso); if (!Number.isFinite(t)) return '—';
+      const s = Math.max(0, Math.round((Date.now() - t) / 1000));
+      if (s < 60) return s + 's ago';
+      if (s < 3600) return Math.round(s/60) + 'm ago';
+      if (s < 86400) return Math.round(s/3600) + 'h ago';
+      return Math.round(s/86400) + 'd ago';
+    }
     async function scrapLoadRecipes(tabId) {
       const host = document.getElementById(tabId + '-sc-recipes-list');
       if (!host) return;
@@ -5640,22 +5662,177 @@
         const d = await scrapJson(r);
         const list = (d.recipes || []).sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
         if (!list.length) { host.innerHTML = '<div class="scrap-empty">No recipes yet — save current setup with 💾</div>'; return; }
-        host.innerHTML = list.map(r => `
+        host.innerHTML = list.map(r => {
+          const sch = r.schedule || {};
+          const errBadge = r.lastError ? `<span class="badge err" title="${escAttr(r.lastError)}">error</span>` : '';
+          const chgBadge = r.lastChangedAt && r.lastChangedAt === r.lastRunAt ? `<span class="badge chg" title="rows changed on last run">changed</span>` : '';
+          const okBadge = !r.lastError && r.lastRunAt && !chgBadge ? `<span class="badge ok">${r.lastRowCount || 0} rows</span>` : '';
+          return `
           <div class="scrap-recipe-item">
             <div class="rn" onclick="scrapApplyRecipe('${tabId}','${escAttr(r.id)}')">${escAttr(r.name)}</div>
             <div class="ru" onclick="scrapApplyRecipe('${tabId}','${escAttr(r.id)}')">${escAttr(r.url)}</div>
+            <div class="scrap-recipe-sched">
+              <label style="display:flex;align-items:center;gap:4px"><input type="checkbox" ${sch.enabled?'checked':''} onchange="scrapToggleSchedule('${tabId}','${escAttr(r.id)}',this.checked)"> auto</label>
+              every <input type="number" min="1" value="${parseInt(sch.intervalMin)||60}" onchange="scrapSetInterval('${tabId}','${escAttr(r.id)}',this.value)" title="Minutes"> min
+              <span style="flex:1"></span>
+              ${okBadge}${chgBadge}${errBadge}
+              <span title="${escAttr(r.lastRunAt||'')}">${scrapTimeAgo(r.lastRunAt)}</span>
+            </div>
             <div class="scrap-recipe-actions">
-              <button onclick="scrapApplyRecipe('${tabId}','${escAttr(r.id)}',true)">Load + Run</button>
+              <button onclick="scrapApplyRecipe('${tabId}','${escAttr(r.id)}')">Load</button>
+              <button onclick="scrapRunRecipeNow('${tabId}','${escAttr(r.id)}')">▷ Run</button>
+              <button onclick="scrapShowHistory('${tabId}','${escAttr(r.id)}','${escAttr(r.name)}')">History</button>
               <button class="del" onclick="scrapDeleteRecipe('${tabId}','${escAttr(r.id)}')">Delete</button>
             </div>
-          </div>
-        `).join('');
+          </div>`;
+        }).join('');
         // store on tab
         const tab = tabs.get(tabId);
         if (tab) tab.scrap.recipesCache = list;
       } catch (e) {
         host.innerHTML = '<div class="scrap-empty" style="color:#f87171">' + (e.message || e) + '</div>';
       }
+    }
+
+    async function scrapToggleSchedule(tabId, id, enabled) {
+      const tab = tabs.get(tabId);
+      const rec = (tab && tab.scrap.recipesCache || []).find(r => r.id === id);
+      if (!rec) return;
+      const sch = rec.schedule || {};
+      try {
+        const r = await fetch('/api/scrap/recipes', {
+          method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id, schedule: { enabled, intervalMin: parseInt(sch.intervalMin) || 60, alwaysSnapshot: !!sch.alwaysSnapshot } }),
+        });
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        scrapLoadRecipes(tabId);
+      } catch (e) { scrapSetStatus(tabId, 'schedule error: ' + e.message, 'err'); }
+    }
+    async function scrapSetInterval(tabId, id, mins) {
+      const tab = tabs.get(tabId);
+      const rec = (tab && tab.scrap.recipesCache || []).find(r => r.id === id);
+      if (!rec) return;
+      const sch = rec.schedule || {};
+      const intervalMin = Math.max(1, parseInt(mins) || 60);
+      try {
+        const r = await fetch('/api/scrap/recipes', {
+          method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id, schedule: { enabled: !!sch.enabled, intervalMin, alwaysSnapshot: !!sch.alwaysSnapshot } }),
+        });
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        // Don't reload list (would jank the input); just update cache
+        rec.schedule = { ...(rec.schedule || {}), intervalMin };
+      } catch (e) { scrapSetStatus(tabId, 'interval error: ' + e.message, 'err'); }
+    }
+    async function scrapRunRecipeNow(tabId, id) {
+      scrapSetStatus(tabId, 'running recipe…');
+      try {
+        const r = await fetch('/api/scrap/recipes/' + encodeURIComponent(id) + '/run', { method: 'POST', credentials: 'same-origin', headers: { 'Accept': 'application/json' } });
+        const d = await scrapJson(r);
+        if (!r.ok || d.error) throw new Error(d.error || ('HTTP ' + r.status));
+        const tab = tabs.get(tabId);
+        if (tab) {
+          tab.scrap.rows = d.rows || [];
+          scrapRenderRows(tabId);
+        }
+        scrapSetStatus(tabId, `recipe: ${d.count} rows${d.changed?' · changed':''}`, 'ok');
+        scrapLoadRecipes(tabId);
+      } catch (e) { scrapSetStatus(tabId, 'run error: ' + e.message, 'err'); }
+    }
+
+    async function scrapShowHistory(tabId, id, name) {
+      const tab = tabs.get(tabId);
+      if (!tab) return;
+      // Lazy-init modal — reuse batch backdrop structure
+      let bd = document.getElementById(tabId + '-sc-hist-bd');
+      if (!bd) {
+        bd = document.createElement('div');
+        bd.id = tabId + '-sc-hist-bd';
+        bd.className = 'scrap-batch-backdrop';
+        bd.innerHTML = `<div class="scrap-batch-modal" id="${tabId}-sc-hist-modal" style="max-width:680px"></div>`;
+        bd.addEventListener('click', (e) => { if (e.target === bd) bd.classList.remove('open'); });
+        document.getElementById(tabId + '-sc-result').parentElement.appendChild(bd);
+      }
+      const modal = document.getElementById(tabId + '-sc-hist-modal');
+      modal.innerHTML = `<h3>📜 History · ${escAttr(name||'')} <button class="x" onclick="this.closest('.scrap-batch-backdrop').classList.remove('open')">✕</button></h3>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:8px">Select two snapshots to diff, or load one into the current tab.</div>
+        <div class="scrap-snap-list" id="${tabId}-sc-hist-list"><div class="scrap-empty">Loading…</div></div>
+        <div class="actions" style="margin-top:12px"><span id="${tabId}-sc-hist-sel" style="flex:1;font-size:11px;color:var(--text3)">Select snapshots…</span>
+          <button class="scrap-btn" id="${tabId}-sc-hist-diff" disabled onclick="scrapRunDiff('${tabId}','${escAttr(id)}')">Compute Diff</button></div>
+        <div id="${tabId}-sc-hist-diff-out" style="margin-top:10px;font-size:11.5px"></div>`;
+      bd.classList.add('open');
+      tab.scrap._histSel = { id, picks: [] };
+      try {
+        const r = await fetch('/api/scrap/recipes/' + encodeURIComponent(id) + '/snapshots', { credentials: 'same-origin' });
+        const d = await scrapJson(r);
+        const snaps = d.snapshots || [];
+        const host = document.getElementById(tabId + '-sc-hist-list');
+        if (!snaps.length) { host.innerHTML = '<div class="scrap-empty">No snapshots yet — run the recipe at least once</div>'; return; }
+        host.innerHTML = snaps.slice().reverse().map(s => `
+          <div class="scrap-snap-row" data-ts="${escAttr(s.ts)}">
+            <div>
+              <div>${escAttr(s.at || s.ts)}</div>
+              <code>${escAttr(s.hash || '')} · ${s.rowCount||0} rows · ${(s.size/1024).toFixed(1)} KB</code>
+            </div>
+            <button onclick="scrapHistPick('${tabId}','${escAttr(s.ts)}',this)">Select</button>
+            <button onclick="scrapHistLoad('${tabId}','${escAttr(id)}','${escAttr(s.ts)}')">Load</button>
+            <button onclick="scrapHistExport('${tabId}','${escAttr(id)}','${escAttr(s.ts)}','${escAttr(name||'snap')}')" title="Export JSON">⤓</button>
+          </div>`).join('');
+      } catch (e) {
+        document.getElementById(tabId + '-sc-hist-list').innerHTML = '<div class="scrap-empty" style="color:#f87171">' + (e.message||e) + '</div>';
+      }
+    }
+    function scrapHistPick(tabId, ts, btn) {
+      const tab = tabs.get(tabId);
+      if (!tab || !tab.scrap._histSel) return;
+      const sel = tab.scrap._histSel;
+      const i = sel.picks.indexOf(ts);
+      if (i >= 0) sel.picks.splice(i, 1);
+      else { if (sel.picks.length >= 2) sel.picks.shift(); sel.picks.push(ts); }
+      // Update visual + label
+      document.querySelectorAll(`#${tabId}-sc-hist-list .scrap-snap-row`).forEach(r => {
+        r.classList.toggle('selected', sel.picks.includes(r.getAttribute('data-ts')));
+      });
+      const label = document.getElementById(tabId + '-sc-hist-sel');
+      if (label) label.textContent = sel.picks.length === 0 ? 'Select snapshots…' : sel.picks.length === 1 ? '1 selected · pick one more' : `from ${sel.picks[0].slice(0,19)} → to ${sel.picks[1].slice(0,19)}`;
+      document.getElementById(tabId + '-sc-hist-diff').disabled = sel.picks.length !== 2;
+    }
+    async function scrapHistLoad(tabId, id, ts) {
+      try {
+        const r = await fetch(`/api/scrap/recipes/${encodeURIComponent(id)}/snapshot/${encodeURIComponent(ts)}`, { credentials: 'same-origin' });
+        const d = await scrapJson(r);
+        if (!r.ok || d.error) throw new Error(d.error || 'load failed');
+        const tab = tabs.get(tabId);
+        if (tab) { tab.scrap.rows = d.snapshot.rows || []; scrapRenderRows(tabId); }
+        scrapSetStatus(tabId, `loaded snapshot ${d.snapshot.rowCount||0} rows`, 'ok');
+      } catch (e) { scrapSetStatus(tabId, 'load err: ' + e.message, 'err'); }
+    }
+    async function scrapHistExport(tabId, id, ts, name) {
+      try {
+        const r = await fetch(`/api/scrap/recipes/${encodeURIComponent(id)}/snapshot/${encodeURIComponent(ts)}`, { credentials: 'same-origin' });
+        const d = await scrapJson(r);
+        const blob = new Blob([JSON.stringify(d.snapshot, null, 2)], { type: 'application/json' });
+        const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `${(name||'snap').replace(/[^a-z0-9_-]+/gi,'_')}-${ts}.json`;
+        document.body.appendChild(a); a.click(); setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();}, 1000);
+      } catch (e) { scrapSetStatus(tabId, 'export err: ' + e.message, 'err'); }
+    }
+    async function scrapRunDiff(tabId, id) {
+      const tab = tabs.get(tabId);
+      const sel = tab && tab.scrap._histSel;
+      if (!sel || sel.picks.length !== 2) return;
+      const out = document.getElementById(tabId + '-sc-hist-diff-out');
+      out.innerHTML = '<div class="scrap-empty">Computing…</div>';
+      const [from, to] = sel.picks.slice().sort();
+      try {
+        const r = await fetch(`/api/scrap/recipes/${encodeURIComponent(id)}/diff?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`, { credentials: 'same-origin' });
+        const d = await scrapJson(r);
+        if (!r.ok || d.error) throw new Error(d.error || 'diff failed');
+        const fmt = (arr, color) => !arr.length ? '' : `<div style="margin-top:6px"><strong style="color:${color}">${color==='#86efac'?'+':color==='#fca5a5'?'−':'~'} ${arr.length}</strong><pre style="background:rgba(0,0,0,.35);padding:6px 8px;border-radius:6px;max-height:160px;overflow:auto;font-size:11px;color:var(--text2);margin:4px 0 0">${escAttr(JSON.stringify(arr.slice(0,20), null, 2))}${arr.length>20?'\n... ('+(arr.length-20)+' more)':''}</pre></div>`;
+        out.innerHTML = `<div>from <code>${escAttr(d.from.at||'')}</code> (${d.from.rowCount} rows · ${escAttr(d.from.hash||'')})</div>
+          <div>to <code>${escAttr(d.to.at||'')}</code> (${d.to.rowCount} rows · ${escAttr(d.to.hash||'')})</div>
+          <div style="margin-top:6px;color:${d.changed?'#fbbf24':'#86efac'}">${d.changed ? 'CHANGED' : 'identical'}</div>
+          ${fmt(d.added||[],'#86efac')}${fmt(d.removed||[],'#fca5a5')}`;
+      } catch (e) { out.innerHTML = '<div class="scrap-empty" style="color:#f87171">' + (e.message||e) + '</div>'; }
     }
 
     async function scrapApplyRecipe(tabId, id, runAfter) {
