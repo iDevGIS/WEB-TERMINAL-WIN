@@ -5583,6 +5583,163 @@ app.delete("/api/scrap/recipes/:id", requireAuth, (req, res) => {
   res.json({ ok: true });
 });
 
+// Expand batch URL spec: { urls: [...] } and/or { pattern: "..{1..10}..", from, to, step }
+function _scrapExpandUrlPattern(spec) {
+  const out = [];
+  const seen = new Set();
+  const push = (u) => {
+    const t = String(u || "").trim();
+    if (/^https?:\/\//i.test(t) && !seen.has(t)) { seen.add(t); out.push(t); }
+  };
+  if (Array.isArray(spec.urls)) for (const u of spec.urls) push(u);
+  let pat = String(spec.pattern || "").trim();
+  if (pat) {
+    let from = Number.isFinite(parseInt(spec.from)) ? parseInt(spec.from) : null;
+    let to   = Number.isFinite(parseInt(spec.to))   ? parseInt(spec.to)   : null;
+    let step = Math.max(1, parseInt(spec.step) || 1);
+    const m = pat.match(/\{(-?\d+)\.\.(-?\d+)(?::(\d+))?\}/);
+    if (m) { from = parseInt(m[1]); to = parseInt(m[2]); if (m[3]) step = Math.max(1, parseInt(m[3])); pat = pat.replace(m[0], "__CFNUM__"); }
+    else { pat = pat.replace(/\{(?:n|N|i|page|PAGE)\}/g, "__CFNUM__"); }
+    if (from != null && to != null && pat.includes("__CFNUM__")) {
+      const inc = (from <= to) ? step : -step;
+      for (let i = from; (inc > 0 ? i <= to : i >= to); i += inc) push(pat.replace(/__CFNUM__/g, String(i)));
+    }
+  }
+  return out.slice(0, 200);
+}
+
+// Batch fetch+extract (sequential with delay)
+app.post("/api/scrap/batch", requireAuth, express.json({ limit: "1mb" }), async (req, res) => {
+  const body = req.body || {};
+  const urls = _scrapExpandUrlPattern(body);
+  if (!urls.length) return res.status(400).json({ error: "no valid urls (provide urls[] or pattern + from/to)" });
+  const mode = ["static", "browser"].includes(body.mode) ? body.mode : "static";
+  const selectors = body.selectors || {};
+  const rootSelector = String(body.rootSelector || "").trim();
+  const delayMs = Math.min(60000, Math.max(0, parseInt(body.delayMs) || 0));
+  const waitFor = String(body.waitFor || "").trim();
+  const waitMs = Math.min(20000, Math.max(0, parseInt(body.waitMs) || 0));
+  const scroll = !!body.scroll;
+  const addSourceCol = body.addSourceCol !== false;
+  const streamMode = String(req.query.stream || "").toLowerCase() === "1";
+
+  const cheerio = require("cheerio");
+  const perPage = [];
+  const allRows = [];
+  const startedAt = Date.now();
+
+  if (streamMode) {
+    res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
+    res.setHeader("Cache-Control", "no-cache, no-transform");
+    res.setHeader("Connection", "keep-alive");
+    res.setHeader("X-Accel-Buffering", "no");
+    if (res.flushHeaders) res.flushHeaders();
+    res.write(`event: start\ndata: ${JSON.stringify({ total: urls.length, mode })}\n\n`);
+  }
+
+  const absolutize = (v, attr, base) => {
+    if (!base) return v;
+    const a = (attr || "").toLowerCase();
+    if ((a === "href" || a === "src" || a === "data-src") && /^(\/|\.|[a-z]+:?\/\/)/i.test(v)) {
+      try { return new URL(v, base).toString(); } catch { return v; }
+    }
+    return v;
+  };
+
+  const fetchOne = async (url) => {
+    const t0 = Date.now();
+    try {
+      let html, finalUrl, status;
+      if (mode === "browser") {
+        const browser = await _getScrapBrowser();
+        const context = await browser.newContext({ userAgent: SCRAP_UA, viewport: { width: 1366, height: 900 } });
+        try {
+          const page = await context.newPage();
+          await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 });
+          if (waitFor) { try { await page.waitForSelector(waitFor, { timeout: 15000 }); } catch {} }
+          if (waitMs) await page.waitForTimeout(waitMs);
+          if (scroll) {
+            await page.evaluate(async () => {
+              await new Promise(resolve => {
+                const start = Date.now();
+                let last = 0;
+                const t = setInterval(() => {
+                  window.scrollBy(0, 900);
+                  if (document.body.scrollHeight === last || Date.now() - start > 8000) { clearInterval(t); resolve(); }
+                  last = document.body.scrollHeight;
+                }, 250);
+              });
+            });
+          }
+          html = await page.content();
+          finalUrl = page.url();
+          status = 200;
+        } finally { try { await context.close(); } catch {} }
+      } else {
+        const r = await fetch(url, {
+          headers: { "User-Agent": SCRAP_UA, "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8", "Accept-Language": "en-US,en;q=0.7,th;q=0.5" },
+          redirect: "follow",
+        });
+        html = await r.text();
+        finalUrl = r.url || url;
+        status = r.status;
+      }
+      const $ = cheerio.load(html);
+      const fields = Object.keys(selectors || {});
+      const rows = [];
+      if (rootSelector) {
+        $(rootSelector).each((idx, el) => {
+          const row = {};
+          for (const f of fields) {
+            const def = selectors[f] || {};
+            const sel = String(def.selector || "");
+            const attr = def.attr || "text";
+            const node = sel ? $(el).find(sel).first() : $(el);
+            row[f] = absolutize(_scrapExtractValue($, node, attr), attr, finalUrl);
+          }
+          if (addSourceCol) row._source = url;
+          rows.push(row);
+        });
+      } else {
+        const row = {};
+        for (const f of fields) {
+          const def = selectors[f] || {};
+          const sel = String(def.selector || "");
+          const attr = def.attr || "text";
+          const node = sel ? $(sel).first() : $("html");
+          row[f] = absolutize(_scrapExtractValue($, node, attr), attr, finalUrl);
+        }
+        if (addSourceCol) row._source = url;
+        rows.push(row);
+      }
+      const result = { url, finalUrl, status, count: rows.length, ms: Date.now() - t0 };
+      perPage.push(result);
+      for (const r of rows) allRows.push(r);
+      if (streamMode) res.write(`event: page\ndata: ${JSON.stringify({ ...result, idx: perPage.length, total: urls.length })}\n\n`);
+    } catch (e) {
+      const errRecord = { url, error: String(e.message || e), ms: Date.now() - t0 };
+      perPage.push(errRecord);
+      if (streamMode) res.write(`event: error\ndata: ${JSON.stringify({ ...errRecord, idx: perPage.length, total: urls.length })}\n\n`);
+    }
+  };
+
+  for (let i = 0; i < urls.length; i++) {
+    await fetchOne(urls[i]);
+    if (delayMs && i < urls.length - 1) await new Promise(r => setTimeout(r, delayMs));
+  }
+
+  const payload = {
+    ok: true,
+    total: urls.length,
+    rows: allRows,
+    perPage,
+    durationMs: Date.now() - startedAt,
+    errors: perPage.filter(p => p.error).length,
+  };
+  if (streamMode) { res.write(`event: done\ndata: ${JSON.stringify(payload)}\n\n`); res.end(); }
+  else res.json(payload);
+});
+
 // Export rows to JSON/CSV/Markdown
 app.post("/api/scrap/export", requireAuth, express.json({ limit: "30mb" }), (req, res) => {
   const rows = Array.isArray(req.body.rows) ? req.body.rows : [];

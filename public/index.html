@@ -1054,6 +1054,7 @@
       border-top: none;
       background: #0a0a1a;
       color: var(--text);
+      position: relative;
     }
     .scrap-toolbar {
       display: flex;
@@ -1347,6 +1348,29 @@
     .scrap-result-table td { color: var(--text2); max-width: 280px; }
     .scrap-result-table tr:hover td { background: rgba(255,255,255,.02); }
     .scrap-empty { padding: 14px; color: var(--text3); text-align: center; font-size: 12px; }
+
+    /* Batch modal */
+    .scrap-batch-backdrop { position: absolute; inset: 0; background: rgba(8,8,20,.62); backdrop-filter: blur(4px); z-index: 50; display: none; align-items: center; justify-content: center; }
+    .scrap-batch-backdrop.open { display: flex; }
+    .scrap-batch-modal { width: min(560px, 92%); max-height: 88%; overflow: auto; background: #0e0e25; border: 1px solid rgba(167,139,250,.32); border-radius: 14px; box-shadow: 0 14px 40px rgba(0,0,0,.55); padding: 18px 20px; color: var(--text); }
+    .scrap-batch-modal h3 { margin: 0 0 12px; font-size: 14.5px; color: #d8c8ff; display: flex; align-items: center; gap: 8px; }
+    .scrap-batch-modal h3 button.x { margin-left: auto; background: none; border: none; color: var(--text3); cursor: pointer; font-size: 16px; padding: 0 4px; }
+    .scrap-batch-modal label { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--text3); margin: 10px 0 4px; }
+    .scrap-batch-modal input[type=text], .scrap-batch-modal input[type=number], .scrap-batch-modal textarea { width: 100%; background: rgba(0,0,0,.32); border: 1px solid rgba(255,255,255,.08); color: var(--text); border-radius: 6px; padding: 7px 10px; font: 12.5px/1.45 inherit; outline: none; box-sizing: border-box; }
+    .scrap-batch-modal input:focus, .scrap-batch-modal textarea:focus { border-color: rgba(167,139,250,.45); background: rgba(0,0,0,.4); }
+    .scrap-batch-modal textarea { resize: vertical; min-height: 90px; font-family: ui-monospace, 'JetBrains Mono', monospace; }
+    .scrap-batch-modal .row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+    .scrap-batch-modal .mode-toggle { display: flex; gap: 4px; background: rgba(0,0,0,.25); padding: 3px; border-radius: 8px; border: 1px solid rgba(255,255,255,.06); }
+    .scrap-batch-modal .mode-toggle button { flex: 1; background: transparent; border: none; color: var(--text2); padding: 6px 10px; border-radius: 5px; cursor: pointer; font-size: 12px; }
+    .scrap-batch-modal .mode-toggle button.active { background: rgba(167,139,250,.22); color: #fff; }
+    .scrap-batch-modal .hint { font-size: 11px; color: var(--text3); margin-top: 4px; line-height: 1.5; }
+    .scrap-batch-modal .actions { display: flex; gap: 8px; margin-top: 16px; align-items: center; }
+    .scrap-batch-modal .actions .scrap-btn { padding: 8px 14px; height: 32px; }
+    .scrap-batch-progress { flex: 1; height: 6px; background: rgba(255,255,255,.06); border-radius: 3px; overflow: hidden; margin-right: 8px; }
+    .scrap-batch-progress > div { height: 100%; background: linear-gradient(90deg, #a78bfa, #7c5cff); width: 0%; transition: width .25s; }
+    .scrap-batch-log { margin-top: 10px; max-height: 130px; overflow: auto; font: 11px/1.5 ui-monospace, monospace; background: rgba(0,0,0,.35); border: 1px solid rgba(255,255,255,.05); border-radius: 6px; padding: 6px 8px; color: var(--text2); }
+    .scrap-batch-log .ok { color: #86efac; }
+    .scrap-batch-log .err { color: #fca5a5; }
 
     @media (max-width: 900px) {
       .scrap-body { grid-template-columns: 1fr; }
@@ -5395,6 +5419,155 @@
       }
     }
 
+    // === Batch Scrape ===
+    function scrapBatchOpen(tabId) {
+      const tab = tabs.get(tabId);
+      if (!tab || !tab.scrap) return;
+      const bd = document.getElementById(tabId + '-sc-batch-bd');
+      if (!bd) return;
+      // Preseed pattern from current URL if pattern field is empty
+      const pat = document.getElementById(tabId + '-sc-bp-pattern');
+      const modeSel = document.getElementById(tabId + '-sc-bp-mode');
+      if (pat && !pat.value && tab.scrap.url) pat.value = tab.scrap.url;
+      if (modeSel) modeSel.value = tab.scrap.mode || 'static';
+      // Reset progress UI
+      scrapBatchSetProgress(tabId, 0, 0);
+      const log = document.getElementById(tabId + '-sc-bp-log');
+      if (log) { log.innerHTML = ''; log.style.display = 'none'; }
+      bd.classList.add('open');
+    }
+    function scrapBatchClose(tabId) {
+      const bd = document.getElementById(tabId + '-sc-batch-bd');
+      if (bd) bd.classList.remove('open');
+    }
+    function scrapBatchMode(tabId, mode, btn) {
+      document.querySelectorAll(`#${tabId}-sc-batch-bd .mode-toggle button`).forEach(b => b.classList.toggle('active', b === btn));
+      document.querySelectorAll(`#${tabId}-sc-batch-bd [data-bm-pane]`).forEach(p => { p.style.display = (p.getAttribute('data-bm-pane') === mode) ? '' : 'none'; });
+    }
+    function scrapBatchSetProgress(tabId, done, total) {
+      const bar = document.querySelector(`#${tabId}-sc-bp-bar > div`);
+      const ctr = document.getElementById(tabId + '-sc-bp-counter');
+      if (bar) bar.style.width = (total ? Math.round((done / total) * 100) : 0) + '%';
+      if (ctr) ctr.textContent = total ? `${done}/${total}` : '—';
+    }
+    function scrapBatchLog(tabId, msg, cls) {
+      const log = document.getElementById(tabId + '-sc-bp-log');
+      if (!log) return;
+      log.style.display = '';
+      const line = document.createElement('div');
+      if (cls) line.className = cls;
+      line.textContent = msg;
+      log.appendChild(line);
+      log.scrollTop = log.scrollHeight;
+    }
+    async function scrapBatchRun(tabId) {
+      const tab = tabs.get(tabId);
+      if (!tab || !tab.scrap) return;
+      const activeMode = document.querySelector(`#${tabId}-sc-batch-bd .mode-toggle button.active`);
+      const bmode = activeMode ? activeMode.getAttribute('data-bm') : 'pattern';
+      const mode = document.getElementById(tabId + '-sc-bp-mode').value;
+      const delayMs = parseInt(document.getElementById(tabId + '-sc-bp-delay').value) || 0;
+      const addSourceCol = !!document.getElementById(tabId + '-sc-bp-source').checked;
+      const append = !!document.getElementById(tabId + '-sc-bp-append').checked;
+
+      // Build URL spec
+      const spec = { mode, delayMs, addSourceCol };
+      if (bmode === 'list') {
+        const raw = document.getElementById(tabId + '-sc-bp-urls').value || '';
+        spec.urls = raw.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+      } else {
+        spec.pattern = document.getElementById(tabId + '-sc-bp-pattern').value || '';
+        spec.from = parseInt(document.getElementById(tabId + '-sc-bp-from').value);
+        spec.to = parseInt(document.getElementById(tabId + '-sc-bp-to').value);
+        spec.step = parseInt(document.getElementById(tabId + '-sc-bp-step').value) || 1;
+      }
+      // Selectors + root from current state
+      const rootEl = document.getElementById(tabId + '-sc-root');
+      spec.rootSelector = rootEl ? rootEl.value.trim() : (tab.scrap.rootSelector || '');
+      const selectors = {};
+      for (const f of (tab.scrap.fields || [])) {
+        if (!f.name) continue;
+        selectors[f.name] = { selector: f.selector, attr: f.attr || 'text' };
+      }
+      spec.selectors = selectors;
+      if (!Object.keys(selectors).length) { scrapBatchLog(tabId, 'no field selectors set — add at least one field', 'err'); return; }
+      if (mode === 'browser') { spec.scroll = !!document.getElementById(tabId + '-sc-scroll').checked; spec.waitMs = 800; }
+
+      // UI start
+      const runBtn = document.getElementById(tabId + '-sc-bp-run');
+      const stopBtn = document.getElementById(tabId + '-sc-bp-stop');
+      runBtn.disabled = true; stopBtn.style.display = '';
+      const log = document.getElementById(tabId + '-sc-bp-log');
+      log.innerHTML = ''; log.style.display = '';
+      scrapBatchSetProgress(tabId, 0, 0);
+
+      // Use SSE streaming for live progress
+      const ctrl = new AbortController();
+      tab.scrap._batchCtrl = ctrl;
+      const collected = [];
+      let total = 0, done = 0;
+      try {
+        const r = await fetch('/api/scrap/batch?stream=1', {
+          method: 'POST', credentials: 'same-origin', signal: ctrl.signal,
+          headers: { 'Content-Type': 'application/json', 'Accept': 'text/event-stream' },
+          body: JSON.stringify(spec),
+        });
+        if (!r.ok) {
+          let msg = 'HTTP ' + r.status;
+          try { const d = await r.json(); if (d.error) msg = d.error; } catch {}
+          throw new Error(msg);
+        }
+        const reader = r.body.getReader();
+        const decoder = new TextDecoder();
+        let buf = '';
+        let aborted = false;
+        while (true) {
+          const { value, done: rdDone } = await reader.read();
+          if (rdDone) break;
+          buf += decoder.decode(value, { stream: true });
+          let nl;
+          while ((nl = buf.indexOf('\n\n')) >= 0) {
+            const chunk = buf.slice(0, nl).trim();
+            buf = buf.slice(nl + 2);
+            if (!chunk) continue;
+            let evt = 'message', data = '';
+            for (const line of chunk.split('\n')) {
+              if (line.startsWith('event:')) evt = line.slice(6).trim();
+              else if (line.startsWith('data:')) data += line.slice(5).trim();
+            }
+            let json = null; try { json = JSON.parse(data); } catch {}
+            if (!json) continue;
+            if (evt === 'start') { total = json.total; scrapBatchSetProgress(tabId, 0, total); scrapBatchLog(tabId, `▷ batch start: ${total} URLs, mode=${json.mode}`); }
+            else if (evt === 'page') {
+              done = json.idx; scrapBatchSetProgress(tabId, done, total);
+              scrapBatchLog(tabId, `[${done}/${total}] ${json.status} · ${json.count} rows · ${json.ms}ms · ${json.url}`, 'ok');
+            } else if (evt === 'error') {
+              done = json.idx; scrapBatchSetProgress(tabId, done, total);
+              scrapBatchLog(tabId, `[${done}/${total}] ERROR ${json.url}: ${json.error}`, 'err');
+            } else if (evt === 'done') {
+              for (const row of (json.rows || [])) collected.push(row);
+              scrapBatchLog(tabId, `✓ batch complete: ${json.rows.length} total rows, ${json.errors} errors, ${json.durationMs}ms`, 'ok');
+            }
+          }
+        }
+        // Merge into tab state
+        if (append) tab.scrap.rows = (tab.scrap.rows || []).concat(collected);
+        else tab.scrap.rows = collected;
+        scrapRenderRows(tabId);
+        scrapSetStatus(tabId, `batch: ${collected.length} rows`, 'ok');
+      } catch (e) {
+        if (e.name === 'AbortError') scrapBatchLog(tabId, '⏹ stopped by user', 'err');
+        else scrapBatchLog(tabId, 'fatal: ' + (e.message || e), 'err');
+      } finally {
+        tab.scrap._batchCtrl = null;
+        runBtn.disabled = false; stopBtn.style.display = 'none';
+      }
+    }
+    function scrapBatchStop(tabId) {
+      const tab = tabs.get(tabId);
+      if (tab && tab.scrap && tab.scrap._batchCtrl) tab.scrap._batchCtrl.abort();
+    }
+
     async function scrapAIGenerate(tabId) {
       const tab = tabs.get(tabId);
       if (!tab || !tab.scrap.html) { scrapSetStatus(tabId, 'run page first', 'err'); return; }
@@ -5982,6 +6155,7 @@
             <button class="scrap-btn primary" onclick="scrapRun('${tabId}')" id="${tabId}-sc-run">▷ Run</button>
             <button class="scrap-btn" onclick="scrapExtract('${tabId}')" id="${tabId}-sc-extract" disabled>Extract</button>
             <button class="scrap-btn" onclick="scrapTogglePick('${tabId}')" id="${tabId}-sc-pick" title="Visual selector picker — click element in preview" disabled>🎯 Pick</button>
+            <button class="scrap-btn" onclick="scrapBatchOpen('${tabId}')" id="${tabId}-sc-batch-btn" title="Batch scrape multiple URLs / paginated">🔁 Batch</button>
             <button class="scrap-btn" onclick="scrapSave('${tabId}')" title="Save as recipe">💾</button>
           </div>
           <div class="scrap-body">
@@ -6038,6 +6212,55 @@
               <button class="scrap-btn" onclick="scrapExport('${tabId}','md')">MD</button>
             </div>
             <div id="${tabId}-sc-rows"><div class="scrap-empty">Run a page and extract to see results.</div></div>
+          </div>
+          <div class="scrap-batch-backdrop" id="${tabId}-sc-batch-bd" onclick="if(event.target.id==='${tabId}-sc-batch-bd')scrapBatchClose('${tabId}')">
+            <div class="scrap-batch-modal">
+              <h3>🔁 Batch Scrape <button class="x" onclick="scrapBatchClose('${tabId}')">✕</button></h3>
+              <div class="mode-toggle">
+                <button class="active" data-bm="pattern" onclick="scrapBatchMode('${tabId}','pattern',this)">URL pattern</button>
+                <button data-bm="list" onclick="scrapBatchMode('${tabId}','list',this)">URL list</button>
+              </div>
+              <div data-bm-pane="pattern">
+                <label>Pattern (use <code>{1..10}</code> or <code>{N}</code>)</label>
+                <input type="text" id="${tabId}-sc-bp-pattern" placeholder="https://example.com/items?page={1..10}">
+                <div class="row" style="margin-top:8px">
+                  <div><label>From</label><input type="number" id="${tabId}-sc-bp-from" value="1"></div>
+                  <div><label>To</label><input type="number" id="${tabId}-sc-bp-to" value="10"></div>
+                  <div><label>Step</label><input type="number" id="${tabId}-sc-bp-step" value="1" min="1"></div>
+                </div>
+                <div class="hint">If pattern contains <code>{1..10}</code> it overrides From/To. Otherwise From/To/Step fill <code>{N}</code>.</div>
+              </div>
+              <div data-bm-pane="list" style="display:none">
+                <label>URLs (one per line)</label>
+                <textarea id="${tabId}-sc-bp-urls" placeholder="https://example.com/page1&#10;https://example.com/page2"></textarea>
+              </div>
+              <div class="row" style="margin-top:10px;grid-template-columns:1fr 1fr">
+                <div>
+                  <label>Mode</label>
+                  <select id="${tabId}-sc-bp-mode" style="width:100%;background:rgba(0,0,0,.32);border:1px solid rgba(255,255,255,.08);color:var(--text);border-radius:6px;padding:7px 10px;font:12.5px inherit;outline:none">
+                    <option value="static">Static (fast)</option>
+                    <option value="browser">Browser (JS-render)</option>
+                  </select>
+                </div>
+                <div>
+                  <label>Delay between requests (ms)</label>
+                  <input type="number" id="${tabId}-sc-bp-delay" value="1000" min="0" step="100">
+                </div>
+              </div>
+              <label style="display:flex;align-items:center;gap:6px;margin-top:10px;text-transform:none;letter-spacing:normal;color:var(--text2);font-size:12px">
+                <input type="checkbox" id="${tabId}-sc-bp-source" checked> Add <code>_source</code> column (origin URL per row)
+              </label>
+              <label style="display:flex;align-items:center;gap:6px;margin-top:4px;text-transform:none;letter-spacing:normal;color:var(--text2);font-size:12px">
+                <input type="checkbox" id="${tabId}-sc-bp-append"> Append to existing results (don't replace)
+              </label>
+              <div class="actions">
+                <div class="scrap-batch-progress" id="${tabId}-sc-bp-bar"><div></div></div>
+                <span id="${tabId}-sc-bp-counter" style="font-size:11px;color:var(--text3);min-width:80px;text-align:right">—</span>
+                <button class="scrap-btn primary" id="${tabId}-sc-bp-run" onclick="scrapBatchRun('${tabId}')">▷ Run Batch</button>
+                <button class="scrap-btn" id="${tabId}-sc-bp-stop" style="display:none" onclick="scrapBatchStop('${tabId}')">⏹ Stop</button>
+              </div>
+              <div class="scrap-batch-log" id="${tabId}-sc-bp-log" style="display:none"></div>
+            </div>
           </div>
         </div>`;
         container.appendChild(paneEl);
