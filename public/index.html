@@ -1108,6 +1108,7 @@
       flex-direction: column;
       min-width: 0;
       border-right: 1px solid rgba(255,255,255,.05);
+      position: relative;
     }
     .scrap-preview-status {
       padding: 6px 10px;
@@ -1184,7 +1185,7 @@
     }
     .scrap-field-row {
       display: grid;
-      grid-template-columns: 110px 1fr 78px 24px;
+      grid-template-columns: 100px 1fr 24px 70px 24px;
       gap: 4px;
       margin-bottom: 4px;
       align-items: center;
@@ -1209,13 +1210,47 @@
       padding: 0;
     }
     .scrap-field-row .x:hover { color: #f87171; }
+    .scrap-field-row .pick {
+      background: transparent;
+      border: 1px solid rgba(255,255,255,.08);
+      color: var(--text2);
+      cursor: pointer;
+      font-size: 12px;
+      padding: 2px 0;
+      border-radius: 4px;
+      line-height: 1;
+    }
+    .scrap-field-row .pick:hover { background: rgba(167,139,250,.18); color: #d8c8ff; border-color: rgba(167,139,250,.45); }
+    .scrap-field-row .pick.active { background: rgba(167,139,250,.35); color: #fff; border-color: rgba(167,139,250,.7); box-shadow: 0 0 0 2px rgba(167,139,250,.18); }
+    .scrap-toolbar .scrap-btn.pick-mode-on { background: rgba(167,139,250,.35); color: #fff; border-color: rgba(167,139,250,.7); }
+    .scrap-pick-hint {
+      position: absolute; top: 8px; left: 8px;
+      background: rgba(15,15,30,.92); border: 1px solid rgba(167,139,250,.45);
+      color: #d8c8ff; padding: 6px 10px; border-radius: 6px; font-size: 11px;
+      pointer-events: none; z-index: 10; backdrop-filter: blur(6px);
+      display: none;
+    }
+    .scrap-preview-pane.pick-on .scrap-pick-hint { display: block; }
+    .scrap-preview-pane.pick-on .scrap-preview-frame { cursor: crosshair; }
     .scrap-root-row {
       display: grid;
-      grid-template-columns: 110px 1fr;
+      grid-template-columns: 100px 1fr 24px;
       gap: 4px;
       margin-bottom: 8px;
       align-items: center;
     }
+    .scrap-root-row .pick {
+      background: transparent;
+      border: 1px solid rgba(255,255,255,.08);
+      color: var(--text2);
+      cursor: pointer;
+      font-size: 12px;
+      padding: 2px 0;
+      border-radius: 4px;
+      line-height: 1;
+    }
+    .scrap-root-row .pick:hover { background: rgba(167,139,250,.18); color: #d8c8ff; border-color: rgba(167,139,250,.45); }
+    .scrap-root-row .pick.active { background: rgba(167,139,250,.35); color: #fff; border-color: rgba(167,139,250,.7); box-shadow: 0 0 0 2px rgba(167,139,250,.18); }
     .scrap-root-row input {
       background: rgba(0,0,0,.25);
       border: 1px solid rgba(255,255,255,.06);
@@ -4997,17 +5032,217 @@
       if (!host) return;
       const rootEl = document.getElementById(tabId + '-sc-root');
       if (rootEl) rootEl.value = tab.scrap.rootSelector || '';
+      const activeIdx = tab.scrap.pickFieldIdx;
+      const isRoot = tab.scrap.pickTarget === 'root';
       host.innerHTML = tab.scrap.fields.map((f, i) => `
         <div class="scrap-field-row">
           <input data-sc-fn="${i}" placeholder="name" value="${escAttr(f.name)}" oninput="scrapFieldChange('${tabId}',${i},'name',this.value)">
           <input data-sc-fs="${i}" placeholder=".selector" value="${escAttr(f.selector)}" oninput="scrapFieldChange('${tabId}',${i},'selector',this.value)">
+          <button class="pick${activeIdx===i && !isRoot ? ' active' : ''}" onclick="scrapPickField('${tabId}',${i})" title="Pick selector visually">🎯</button>
           <select data-sc-fa="${i}" onchange="scrapFieldChange('${tabId}',${i},'attr',this.value)">
             ${['text','html','href','src','alt','title','value','data-src','outerHTML','count'].map(a => `<option value="${a}"${(f.attr||'text')===a?' selected':''}>${a}</option>`).join('')}
           </select>
           <button class="x" onclick="scrapRemoveField('${tabId}',${i})" title="Remove">×</button>
         </div>
       `).join('');
+      // Also wire root selector pick button if present
+      const rootBtn = document.getElementById(tabId + '-sc-root-pick');
+      if (rootBtn) rootBtn.classList.toggle('active', isRoot);
     }
+
+    function scrapRootChange(tabId, value) {
+      const tab = tabs.get(tabId);
+      if (!tab || !tab.scrap) return;
+      tab.scrap.rootSelector = value;
+    }
+
+    // === Visual Selector Picker (iframe overlay) ===
+    function scrapMountFrame(tabId) {
+      const tab = tabs.get(tabId);
+      if (!tab || !tab.scrap) return;
+      const frame = document.getElementById(tabId + '-sc-frame');
+      const pane = frame && frame.parentElement;
+      if (!frame || !tab.scrap.html) return;
+      const html = tab.scrap.html;
+      const baseUrl = tab.scrap.finalUrl || tab.scrap.url || '';
+      const pickOn = !!tab.scrap.pickActive;
+      // Strip scripts whether pick is on or off — sandbox keeps page inert; we control behavior via injection
+      let safe = html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+      if (!/<base /i.test(safe)) {
+        safe = safe.replace(/<head[^>]*>/i, m => m + `<base href="${escAttr(baseUrl)}">`);
+        if (!/<head[^>]*>/i.test(safe)) safe = `<head><base href="${escAttr(baseUrl)}"></head>` + safe;
+      }
+      // Inject picker overlay if pick mode is active
+      if (pickOn) {
+        const pickScript = `
+<style>
+  .__cf_pick_hl { outline: 2px solid #a78bfa !important; outline-offset: -2px !important; background: rgba(167,139,250,.18) !important; cursor: crosshair !important; }
+  .__cf_pick_bar { position: fixed; top: 0; left: 0; right: 0; background: rgba(15,15,30,.92); color: #d8c8ff; padding: 6px 10px; font: 12px/1.4 -apple-system,system-ui,sans-serif; border-bottom: 1px solid rgba(167,139,250,.45); z-index: 2147483647; backdrop-filter: blur(8px); pointer-events: none; word-break: break-all; }
+  html { cursor: crosshair !important; }
+</style>
+<div class="__cf_pick_bar" id="__cf_pick_bar">🎯 Hover over an element · click to capture · Esc to cancel</div>
+<script>
+(function(){
+  function cssPath(el){
+    if(!el || el.nodeType !== 1) return '';
+    if(el.id && !/\\s/.test(el.id)) return '#' + CSS.escape(el.id);
+    var parts = [], cur = el, depth = 0;
+    while(cur && cur.nodeType === 1 && cur.tagName !== 'HTML' && depth < 6){
+      var part = cur.tagName.toLowerCase();
+      if(cur.id && !/\\s/.test(cur.id)){ parts.unshift('#' + CSS.escape(cur.id)); break; }
+      var cls = (cur.className && typeof cur.className === 'string') ? cur.className.split(/\\s+/).filter(function(c){return c && !/[:\\[\\]\\(\\)]/.test(c) && c.length < 40;}) : [];
+      if(cls.length){ part += '.' + cls.slice(0,2).map(function(c){return CSS.escape(c);}).join('.'); }
+      var par = cur.parentElement;
+      if(par){
+        var sib = Array.prototype.filter.call(par.children, function(s){return s.tagName === cur.tagName;});
+        if(sib.length > 1){ part += ':nth-of-type(' + (sib.indexOf(cur)+1) + ')'; }
+      }
+      parts.unshift(part);
+      cur = par;
+      depth++;
+    }
+    return parts.join(' > ');
+  }
+  var last = null;
+  var bar = document.getElementById('__cf_pick_bar');
+  function clearHl(){ if(last){ last.classList.remove('__cf_pick_hl'); last = null; } }
+  document.addEventListener('mousemove', function(e){
+    var t = e.target;
+    if(!t || t === document.body || t === document.documentElement || t.id === '__cf_pick_bar') return;
+    if(last !== t){ clearHl(); t.classList.add('__cf_pick_hl'); last = t; }
+    if(bar){ bar.textContent = '🎯 ' + cssPath(t).slice(0, 200); }
+  }, true);
+  document.addEventListener('click', function(e){
+    e.preventDefault(); e.stopPropagation();
+    var t = e.target;
+    if(!t || t === document.body || t === document.documentElement) return;
+    var sel = cssPath(t);
+    var info = { tag: t.tagName.toLowerCase(), text: (t.textContent||'').trim().slice(0,80), attrs: {} };
+    ['href','src','alt','title','data-src'].forEach(function(a){ var v = t.getAttribute(a); if(v) info.attrs[a] = v; });
+    try { parent.postMessage({ type: 'scrap-pick', tabId: ${JSON.stringify(tabId)}, selector: sel, info: info }, '*'); } catch(_){}
+    clearHl();
+    return false;
+  }, true);
+  document.addEventListener('keydown', function(e){
+    if(e.key === 'Escape'){ try{ parent.postMessage({ type: 'scrap-pick-cancel', tabId: ${JSON.stringify(tabId)} }, '*'); }catch(_){ } }
+  }, true);
+})();
+<\/script>`;
+        safe = safe.replace(/<\/body>/i, pickScript + '</body>');
+        if (!/<\/body>/i.test(safe)) safe += pickScript;
+        frame.setAttribute('sandbox', 'allow-scripts allow-same-origin');
+      } else {
+        frame.setAttribute('sandbox', 'allow-same-origin');
+      }
+      frame.srcdoc = safe;
+      if (pane) pane.classList.toggle('pick-on', pickOn);
+      const toolbarBtn = document.getElementById(tabId + '-sc-pick');
+      if (toolbarBtn) toolbarBtn.classList.toggle('pick-mode-on', pickOn);
+    }
+
+    function scrapTogglePick(tabId) {
+      const tab = tabs.get(tabId);
+      if (!tab || !tab.scrap || !tab.scrap.html) { scrapSetStatus(tabId, 'run page first', 'err'); return; }
+      tab.scrap.pickActive = !tab.scrap.pickActive;
+      if (!tab.scrap.pickActive) { tab.scrap.pickFieldIdx = -1; tab.scrap.pickTarget = null; }
+      else if (tab.scrap.pickFieldIdx == null || tab.scrap.pickFieldIdx < 0) {
+        // Pick into first empty field, otherwise first field
+        const fields = tab.scrap.fields || [];
+        let idx = fields.findIndex(f => !f.selector);
+        if (idx < 0) idx = 0;
+        tab.scrap.pickFieldIdx = idx;
+        tab.scrap.pickTarget = 'field';
+      }
+      scrapMountFrame(tabId);
+      scrapRenderFields(tabId);
+    }
+
+    function scrapPickField(tabId, idx) {
+      const tab = tabs.get(tabId);
+      if (!tab || !tab.scrap) return;
+      if (!tab.scrap.html) { scrapSetStatus(tabId, 'run page first', 'err'); return; }
+      // Toggle off if clicking active field again
+      if (tab.scrap.pickActive && tab.scrap.pickFieldIdx === idx && tab.scrap.pickTarget === 'field') {
+        tab.scrap.pickActive = false;
+        tab.scrap.pickFieldIdx = -1;
+        tab.scrap.pickTarget = null;
+      } else {
+        tab.scrap.pickActive = true;
+        tab.scrap.pickFieldIdx = idx;
+        tab.scrap.pickTarget = 'field';
+      }
+      scrapMountFrame(tabId);
+      scrapRenderFields(tabId);
+    }
+
+    function scrapPickRoot(tabId) {
+      const tab = tabs.get(tabId);
+      if (!tab || !tab.scrap) return;
+      if (!tab.scrap.html) { scrapSetStatus(tabId, 'run page first', 'err'); return; }
+      if (tab.scrap.pickActive && tab.scrap.pickTarget === 'root') {
+        tab.scrap.pickActive = false;
+        tab.scrap.pickTarget = null;
+      } else {
+        tab.scrap.pickActive = true;
+        tab.scrap.pickTarget = 'root';
+        tab.scrap.pickFieldIdx = -1;
+      }
+      scrapMountFrame(tabId);
+      scrapRenderFields(tabId);
+    }
+
+    // Listen for picks from any scrap iframe
+    window.addEventListener('message', function(ev) {
+      const d = ev.data;
+      if (!d || typeof d !== 'object') return;
+      if (d.type === 'scrap-pick') {
+        const tab = tabs.get(d.tabId);
+        if (!tab || !tab.scrap || !tab.scrap.pickActive) return;
+        const sel = String(d.selector || '');
+        if (!sel) return;
+        if (tab.scrap.pickTarget === 'root') {
+          tab.scrap.rootSelector = sel;
+          const ri = document.getElementById(d.tabId + '-sc-root');
+          if (ri) ri.value = sel;
+          scrapSetStatus(d.tabId, 'picked root: ' + sel.slice(0,60), 'ok');
+        } else if (tab.scrap.pickTarget === 'field') {
+          const idx = tab.scrap.pickFieldIdx;
+          if (idx >= 0 && tab.scrap.fields[idx]) {
+            tab.scrap.fields[idx].selector = sel;
+            // Smart attr guess: if info shows href/src, switch attr
+            const attrs = (d.info && d.info.attrs) || {};
+            const curAttr = tab.scrap.fields[idx].attr || 'text';
+            if (attrs.href && curAttr === 'text' && tab.scrap.fields[idx].name && /url|link|href/i.test(tab.scrap.fields[idx].name)) {
+              tab.scrap.fields[idx].attr = 'href';
+            } else if (attrs.src && curAttr === 'text' && tab.scrap.fields[idx].name && /img|image|photo|src/i.test(tab.scrap.fields[idx].name)) {
+              tab.scrap.fields[idx].attr = 'src';
+            }
+            scrapSetStatus(d.tabId, 'picked ' + (tab.scrap.fields[idx].name||'field') + ': ' + sel.slice(0,50), 'ok');
+            // Auto-advance to next empty field or stay
+            const nextEmpty = tab.scrap.fields.findIndex((f, i) => i > idx && !f.selector);
+            if (nextEmpty >= 0) {
+              tab.scrap.pickFieldIdx = nextEmpty;
+            } else {
+              // Turn off pick mode after last
+              tab.scrap.pickActive = false;
+              tab.scrap.pickFieldIdx = -1;
+              tab.scrap.pickTarget = null;
+            }
+          }
+        }
+        scrapMountFrame(d.tabId);
+        scrapRenderFields(d.tabId);
+      } else if (d.type === 'scrap-pick-cancel') {
+        const tab = tabs.get(d.tabId);
+        if (!tab || !tab.scrap) return;
+        tab.scrap.pickActive = false;
+        tab.scrap.pickFieldIdx = -1;
+        tab.scrap.pickTarget = null;
+        scrapMountFrame(d.tabId);
+        scrapRenderFields(d.tabId);
+        scrapSetStatus(d.tabId, 'pick cancelled', 'ok');
+      }
+    });
     function scrapAddField(tabId) {
       const tab = tabs.get(tabId);
       if (!tab) return;
@@ -5054,20 +5289,17 @@
         if (!r.ok || d.error) throw new Error(d.error || ('HTTP ' + r.status));
         tab.scrap.html = d.html || '';
         tab.scrap.finalUrl = d.final_url || url;
+        // Reset pick state on new fetch
+        tab.scrap.pickActive = false;
+        tab.scrap.pickFieldIdx = -1;
+        tab.scrap.pickTarget = null;
         const fu = document.getElementById(tabId + '-sc-final-url');
         if (fu) fu.textContent = d.final_url || url;
-        // Inject into preview iframe via srcdoc — strip <script> to avoid sandbox issues
-        const frame = document.getElementById(tabId + '-sc-frame');
-        if (frame) {
-          let safe = (d.html || '');
-          // Add base tag so relative URLs resolve
-          if (!/<base /i.test(safe)) {
-            safe = safe.replace(/<head[^>]*>/i, m => m + `<base href="${escAttr(d.final_url || url)}">`);
-          }
-          frame.srcdoc = safe;
-        }
+        scrapMountFrame(tabId);
         scrapSetStatus(tabId, `${mode} ok ${d.status||''}`.trim(), 'ok');
         extractBtn.disabled = false;
+        const pickBtn = document.getElementById(tabId + '-sc-pick');
+        if (pickBtn) pickBtn.disabled = false;
       } catch (e) {
         scrapSetStatus(tabId, 'error: ' + (e.message || e), 'err');
       } finally {
@@ -5735,6 +5967,7 @@
             <label style="display:flex;align-items:center;gap:4px;font-size:11.5px;color:var(--text2);padding:0 4px"><input type="checkbox" id="${tabId}-sc-scroll" style="margin:0"> scroll</label>
             <button class="scrap-btn primary" onclick="scrapRun('${tabId}')" id="${tabId}-sc-run">▷ Run</button>
             <button class="scrap-btn" onclick="scrapExtract('${tabId}')" id="${tabId}-sc-extract" disabled>Extract</button>
+            <button class="scrap-btn" onclick="scrapTogglePick('${tabId}')" id="${tabId}-sc-pick" title="Visual selector picker — click element in preview" disabled>🎯 Pick</button>
             <button class="scrap-btn" onclick="scrapSave('${tabId}')" title="Save as recipe">💾</button>
           </div>
           <div class="scrap-body">
@@ -5744,6 +5977,7 @@
                 <span id="${tabId}-sc-final-url" style="color:var(--text3);font-size:10.5px;word-break:break-all;flex:1;min-width:0"></span>
               </div>
               <iframe class="scrap-preview-frame" id="${tabId}-sc-frame" sandbox="allow-same-origin"></iframe>
+              <div class="scrap-pick-hint" id="${tabId}-sc-pick-hint">🎯 Click any element to capture its selector · Esc to cancel</div>
             </div>
             <div class="scrap-side">
               <div class="scrap-side-tabs">
@@ -5756,7 +5990,8 @@
                   <div class="scrap-section-title">Root selector (for lists)</div>
                   <div class="scrap-root-row">
                     <span style="font-size:11.5px;color:var(--text2)">root</span>
-                    <input id="${tabId}-sc-root" placeholder="e.g. .product-card  (empty = single record)">
+                    <input id="${tabId}-sc-root" placeholder="e.g. .product-card  (empty = single record)" oninput="scrapRootChange('${tabId}',this.value)">
+                    <button class="pick" id="${tabId}-sc-root-pick" onclick="scrapPickRoot('${tabId}')" title="Pick root selector visually">🎯</button>
                   </div>
                   <div class="scrap-section-title">Fields</div>
                   <div id="${tabId}-sc-fields"></div>
