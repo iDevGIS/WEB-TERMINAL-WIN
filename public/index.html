@@ -1042,6 +1042,282 @@
       white-space: nowrap;
     }
 
+    /* === Scrap Tool tab === */
+    .tab-pane .scrap-tab-wrap {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      border-radius: 0 0 16px 16px;
+      overflow: hidden;
+      border: 1px solid rgba(255,255,255,.06);
+      border-top: none;
+      background: #0a0a1a;
+      color: var(--text);
+    }
+    .scrap-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 10px;
+      background: #0d0d22;
+      border-bottom: 1px solid rgba(108,99,255,.15);
+      flex-wrap: wrap;
+    }
+    .scrap-toolbar input.scrap-url {
+      flex: 1;
+      min-width: 200px;
+      padding: 6px 12px;
+      height: 28px;
+      box-sizing: border-box;
+      border-radius: 6px;
+      background: rgba(0,0,0,.25);
+      border: 1px solid rgba(255,255,255,.08);
+      color: var(--text);
+      font-size: 13px;
+      font-family: inherit;
+      outline: none;
+    }
+    .scrap-toolbar input.scrap-url:focus { border-color: rgba(167,139,250,.45); background: rgba(0,0,0,.35); }
+    .scrap-toolbar select, .scrap-toolbar .scrap-btn {
+      background: rgba(255,255,255,.05);
+      border: 1px solid rgba(255,255,255,.08);
+      color: var(--text2);
+      padding: 5px 12px;
+      height: 28px;
+      box-sizing: border-box;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 12.5px;
+      font-family: inherit;
+      transition: all .12s;
+    }
+    .scrap-toolbar .scrap-btn:hover { background: rgba(167,139,250,.18); color: var(--text); border-color: rgba(167,139,250,.35); }
+    .scrap-toolbar .scrap-btn.primary { background: rgba(167,139,250,.18); color: #d8c8ff; border-color: rgba(167,139,250,.45); }
+    .scrap-toolbar .scrap-btn.primary:hover { background: rgba(167,139,250,.3); color: #fff; }
+    .scrap-toolbar .scrap-btn:disabled { opacity: .4; cursor: default; }
+    .scrap-body {
+      flex: 1;
+      min-height: 0;
+      display: grid;
+      grid-template-columns: 1fr 380px;
+      gap: 0;
+    }
+    .scrap-preview-pane {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      border-right: 1px solid rgba(255,255,255,.05);
+    }
+    .scrap-preview-status {
+      padding: 6px 10px;
+      font-size: 11px;
+      color: var(--text2);
+      background: rgba(0,0,0,.18);
+      border-bottom: 1px solid rgba(255,255,255,.04);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .scrap-preview-status .pill {
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: rgba(108,99,255,.12);
+      color: #b5acff;
+      font-size: 10.5px;
+    }
+    .scrap-preview-status .pill.ok { background: rgba(74,222,128,.15); color: #86efac; }
+    .scrap-preview-status .pill.err { background: rgba(248,113,113,.18); color: #fca5a5; }
+    .scrap-preview-frame {
+      flex: 1;
+      min-height: 0;
+      width: 100%;
+      border: none;
+      background: #fff;
+    }
+    .scrap-shot {
+      flex: 1;
+      min-height: 0;
+      overflow: auto;
+      background: #111;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 12px;
+    }
+    .scrap-shot img { max-width: 100%; height: auto; border: 1px solid rgba(255,255,255,.08); border-radius: 6px; }
+    .scrap-side {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      overflow: hidden;
+      background: #0c0c1f;
+    }
+    .scrap-side-tabs {
+      display: flex;
+      gap: 4px;
+      padding: 6px 8px 0;
+      border-bottom: 1px solid rgba(255,255,255,.05);
+    }
+    .scrap-side-tab {
+      padding: 6px 10px;
+      font-size: 11.5px;
+      color: var(--text2);
+      cursor: pointer;
+      border-radius: 6px 6px 0 0;
+      border: 1px solid transparent;
+      border-bottom: none;
+    }
+    .scrap-side-tab.active { background: #0a0a1a; color: var(--text); border-color: rgba(167,139,250,.25); }
+    .scrap-side-body {
+      flex: 1;
+      overflow: auto;
+      padding: 10px;
+    }
+    .scrap-section-title {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      color: var(--text3);
+      margin: 4px 0 6px;
+    }
+    .scrap-field-row {
+      display: grid;
+      grid-template-columns: 110px 1fr 78px 24px;
+      gap: 4px;
+      margin-bottom: 4px;
+      align-items: center;
+    }
+    .scrap-field-row input, .scrap-field-row select {
+      background: rgba(0,0,0,.25);
+      border: 1px solid rgba(255,255,255,.06);
+      color: var(--text);
+      padding: 4px 8px;
+      font-size: 11.5px;
+      font-family: inherit;
+      border-radius: 4px;
+      outline: none;
+    }
+    .scrap-field-row input:focus { border-color: rgba(167,139,250,.4); background: rgba(0,0,0,.35); }
+    .scrap-field-row .x {
+      background: transparent;
+      border: none;
+      color: var(--text3);
+      cursor: pointer;
+      font-size: 14px;
+      padding: 0;
+    }
+    .scrap-field-row .x:hover { color: #f87171; }
+    .scrap-root-row {
+      display: grid;
+      grid-template-columns: 110px 1fr;
+      gap: 4px;
+      margin-bottom: 8px;
+      align-items: center;
+    }
+    .scrap-root-row input {
+      background: rgba(0,0,0,.25);
+      border: 1px solid rgba(255,255,255,.06);
+      color: var(--text);
+      padding: 4px 8px;
+      font-size: 11.5px;
+      font-family: inherit;
+      border-radius: 4px;
+      outline: none;
+    }
+    .scrap-ai-box {
+      background: rgba(167,139,250,.06);
+      border: 1px solid rgba(167,139,250,.18);
+      padding: 8px;
+      border-radius: 6px;
+      margin-bottom: 10px;
+    }
+    .scrap-ai-box textarea {
+      width: 100%;
+      box-sizing: border-box;
+      min-height: 50px;
+      background: rgba(0,0,0,.25);
+      border: 1px solid rgba(255,255,255,.06);
+      color: var(--text);
+      padding: 6px 8px;
+      font-size: 12px;
+      font-family: inherit;
+      border-radius: 4px;
+      outline: none;
+      resize: vertical;
+    }
+    .scrap-recipes {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .scrap-recipe-item {
+      background: rgba(255,255,255,.02);
+      border: 1px solid rgba(255,255,255,.06);
+      border-radius: 6px;
+      padding: 8px;
+      cursor: pointer;
+      transition: all .12s;
+    }
+    .scrap-recipe-item:hover { background: rgba(167,139,250,.08); border-color: rgba(167,139,250,.22); }
+    .scrap-recipe-item .rn { font-size: 12.5px; font-weight: 600; color: var(--text); }
+    .scrap-recipe-item .ru { font-size: 10.5px; color: var(--text3); margin-top: 2px; word-break: break-all; }
+    .scrap-recipe-actions { display: flex; gap: 4px; margin-top: 6px; }
+    .scrap-recipe-actions button {
+      flex: 1;
+      background: rgba(255,255,255,.04);
+      border: 1px solid rgba(255,255,255,.08);
+      color: var(--text2);
+      font-size: 10.5px;
+      padding: 3px 6px;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .scrap-recipe-actions button:hover { background: rgba(167,139,250,.15); color: var(--text); }
+    .scrap-recipe-actions button.del:hover { background: rgba(248,113,113,.15); color: #fca5a5; border-color: rgba(248,113,113,.3); }
+
+    .scrap-result {
+      max-height: 40%;
+      overflow: auto;
+      background: rgba(0,0,0,.15);
+      border-top: 1px solid rgba(255,255,255,.06);
+    }
+    .scrap-result-header {
+      padding: 6px 10px;
+      font-size: 11px;
+      color: var(--text2);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      border-bottom: 1px solid rgba(255,255,255,.05);
+      position: sticky;
+      top: 0;
+      background: rgba(0,0,0,.85);
+      backdrop-filter: blur(6px);
+      z-index: 2;
+    }
+    .scrap-result-header .count { color: #86efac; font-weight: 600; }
+    .scrap-result-header .scrap-btn { height: 22px; padding: 2px 8px; font-size: 11px; }
+    .scrap-result-table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+    .scrap-result-table th, .scrap-result-table td {
+      padding: 5px 8px;
+      border-bottom: 1px solid rgba(255,255,255,.04);
+      text-align: left;
+      vertical-align: top;
+      word-break: break-word;
+    }
+    .scrap-result-table th { background: rgba(108,99,255,.08); color: #c4b5fd; font-weight: 600; position: sticky; top: 33px; }
+    .scrap-result-table td { color: var(--text2); max-width: 280px; }
+    .scrap-result-table tr:hover td { background: rgba(255,255,255,.02); }
+    .scrap-empty { padding: 14px; color: var(--text3); text-align: center; font-size: 12px; }
+
+    @media (max-width: 900px) {
+      .scrap-body { grid-template-columns: 1fr; }
+      .scrap-side { max-height: 280px; border-top: 1px solid rgba(255,255,255,.05); }
+    }
+
     /* Files tab — file drawer displayed inline in tab */
     .files-tab-pane {
       overflow: hidden;
@@ -4430,6 +4706,11 @@
               <span class="feat-label">Browser</span>
               <span class="feat-sub">Web pages</span>
             </div>
+            <div class="feature" onclick="openScrapTab()" title="Scrap Tool — Web scraper">
+              <span class="fi"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fb7185" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3 8-8"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span>
+              <span class="feat-label">Scrap</span>
+              <span class="feat-sub">Web scraper</span>
+            </div>
             <div class="feature" onclick="openClaudeCodeTab()" title="Claude Code — AI Coding Agent">
               <span class="fi"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#f97316" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg></span>
               <span class="feat-label">Claude Code</span>
@@ -4695,6 +4976,301 @@
       if (fw) fw.disabled = tab.histIdx >= (tab.history || []).length - 1;
     }
 
+    // === Scrap Tool ===
+    function openScrapTab(url) {
+      createTab('scrap', { name: 'Scrap', icon: '🪝', url });
+    }
+
+    function scrapSwitchTab(tabId, paneName, el) {
+      document.querySelectorAll(`#${tabId}-sc-side [data-sc-pane]`).forEach(p => { p.style.display = 'none'; });
+      const pane = document.querySelector(`#${tabId}-sc-side [data-sc-pane="${paneName}"]`);
+      if (pane) pane.style.display = '';
+      const tabs = el.parentElement.querySelectorAll('.scrap-side-tab');
+      tabs.forEach(t => t.classList.remove('active'));
+      el.classList.add('active');
+    }
+
+    function scrapRenderFields(tabId) {
+      const tab = tabs.get(tabId);
+      if (!tab || !tab.scrap) return;
+      const host = document.getElementById(tabId + '-sc-fields');
+      if (!host) return;
+      const rootEl = document.getElementById(tabId + '-sc-root');
+      if (rootEl) rootEl.value = tab.scrap.rootSelector || '';
+      host.innerHTML = tab.scrap.fields.map((f, i) => `
+        <div class="scrap-field-row">
+          <input data-sc-fn="${i}" placeholder="name" value="${escAttr(f.name)}" oninput="scrapFieldChange('${tabId}',${i},'name',this.value)">
+          <input data-sc-fs="${i}" placeholder=".selector" value="${escAttr(f.selector)}" oninput="scrapFieldChange('${tabId}',${i},'selector',this.value)">
+          <select data-sc-fa="${i}" onchange="scrapFieldChange('${tabId}',${i},'attr',this.value)">
+            ${['text','html','href','src','alt','title','value','data-src','outerHTML','count'].map(a => `<option value="${a}"${(f.attr||'text')===a?' selected':''}>${a}</option>`).join('')}
+          </select>
+          <button class="x" onclick="scrapRemoveField('${tabId}',${i})" title="Remove">×</button>
+        </div>
+      `).join('');
+    }
+    function scrapAddField(tabId) {
+      const tab = tabs.get(tabId);
+      if (!tab) return;
+      tab.scrap.fields.push({ name: 'field' + (tab.scrap.fields.length + 1), selector: '', attr: 'text' });
+      scrapRenderFields(tabId);
+    }
+    function scrapRemoveField(tabId, idx) {
+      const tab = tabs.get(tabId);
+      if (!tab) return;
+      tab.scrap.fields.splice(idx, 1);
+      scrapRenderFields(tabId);
+    }
+    function scrapFieldChange(tabId, idx, key, value) {
+      const tab = tabs.get(tabId);
+      if (!tab) return;
+      tab.scrap.fields[idx][key] = value;
+    }
+
+    function scrapSetStatus(tabId, label, kind) {
+      const p = document.getElementById(tabId + '-sc-pill-status');
+      if (!p) return;
+      p.textContent = label;
+      p.className = 'pill' + (kind ? ' ' + kind : '');
+    }
+
+    async function scrapRun(tabId) {
+      const tab = tabs.get(tabId);
+      if (!tab) return;
+      const url = document.getElementById(tabId + '-sc-url').value.trim();
+      if (!url) { scrapSetStatus(tabId, 'enter URL', 'err'); return; }
+      const mode = document.getElementById(tabId + '-sc-mode').value;
+      const scroll = !!document.getElementById(tabId + '-sc-scroll').checked;
+      tab.scrap.url = url;
+      tab.scrap.mode = mode;
+      const runBtn = document.getElementById(tabId + '-sc-run');
+      const extractBtn = document.getElementById(tabId + '-sc-extract');
+      runBtn.disabled = true;
+      scrapSetStatus(tabId, 'fetching…');
+      try {
+        const endpoint = mode === 'browser' ? '/api/scrap/browser' : '/api/scrap/fetch';
+        const body = mode === 'browser' ? { url, scroll, waitMs: 800 } : { url };
+        const r = await fetch(endpoint, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        const d = await r.json();
+        if (!r.ok || d.error) throw new Error(d.error || ('HTTP ' + r.status));
+        tab.scrap.html = d.html || '';
+        tab.scrap.finalUrl = d.final_url || url;
+        const fu = document.getElementById(tabId + '-sc-final-url');
+        if (fu) fu.textContent = d.final_url || url;
+        // Inject into preview iframe via srcdoc — strip <script> to avoid sandbox issues
+        const frame = document.getElementById(tabId + '-sc-frame');
+        if (frame) {
+          let safe = (d.html || '');
+          // Add base tag so relative URLs resolve
+          if (!/<base /i.test(safe)) {
+            safe = safe.replace(/<head[^>]*>/i, m => m + `<base href="${escAttr(d.final_url || url)}">`);
+          }
+          frame.srcdoc = safe;
+        }
+        scrapSetStatus(tabId, `${mode} ok ${d.status||''}`.trim(), 'ok');
+        extractBtn.disabled = false;
+      } catch (e) {
+        scrapSetStatus(tabId, 'error: ' + (e.message || e), 'err');
+      } finally {
+        runBtn.disabled = false;
+      }
+    }
+
+    async function scrapExtract(tabId) {
+      const tab = tabs.get(tabId);
+      if (!tab || !tab.scrap || !tab.scrap.html) { scrapSetStatus(tabId, 'run first', 'err'); return; }
+      const rootSelector = document.getElementById(tabId + '-sc-root').value.trim();
+      tab.scrap.rootSelector = rootSelector;
+      const selectors = {};
+      for (const f of tab.scrap.fields) {
+        if (!f.name) continue;
+        selectors[f.name] = { selector: f.selector, attr: f.attr || 'text' };
+      }
+      scrapSetStatus(tabId, 'extracting…');
+      try {
+        const r = await fetch('/api/scrap/extract', {
+          method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ html: tab.scrap.html, selectors, rootSelector, baseUrl: tab.scrap.finalUrl }),
+        });
+        const d = await r.json();
+        if (!r.ok || d.error) throw new Error(d.error || 'extract failed');
+        tab.scrap.rows = d.rows || [];
+        scrapRenderRows(tabId);
+        scrapSetStatus(tabId, `extracted ${d.count} rows`, 'ok');
+      } catch (e) {
+        scrapSetStatus(tabId, 'error: ' + (e.message || e), 'err');
+      }
+    }
+
+    function scrapRenderRows(tabId) {
+      const tab = tabs.get(tabId);
+      if (!tab) return;
+      const rows = tab.scrap.rows || [];
+      const cntEl = document.getElementById(tabId + '-sc-count');
+      if (cntEl) cntEl.textContent = rows.length + ' rows';
+      const host = document.getElementById(tabId + '-sc-rows');
+      if (!host) return;
+      if (!rows.length) { host.innerHTML = '<div class="scrap-empty">(no rows)</div>'; return; }
+      const keys = Object.keys(rows[0]);
+      const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+      let html = '<table class="scrap-result-table"><thead><tr>';
+      for (const k of keys) html += '<th>' + esc(k) + '</th>';
+      html += '</tr></thead><tbody>';
+      for (const r of rows.slice(0, 500)) {
+        html += '<tr>';
+        for (const k of keys) {
+          const v = r[k];
+          const isUrl = typeof v === 'string' && /^https?:\/\//.test(v);
+          html += '<td>' + (isUrl ? `<a href="${esc(v)}" target="_blank" rel="noopener" style="color:#93c5fd;text-decoration:none">${esc(String(v).slice(0,120))}</a>` : esc(String(v).slice(0, 240))) + '</td>';
+        }
+        html += '</tr>';
+      }
+      html += '</tbody></table>';
+      if (rows.length > 500) html += `<div class="scrap-empty">(showing first 500 of ${rows.length})</div>`;
+      host.innerHTML = html;
+    }
+
+    async function scrapExport(tabId, format) {
+      const tab = tabs.get(tabId);
+      if (!tab || !tab.scrap.rows.length) { scrapSetStatus(tabId, 'no rows to export', 'err'); return; }
+      try {
+        const r = await fetch('/api/scrap/export', {
+          method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ rows: tab.scrap.rows, format, filename: (tab.name || 'scrap').replace(/[^a-z0-9_-]+/gi,'_') }),
+        });
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        const blob = await r.blob();
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = (tab.name || 'scrap').replace(/[^a-z0-9_-]+/gi,'_') + '.' + (format === 'md' ? 'md' : format);
+        document.body.appendChild(a); a.click();
+        setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+      } catch (e) {
+        scrapSetStatus(tabId, 'export error: ' + (e.message || e), 'err');
+      }
+    }
+
+    async function scrapAIGenerate(tabId) {
+      const tab = tabs.get(tabId);
+      if (!tab || !tab.scrap.html) { scrapSetStatus(tabId, 'run page first', 'err'); return; }
+      const goal = document.getElementById(tabId + '-sc-goal').value.trim();
+      if (!goal) { scrapSetStatus(tabId, 'enter goal', 'err'); return; }
+      const btn = document.getElementById(tabId + '-sc-ai-btn');
+      btn.disabled = true; const oldText = btn.textContent; btn.textContent = '⏳ Thinking…';
+      scrapSetStatus(tabId, 'AI generating…');
+      try {
+        const r = await fetch('/api/scrap/ai-selectors', {
+          method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ html: tab.scrap.html, goal }),
+        });
+        const d = await r.json();
+        if (!r.ok || d.error) throw new Error(d.error || 'AI failed');
+        // Replace fields with AI suggestion
+        tab.scrap.rootSelector = d.rootSelector || '';
+        tab.scrap.fields = Object.keys(d.selectors || {}).map(name => ({
+          name,
+          selector: (d.selectors[name] && d.selectors[name].selector) || '',
+          attr: (d.selectors[name] && d.selectors[name].attr) || 'text',
+        }));
+        if (!tab.scrap.fields.length) tab.scrap.fields = [{ name: 'field1', selector: '', attr: 'text' }];
+        scrapRenderFields(tabId);
+        scrapSetStatus(tabId, 'AI generated ' + tab.scrap.fields.length + ' fields', 'ok');
+        // Auto-switch back to Selectors pane
+        const selTab = document.querySelector(`#${tabId}-sc-side`).parentElement.parentElement.querySelector('.scrap-side-tab[data-sc-tab="selectors"]');
+        if (selTab) scrapSwitchTab(tabId, 'selectors', selTab);
+        // Auto-extract
+        scrapExtract(tabId);
+      } catch (e) {
+        scrapSetStatus(tabId, 'AI error: ' + (e.message || e), 'err');
+      } finally {
+        btn.disabled = false; btn.textContent = oldText;
+      }
+    }
+
+    async function scrapSave(tabId) {
+      const tab = tabs.get(tabId);
+      if (!tab) return;
+      const url = document.getElementById(tabId + '-sc-url').value.trim();
+      const name = prompt('Recipe name:', tab.name && tab.name !== 'Scrap' ? tab.name : (url.split('/')[2] || 'recipe'));
+      if (!name) return;
+      const selectors = {};
+      for (const f of tab.scrap.fields) if (f.name) selectors[f.name] = { selector: f.selector, attr: f.attr || 'text' };
+      try {
+        const r = await fetch('/api/scrap/recipes', {
+          method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name, url, mode: document.getElementById(tabId + '-sc-mode').value,
+            rootSelector: document.getElementById(tabId + '-sc-root').value,
+            selectors,
+            scroll: !!document.getElementById(tabId + '-sc-scroll').checked,
+          }),
+        });
+        const d = await r.json();
+        if (!r.ok || d.error) throw new Error(d.error || 'save failed');
+        scrapSetStatus(tabId, 'recipe saved', 'ok');
+      } catch (e) {
+        scrapSetStatus(tabId, 'save error: ' + (e.message || e), 'err');
+      }
+    }
+
+    async function scrapLoadRecipes(tabId) {
+      const host = document.getElementById(tabId + '-sc-recipes-list');
+      if (!host) return;
+      host.innerHTML = '<div class="scrap-empty">Loading…</div>';
+      try {
+        const r = await fetch('/api/scrap/recipes', { credentials: 'same-origin' });
+        const d = await r.json();
+        const list = (d.recipes || []).sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
+        if (!list.length) { host.innerHTML = '<div class="scrap-empty">No recipes yet — save current setup with 💾</div>'; return; }
+        host.innerHTML = list.map(r => `
+          <div class="scrap-recipe-item">
+            <div class="rn" onclick="scrapApplyRecipe('${tabId}','${escAttr(r.id)}')">${escAttr(r.name)}</div>
+            <div class="ru" onclick="scrapApplyRecipe('${tabId}','${escAttr(r.id)}')">${escAttr(r.url)}</div>
+            <div class="scrap-recipe-actions">
+              <button onclick="scrapApplyRecipe('${tabId}','${escAttr(r.id)}',true)">Load + Run</button>
+              <button class="del" onclick="scrapDeleteRecipe('${tabId}','${escAttr(r.id)}')">Delete</button>
+            </div>
+          </div>
+        `).join('');
+        // store on tab
+        const tab = tabs.get(tabId);
+        if (tab) tab.scrap.recipesCache = list;
+      } catch (e) {
+        host.innerHTML = '<div class="scrap-empty" style="color:#f87171">' + (e.message || e) + '</div>';
+      }
+    }
+
+    async function scrapApplyRecipe(tabId, id, runAfter) {
+      const tab = tabs.get(tabId);
+      if (!tab) return;
+      const rec = (tab.scrap.recipesCache || []).find(r => r.id === id);
+      if (!rec) return;
+      document.getElementById(tabId + '-sc-url').value = rec.url || '';
+      document.getElementById(tabId + '-sc-mode').value = rec.mode || 'static';
+      document.getElementById(tabId + '-sc-scroll').checked = !!rec.scroll;
+      tab.scrap.rootSelector = rec.rootSelector || '';
+      tab.scrap.fields = Object.keys(rec.selectors || {}).map(name => ({ name, selector: rec.selectors[name].selector || '', attr: rec.selectors[name].attr || 'text' }));
+      if (!tab.scrap.fields.length) tab.scrap.fields = [{ name: 'field1', selector: '', attr: 'text' }];
+      scrapRenderFields(tabId);
+      tab.name = rec.name;
+      if (tab.tabEl) { const lbl = tab.tabEl.querySelector('.tab-label'); if (lbl) lbl.textContent = rec.name; }
+      // switch back to selectors view
+      const selTab = document.querySelector(`#${tabId}-sc-side`).parentElement.parentElement.querySelector('.scrap-side-tab[data-sc-tab="selectors"]');
+      if (selTab) scrapSwitchTab(tabId, 'selectors', selTab);
+      scrapSetStatus(tabId, 'recipe loaded', 'ok');
+      if (runAfter) { await scrapRun(tabId); await scrapExtract(tabId); }
+    }
+
+    async function scrapDeleteRecipe(tabId, id) {
+      if (!confirm('Delete this recipe?')) return;
+      try {
+        const r = await fetch('/api/scrap/recipes/' + encodeURIComponent(id), { method: 'DELETE', credentials: 'same-origin' });
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        scrapLoadRecipes(tabId);
+      } catch (e) {
+        scrapSetStatus(tabId, 'delete error: ' + (e.message || e), 'err');
+      }
+    }
+
     // === Terminal Themes ===
     const THEMES = {
       cyberframe: {
@@ -4830,8 +5406,8 @@
       const tabEl = document.createElement('div');
       tabEl.className = 'tab-item';
       tabEl.dataset.tabId = tabId;
-      const icon = opts.icon || (type === 'terminal' ? '⚡' : type === 'editor' ? '📝' : type === 'preview' ? '👁' : type === 'admin' ? '🛡️' : type === 'chat' ? '💬' : type === 'agent-monitor' ? '🤖' : type === 'vscode' ? '💻' : type === 'vnc' ? '🖥️' : type === 'docker' ? '🐳' : type === 'spy' ? '👁' : type === 'claude-code' ? '⚡' : type === 'browser' ? '🌐' : '📂');
-      const label = opts.name || (type === 'terminal' ? 'Shell' : type === 'editor' ? 'Editor' : type === 'preview' ? 'Preview' : type === 'admin' ? 'Admin' : type === 'chat' ? 'AI Chat' : type === 'agent-monitor' ? 'Agent Monitor' : type === 'vscode' ? 'VS Code' : type === 'vnc' ? 'Remote Desktop' : type === 'docker' ? 'Docker' : type === 'spy' ? 'Spy' : type === 'claude-code' ? 'Claude Code' : type === 'browser' ? 'Browser' : 'Files');
+      const icon = opts.icon || (type === 'terminal' ? '⚡' : type === 'editor' ? '📝' : type === 'preview' ? '👁' : type === 'admin' ? '🛡️' : type === 'chat' ? '💬' : type === 'agent-monitor' ? '🤖' : type === 'vscode' ? '💻' : type === 'vnc' ? '🖥️' : type === 'docker' ? '🐳' : type === 'spy' ? '👁' : type === 'claude-code' ? '⚡' : type === 'browser' ? '🌐' : type === 'scrap' ? '🪝' : '📂');
+      const label = opts.name || (type === 'terminal' ? 'Shell' : type === 'editor' ? 'Editor' : type === 'preview' ? 'Preview' : type === 'admin' ? 'Admin' : type === 'chat' ? 'AI Chat' : type === 'agent-monitor' ? 'Agent Monitor' : type === 'vscode' ? 'VS Code' : type === 'vnc' ? 'Remote Desktop' : type === 'docker' ? 'Docker' : type === 'spy' ? 'Spy' : type === 'claude-code' ? 'Claude Code' : type === 'browser' ? 'Browser' : type === 'scrap' ? 'Scrap' : 'Files');
       tabEl.innerHTML = `<span class="tab-icon">${icon}</span><span class="tab-label">${escHtml(label)}</span><span class="tab-close" onclick="event.stopPropagation();closeTab('${tabId}')">✕</span>`;
       if (type === 'claude-code') tabEl.style.color = '#f97316';
       tabEl.onclick = () => switchTab(tabId);
@@ -5146,6 +5722,99 @@
         const vncUrl = '/novnc/index.html?host=' + h + '&port=' + location.port + '&path=vnc-ws&resize=remote&autoconnect=true&reconnect=true&reconnect_delay=3000';
         paneEl.innerHTML = '<div class="vnc-tab-wrap"><iframe src="' + vncUrl + '" allow="clipboard-read; clipboard-write"></iframe></div>';
         container.appendChild(paneEl);
+
+      } else if (type === 'scrap') {
+        const startUrl = opts.url || '';
+        paneEl.innerHTML = `<div class="scrap-tab-wrap">
+          <div class="scrap-toolbar">
+            <input class="scrap-url" id="${tabId}-sc-url" placeholder="https:// — paste URL to scrape" value="${escAttr(startUrl)}" onkeydown="if(event.key==='Enter'){scrapRun('${tabId}')}">
+            <select id="${tabId}-sc-mode" title="Fetch mode">
+              <option value="static">Static (fast)</option>
+              <option value="browser">Browser (JS-render)</option>
+            </select>
+            <label style="display:flex;align-items:center;gap:4px;font-size:11.5px;color:var(--text2);padding:0 4px"><input type="checkbox" id="${tabId}-sc-scroll" style="margin:0"> scroll</label>
+            <button class="scrap-btn primary" onclick="scrapRun('${tabId}')" id="${tabId}-sc-run">▷ Run</button>
+            <button class="scrap-btn" onclick="scrapExtract('${tabId}')" id="${tabId}-sc-extract" disabled>Extract</button>
+            <button class="scrap-btn" onclick="scrapSave('${tabId}')" title="Save as recipe">💾</button>
+          </div>
+          <div class="scrap-body">
+            <div class="scrap-preview-pane">
+              <div class="scrap-preview-status" id="${tabId}-sc-status">
+                <span class="pill" id="${tabId}-sc-pill-status">idle</span>
+                <span id="${tabId}-sc-final-url" style="color:var(--text3);font-size:10.5px;word-break:break-all;flex:1;min-width:0"></span>
+              </div>
+              <iframe class="scrap-preview-frame" id="${tabId}-sc-frame" sandbox="allow-same-origin"></iframe>
+            </div>
+            <div class="scrap-side">
+              <div class="scrap-side-tabs">
+                <div class="scrap-side-tab active" data-sc-tab="selectors" onclick="scrapSwitchTab('${tabId}','selectors',this)">Selectors</div>
+                <div class="scrap-side-tab" data-sc-tab="ai" onclick="scrapSwitchTab('${tabId}','ai',this)">✨ AI</div>
+                <div class="scrap-side-tab" data-sc-tab="recipes" onclick="scrapSwitchTab('${tabId}','recipes',this);scrapLoadRecipes('${tabId}')">Recipes</div>
+              </div>
+              <div class="scrap-side-body" id="${tabId}-sc-side">
+                <div data-sc-pane="selectors">
+                  <div class="scrap-section-title">Root selector (for lists)</div>
+                  <div class="scrap-root-row">
+                    <span style="font-size:11.5px;color:var(--text2)">root</span>
+                    <input id="${tabId}-sc-root" placeholder="e.g. .product-card  (empty = single record)">
+                  </div>
+                  <div class="scrap-section-title">Fields</div>
+                  <div id="${tabId}-sc-fields"></div>
+                  <button class="scrap-btn" style="margin-top:6px;width:100%" onclick="scrapAddField('${tabId}')">+ Add field</button>
+                </div>
+                <div data-sc-pane="ai" style="display:none">
+                  <div class="scrap-ai-box">
+                    <div class="scrap-section-title" style="margin-top:0">Tell AI what to extract</div>
+                    <textarea id="${tabId}-sc-goal" placeholder="e.g. 'product name, price, image' — AI จะ generate selectors ให้"></textarea>
+                    <button class="scrap-btn primary" style="margin-top:6px;width:100%" onclick="scrapAIGenerate('${tabId}')" id="${tabId}-sc-ai-btn">✨ Generate selectors</button>
+                  </div>
+                  <div style="font-size:11px;color:var(--text3);line-height:1.5">
+                    ใช้ Claude Haiku 4.5 — ต้องตั้ง <code>ANTHROPIC_API_KEY</code> ใน <code>.env</code>.<br>
+                    ต้อง Run page ก่อน (ต้องมี HTML ใน memory)
+                  </div>
+                </div>
+                <div data-sc-pane="recipes" style="display:none">
+                  <div class="scrap-section-title">Saved recipes</div>
+                  <div id="${tabId}-sc-recipes-list" class="scrap-recipes"><div class="scrap-empty">No recipes yet — save current setup with 💾</div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="scrap-result" id="${tabId}-sc-result">
+            <div class="scrap-result-header">
+              <span class="count" id="${tabId}-sc-count">0 rows</span>
+              <span style="flex:1"></span>
+              <button class="scrap-btn" onclick="scrapExport('${tabId}','json')">JSON</button>
+              <button class="scrap-btn" onclick="scrapExport('${tabId}','csv')">CSV</button>
+              <button class="scrap-btn" onclick="scrapExport('${tabId}','md')">MD</button>
+            </div>
+            <div id="${tabId}-sc-rows"><div class="scrap-empty">Run a page and extract to see results.</div></div>
+          </div>
+        </div>`;
+        container.appendChild(paneEl);
+        // tab data
+        tabData.scrap = {
+          html: '',
+          finalUrl: '',
+          rows: [],
+          fields: opts.scrapFields || [
+            { name: 'title', selector: 'title', attr: 'text' },
+          ],
+          rootSelector: opts.scrapRoot || '',
+          mode: opts.scrapMode || 'static',
+          url: startUrl,
+        };
+        setTimeout(() => {
+          scrapRenderFields(tabId);
+          if (opts.scrapRoot != null) {
+            const ri = document.getElementById(tabId + '-sc-root');
+            if (ri) ri.value = opts.scrapRoot;
+          }
+          if (opts.scrapMode) {
+            const ms = document.getElementById(tabId + '-sc-mode');
+            if (ms) ms.value = opts.scrapMode;
+          }
+        }, 20);
 
       } else if (type === 'browser') {
         const startUrl = opts.url || 'https://www.bing.com';
@@ -16464,6 +17133,15 @@
           if (tab.type === 'browser') {
             entry.url = tab.url || 'https://www.bing.com';
           }
+          if (tab.type === 'scrap' && tab.scrap) {
+            try {
+              entry.scrapUrl = (document.getElementById(tabId + '-sc-url') || {}).value || tab.scrap.url || '';
+              entry.scrapMode = (document.getElementById(tabId + '-sc-mode') || {}).value || tab.scrap.mode || 'static';
+              entry.scrapRoot = (document.getElementById(tabId + '-sc-root') || {}).value || tab.scrap.rootSelector || '';
+              entry.scrapFields = (tab.scrap.fields || []).slice(0, 50);
+              entry.name = tab.name || 'Scrap';
+            } catch {}
+          }
           state.tabs.push(entry);
           if (tabId === activeTabId) state.activeTabIndex = idx;
           idx++;
@@ -16606,6 +17284,16 @@
             restoredAny = true;
           } else if (entry.type === 'browser') {
             createTab('browser', { name: entry.name || 'Browser', icon: entry.icon || '🌐', url: entry.url });
+            restoredAny = true;
+          } else if (entry.type === 'scrap') {
+            createTab('scrap', {
+              name: entry.name || 'Scrap',
+              icon: entry.icon || '🪝',
+              url: entry.scrapUrl || '',
+              scrapMode: entry.scrapMode || 'static',
+              scrapRoot: entry.scrapRoot || '',
+              scrapFields: entry.scrapFields || undefined,
+            });
             restoredAny = true;
           }
         }

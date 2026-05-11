@@ -23,6 +23,7 @@ Desktop.ini
 voices/
 workspaces/
 .claude-sessions/
+scraps/
 
 # Playwright
 playwright-report/

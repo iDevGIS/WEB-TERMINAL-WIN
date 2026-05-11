@@ -5354,6 +5354,264 @@ app.get("/api/claude/file-search", requireAuth, (req, res) => {
   }
 });
 
+// === Scrap Tool — web scraping, selector extraction, AI-assisted, recipes ===
+const SCRAP_DIR = path.join(__dirname, "scraps");
+if (!fs.existsSync(SCRAP_DIR)) fs.mkdirSync(SCRAP_DIR, { recursive: true });
+const SCRAP_RECIPES_FILE = path.join(SCRAP_DIR, "recipes.json");
+const SCRAP_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36 CYBERFRAME/3.0 ScrapBot";
+
+function loadScrapRecipes() {
+  try { return JSON.parse(fs.readFileSync(SCRAP_RECIPES_FILE, "utf8")); } catch { return []; }
+}
+function saveScrapRecipes(list) {
+  fs.writeFileSync(SCRAP_RECIPES_FILE, JSON.stringify(list, null, 2));
+}
+
+let _scrapBrowser = null;
+async function _getScrapBrowser() {
+  if (_scrapBrowser && _scrapBrowser.isConnected && _scrapBrowser.isConnected()) return _scrapBrowser;
+  try {
+    const { chromium } = require("playwright");
+    _scrapBrowser = await chromium.launch({ headless: true });
+    _scrapBrowser.on("disconnected", () => { _scrapBrowser = null; });
+    return _scrapBrowser;
+  } catch (e) {
+    throw new Error("Playwright unavailable: " + (e.message || e));
+  }
+}
+
+function _scrapExtractValue($, node, attr) {
+  if (!node || !node.length) return "";
+  const a = (attr || "text").toLowerCase();
+  if (a === "text") return (node.text() || "").trim().replace(/\s+/g, " ");
+  if (a === "html") return node.html() || "";
+  if (a === "outerhtml") { try { return $.html(node); } catch { return ""; } }
+  if (a === "count") return node.length;
+  return String(node.attr(attr) || "");
+}
+
+// Tier 1 — static fetch (no JS)
+app.post("/api/scrap/fetch", requireAuth, express.json({ limit: "512kb" }), async (req, res) => {
+  const url = String(req.body.url || "").trim();
+  if (!/^https?:\/\//i.test(url)) return res.status(400).json({ error: "invalid url" });
+  try {
+    const r = await fetch(url, {
+      headers: {
+        "User-Agent": SCRAP_UA,
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.7,th;q=0.5",
+      },
+      redirect: "follow",
+    });
+    const html = await r.text();
+    res.json({ ok: true, status: r.status, html: html.slice(0, 5_000_000), final_url: r.url || url });
+  } catch (e) {
+    res.status(500).json({ error: String(e.message || e) });
+  }
+});
+
+// Tier 2 — headless browser (JS-rendered)
+app.post("/api/scrap/browser", requireAuth, express.json({ limit: "512kb" }), async (req, res) => {
+  const url = String(req.body.url || "").trim();
+  const waitFor = String(req.body.waitFor || "").trim();
+  const waitMs = Math.min(20000, Math.max(0, parseInt(req.body.waitMs) || 0));
+  const scroll = !!req.body.scroll;
+  const wantScreenshot = req.body.screenshot !== false;
+  if (!/^https?:\/\//i.test(url)) return res.status(400).json({ error: "invalid url" });
+  let context = null;
+  try {
+    const browser = await _getScrapBrowser();
+    context = await browser.newContext({
+      userAgent: SCRAP_UA,
+      viewport: { width: 1366, height: 900 },
+    });
+    const page = await context.newPage();
+    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 });
+    if (waitFor) { try { await page.waitForSelector(waitFor, { timeout: 15000 }); } catch (e) { /* keep going */ } }
+    if (waitMs) await page.waitForTimeout(waitMs);
+    if (scroll) {
+      await page.evaluate(async () => {
+        await new Promise(resolve => {
+          const start = Date.now();
+          let last = 0;
+          const t = setInterval(() => {
+            window.scrollBy(0, 900);
+            if (document.body.scrollHeight === last || Date.now() - start > 8000) {
+              clearInterval(t); resolve();
+            }
+            last = document.body.scrollHeight;
+          }, 250);
+        });
+      });
+    }
+    const html = await page.content();
+    const final_url = page.url();
+    let screenshot = null;
+    if (wantScreenshot) {
+      try { const buf = await page.screenshot({ fullPage: false, type: "png" }); screenshot = "data:image/png;base64," + buf.toString("base64"); } catch {}
+    }
+    await context.close(); context = null;
+    res.json({ ok: true, status: 200, html: html.slice(0, 5_000_000), final_url, screenshot });
+  } catch (e) {
+    try { if (context) await context.close(); } catch {}
+    res.status(500).json({ error: String(e.message || e) });
+  }
+});
+
+// Extract — parse HTML with selector map
+app.post("/api/scrap/extract", requireAuth, express.json({ limit: "10mb" }), (req, res) => {
+  const html = String(req.body.html || "");
+  const selectors = req.body.selectors || {};
+  const rootSelector = String(req.body.rootSelector || "").trim();
+  const baseUrl = String(req.body.baseUrl || "").trim();
+  if (!html) return res.status(400).json({ error: "no html" });
+  try {
+    const cheerio = require("cheerio");
+    const $ = cheerio.load(html);
+    const fields = Object.keys(selectors || {});
+    const rows = [];
+
+    const absolutize = (v, attr) => {
+      if (!baseUrl) return v;
+      const a = (attr || "").toLowerCase();
+      if ((a === "href" || a === "src" || a === "data-src") && /^(\/|\.|[a-z]+:?\/\/)/i.test(v)) {
+        try { return new URL(v, baseUrl).toString(); } catch { return v; }
+      }
+      return v;
+    };
+
+    if (rootSelector) {
+      $(rootSelector).each((idx, el) => {
+        const row = {};
+        for (const f of fields) {
+          const def = selectors[f] || {};
+          const sel = String(def.selector || "");
+          const attr = def.attr || "text";
+          const node = sel ? $(el).find(sel).first() : $(el);
+          row[f] = absolutize(_scrapExtractValue($, node, attr), attr);
+        }
+        rows.push(row);
+      });
+    } else {
+      const row = {};
+      for (const f of fields) {
+        const def = selectors[f] || {};
+        const sel = String(def.selector || "");
+        const attr = def.attr || "text";
+        const node = sel ? $(sel).first() : $("html");
+        row[f] = absolutize(_scrapExtractValue($, node, attr), attr);
+      }
+      rows.push(row);
+    }
+    res.json({ ok: true, rows, count: rows.length });
+  } catch (e) {
+    res.status(500).json({ error: String(e.message || e) });
+  }
+});
+
+// Tier 3 — AI selector generator (Anthropic)
+app.post("/api/scrap/ai-selectors", requireAuth, express.json({ limit: "10mb" }), async (req, res) => {
+  const html = String(req.body.html || "");
+  const goal = String(req.body.goal || "").trim();
+  if (!html) return res.status(400).json({ error: "no html" });
+  if (!goal) return res.status(400).json({ error: "no goal" });
+  const apiKey = process.env.ANTHROPIC_API_KEY || process.env.CLAUDE_API_KEY;
+  if (!apiKey) return res.status(400).json({ error: "ANTHROPIC_API_KEY not set" });
+  try {
+    const Anthropic = require("@anthropic-ai/sdk").default;
+    const client = new Anthropic({ apiKey });
+    // Compact HTML: strip script/style/comments, trim long whitespace
+    const cheerio = require("cheerio");
+    const $$ = cheerio.load(html);
+    $$("script, style, noscript, svg").remove();
+    let compact = $$.html().replace(/<!--[\s\S]*?-->/g, "").replace(/\s+/g, " ").slice(0, 60000);
+    const sys = "You are a web scraping expert. Given HTML and a goal, return ONLY a JSON object (no markdown fences, no commentary) with CSS selectors to extract the data.";
+    const userMsg = `Goal: ${goal}\n\nHTML:\n\`\`\`html\n${compact}\n\`\`\`\n\nReturn JSON in this exact shape:\n{\n  "rootSelector": "selector for each item (empty string if single record)",\n  "selectors": {\n    "fieldName": { "selector": "css-selector relative to rootSelector", "attr": "text|html|href|src|alt|title|..." }\n  }\n}`;
+    const msg = await client.messages.create({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 2000,
+      system: sys,
+      messages: [{ role: "user", content: userMsg }],
+    });
+    const text = (msg.content || []).map(c => c.text || "").join("\n");
+    const m = text.match(/\{[\s\S]*\}/);
+    if (!m) return res.status(500).json({ error: "AI did not return JSON", raw: text });
+    let parsed;
+    try { parsed = JSON.parse(m[0]); } catch (e) { return res.status(500).json({ error: "AI JSON parse failed: " + e.message, raw: text }); }
+    res.json({ ok: true, rootSelector: parsed.rootSelector || "", selectors: parsed.selectors || {}, usage: msg.usage });
+  } catch (e) {
+    res.status(500).json({ error: String(e.message || e) });
+  }
+});
+
+// Recipes CRUD
+app.get("/api/scrap/recipes", requireAuth, (req, res) => {
+  res.json({ ok: true, recipes: loadScrapRecipes() });
+});
+
+app.post("/api/scrap/recipes", requireAuth, express.json({ limit: "512kb" }), (req, res) => {
+  const recipes = loadScrapRecipes();
+  const body = req.body || {};
+  const id = body.id || ("r_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6));
+  const recipe = {
+    id,
+    name: String(body.name || "Untitled").slice(0, 100),
+    url: String(body.url || ""),
+    mode: ["static", "browser", "ai"].includes(body.mode) ? body.mode : "static",
+    rootSelector: String(body.rootSelector || ""),
+    selectors: body.selectors || {},
+    waitFor: String(body.waitFor || ""),
+    waitMs: parseInt(body.waitMs) || 0,
+    scroll: !!body.scroll,
+    createdAt: body.createdAt || new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+  const idx = recipes.findIndex(r => r.id === id);
+  if (idx >= 0) recipes[idx] = recipe;
+  else recipes.push(recipe);
+  saveScrapRecipes(recipes);
+  res.json({ ok: true, recipe });
+});
+
+app.delete("/api/scrap/recipes/:id", requireAuth, (req, res) => {
+  const recipes = loadScrapRecipes().filter(r => r.id !== req.params.id);
+  saveScrapRecipes(recipes);
+  res.json({ ok: true });
+});
+
+// Export rows to JSON/CSV/Markdown
+app.post("/api/scrap/export", requireAuth, express.json({ limit: "30mb" }), (req, res) => {
+  const rows = Array.isArray(req.body.rows) ? req.body.rows : [];
+  const format = String(req.body.format || "json").toLowerCase();
+  const filename = String(req.body.filename || "scrap").replace(/[^a-z0-9_-]+/gi, "_").slice(0, 60) || "scrap";
+  try {
+    if (format === "csv") {
+      const { stringify } = require("csv-stringify/sync");
+      const csv = stringify(rows, { header: true });
+      res.setHeader("Content-Type", "text/csv; charset=utf-8");
+      res.setHeader("Content-Disposition", `attachment; filename="${filename}.csv"`);
+      return res.send(csv);
+    }
+    if (format === "md" || format === "markdown") {
+      if (!rows.length) { res.setHeader("Content-Type", "text/markdown"); return res.send("# (empty)"); }
+      const keys = Object.keys(rows[0]);
+      let out = "| " + keys.join(" | ") + " |\n";
+      out += "| " + keys.map(() => "---").join(" | ") + " |\n";
+      for (const r of rows) {
+        out += "| " + keys.map(k => String(r[k] == null ? "" : r[k]).replace(/\|/g, "\\|").replace(/\n/g, " ").slice(0, 300)).join(" | ") + " |\n";
+      }
+      res.setHeader("Content-Type", "text/markdown; charset=utf-8");
+      res.setHeader("Content-Disposition", `attachment; filename="${filename}.md"`);
+      return res.send(out);
+    }
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}.json"`);
+    res.send(JSON.stringify(rows, null, 2));
+  } catch (e) {
+    res.status(500).json({ error: String(e.message || e) });
+  }
+});
+
 // Restore persisted Claude Code sessions before accepting connections
 loadClaudeSessionsFromDisk();
 
