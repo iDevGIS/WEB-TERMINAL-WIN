@@ -1204,6 +1204,59 @@
       color: var(--text3);
       margin: 4px 0 6px;
     }
+    .scrap-ai-insight {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-top: 10px;
+    }
+    .scrap-ai-insight:empty { display: none; }
+    .scrap-ai-card {
+      background: rgba(167, 139, 250, .07);
+      border: 1px solid rgba(167, 139, 250, .25);
+      border-radius: 6px;
+      padding: 7px 9px;
+      font-size: 11.5px;
+      line-height: 1.45;
+      color: var(--text2);
+    }
+    .scrap-ai-card-title {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      color: #a78bfa;
+      margin-bottom: 4px;
+      font-weight: 600;
+    }
+    .scrap-ai-card-body code {
+      background: rgba(0,0,0,.35);
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-size: 11px;
+      color: #c4b5fd;
+    }
+    .scrap-ai-card-info {
+      background: rgba(56, 189, 248, .07);
+      border-color: rgba(56, 189, 248, .25);
+    }
+    .scrap-ai-card-info .scrap-ai-card-title { color: #38bdf8; }
+    .scrap-ai-card-warn {
+      background: rgba(250, 204, 21, .07);
+      border-color: rgba(250, 204, 21, .25);
+    }
+    .scrap-ai-card-warn .scrap-ai-card-title { color: #facc15; }
+    .scrap-ai-meta {
+      font-size: 10.5px;
+      color: var(--text3);
+      opacity: .75;
+      padding: 0 2px;
+    }
+    .scrap-ai-meta code {
+      background: rgba(0,0,0,.3);
+      padding: 1px 4px;
+      border-radius: 3px;
+      font-size: 10.5px;
+    }
     .scrap-field-row {
       display: grid;
       grid-template-columns: 90px 1fr 24px 78px 22px;
@@ -5777,12 +5830,20 @@
       const modeSel = document.getElementById(tabId + '-sc-bp-mode');
       const fromInp = document.getElementById(tabId + '-sc-bp-from');
       const toInp = document.getElementById(tabId + '-sc-bp-to');
-      // Prefer detected pattern from navigation
+      // Prefer detected pattern from navigation, then AI's pagination hint, then current URL
       if (pat && !pat.value) {
         if (tab.scrap.detectedPattern) {
           pat.value = tab.scrap.detectedPattern.pattern;
           if (fromInp) fromInp.value = tab.scrap.detectedPattern.from;
           if (toInp && tab.scrap.detectedPattern.to > tab.scrap.detectedPattern.from) toInp.value = String(Math.max(tab.scrap.detectedPattern.to + 9, tab.scrap.detectedPattern.from + 9));
+        } else if (tab.scrap.batch && tab.scrap.batch.suggestedPattern) {
+          // AI detected pagination — convert {N} to {1..N} if totalPages known
+          let p = tab.scrap.batch.suggestedPattern;
+          const total = tab.scrap.batch.suggestedTotalPages || 0;
+          if (/\{N\}/.test(p)) p = p.replace(/\{N\}/g, '{1..' + (total || 10) + '}');
+          pat.value = p;
+          if (fromInp) fromInp.value = '1';
+          if (toInp && total) toInp.value = String(total);
         } else if (tab.scrap.url) {
           pat.value = tab.scrap.url;
         }
@@ -6023,23 +6084,49 @@
       const btn = document.getElementById(tabId + '-sc-ai-btn');
       btn.disabled = true; const oldText = btn.textContent; btn.textContent = '⏳ Thinking…';
       scrapSetStatus(tabId, 'AI generating…');
+      // Send current selectors as context so AI improves rather than replaces
+      const currentFields = (tab.scrap.fields || []).filter(f => f && f.name && f.selector).map(f => ({
+        name: f.name, selector: f.selector, attr: f.attr || 'text',
+      }));
       try {
         const r = await fetch('/api/scrap/ai-selectors', {
           method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-          body: JSON.stringify({ html: tab.scrap.html, goal, model, agentId: 'main' }),
+          body: JSON.stringify({ html: tab.scrap.html, goal, model, agentId: 'main', currentFields }),
         });
         const d = await scrapJson(r);
         if (!r.ok || d.error) throw new Error(d.error || 'AI failed');
-        // Replace fields with AI suggestion
+        // Apply AI suggestion
         tab.scrap.rootSelector = d.rootSelector || '';
+        const rootInput = document.getElementById(tabId + '-sc-root');
+        if (rootInput) rootInput.value = tab.scrap.rootSelector;
         tab.scrap.fields = Object.keys(d.selectors || {}).map(name => ({
           name,
           selector: (d.selectors[name] && d.selectors[name].selector) || '',
           attr: (d.selectors[name] && d.selectors[name].attr) || 'text',
         }));
         if (!tab.scrap.fields.length) tab.scrap.fields = [{ name: 'field1', selector: '', attr: 'text' }];
+        // Stash AI metadata on tab for the AI pane footer
+        tab.scrap.aiLast = {
+          thinking: d.thinking || '',
+          paginationHint: d.paginationHint || null,
+          notes: d.notes || '',
+          validation: d.validation || null,
+          attempts: d.attempts || 1,
+          model: d.model || model,
+          provider: d.provider || '',
+          htmlChars: d.htmlChars || 0,
+        };
         scrapRenderFields(tabId);
-        scrapSetStatus(tabId, 'AI generated ' + tab.scrap.fields.length + ' fields', 'ok');
+        scrapRenderAIInsight(tabId);
+        // Auto-fill batch pattern hint if AI detected url-pattern
+        if (d.paginationHint && d.paginationHint.type === 'url-pattern' && d.paginationHint.pattern) {
+          tab.scrap.batch = tab.scrap.batch || {};
+          tab.scrap.batch.suggestedPattern = d.paginationHint.pattern;
+          tab.scrap.batch.suggestedTotalPages = d.paginationHint.totalPages || 0;
+        }
+        const matchInfo = d.validation && d.validation.rootMatchCount != null ? ` (root matches ${d.validation.rootMatchCount})` : '';
+        const retryInfo = d.attempts > 1 ? ` [retry ${d.attempts}x]` : '';
+        scrapSetStatus(tabId, 'AI generated ' + tab.scrap.fields.length + ' fields' + matchInfo + retryInfo, 'ok');
         // Auto-switch back to Selectors pane
         const selTab = document.querySelector(`#${tabId}-sc-side`).parentElement.parentElement.querySelector('.scrap-side-tab[data-sc-tab="selectors"]');
         if (selTab) scrapSwitchTab(tabId, 'selectors', selTab);
@@ -6050,6 +6137,37 @@
       } finally {
         btn.disabled = false; btn.textContent = oldText;
       }
+    }
+
+    function scrapRenderAIInsight(tabId) {
+      const tab = tabs.get(tabId);
+      if (!tab || !tab.scrap.aiLast) return;
+      const host = document.getElementById(tabId + '-sc-ai-insight');
+      if (!host) return;
+      const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+      const a = tab.scrap.aiLast;
+      const parts = [];
+      if (a.thinking) {
+        parts.push(`<div class="scrap-ai-card"><div class="scrap-ai-card-title">🧠 Thinking</div><div class="scrap-ai-card-body">${esc(a.thinking)}</div></div>`);
+      }
+      if (a.paginationHint && a.paginationHint.type && a.paginationHint.type !== 'none') {
+        const p = a.paginationHint;
+        let detail = `<b>${esc(p.type)}</b>`;
+        if (p.pattern) detail += ` · pattern <code>${esc(p.pattern)}</code>`;
+        if (p.totalPages) detail += ` · total ~${p.totalPages} pages`;
+        if (p.selector) detail += ` · next selector <code>${esc(p.selector)}</code>`;
+        parts.push(`<div class="scrap-ai-card scrap-ai-card-info"><div class="scrap-ai-card-title">📄 Pagination</div><div class="scrap-ai-card-body">${detail}${p.type === 'url-pattern' ? ' <span style="opacity:.7">— click 🔁 Batch to use</span>' : ''}</div></div>`);
+      }
+      if (a.notes) {
+        parts.push(`<div class="scrap-ai-card scrap-ai-card-warn"><div class="scrap-ai-card-title">⚠️ Notes</div><div class="scrap-ai-card-body">${esc(a.notes)}</div></div>`);
+      }
+      const meta = [];
+      if (a.model) meta.push(`model: <code>${esc(a.model)}</code>`);
+      if (a.attempts && a.attempts > 1) meta.push(`retries: ${a.attempts - 1}`);
+      if (a.htmlChars) meta.push(`html: ${a.htmlChars.toLocaleString()} chars`);
+      if (a.validation && a.validation.rootMatchCount != null) meta.push(`root match: ${a.validation.rootMatchCount}`);
+      if (meta.length) parts.push(`<div class="scrap-ai-meta">${meta.join(' · ')}</div>`);
+      host.innerHTML = parts.join('');
     }
 
     async function scrapSave(tabId) {
@@ -6822,9 +6940,11 @@
                     </div>
                     <button class="scrap-btn primary" style="margin-top:6px;width:100%" onclick="scrapAIGenerate('${tabId}')" id="${tabId}-sc-ai-btn">✨ Generate selectors</button>
                   </div>
+                  <div id="${tabId}-sc-ai-insight" class="scrap-ai-insight"></div>
                   <div style="font-size:11px;color:var(--text3);line-height:1.5">
                     เลือก model ได้ทั้ง OpenClaw Gateway, Claude Code CLI, หรือ Ollama (local).<br>
                     Gateway ใช้ token เดียวกับ AI Chat — ไม่ต้องตั้ง API key แยก.<br>
+                    AI วิเคราะห์ structure + ตรวจ rootSelector + retry ถ้า match 0 elements + ตรวจ pagination อัตโนมัติ.<br>
                     ต้อง Run page ก่อน (ต้องมี HTML ใน memory)
                   </div>
                 </div>

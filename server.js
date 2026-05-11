@@ -5553,161 +5553,286 @@ app.post("/api/scrap/extract", requireAuth, express.json({ limit: "10mb" }), (re
   }
 });
 
-// Tier 3 — AI selector generator
+// Tier 3 — AI selector generator (v3.5.0 smarter prompt + validate + retry)
 // Default route: OpenClaw Gateway (same plumbing as AI Chat) — no separate ANTHROPIC_API_KEY needed
 // Fallback: direct Anthropic SDK if provider=anthropic or gateway unavailable
-app.post("/api/scrap/ai-selectors", requireAuth, express.json({ limit: "10mb" }), async (req, res) => {
+
+const SCRAP_AI_SYS = `You are an expert web scraping engineer. Given HTML and a user goal, produce robust CSS selectors that survive small page changes.
+
+ANALYSIS PROCESS:
+1. Identify the page type (listing, detail, search results, category, mixed).
+2. Locate the REPEATING item container — that is "rootSelector". It must match MULTIPLE elements. If the page describes a single record (e.g. product detail), leave rootSelector "".
+3. For each requested field, write a selector RELATIVE to rootSelector (no full path).
+4. Prefer stable, semantic class names. Avoid auto-generated hash classes (e.g. "css-1k3xyz", "sc-abc123", random hex/uuid suffixes). Prefer :nth-child only when no semantic class exists.
+5. Pick the correct attribute:
+   - "text" → visible text content
+   - "html" → raw inner HTML
+   - "href" / "src" / "alt" / "title" / "data-*" → attribute value
+   - For images: if you see "data-src", "data-original", "data-lazy" instead of "src", use those (lazy loading)
+6. Detect pagination: a visible "next" link, a numeric page list, a URL pattern like ?page=N or /page-N.html, or infinite scroll.
+7. Flag any quirks in "notes": lazy images, multi-language tabs, hidden filters, requires JS, login wall, captcha, etc.
+
+OUTPUT — return ONLY valid JSON (no markdown fences, no commentary outside JSON). Schema:
+{
+  "thinking": "1-3 sentences explaining the page structure and your selector strategy",
+  "rootSelector": "CSS selector that matches each item (or \\"\\" for single record)",
+  "selectors": {
+    "fieldName": { "selector": "relative-to-root", "attr": "text|html|href|src|alt|title|data-..." }
+  },
+  "paginationHint": {
+    "type": "next-link" | "url-pattern" | "page-numbers" | "infinite-scroll" | "none",
+    "selector": "selector of the next-link or page-number container (when applicable)",
+    "pattern": "URL with {N} placeholder if type=url-pattern (e.g. https://site.com/page-{N}.html)",
+    "totalPages": 0
+  },
+  "notes": "warnings, caveats, or extra context (empty string if none)"
+}
+
+EXAMPLE (for a books listing page):
+{
+  "thinking": "Books listing — each book is in 'article.product_pod'. Title is in 'h3 a title' attr (cleaner than text). Pagination uses '/catalogue/page-N.html' pattern.",
+  "rootSelector": "article.product_pod",
+  "selectors": {
+    "title": { "selector": "h3 a", "attr": "title" },
+    "price": { "selector": ".price_color", "attr": "text" },
+    "image": { "selector": ".image_container img", "attr": "src" },
+    "link":  { "selector": "h3 a", "attr": "href" }
+  },
+  "paginationHint": {
+    "type": "url-pattern",
+    "selector": "li.next a",
+    "pattern": "https://books.toscrape.com/catalogue/page-{N}.html",
+    "totalPages": 50
+  },
+  "notes": ""
+}`;
+
+// HTML preprocessor — keep structure, strip noise, preserve class/id for AI to learn from
+function _scrapAIClean(html, opts) {
+  const cheerio = require("cheerio");
+  const $$ = cheerio.load(html);
+  // Drop heavy/noisy elements
+  $$("script, style, noscript, svg, iframe, template, link, meta, audio, video, source, picture, canvas, embed, object").remove();
+  // Chrome/site furniture — keep when --full requested
+  if (!opts || !opts.keepChrome) {
+    $$("header, footer, nav, aside").remove();
+  }
+  $$("*").contents().filter(function () { return this.type === "comment"; }).remove();
+  // Strip noisy attributes
+  const NOISE_ATTRS = ["style", "srcset", "sizes", "onclick", "onload", "onerror", "role", "tabindex", "loading", "decoding", "crossorigin", "referrerpolicy", "integrity"];
+  const ARIA_RE = /^aria-/i;
+  $$("*").each(function () {
+    const el = $$(this);
+    for (const a of NOISE_ATTRS) el.removeAttr(a);
+    const attribs = (this.attribs) || {};
+    for (const k of Object.keys(attribs)) {
+      if (ARIA_RE.test(k)) el.removeAttr(k);
+      // Strip long data-* (keep short ones — they are usually IDs/hooks AI needs)
+      if (k.startsWith("data-") && String(attribs[k]).length > 120) el.removeAttr(k);
+    }
+  });
+  // Pretty-ish output: collapse runs of blank lines, keep tag boundaries
+  let out = $$.html();
+  out = out.replace(/<!--[\s\S]*?-->/g, "");
+  // Collapse > 2 consecutive spaces but keep newlines so DOM is readable
+  out = out.replace(/[ \t]+/g, " ").replace(/\n\s*\n+/g, "\n");
+  return out;
+}
+
+function _scrapAIValidate(html, parsed) {
+  try {
+    const cheerio = require("cheerio");
+    const $$ = cheerio.load(html);
+    const root = String(parsed?.rootSelector || "").trim();
+    if (!root) return { ok: true, rootMatchCount: 0, note: "single-record (no rootSelector)" };
+    const matches = $$(root);
+    return { ok: matches.length > 0, rootMatchCount: matches.length };
+  } catch (e) {
+    return { ok: false, rootMatchCount: 0, error: String(e.message || e) };
+  }
+}
+
+// Single-shot LLM call factored out so retries reuse it.
+async function _scrapAICall({ sys, userMsg, reqModel, agentId, providerHint }) {
+  const wantAnthropicSdk = providerHint === "anthropic";
+  const isOllama = reqModel.startsWith("ollama/");
+  const isClaudeCode = reqModel.startsWith("claude-code/");
+  const useGateway = !wantAnthropicSdk && !isOllama && !isClaudeCode && !!OPENCLAW_TOKEN;
+  let text = "", usage = null, modelUsed = reqModel || "", providerUsed = "";
+
+  if (isOllama) {
+    const ollamaModel = reqModel.replace(/^ollama\//, "");
+    providerUsed = "ollama";
+    const r = await fetch("http://127.0.0.1:11434/v1/chat/completions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: ollamaModel,
+        messages: [{ role: "system", content: sys }, { role: "user", content: userMsg }],
+        stream: false,
+        response_format: { type: "json_object" },
+        options: { num_predict: 4000, temperature: 0.2 },
+      }),
+    });
+    if (!r.ok) throw new Error("ollama error: " + (await r.text()).slice(0, 500));
+    const d = await r.json();
+    text = d?.choices?.[0]?.message?.content || "";
+    usage = d?.usage;
+  } else if (isClaudeCode) {
+    const alias = reqModel.replace(/^claude-code\//, "") || "haiku";
+    providerUsed = "claude-code";
+    const { spawn } = require("child_process");
+    const cliBin = path.join(__dirname, "node_modules", "@anthropic-ai", "claude-code", "cli.js");
+    const args = [cliBin, "-p", "--model", alias, "--output-format", "text", "--dangerously-skip-permissions"];
+    const proc = spawn(process.execPath, args, {
+      cwd: process.env.WORKSPACE_DIR || process.cwd(),
+      env: { ...process.env, FORCE_COLOR: "0" },
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+    const fullPrompt = sys + "\n\n" + userMsg;
+    proc.stdin.write(fullPrompt);
+    proc.stdin.end();
+    text = await new Promise((resolve, reject) => {
+      let out = "", err = "";
+      const to = setTimeout(() => { try { proc.kill(); } catch {} reject(new Error("claude-code timeout (90s)")); }, 90000);
+      proc.stdout.on("data", d => out += d.toString());
+      proc.stderr.on("data", d => err += d.toString());
+      proc.on("close", code => { clearTimeout(to); code === 0 ? resolve(out) : reject(new Error("claude-code exit " + code + (err ? ": " + err.slice(0, 300) : ""))); });
+      proc.on("error", e => { clearTimeout(to); reject(e); });
+    });
+  } else if (useGateway) {
+    const gwModel = agentId && agentId !== "main" ? "openclaw/" + agentId : "openclaw";
+    if (!modelUsed) modelUsed = gwModel;
+    providerUsed = "gateway";
+    const payload = {
+      model: gwModel,
+      messages: [{ role: "system", content: sys }, { role: "user", content: userMsg }],
+      stream: true,
+      user: "cyberframe-scrap-" + Date.now(),
+    };
+    const upstream = await fetch(OPENCLAW_GW + "/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer " + OPENCLAW_TOKEN,
+        "x-openclaw-agent-id": agentId,
+      },
+      body: JSON.stringify(payload),
+    });
+    if (!upstream.ok) throw new Error("gateway error: " + (await upstream.text()).slice(0, 500));
+    const reader = upstream.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = "";
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      let idx;
+      while ((idx = buf.indexOf("\n")) >= 0) {
+        const line = buf.slice(0, idx).trim();
+        buf = buf.slice(idx + 1);
+        if (!line.startsWith("data:")) continue;
+        const data = line.slice(5).trim();
+        if (!data || data === "[DONE]") continue;
+        try {
+          const j = JSON.parse(data);
+          const delta = j?.choices?.[0]?.delta?.content;
+          if (delta) text += delta;
+          if (j?.usage) usage = j.usage;
+        } catch {}
+      }
+    }
+  } else {
+    const apiKey = process.env.ANTHROPIC_API_KEY || process.env.CLAUDE_API_KEY;
+    if (!apiKey) throw new Error("AI not configured: set OPENCLAW_TOKEN (recommended) or ANTHROPIC_API_KEY");
+    const Anthropic = require("@anthropic-ai/sdk").default;
+    const client = new Anthropic({ apiKey });
+    modelUsed = reqModel.replace(/^anthropic\//, "") || "claude-haiku-4-5-20251001";
+    providerUsed = "anthropic";
+    const msg = await client.messages.create({
+      model: modelUsed,
+      max_tokens: 4000,
+      system: sys,
+      messages: [{ role: "user", content: userMsg }],
+    });
+    text = (msg.content || []).map(c => c.text || "").join("\n");
+    usage = msg.usage;
+  }
+  return { text, usage, modelUsed, providerUsed };
+}
+
+function _scrapAIParseJSON(text) {
+  // Try direct, then extract first {...} block
+  try { return JSON.parse(text); } catch {}
+  const m = text.match(/\{[\s\S]*\}/);
+  if (!m) return null;
+  try { return JSON.parse(m[0]); } catch { return null; }
+}
+
+app.post("/api/scrap/ai-selectors", requireAuth, express.json({ limit: "16mb" }), async (req, res) => {
   const html = String(req.body.html || "");
   const goal = String(req.body.goal || "").trim();
   if (!html) return res.status(400).json({ error: "no html" });
   if (!goal) return res.status(400).json({ error: "no goal" });
 
-  // Build prompt (shared across providers)
-  const cheerio = require("cheerio");
-  const $$ = cheerio.load(html);
-  $$("script, style, noscript, svg").remove();
-  const compact = $$.html().replace(/<!--[\s\S]*?-->/g, "").replace(/\s+/g, " ").slice(0, 60000);
-  const sys = "You are a web scraping expert. Given HTML and a goal, return ONLY a JSON object (no markdown fences, no commentary) with CSS selectors to extract the data.";
-  const userMsg = `Goal: ${goal}\n\nHTML:\n\`\`\`html\n${compact}\n\`\`\`\n\nReturn JSON in this exact shape:\n{\n  "rootSelector": "selector for each item (empty string if single record)",\n  "selectors": {\n    "fieldName": { "selector": "css-selector relative to rootSelector", "attr": "text|html|href|src|alt|title|..." }\n  }\n}`;
-
   const provider = String(req.body.provider || "").toLowerCase();
-  const wantAnthropicSdk = provider === "anthropic";
   const reqModel = String(req.body.model || "").trim();
-  const isOllama = reqModel.startsWith("ollama/");
-  const isClaudeCode = reqModel.startsWith("claude-code/");
-  const useGateway = !wantAnthropicSdk && !isOllama && !isClaudeCode && !!OPENCLAW_TOKEN;
+  const agentId = String(req.body.agentId || "main");
+  const currentFields = Array.isArray(req.body.currentFields) ? req.body.currentFields : [];
+  const keepChrome = !!req.body.keepChrome;
+
+  const cleaned = _scrapAIClean(html, { keepChrome });
+  // Limit ~150k chars — Opus 4.7 = 1M ctx, comfortably handles this even with system+reasoning
+  const compact = cleaned.length > 150000 ? cleaned.slice(0, 150000) + "\n<!-- ... HTML truncated at 150k chars ... -->" : cleaned;
+
+  const ctxLine = currentFields.length
+    ? `\n\nEXISTING SELECTORS (improve or fill gaps; do not remove fields the user defined):\n${JSON.stringify(currentFields, null, 2)}`
+    : "";
+
+  const baseUser = `Goal: ${goal}${ctxLine}\n\nHTML:\n\`\`\`html\n${compact}\n\`\`\``;
 
   try {
-    let text = "";
-    let usage = null;
-    let modelUsed = "";
-    let providerUsed = "";
+    // Attempt 1
+    let r1 = await _scrapAICall({ sys: SCRAP_AI_SYS, userMsg: baseUser, reqModel, agentId, providerHint: provider });
+    let parsed = _scrapAIParseJSON(r1.text);
+    let valid = parsed ? _scrapAIValidate(html, parsed) : { ok: false, rootMatchCount: 0, error: "no JSON parsed" };
+    let attempts = 1;
+    let retryReason = null;
 
-    if (isOllama) {
-      const ollamaModel = reqModel.replace(/^ollama\//, "");
-      modelUsed = reqModel;
-      providerUsed = "ollama";
-      const r = await fetch("http://127.0.0.1:11434/v1/chat/completions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: ollamaModel,
-          messages: [
-            { role: "system", content: sys },
-            { role: "user", content: userMsg },
-          ],
-          stream: false,
-          response_format: { type: "json_object" },
-        }),
+    // Retry if root didn't match anything but page clearly has a structure to scrape
+    if (!valid.ok && parsed && parsed.rootSelector) {
+      retryReason = `Your rootSelector "${parsed.rootSelector}" matched ${valid.rootMatchCount} elements on the page. Inspect the HTML again and choose a selector that matches the actual repeating items. Output the same JSON schema.`;
+      const r2 = await _scrapAICall({
+        sys: SCRAP_AI_SYS,
+        userMsg: baseUser + "\n\nPREVIOUS ATTEMPT FEEDBACK:\n" + retryReason,
+        reqModel, agentId, providerHint: provider,
       });
-      if (!r.ok) {
-        const errText = await r.text();
-        return res.status(r.status).json({ error: "ollama error: " + errText.slice(0, 500) });
+      const parsed2 = _scrapAIParseJSON(r2.text);
+      const valid2 = parsed2 ? _scrapAIValidate(html, parsed2) : null;
+      if (parsed2 && valid2 && (valid2.ok || valid2.rootMatchCount > valid.rootMatchCount)) {
+        r1 = r2; parsed = parsed2; valid = valid2;
       }
-      const d = await r.json();
-      text = d?.choices?.[0]?.message?.content || "";
-      usage = d?.usage;
-    } else if (isClaudeCode) {
-      const alias = reqModel.replace(/^claude-code\//, "") || "haiku";
-      modelUsed = reqModel;
-      providerUsed = "claude-code";
-      const { spawn } = require("child_process");
-      const cliBin = path.join(__dirname, "node_modules", "@anthropic-ai", "claude-code", "cli.js");
-      const args = [cliBin, "-p", "--model", alias, "--output-format", "text", "--dangerously-skip-permissions"];
-      const proc = spawn(process.execPath, args, {
-        cwd: process.env.WORKSPACE_DIR || process.cwd(),
-        env: { ...process.env, FORCE_COLOR: "0" },
-        stdio: ["pipe", "pipe", "pipe"],
-      });
-      const fullPrompt = sys + "\n\n" + userMsg;
-      proc.stdin.write(fullPrompt);
-      proc.stdin.end();
-      text = await new Promise((resolve, reject) => {
-        let out = "", err = "";
-        const to = setTimeout(() => { try { proc.kill(); } catch {} reject(new Error("claude-code timeout (60s)")); }, 60000);
-        proc.stdout.on("data", d => out += d.toString());
-        proc.stderr.on("data", d => err += d.toString());
-        proc.on("close", code => { clearTimeout(to); code === 0 ? resolve(out) : reject(new Error("claude-code exit " + code + (err ? ": " + err.slice(0, 300) : ""))); });
-        proc.on("error", e => { clearTimeout(to); reject(e); });
-      });
-    } else if (useGateway) {
-      const agentId = String(req.body.agentId || "main");
-      // If model is anthropic/* select primary; otherwise use openclaw or openclaw/<agent>
-      const gwModel = agentId && agentId !== "main" ? "openclaw/" + agentId : "openclaw";
-      modelUsed = reqModel || gwModel;
-      providerUsed = "gateway";
-      const payload = {
-        model: gwModel,
-        messages: [
-          { role: "system", content: sys },
-          { role: "user", content: userMsg },
-        ],
-        stream: true,
-        user: "cyberframe-scrap-" + Date.now(),
-      };
-      const upstream = await fetch(OPENCLAW_GW + "/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": "Bearer " + OPENCLAW_TOKEN,
-          "x-openclaw-agent-id": agentId,
-        },
-        body: JSON.stringify(payload),
-      });
-      if (!upstream.ok) {
-        const errText = await upstream.text();
-        return res.status(upstream.status).json({ error: "gateway error: " + errText.slice(0, 500) });
-      }
-      const reader = upstream.body.getReader();
-      const decoder = new TextDecoder();
-      let buf = "";
-      while (true) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        buf += decoder.decode(value, { stream: true });
-        let idx;
-        while ((idx = buf.indexOf("\n")) >= 0) {
-          const line = buf.slice(0, idx).trim();
-          buf = buf.slice(idx + 1);
-          if (!line.startsWith("data:")) continue;
-          const data = line.slice(5).trim();
-          if (!data || data === "[DONE]") continue;
-          try {
-            const j = JSON.parse(data);
-            const delta = j?.choices?.[0]?.delta?.content;
-            if (delta) text += delta;
-            if (j?.usage) usage = j.usage;
-          } catch {}
-        }
-      }
-    } else {
-      const apiKey = process.env.ANTHROPIC_API_KEY || process.env.CLAUDE_API_KEY;
-      if (!apiKey) return res.status(400).json({ error: "AI not configured: set OPENCLAW_TOKEN (recommended) or ANTHROPIC_API_KEY" });
-      const Anthropic = require("@anthropic-ai/sdk").default;
-      const client = new Anthropic({ apiKey });
-      modelUsed = reqModel.replace(/^anthropic\//, "") || "claude-haiku-4-5-20251001";
-      providerUsed = "anthropic";
-      const msg = await client.messages.create({
-        model: modelUsed,
-        max_tokens: 2000,
-        system: sys,
-        messages: [{ role: "user", content: userMsg }],
-      });
-      text = (msg.content || []).map(c => c.text || "").join("\n");
-      usage = msg.usage;
+      attempts = 2;
     }
 
-    const m = text.match(/\{[\s\S]*\}/);
-    if (!m) return res.status(500).json({ error: "AI did not return JSON", raw: text });
-    let parsed;
-    try { parsed = JSON.parse(m[0]); } catch (e) { return res.status(500).json({ error: "AI JSON parse failed: " + e.message, raw: text }); }
+    if (!parsed) {
+      return res.status(500).json({ error: "AI did not return valid JSON", raw: r1.text });
+    }
+
     res.json({
       ok: true,
+      thinking: parsed.thinking || "",
       rootSelector: parsed.rootSelector || "",
       selectors: parsed.selectors || {},
-      usage,
-      model: modelUsed,
-      provider: providerUsed,
+      paginationHint: parsed.paginationHint || null,
+      notes: parsed.notes || "",
+      validation: valid,
+      attempts,
+      retryReason,
+      usage: r1.usage,
+      model: r1.modelUsed,
+      provider: r1.providerUsed,
+      htmlChars: compact.length,
     });
   } catch (e) {
     res.status(500).json({ error: String(e.message || e) });

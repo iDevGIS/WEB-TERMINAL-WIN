@@ -5,6 +5,51 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [3.5.0] — 2026-05-12 — Scrap Tool: Smarter AI Selector Generator
+
+Minor release — `/api/scrap/ai-selectors` was a thin one-shot prompt: terse system message, whitespace-collapsed HTML truncated at 60k chars, single LLM call, no validation. It worked but routinely returned `rootSelector` that matched zero elements (silent failure) and missed pagination structure entirely. v3.5.0 rebuilds the endpoint around four ideas: better prompt, richer HTML, structural validation with one retry, and a wider output schema that the client surfaces in the UI.
+
+### Added — Server (`server.js`)
+- `SCRAP_AI_SYS` — multi-paragraph system prompt covering analysis process, attribute selection (incl. lazy-load `data-src`), stable-class preference, pagination detection, and a worked example (`books.toscrape.com` → `article.product_pod`).
+- `_scrapAIClean(html, opts)` — preserves DOM structure (keeps newlines so the tree is readable), strips noise attrs (`style`, `srcset`, `onclick`, `aria-*`, `role`, `loading`, `decoding`, etc.), drops long `data-*` (> 120 chars), removes `header/footer/nav/aside` unless `keepChrome=true`, kills `iframe/template/link/meta/audio/video/svg/canvas/embed/object`.
+- `_scrapAIValidate(html, parsed)` — Cheerio-loads the source page and counts `rootSelector` matches. Returns `{ ok, rootMatchCount }`.
+- `_scrapAICall({ sys, userMsg, reqModel, agentId, providerHint })` — factored single-shot LLM call so retry logic reuses it across all four providers (OpenClaw Gateway / Anthropic SDK / Claude Code CLI / Ollama).
+- `_scrapAIParseJSON(text)` — tolerant parser: tries direct `JSON.parse`, falls back to first `{...}` block.
+- **Retry-on-zero-match** — if attempt 1 returns a `rootSelector` matching 0 elements, the endpoint resubmits with feedback (`Your rootSelector "X" matched 0 elements. ...`) and keeps the better answer. Max 2 attempts.
+
+### Changed — Server
+- `max_tokens` 2000 → **4000** (Anthropic SDK + Ollama `num_predict`); accommodates the wider output schema (thinking + paginationHint + notes).
+- HTML budget 60,000 → **150,000 chars** (Opus 4.7 = 1M context — comfortably fits even with reasoning + system).
+- Output schema now includes `thinking` (1–3 sentence analysis), `paginationHint` (`type`/`selector`/`pattern`/`totalPages`), `notes`, plus `validation`/`attempts`/`htmlChars` metadata.
+- Body limit 10mb → 16mb (matches the larger HTML payloads passed by the client).
+- Ollama call now sets `temperature: 0.2` and `num_predict: 4000`.
+- Claude Code CLI timeout 60s → 90s (the heavier prompt + schema occasionally pushed against the old bound).
+
+### Added — Client (`public/index.html`)
+- `scrapAIGenerate()` now sends `currentFields` (user-defined selectors) so the AI improves/extends instead of replacing.
+- `scrapRenderAIInsight(tabId)` — new card stack rendered under the Generate button. Three card types:
+  - 🧠 **Thinking** — the model's structural analysis.
+  - 📄 **Pagination** — type, pattern, total pages, next-link selector. For `url-pattern` adds a "click 🔁 Batch to use" hint.
+  - ⚠️ **Notes** — caveats (lazy images, login wall, multi-language quirks, etc.).
+  - Plus a small meta line: model · retries · html-chars · root-match count.
+- `tab.scrap.aiLast` retains the last AI metadata for the active tab.
+- `tab.scrap.batch.suggestedPattern` + `suggestedTotalPages` populated from `paginationHint`; `scrapBatchOpen()` now seeds the Batch modal from this when there is no `detectedPattern` from in-preview navigation. `{N}` placeholder is auto-expanded to `{1..totalPages}` (default 10 if unknown).
+- Root selector input is now written back to the DOM after generation (previously only stashed in tab state — visible mismatch).
+
+### Added — Styles (`public/index.html`)
+- `.scrap-ai-insight` (flex container, hidden when empty), `.scrap-ai-card` / `-info` / `-warn` (violet / sky / amber accents matching the existing palette), `.scrap-ai-meta` (small footer line). Inline `<code>` tags get a dark pill.
+
+### Why
+User feedback: "ปรับ AI ให้ฉลาดกว่านี้" — generations were technically valid JSON but often unusable: rootSelectors matched nothing, no pagination guidance, no warnings about lazy-loaded images. The model needed (a) a real briefing, (b) HTML it can actually read, (c) a feedback loop when it gets the root wrong, and (d) a wider answer slot so it can tell the operator about pagination and quirks instead of forcing them to discover those separately. The client side then has to surface that information — otherwise the extra work just disappears.
+
+### Files touched
+- `server.js` — endpoint refactor, new helpers (`_scrapAIClean` / `_scrapAIValidate` / `_scrapAICall` / `_scrapAIParseJSON`), new `SCRAP_AI_SYS` prompt.
+- `public/index.html` — `scrapAIGenerate` (currentFields, metadata stash, insight render, root write-back), new `scrapRenderAIInsight`, `scrapBatchOpen` (AI pattern fallback), AI pane HTML (new insight container), CSS for cards/meta.
+- `package.json` — version 3.4.3 → 3.5.0.
+- `CHANGELOG.md` — this entry.
+
+---
+
 ## [3.4.0] — 2026-05-12 — Scrap Tool: In-Preview Navigation + Pattern Auto-Detect
 
 Minor release — Scrap Tool preview iframe was inert before: clicking a `<a>` link inside scrolled to anchor or did nothing visible (URL bar never updated). Now clicks inside preview hijack to the parent: URL bar updates, auto-fetch runs, and the URL pair before/after navigation feeds a **pattern auto-detector**. When the diff is a single numeric segment (e.g. `page-1.html` → `page-2.html`), the next Batch open is pre-filled with `https://.../page-{N}.html` and `from`/`to` defaults.
