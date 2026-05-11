@@ -5515,10 +5515,11 @@ app.post("/api/scrap/extract", requireAuth, express.json({ limit: "10mb" }), (re
     const absolutize = (v, attr) => {
       if (!baseUrl) return v;
       const a = (attr || "").toLowerCase();
-      if ((a === "href" || a === "src" || a === "data-src") && /^(\/|\.|[a-z]+:?\/\/)/i.test(v)) {
-        try { return new URL(v, baseUrl).toString(); } catch { return v; }
-      }
-      return v;
+      if (!(a === "href" || a === "src" || a === "data-src")) return v;
+      const s = String(v || "").trim();
+      if (!s || /^(data:|javascript:|mailto:|tel:|#)/i.test(s)) return v;
+      if (/^https?:\/\//i.test(s)) return s;
+      try { return new URL(s, baseUrl).toString(); } catch { return v; }
     };
 
     if (rootSelector) {
@@ -5944,10 +5945,11 @@ app.post("/api/scrap/batch", requireAuth, express.json({ limit: "1mb" }), async 
   const absolutize = (v, attr, base) => {
     if (!base) return v;
     const a = (attr || "").toLowerCase();
-    if ((a === "href" || a === "src" || a === "data-src") && /^(\/|\.|[a-z]+:?\/\/)/i.test(v)) {
-      try { return new URL(v, base).toString(); } catch { return v; }
-    }
-    return v;
+    if (!(a === "href" || a === "src" || a === "data-src")) return v;
+    const s = String(v || "").trim();
+    if (!s || /^(data:|javascript:|mailto:|tel:|#)/i.test(s)) return v;
+    if (/^https?:\/\//i.test(s)) return s;
+    try { return new URL(s, base).toString(); } catch { return v; }
   };
 
   const fetchOne = async (url) => {

@@ -4,12 +4,12 @@
 
 | | |
 |---|---|
-| **Manual version** | `1.0.0` |
+| **Manual version** | `1.1.0` |
 | **Target CYBERFRAME** | `>= 3.1.0` |
 | **Last updated** | 2026-05-11 |
 | **Maintainer** | จารย์เกียวเซ็น (GYOZEN-AI) |
 | **Repo** | `iDevGIS/WEB-TERMINAL-WIN` |
-| **Related commits** | `7f46245`, `0666574`, `54157d3`, `c534a4a`, `7cb8963`, `f21de3a`, `539945f` |
+| **Related commits** | `7f46245`, `0666574`, `54157d3`, `c534a4a`, `7cb8963`, `f21de3a`, `539945f`, `62f348f` |
 
 ---
 
@@ -35,6 +35,8 @@
 18. [Troubleshooting — ปัญหาที่เจอบ่อย](#18-troubleshooting--ปัญหาที่เจอบ่อย)
 19. [Security & Best Practices](#19-security--best-practices)
 20. [Limits & Roadmap](#20-limits--roadmap)
+21. [Complete Walkthrough — books.toscrape.com (Test ครบทุก Phase)](#21-complete-walkthrough--bookstoscrapecom-test-ครบทุก-phase)
+22. [Automated Test Script — test-scrap-books.mjs](#22-automated-test-script--test-scrap-booksmjs)
 
 ---
 
@@ -1482,7 +1484,453 @@ Recipe JSON เป็น plaintext — ถ้าต้องการควา�
 
 ---
 
-## 📌 Cheat Sheet — สรุป shortcut
+## 21. Complete Walkthrough — books.toscrape.com (Test ครบทุก Phase)
+
+**`books.toscrape.com`** เป็นเว็บ test ทางการที่ทีม **Scrapy / Zyte** ทำขึ้นมาเพื่อให้นักพัฒนา scraper ใช้ทดสอบได้แบบไม่กังวลเรื่อง ToS / robots.txt — robots.txt allow ทุก path
+
+ใช้เว็บนี้เทสต์ Scrap Tool ครบทั้ง 4 Phase ในรอบเดียวได้ — เพราะมี:
+- 1000 books กระจายใน **50 pages** → ทดสอบ Batch `{1..50}` ได้เต็ม
+- **50 categories** → ทดสอบ List mode ได้
+- HTML แบบ static เรียบง่าย → Phase 1 ทำงานทันที
+- มีโครงสร้าง consistent → สอน selector syntax + Visual Pick ได้ครบ
+- ราคา / availability stable → ใช้เทียบ snapshot/diff ได้ (diff ควรเป็น empty = scheduler ทำงานถูก)
+
+### 21.1 Selectors ที่จะใช้ทั้ง walkthrough
+
+โครงสร้าง HTML ของเว็บ:
+
+```html
+<article class="product_pod">
+  <div class="image_container">
+    <a href="../../../book-name_123/index.html">
+      <img src="../../media/cache/.../book.jpg" alt="..." class="thumbnail">
+    </a>
+  </div>
+  <h3>
+    <a href="../../../book-name_123/index.html" title="A Light in the Attic">
+      A Light in the ...
+    </a>
+  </h3>
+  <div class="product_price">
+    <p class="price_color">£51.77</p>
+    <p class="instock availability">In stock</p>
+  </div>
+</article>
+```
+
+**Selectors ที่ตั้งใน Scrap Tool:**
+
+| Pane field | Selector | Attribute | หมายเหตุ |
+|------------|----------|-----------|---------|
+| **Root selector** | `article.product_pod` | — | container ของแต่ละ book |
+| Field: `title` | `h3 a` | `title` | ชื่อเต็มอยู่ใน `title=""` (text ใน `<a>` มี `...`) |
+| Field: `price` | `.price_color` | `text` | ราคา £xx.xx |
+| Field: `stock` | `.availability` | `text` | "In stock" / "Out of stock" |
+| Field: `image` | `.image_container img` | `src` | thumbnail (auto-absolutize) |
+| Field: `link` | `h3 a` | `href` | URL ของหน้า book (auto-absolutize) |
+
+> 💡 **เหตุผลที่ใช้ `attr=title` แทน `text` สำหรับ `title`:** ใน HTML ของ books.toscrape ชื่อเต็มเก็บใน `<a title="...">` ส่วน text ภายใน `<a>` ตัดท้ายด้วย `...` ถ้ายาว — เลย scrape จาก attribute จะได้ ชื่อเต็มเสมอ
+
+---
+
+### 21.2 ⚙️ Phase 1 — Single page (Static fetch)
+
+**เป้าหมาย:** เทสต์ว่า Scrap Tool ทำงาน fetch + extract ได้ บนหน้าเดียว
+
+1. เปิด CYBERFRAME → กด **+** บน tab bar → เลือก **🌐 Scrap** (ไอคอนเขียว)
+2. ที่ toolbar:
+   - **URL**: `https://books.toscrape.com/`
+   - **Mode**: `Static` (default)
+3. กด **▷ Run** → preview iframe โหลด HTML เสร็จ (~500ms)
+4. ใน Selectors pane (ขวา) → ใส่ **Root selector**: `article.product_pod`
+5. กด **+ Add field** 6 ครั้ง → ใส่ตามตาราง §21.1
+6. กด **Extract** → result table ควรแสดง **20 rows** (หน้าแรกมี 20 books)
+
+**Expected output:**
+| title | price | stock | image | link |
+|-------|-------|-------|-------|------|
+| A Light in the Attic | £51.77 | In stock | `https://...media/cache/.../book.jpg` | `https://books.toscrape.com/catalogue/...` |
+| Tipping the Velvet | £53.74 | In stock | ... | ... |
+| ... (อีก 18 rows) | | | | |
+
+**Pass criteria:**
+- ✅ 20 rows ครบ ไม่มีช่องว่าง
+- ✅ `image` + `link` เป็น absolute URL (เริ่มด้วย `https://`)
+- ✅ `price` มีสัญลักษณ์ £ + ทศนิยม 2 ตำแหน่ง
+
+**Common Pitfall:**
+- ❌ ลืมใส่ Root selector → ได้แค่ 1 row (fields แรกเจอใน HTML ทั้งหน้า)
+- ❌ ใส่ `attr=text` แทน `title` ใน field `title` → ได้ชื่อตัด `...`
+
+---
+
+### 21.3 🎯 Phase 2 — Visual Pick
+
+**เป้าหมาย:** เทสต์ว่า Visual Pick auto-fill CSS selector ได้ถูก
+
+1. ลบ field `title` กับ `price` ออก (กด `×` ข้างๆ row)
+2. เพิ่ม field ว่างใหม่ 2 row (ชื่อ `title` กับ `price` แต่ selector ว่าง)
+3. กด **🎯 Pick** → ปุ่มเปลี่ยนเป็นสีม่วง + bar บน iframe บอก "Pick mode: focus → title"
+4. ใน preview iframe → click ที่ "A Light in the Attic" (ชื่อ book แรก)
+   - selector auto-fill `h3 a`
+   - cursor focus ย้ายไป field ถัดไป (`price`)
+5. ใน preview → click ที่ "£51.77"
+   - selector auto-fill `.price_color`
+   - Pick mode ปิดอัตโนมัติ (field สุดท้ายแล้ว)
+6. กด **Extract** → ผลลัพธ์ตรงกับ §21.2 ✅
+
+**Pass criteria:**
+- ✅ selector ที่ pick มาแทบเหมือนของที่ใส่ manual (อาจมี class/id ต่างกันแต่ทำงานเหมือนกัน)
+- ✅ Pick mode strip `<script>` ออกหมด (ไม่มี code ของ books.toscrape รัน — sandbox flip safety)
+
+**Esc cancel:**
+- กด **Esc** ระหว่าง Pick mode → ยกเลิก + selector field ของเดิมไม่เปลี่ยน
+
+---
+
+### 21.4 🌐 Phase 3 — Browser Mode (Playwright)
+
+**เป้าหมาย:** เทสต์ว่า Browser mode (headless Chrome) ทำงานได้ — แม้ books.toscrape ไม่ต้องใช้ JS แต่ใช้ verify Playwright path ทำงาน
+
+1. กลับมาที่ toolbar → เปลี่ยน **Mode** เป็น `Browser`
+2. options ที่จะเช็ค:
+   - `waitFor`: ปล่อยว่าง (เว็บนี้ render เสร็จเร็ว)
+   - `scroll`: ☐ off
+   - `screenshot`: ☑ on
+3. กด **▷ Run** → จะเห็น loading นานกว่า static ~2-3 วิ (Playwright spin up)
+4. หลังโหลดเสร็จ → กด **📷 Screenshot** ใต้ preview → ดู PNG ของหน้าเว็บ
+5. กด **Extract** → ผลลัพธ์ตรงกับ Static mode (20 rows) ✅
+
+**เปรียบเทียบ Static vs Browser:**
+
+| | Static | Browser |
+|---|--------|---------|
+| Latency | ~300ms | ~2-3s |
+| RAM | ~5MB | ~250MB (Playwright pool) |
+| Result | เหมือนกัน | เหมือนกัน |
+| ใช้เมื่อ | HTML render เสร็จจาก server | SPA + JS render + lazy load |
+
+> 💡 books.toscrape ไม่ต้องใช้ Browser mode จริงๆ — เอาไว้เทียบ baseline + verify Playwright path เท่านั้น
+
+---
+
+### 21.5 🔁 Phase 4a — Batch (50 pages = 1000 books)
+
+**เป้าหมาย:** เทสต์ pagination ด้วย brace expansion `{a..b}`
+
+#### Pattern mode
+
+1. กด **🔁 Batch** เปิด modal
+2. Toggle เป็น **Pattern**
+3. URL pattern:
+   ```
+   https://books.toscrape.com/catalogue/page-{1..50}.html
+   ```
+4. Settings:
+   - **Delay**: `500` ms (เว็บนี้รับได้)
+   - **Mode**: `Static`
+5. กด **Start** → progress bar เริ่มนับ 1/50, 2/50, ...
+6. SSE event log แสดง:
+   ```
+   1/50 ✓ page-1.html → 20 rows
+   2/50 ✓ page-2.html → 20 rows
+   ...
+   50/50 ✓ page-50.html → 14 rows  (หน้าสุดท้ายมี 14 books)
+   ```
+7. ใช้เวลา **~25 วินาที** (500ms × 50)
+8. result table รวมทุกหน้า → **~1,000 rows**
+9. ทุก row มี column `_source` บอกว่ามาจาก URL ไหน
+
+#### Test ระบบหยุดกลางทาง
+
+10. รัน batch รอบ 2 → กด **Stop** ตอน 10/50
+11. ดูว่าหยุดทันที + result เก็บแค่ 10 หน้าแรก (~200 rows)
+
+#### List mode (5 categories)
+
+12. ใน Batch modal → toggle เป็น **List**
+13. paste:
+    ```
+    https://books.toscrape.com/catalogue/category/books/travel_2/index.html
+    https://books.toscrape.com/catalogue/category/books/mystery_3/index.html
+    https://books.toscrape.com/catalogue/category/books/historical-fiction_4/index.html
+    https://books.toscrape.com/catalogue/category/books/sequential-art_5/index.html
+    https://books.toscrape.com/catalogue/category/books/classics_6/index.html
+    ```
+14. **Start** → ได้ books จาก 5 categories รวมกัน
+
+**Pass criteria:**
+- ✅ Pattern mode: 50/50 หน้า, ~1000 rows
+- ✅ Stop ทำงานทันที (ไม่รอ delay)
+- ✅ column `_source` ครบทุก row
+- ✅ List mode: 5/5 หน้า, ~40+ rows (แต่ละ category 10-20 books)
+
+#### Smaller test (เร็วกว่า)
+
+ถ้าอยากเทสเร็วๆ → ใช้ pattern `{1..3}` (60 rows, ~1.5 วินาที)
+
+---
+
+### 21.6 🔐 Phase 4b — Auth (Headers test)
+
+**เป้าหมาย:** เทสต์ว่า custom headers ถูกส่งจริง — books.toscrape ไม่มี login แต่ verify ได้ผ่าน httpbin
+
+#### Test 1: ใส่ custom User-Agent
+
+1. กด **🔐 Auth** เปิด modal
+2. **Headers textarea:**
+   ```
+   User-Agent: GyozenScrapBot/3.1 (CYBERFRAME)
+   Referer: https://google.com/
+   X-Test-Header: hello-from-scrap-tool
+   ```
+3. **Cookie**: ปล่อยว่าง
+4. กด **Apply** → ปุ่ม 🔐 เปลี่ยนเป็นสีม่วง (active)
+
+5. กลับมา URL: `https://httpbin.org/headers`
+6. กด **▷ Run** → preview แสดง JSON response
+7. **ดูใน JSON:**
+   ```json
+   {
+     "headers": {
+       "User-Agent": "GyozenScrapBot/3.1 (CYBERFRAME)",
+       "Referer": "https://google.com/",
+       "X-Test-Header": "hello-from-scrap-tool"
+       ...
+     }
+   }
+   ```
+
+**Pass criteria:** ✅ User-Agent, Referer, X-Test-Header ปรากฏใน response
+
+#### Test 2: Cookie test
+
+1. URL: `https://httpbin.org/cookies`
+2. ใน **🔐 Auth** → **Cookie textarea:**
+   ```
+   session_id=abc123; user_pref=th; theme=dark
+   ```
+3. **Apply** → **Run**
+4. Response ควรแสดง:
+   ```json
+   {
+     "cookies": {
+       "session_id": "abc123",
+       "user_pref": "th",
+       "theme": "dark"
+     }
+   }
+   ```
+
+**Pass criteria:** ✅ cookies ครบทั้ง 3 ตัว
+
+#### Test 3: ส่ง auth ไปกับ Batch
+
+5. URL pattern: `https://httpbin.org/anything/{1..3}`
+6. กด 🔁 Batch → Pattern + Start
+7. ทุก response ใน batch ต้องมี `headers.User-Agent` และ `headers.Cookie` ตรงกับที่ตั้งไว้
+
+**Pass criteria:** ✅ auth ทำงานทั้ง 4 endpoints (fetch / browser / batch / recipe run)
+
+#### Test 4: Save Recipe + auth persist
+
+8. กด 💾 **Save Recipe** → ตั้งชื่อ "HTTPBin auth test"
+9. รีโหลด Scrap tab (Ctrl+R)
+10. กด **📂 Recipes** → Load "HTTPBin auth test"
+11. ปุ่ม 🔐 ต้อง active สีม่วงเหมือนเดิม + headers/cookie เดิมยังอยู่
+
+**Pass criteria:** ✅ auth restore จาก recipe ได้
+
+---
+
+### 21.7 ⏰ Phase 4c — Scheduler + Snapshot + Diff
+
+**เป้าหมาย:** เทสต์ recipe schedule + snapshot retention + diff algorithm
+
+#### Setup
+
+1. กลับมาตั้ง URL: `https://books.toscrape.com/`
+2. ตั้ง selectors ครบตาม §21.1
+3. กด 💾 **Save Recipe** → "Books Front Page Monitor"
+4. รอ recipe ปรากฏใน Recipes pane
+
+#### Enable Scheduler
+
+5. ใน recipe card → ☑ **Auto**
+6. **every** input → ตั้ง `2` min (สั้นที่สุดสำหรับ test)
+7. recipe จะรันทันที + รันซ้ำทุก 2 นาที
+8. รอ 6 นาที → ควรมี 3 snapshots
+
+#### ตรวจ snapshot
+
+9. กด **History** ใน recipe card
+10. ดูรายการ snapshots (newest first):
+    ```
+    2026-05-11 23:50  •  20 rows  •  hash: a1b2c3...
+    2026-05-11 23:48  •  20 rows  •  hash: a1b2c3...
+    2026-05-11 23:46  •  20 rows  •  hash: a1b2c3...
+    ```
+11. กด **Load** ที่ snapshot ใดๆ → result table โหลดข้อมูลของ snapshot นั้น
+12. กด **⤓** → download JSON ของ snapshot
+
+#### Compute Diff
+
+13. ใน History modal → กด **Select** ที่ snapshot 1 (เก่าสุด)
+14. กด **Select** ที่ snapshot 3 (ใหม่สุด)
+15. กด **Compute Diff** → ผลลัพธ์:
+    - 🟢 **Added rows: 0** (เว็บนี้ stable)
+    - 🔴 **Removed rows: 0**
+
+> books.toscrape data stable → diff empty = OK (verify ว่า scheduler + diff algo ทำงาน) ถ้าจะดู diff non-empty ลองใช้กับ HN หรือ ProductHunt แทน (มี data ใหม่ทุกวินาที)
+
+**Pass criteria:**
+- ✅ มี ≥ 3 snapshots หลังรอ 6 นาที
+- ✅ Diff ทำงาน (0/0 ก็ pass)
+- ✅ Load snapshot กลับเข้า tab ได้
+
+#### Cleanup
+
+16. ปิด ☑ Auto (เพราะไม่อยาก scrape ทุก 2 นาทีตลอด)
+17. หรือกด 🗑️ Delete recipe → snapshots folder ถูกลบไปด้วย
+
+---
+
+### 21.8 📊 Verify checklist รวม
+
+หลัง walkthrough ครบ — ลูกพี่ควร tick ครบทุกข้อ:
+
+#### Phase 1 — Static
+- [ ] เปิด Scrap tab ได้
+- [ ] Fetch books.toscrape.com → preview iframe render OK
+- [ ] Root + 6 fields setup → Extract = 20 rows
+- [ ] image + link เป็น absolute URL
+- [ ] price มี £ + decimal
+
+#### Phase 2 — Visual Pick
+- [ ] กด 🎯 Pick → toolbar ม่วง
+- [ ] click element → selector auto-fill
+- [ ] focus advance อัตโนมัติ
+- [ ] Esc cancel ได้
+
+#### Phase 3 — Browser Mode
+- [ ] Browser mode สลับได้
+- [ ] Playwright fetch สำเร็จ (อาจช้ากว่า)
+- [ ] Screenshot ดาวน์โหลดได้
+- [ ] Result ตรงกับ Static
+
+#### Phase 4a — Batch
+- [ ] Pattern `{1..3}` รันได้ (60 rows)
+- [ ] Pattern `{1..50}` รันครบ (≥980 rows)
+- [ ] SSE progress live update
+- [ ] Stop button ยกเลิกทันที
+- [ ] column `_source` มีทุก row
+- [ ] List mode 5 categories OK
+
+#### Phase 4b — Auth
+- [ ] Custom Headers ส่งถึง server (verify ผ่าน httpbin.org/headers)
+- [ ] Cookie ส่งถึง server (verify ผ่าน httpbin.org/cookies)
+- [ ] Auth ใช้กับ Batch ได้
+- [ ] Auth save + restore กับ recipe ได้
+
+#### Phase 4c — Scheduler
+- [ ] Save Recipe ได้
+- [ ] Recipe Load คืน state ครบ
+- [ ] ☑ Auto + every N min ทำงาน
+- [ ] snapshots ≥ 3 หลังรอ ครบ retention 50
+- [ ] History modal เปิดได้
+- [ ] Compute Diff สำเร็จ (0/0 ก็ pass)
+- [ ] Delete recipe ลบ snapshots ด้วย
+
+---
+
+### 21.9 🎬 เว็บ test เผื่อใช้เพิ่ม
+
+| URL | ใช้ทดสอบ |
+|-----|---------|
+| `quotes.toscrape.com` | pagination หลายแบบ + เปลี่ยน selector (`.quote .text`, `.quote .author`) |
+| `quotes.toscrape.com/js/` | **Browser mode required** — render ด้วย JS เท่านั้น |
+| `quotes.toscrape.com/login` | Auth flow + cookie session + CSRF token |
+| `news.ycombinator.com` | real-world + Schedule diff ใช้งานได้จริง (rank/score เปลี่ยนตลอด) |
+| `httpbin.org/headers` | verify headers ส่งถึง server |
+| `httpbin.org/cookies` | verify cookies ส่งถึง server |
+| `httpbin.org/anything/{1..N}` | batch echo |
+
+---
+
+## 22. Automated Test Script — test-scrap-books.mjs
+
+ถ้าอยากเทส Scrap Tool แบบ **อัตโนมัติ** (ไม่ต้องคลิกเอง) — ใช้ Node.js script ที่ shipped มาด้วยใน `scripts/test-scrap-books.mjs`
+
+### 22.1 ทำอะไรบ้าง
+
+Script ทดสอบ **ครบทุก endpoint** ของ Scrap Tool โดยใช้ `fetch` + cookie jar:
+
+1. **Login** → ได้ session cookie (default `admin` / `changeme`, หรือ env `TERM_USER` / `TERM_PASS`)
+2. **Phase 1 — Fetch single page** → POST `/api/scrap/fetch` → verify HTML size + status
+3. **Phase 1 — Extract rows** → POST `/api/scrap/extract` → verify 20 rows
+4. **Phase 3 — Browser fetch** → POST `/api/scrap/browser` → verify Playwright path
+5. **Phase 4a — Batch (3 pages)** → POST `/api/scrap/batch` (SSE) → verify ≥ 60 rows
+6. **Phase 4b — Auth via httpbin** → POST `/api/scrap/fetch` พร้อม auth → verify headers echo
+7. **Phase 4c — Recipe CRUD** → create / list / run / snapshots / delete
+8. **Phase 4c — Diff** → snapshot ของ recipe + compute diff (อาจ skip ถ้า data เหมือน)
+9. **Cleanup** — ลบ recipe + snapshots ที่สร้างระหว่าง test
+
+### 22.2 Run
+
+```bash
+# ใน CYBERFRAME terminal หรือ host shell
+cd C:/Users/BudToZai/.openclaw/workspace/SCRIPT-TOOLS/WEB-TERMINAL
+node scripts/test-scrap-books.mjs
+```
+
+### 22.3 Env vars ที่ใช้
+
+| Var | Default | หมายเหตุ |
+|-----|---------|---------|
+| `CF_BASE` | `http://127.0.0.1:3000` | CYBERFRAME URL |
+| `CF_USER` | `admin` | login username |
+| `CF_PASS` | `changeme` | login password |
+| `CF_SKIP_BROWSER` | `0` | ตั้ง `1` ถ้าไม่อยากเทส Playwright path |
+| `CF_SKIP_BATCH` | `0` | ตั้ง `1` ถ้าไม่อยากเทส batch (ใช้เวลาหลายวินาที) |
+| `CF_SKIP_SCHEDULE` | `0` | ตั้ง `1` ถ้าไม่อยาก wait scheduler tick |
+
+ตัวอย่างใช้กับ production credentials:
+
+```bash
+CF_BASE=http://127.0.0.1:3000 CF_USER=admin CF_PASS=rog2025! node scripts/test-scrap-books.mjs
+```
+
+### 22.4 Expected output
+
+```
+🍥 CYBERFRAME Scrap Tool — Automated Test Suite
+================================================
+[1/8] 🔑 Login as admin                          ✓
+[2/8] 🌐 Phase 1: Static fetch                   ✓ 51KB HTML
+[3/8] 📦 Phase 1: Extract 20 rows                ✓ 20 books
+[4/8] 🎭 Phase 3: Browser fetch (Playwright)     ✓ 3.2s
+[5/8] 🔁 Phase 4a: Batch {1..3}                  ✓ 60 rows
+[6/8] 🔐 Phase 4b: Auth via httpbin              ✓ headers echoed
+[7/8] 💾 Phase 4c: Recipe CRUD                   ✓ created+ran+listed
+[8/8] 🗑️  Cleanup                                ✓
+
+================================================
+✅ All 8 phases passed in 12.4s
+```
+
+ถ้าเจอ failure จะแสดง stack trace + endpoint ที่พลาด
+
+### 22.5 Code overview
+
+Script ใช้แค่ Node ≥ 18 built-in (ไม่ต้อง npm install อะไรเพิ่ม):
+- `fetch` (built-in)
+- `node:crypto` (สำหรับ random recipe id)
+- `node:url` (URLSearchParams)
+- ไม่มี dependency
+
+แต่ละ test เป็น async function แยกกัน → script ตัวนี้สามารถนำไป **ปรับเป็น CI test ใน playwright.config** ได้
+
+---
 
 | Action | Shortcut / ปุ่ม |
 |--------|----------------|
@@ -1515,6 +1963,7 @@ Recipe JSON เป็น plaintext — ถ้าต้องการควา�
 | Version | Date | Notes |
 |---------|------|-------|
 | `1.0.0` | 2026-05-11 | First standalone manual — ครอบคลุม Phase 1–4 ทั้งหมด, 20 sections, ~1500 lines |
+| `1.1.0` | 2026-05-11 | + §21 Complete Walkthrough — books.toscrape.com (Phase 1→4c step-by-step ครบ + verify checklist) · + §22 Automated Test Script (`scripts/test-scrap-books.mjs`) · ใช้ทดสอบทุก endpoint แบบไม่ต้องคลิกเอง |
 
 ---
 
