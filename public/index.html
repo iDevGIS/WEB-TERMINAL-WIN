@@ -1080,7 +1080,7 @@
       outline: none;
     }
     .scrap-toolbar input.scrap-url:focus { border-color: rgba(167,139,250,.45); background: rgba(0,0,0,.35); }
-    .scrap-toolbar select, .scrap-toolbar .scrap-btn {
+    .scrap-btn {
       background: rgba(255,255,255,.05);
       border: 1px solid rgba(255,255,255,.08);
       color: var(--text2);
@@ -1093,10 +1093,30 @@
       font-family: inherit;
       transition: all .12s;
     }
-    .scrap-toolbar .scrap-btn:hover { background: rgba(167,139,250,.18); color: var(--text); border-color: rgba(167,139,250,.35); }
-    .scrap-toolbar .scrap-btn.primary { background: rgba(167,139,250,.18); color: #d8c8ff; border-color: rgba(167,139,250,.45); }
-    .scrap-toolbar .scrap-btn.primary:hover { background: rgba(167,139,250,.3); color: #fff; }
-    .scrap-toolbar .scrap-btn:disabled { opacity: .4; cursor: default; }
+    .scrap-btn:hover { background: rgba(167,139,250,.18); color: var(--text); border-color: rgba(167,139,250,.35); }
+    .scrap-btn.primary { background: linear-gradient(135deg, rgba(167,139,250,.28), rgba(192,132,252,.22)); color: #f0e8ff; border-color: rgba(167,139,250,.55); font-weight: 500; }
+    .scrap-btn.primary:hover { background: linear-gradient(135deg, rgba(167,139,250,.4), rgba(192,132,252,.32)); color: #fff; border-color: rgba(167,139,250,.7); box-shadow: 0 0 0 2px rgba(167,139,250,.12); }
+    .scrap-btn:disabled { opacity: .4; cursor: default; }
+    .scrap-btn:disabled:hover { background: rgba(255,255,255,.05); color: var(--text2); border-color: rgba(255,255,255,.08); }
+    .scrap-toolbar select {
+      background: rgba(255,255,255,.05) url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%23a78bfa' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>") no-repeat right 8px center;
+      border: 1px solid rgba(255,255,255,.08);
+      color: var(--text2);
+      padding: 5px 24px 5px 12px;
+      height: 28px;
+      box-sizing: border-box;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 12.5px;
+      font-family: inherit;
+      transition: all .12s;
+      -webkit-appearance: none;
+      -moz-appearance: none;
+      appearance: none;
+    }
+    .scrap-toolbar select:hover { background-color: rgba(167,139,250,.12); color: var(--text); border-color: rgba(167,139,250,.3); }
+    .scrap-toolbar select:focus { outline: none; border-color: rgba(167,139,250,.45); background-color: rgba(167,139,250,.14); color: var(--text); }
+    .scrap-toolbar select option { background: #14142b; color: var(--text); padding: 6px; }
     .scrap-body {
       flex: 1;
       min-height: 0;
@@ -1223,7 +1243,7 @@
     }
     .scrap-field-row .pick:hover { background: rgba(167,139,250,.18); color: #d8c8ff; border-color: rgba(167,139,250,.45); }
     .scrap-field-row .pick.active { background: rgba(167,139,250,.35); color: #fff; border-color: rgba(167,139,250,.7); box-shadow: 0 0 0 2px rgba(167,139,250,.18); }
-    .scrap-toolbar .scrap-btn.pick-mode-on { background: rgba(167,139,250,.35); color: #fff; border-color: rgba(167,139,250,.7); }
+    .scrap-btn.pick-mode-on { background: rgba(167,139,250,.35); color: #fff; border-color: rgba(167,139,250,.7); }
     .scrap-pick-hint {
       position: absolute; top: 8px; left: 8px;
       background: rgba(15,15,30,.92); border: 1px solid rgba(167,139,250,.45);
@@ -1269,6 +1289,25 @@
       border-radius: 6px;
       margin-bottom: 10px;
     }
+    .scrap-ai-model-btn {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(167,139,250,.08);
+      color: var(--text);
+      border: 1px solid rgba(167,139,250,.22);
+      border-radius: 6px;
+      padding: 5px 8px;
+      font-size: 12px;
+      font-family: inherit;
+      cursor: pointer;
+      text-align: left;
+      justify-content: flex-start;
+      transition: all .12s;
+    }
+    .scrap-ai-model-btn:hover { background: rgba(167,139,250,.16); border-color: rgba(167,139,250,.4); }
+    .scrap-ai-model-btn:focus { outline: none; border-color: rgba(167,139,250,.55); box-shadow: 0 0 0 2px rgba(167,139,250,.15); }
     .scrap-ai-box textarea {
       width: 100%;
       box-sizing: border-box;
@@ -1348,7 +1387,10 @@
       z-index: 2;
     }
     .scrap-result-header .count { color: #86efac; font-weight: 600; }
-    .scrap-result-header .scrap-btn { height: 22px; padding: 2px 8px; font-size: 11px; }
+    .scrap-result-header .export-group { display: inline-flex; gap: 0; background: rgba(0,0,0,.3); border: 1px solid rgba(255,255,255,.08); border-radius: 6px; overflow: hidden; }
+    .scrap-result-header .export-group .scrap-btn { height: 22px; padding: 2px 10px; font-size: 10.5px; font-weight: 600; letter-spacing: .3px; border: none; border-radius: 0; background: transparent; color: var(--text2); }
+    .scrap-result-header .export-group .scrap-btn + .scrap-btn { border-left: 1px solid rgba(255,255,255,.08); }
+    .scrap-result-header .export-group .scrap-btn:hover { background: rgba(167,139,250,.22); color: #fff; }
     .scrap-result-table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
     .scrap-result-table th, .scrap-result-table td {
       padding: 5px 8px;
@@ -6637,7 +6679,7 @@
                     <textarea id="${tabId}-sc-goal" placeholder="e.g. 'product name, price, image' — AI จะ generate selectors ให้"></textarea>
                     <div style="display:flex;gap:6px;margin-top:6px;align-items:center">
                       <span style="font-size:11.5px;color:var(--text2);min-width:42px">Model</span>
-                      <button id="${tabId}-sc-ai-model-btn" onclick="scrapPickAIModel('${tabId}')" style="flex:1;display:flex;align-items:center;gap:6px;background:var(--bg1);color:var(--text);border:1px solid var(--bd);border-radius:6px;padding:5px 8px;font-size:12px;cursor:pointer;text-align:left;justify-content:flex-start" title="Click to change model">
+                      <button id="${tabId}-sc-ai-model-btn" onclick="scrapPickAIModel('${tabId}')" class="scrap-ai-model-btn" title="Click to change model">
                         <span id="${tabId}-sc-ai-model-badge" style="font-size:8px;padding:1px 5px;border-radius:3px;background:rgba(192,132,252,.1);color:#c084fc;font-weight:600">openclaw</span>
                         <span id="${tabId}-sc-ai-model-label" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">loading…</span>
                         <span id="${tabId}-sc-ai-model-ctx" style="font-size:9px;color:var(--text3)"></span>
@@ -6663,9 +6705,12 @@
             <div class="scrap-result-header">
               <span class="count" id="${tabId}-sc-count">0 rows</span>
               <span style="flex:1"></span>
-              <button class="scrap-btn" onclick="scrapExport('${tabId}','json')">JSON</button>
-              <button class="scrap-btn" onclick="scrapExport('${tabId}','csv')">CSV</button>
-              <button class="scrap-btn" onclick="scrapExport('${tabId}','md')">MD</button>
+              <span style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-right:6px">Export</span>
+              <div class="export-group">
+                <button class="scrap-btn" onclick="scrapExport('${tabId}','json')" title="Export as JSON">JSON</button>
+                <button class="scrap-btn" onclick="scrapExport('${tabId}','csv')" title="Export as CSV">CSV</button>
+                <button class="scrap-btn" onclick="scrapExport('${tabId}','md')" title="Export as Markdown">MD</button>
+              </div>
             </div>
             <div id="${tabId}-sc-rows"><div class="scrap-empty">Run a page and extract to see results.</div></div>
           </div>
