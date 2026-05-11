@@ -5553,36 +5553,111 @@ app.post("/api/scrap/extract", requireAuth, express.json({ limit: "10mb" }), (re
   }
 });
 
-// Tier 3 — AI selector generator (Anthropic)
+// Tier 3 — AI selector generator
+// Default route: OpenClaw Gateway (same plumbing as AI Chat) — no separate ANTHROPIC_API_KEY needed
+// Fallback: direct Anthropic SDK if provider=anthropic or gateway unavailable
 app.post("/api/scrap/ai-selectors", requireAuth, express.json({ limit: "10mb" }), async (req, res) => {
   const html = String(req.body.html || "");
   const goal = String(req.body.goal || "").trim();
   if (!html) return res.status(400).json({ error: "no html" });
   if (!goal) return res.status(400).json({ error: "no goal" });
-  const apiKey = process.env.ANTHROPIC_API_KEY || process.env.CLAUDE_API_KEY;
-  if (!apiKey) return res.status(400).json({ error: "ANTHROPIC_API_KEY not set" });
+
+  // Build prompt (shared across providers)
+  const cheerio = require("cheerio");
+  const $$ = cheerio.load(html);
+  $$("script, style, noscript, svg").remove();
+  const compact = $$.html().replace(/<!--[\s\S]*?-->/g, "").replace(/\s+/g, " ").slice(0, 60000);
+  const sys = "You are a web scraping expert. Given HTML and a goal, return ONLY a JSON object (no markdown fences, no commentary) with CSS selectors to extract the data.";
+  const userMsg = `Goal: ${goal}\n\nHTML:\n\`\`\`html\n${compact}\n\`\`\`\n\nReturn JSON in this exact shape:\n{\n  "rootSelector": "selector for each item (empty string if single record)",\n  "selectors": {\n    "fieldName": { "selector": "css-selector relative to rootSelector", "attr": "text|html|href|src|alt|title|..." }\n  }\n}`;
+
+  const provider = String(req.body.provider || "").toLowerCase();
+  const wantAnthropic = provider === "anthropic";
+  const useGateway = !wantAnthropic && !!OPENCLAW_TOKEN;
+
   try {
-    const Anthropic = require("@anthropic-ai/sdk").default;
-    const client = new Anthropic({ apiKey });
-    // Compact HTML: strip script/style/comments, trim long whitespace
-    const cheerio = require("cheerio");
-    const $$ = cheerio.load(html);
-    $$("script, style, noscript, svg").remove();
-    let compact = $$.html().replace(/<!--[\s\S]*?-->/g, "").replace(/\s+/g, " ").slice(0, 60000);
-    const sys = "You are a web scraping expert. Given HTML and a goal, return ONLY a JSON object (no markdown fences, no commentary) with CSS selectors to extract the data.";
-    const userMsg = `Goal: ${goal}\n\nHTML:\n\`\`\`html\n${compact}\n\`\`\`\n\nReturn JSON in this exact shape:\n{\n  "rootSelector": "selector for each item (empty string if single record)",\n  "selectors": {\n    "fieldName": { "selector": "css-selector relative to rootSelector", "attr": "text|html|href|src|alt|title|..." }\n  }\n}`;
-    const msg = await client.messages.create({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 2000,
-      system: sys,
-      messages: [{ role: "user", content: userMsg }],
-    });
-    const text = (msg.content || []).map(c => c.text || "").join("\n");
+    let text = "";
+    let usage = null;
+    let modelUsed = "";
+    let providerUsed = "";
+
+    if (useGateway) {
+      const agentId = String(req.body.agentId || "main");
+      const gwModel = agentId && agentId !== "main" ? "openclaw/" + agentId : "openclaw";
+      modelUsed = gwModel;
+      providerUsed = "gateway";
+      const payload = {
+        model: gwModel,
+        messages: [
+          { role: "system", content: sys },
+          { role: "user", content: userMsg },
+        ],
+        stream: true,
+        user: "cyberframe-scrap-" + Date.now(),
+      };
+      const upstream = await fetch(OPENCLAW_GW + "/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer " + OPENCLAW_TOKEN,
+          "x-openclaw-agent-id": agentId,
+        },
+        body: JSON.stringify(payload),
+      });
+      if (!upstream.ok) {
+        const errText = await upstream.text();
+        return res.status(upstream.status).json({ error: "gateway error: " + errText.slice(0, 500) });
+      }
+      const reader = upstream.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = "";
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        let idx;
+        while ((idx = buf.indexOf("\n")) >= 0) {
+          const line = buf.slice(0, idx).trim();
+          buf = buf.slice(idx + 1);
+          if (!line.startsWith("data:")) continue;
+          const data = line.slice(5).trim();
+          if (!data || data === "[DONE]") continue;
+          try {
+            const j = JSON.parse(data);
+            const delta = j?.choices?.[0]?.delta?.content;
+            if (delta) text += delta;
+            if (j?.usage) usage = j.usage;
+          } catch {}
+        }
+      }
+    } else {
+      const apiKey = process.env.ANTHROPIC_API_KEY || process.env.CLAUDE_API_KEY;
+      if (!apiKey) return res.status(400).json({ error: "AI not configured: set OPENCLAW_TOKEN (recommended) or ANTHROPIC_API_KEY" });
+      const Anthropic = require("@anthropic-ai/sdk").default;
+      const client = new Anthropic({ apiKey });
+      modelUsed = String(req.body.model || "claude-haiku-4-5-20251001");
+      providerUsed = "anthropic";
+      const msg = await client.messages.create({
+        model: modelUsed,
+        max_tokens: 2000,
+        system: sys,
+        messages: [{ role: "user", content: userMsg }],
+      });
+      text = (msg.content || []).map(c => c.text || "").join("\n");
+      usage = msg.usage;
+    }
+
     const m = text.match(/\{[\s\S]*\}/);
     if (!m) return res.status(500).json({ error: "AI did not return JSON", raw: text });
     let parsed;
     try { parsed = JSON.parse(m[0]); } catch (e) { return res.status(500).json({ error: "AI JSON parse failed: " + e.message, raw: text }); }
-    res.json({ ok: true, rootSelector: parsed.rootSelector || "", selectors: parsed.selectors || {}, usage: msg.usage });
+    res.json({
+      ok: true,
+      rootSelector: parsed.rootSelector || "",
+      selectors: parsed.selectors || {},
+      usage,
+      model: modelUsed,
+      provider: providerUsed,
+    });
   } catch (e) {
     res.status(500).json({ error: String(e.message || e) });
   }

@@ -5,6 +5,33 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [3.2.0] — 2026-05-12 — Scrap Tool AI uses OpenClaw Gateway
+
+Minor release — AI Selector Generator now routes through the OpenClaw Gateway (same plumbing as the AI Chat tab). **No separate `ANTHROPIC_API_KEY` required** — reuses the existing `OPENCLAW_TOKEN` already configured for AI Chat.
+
+### Changed — `/api/scrap/ai-selectors`
+- Default provider is now **`gateway`** (OpenClaw `/v1/chat/completions` with `Bearer OPENCLAW_TOKEN` + `x-openclaw-agent-id`)
+- Accepts optional `agentId` in request body (default `main`) — picks which OpenClaw agent answers
+- Consumes upstream SSE and accumulates `delta.content` into a single JSON string (then `JSON.parse` as before)
+- Response shape unchanged + adds `model` and `provider` fields (`"gateway"` or `"anthropic"`)
+- Fallback to direct Anthropic SDK kept — triggered by `provider: "anthropic"` in request body, or automatically when `OPENCLAW_TOKEN` is unset
+
+### Added — Client UI
+- **Agent picker** in Scrap Tool ✨ AI pane — populates from `/api/agents` (same source as AI Chat) on first open
+- Updated hint text: "ใช้ OpenClaw Gateway (เหมือน AI Chat) — ไม่ต้องตั้ง API key แยก"
+
+### Why
+- One AI configuration to manage (lưbu pi already has `OPENCLAW_TOKEN` working for AI Chat)
+- Users without an Anthropic API key can now use AI Selector Gen
+- Agent picker means you can route through e.g. a `haiku-fast` sub-agent if configured for cheap+fast extraction
+
+### Files touched
+- `server.js` — `/api/scrap/ai-selectors` refactor (~75 lines)
+- `public/index.html` — AI pane agent select + `scrapPopulateAIAgents()` + pass `agentId` in `scrapAIGenerate()`
+- `package.json` — version bump 3.1.0 → 3.2.0
+
+---
+
 ## [3.1.0] — 2026-05-11 — Browser Tab + Scrap Tool (Phase 1–4)
 
 Minor release adding two new tabs — **Browser** (in-tab iframe with URL bar/history) and **Scrap Tool** (3-tier web scraper: Static → Browser → AI) — plus terminal performance overhaul (WebGL renderer, ConPTY, binary WS frames, TCP_NODELAY) that makes typing feel near-native-SSH.
