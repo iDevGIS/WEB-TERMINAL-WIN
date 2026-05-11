@@ -1206,7 +1206,7 @@
     }
     .scrap-field-row {
       display: grid;
-      grid-template-columns: 100px 1fr 24px 70px 24px;
+      grid-template-columns: 90px 1fr 24px 78px 22px;
       gap: 4px;
       margin-bottom: 4px;
       align-items: center;
@@ -1220,7 +1220,21 @@
       font-family: inherit;
       border-radius: 4px;
       outline: none;
+      min-width: 0;
+      box-sizing: border-box;
     }
+    .scrap-field-row select {
+      background: rgba(0,0,0,.25) url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%23a78bfa' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>") no-repeat right 6px center;
+      padding: 4px 20px 4px 8px;
+      cursor: pointer;
+      -webkit-appearance: none;
+      -moz-appearance: none;
+      appearance: none;
+      transition: all .12s;
+    }
+    .scrap-field-row select:hover { background-color: rgba(167,139,250,.12); border-color: rgba(167,139,250,.3); color: var(--text); }
+    .scrap-field-row select:focus { border-color: rgba(167,139,250,.45); background-color: rgba(167,139,250,.14); color: var(--text); }
+    .scrap-field-row select option { background: #14142b; color: var(--text); padding: 6px; }
     .scrap-field-row input:focus { border-color: rgba(167,139,250,.4); background: rgba(0,0,0,.35); }
     .scrap-field-row .x {
       background: transparent;
