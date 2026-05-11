@@ -5,6 +5,75 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [3.1.0] — 2026-05-11 — Browser Tab + Scrap Tool (Phase 1–4)
+
+Minor release adding two new tabs — **Browser** (in-tab iframe with URL bar/history) and **Scrap Tool** (3-tier web scraper: Static → Browser → AI) — plus terminal performance overhaul (WebGL renderer, ConPTY, binary WS frames, TCP_NODELAY) that makes typing feel near-native-SSH.
+
+### Added — Browser Tab
+- **Browser tab** (`d73cb35`): in-tab iframe with URL bar (auto Bing fallback for keywords), back/forward history (per-tab stack), reload, home, open-in-real-browser (↗️), tab title auto-updates to hostname, URL persisted in workspace state
+- ⚠️ Limited to sites without `X-Frame-Options: DENY` / `frame-ancestors 'none'` — server-side proxy strip is roadmap
+
+### Added — Scrap Tool Phase 1: HTTP fetch + Extract
+- **Scrap tab** (`7f46245`): 3-tier scraper architecture — Static (Cheerio) / Browser (Playwright) / AI (Claude API)
+- Toolbar: URL · Mode picker · scroll toggle · Run · Extract · Save · Recipes
+- Selectors pane: root selector (list mode) + field rows with `selector@attr` syntax
+- Smart attribute guess: field name `url/link/href` → `@href`; `img/image/photo` → `@src`
+- Result table preview + JSON/CSV export (`csv-stringify`)
+
+### Added — Scrap Tool Phase 2: Visual Selector Picker
+- **🎯 Pick mode** (`0666574`): click element in preview → auto-fill CSS selector + advance to next empty field
+- **Sandbox flip pattern**: iframe sandbox flipped to `allow-scripts allow-same-origin` only during pick — but `<script>` tags stripped from page first; only our picker overlay JS runs (no external site code executes)
+- Selector generation: `#id` → `.class` → tag+class+`:nth-child(n)` → root path fallback
+- Esc → cancel pick mode
+
+### Added — Scrap Tool Phase 3: Browser mode (Playwright)
+- Mode picker switch: Static (default, fast) / Browser (Playwright Chromium headless)
+- `☐ scroll` option: scroll-to-bottom 3× before parse (infinite-scroll feeds)
+- Auto-wait `networkidle` ~500ms; 30s timeout; instance reuse + auto-close after 30s idle
+
+### Added — Scrap Tool Phase 4a: Batch mode
+- **🔁 Batch modal** (`54157d3`): scrape multiple URLs at once
+- **Pattern mode**: brace expansion `{from..to}` or `{from..to:step}` — e.g., `?page={1..50:5}` → 10 URLs
+- **List mode**: paste URL per line — same selectors + auth applied to all
+- **SSE live progress**: progress bar + log stream + Stop button (cancel signal mid-batch)
+- Result merged across all URLs; `_source` column added per row
+
+### Added — Scrap Tool Phase 4b: Auth (Cookie + Headers)
+- **🔐 Auth modal** (`7cb8963`): cookie raw string + custom headers (Bearer/X-Api-Key/Referer/User-Agent)
+- Active state highlighted on toolbar 🔐 button
+- Auth applied to all 4 endpoints: static fetch/extract, browser fetch, batch
+- Auth persisted in recipe JSON (auto-restore on Load) — note: do not commit recipes to public git
+- Apply / Clear buttons in modal
+
+### Added — Scrap Tool Phase 4c: Recipes / Schedule / Diff
+- **Save Recipe** (`c534a4a`): full config (URL+selectors+auth+batch) saved to `scraps/recipes/<id>.json`
+- **Recipes sidebar pane**: per-recipe card with `☑ Auto · every N min · last run · row count badge · Load · Run · History · Delete`
+- **Single global tick** (60s interval): scans all recipes for due runs, sequential execution with 1s gap between recipes
+- **Snapshot history**: keeps last 50 snapshots per recipe in `scraps/snapshots/<recipe_id>/<timestamp>.json`
+- **Compute Diff**: select 2 snapshots → added/removed rows (set diff via stringified row hash); preview 20 rows per group
+- **Status badges**: 🟢 N rows · 🟡 changed · 🔴 error
+- **Load snapshot** → restore data + URL + selectors into tab
+- **Export snapshot** ⤓ → download JSON
+
+### Added — Terminal Performance Tuning
+- **WebGL renderer** (`9c740e1`): xterm.js GPU-accelerated render — Canvas / DOM fallback chain via `onContextLoss`; ~10× DOM render speed
+- **Keystroke prioritization** (`9a0179e`): pollers (refreshSessions, resource cards) skip if typing in last 500ms; `cursorBlink:false`, scrollback 10k→2k, `windowsMode:true`, `fastScrollModifier:'shift'`, `smoothScrollDuration:0`; ConPTY enabled (`useConpty:true` replaces winpty); resource cards interval 3s→5s
+- **Binary WS frames + TCP_NODELAY + no-compression** (`66a01f2`): TCP `setNoDelay(true)` on upgrade socket (cuts Nagle ~20–40ms/keystroke); `perMessageDeflate:false` on hot WSS path (cuts 3–10ms + CPU); custom binary frame format `[0x01|0x02][16-byte hex sessionId][utf-8 data]` for PTY output/input replacing JSON.stringify+parse hot path; JSON path retained for control messages (attach/detach/resize/list/claude-*); `ws.binaryType='arraybuffer'` client-side
+- Result: latency reduced ~30–60ms per keystroke, near native-SSH feel (user-confirmed)
+
+### Fixed
+- **Scrap auth-error JSON response** (`f21de3a`): unauthorized API requests now return JSON `401` (not HTML redirect) — eliminates `JSON.parse` errors in client when session expires
+- **`os` module require** (`13fb5ac`): `/api/version` no longer 500s due to missing `const os = require('os')`
+- **`/api/version` public** (`557a8e4`): version pill loads without auth; modern `<meta name="mobile-web-app-capable">` added alongside Apple-specific tag (deprecated warning gone)
+- **Hostname in tab title** (`25ba660`): `document.title = 'CYBERFRAME · ' + hostname` for main + admin
+- **PWA install pill repositioned** (`27ab8a0`): moved to bottom-right + dismiss button (no longer covers sidebar)
+
+### Docs
+- **USER-MANUAL.md**: added Sections 19–27 — Browser Tab, Scrap Tool overview/picker/browser-mode/batch/auth/recipes/API endpoints; renumbered limitations as Section 27 with per-feature scope
+- Header version stamp updated to `v3.1.0` with phase commit references
+
+---
+
 ## [3.0.0] — 2026-04-25 — Claude Code Tab: Production
 
 Major release covering the complete Claude Code Tab roadmap (Phase 2 Enhanced, Phase 3 Finalize, Phase 3 Future Enhancements, plus an extended set of marketplace/collab/PWA/LSP/replay features), an end-to-end test infrastructure, full user manual + manual test plan, and a UX/regression bug-fix sweep.

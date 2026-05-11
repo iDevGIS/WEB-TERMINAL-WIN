@@ -1,7 +1,8 @@
-# Claude Code Tab — User Manual
+# CYBERFRAME — User Manual
 
-> สำหรับผู้ใช้งานจริง (ลูกพี่) ครอบคลุมทุก feature ที่ทำเสร็จถึง commit `c378ea0` (Batch 30)
-> Companion: `TEST-PLAN.md` (test cases), `README.md` (CYBERFRAME shell terminal), `TODO-claude-code-tab.md` (spec)
+> **Version:** `v3.1.0` (2026-05-11) — Claude Code Tab + Browser Tab + Scrap Tool
+> สำหรับผู้ใช้งานจริง (ลูกพี่) ครอบคลุม Claude Code (Batch 1–30 ถึง `c378ea0`) + Browser tab (`d73cb35`) + Scrap Tool Phase 1–4 (`7f46245` · `0666574` · `f21de3a` · `54157d3` · `c534a4a` · `7cb8963`)
+> Companion: `TEST-PLAN.md` (test cases), `README.md` (CYBERFRAME shell terminal), `CHANGELOG.md`, `TODO-claude-code-tab.md` (spec)
 
 ---
 
@@ -429,8 +430,471 @@ GET    /replay/:sessionId                    # replay viewer
 
 ---
 
-## 19. ขอบเขต & ข้อจำกัด
+## 19. Browser Tab — เว็บเบราเซอร์ในแท็บ
 
+`commit d73cb35` — เปิด iframe ที่มี URL bar + history controls
+
+### 19.1 เปิด Browser tab
+1. กด **+** บน tab bar → เลือกการ์ด **🌐 Browser** (สีไอคอน violet `#a78bfa`)
+2. แท็บใหม่ชื่อ `Browser · new` ปรากฏ — focus ที่ URL bar อัตโนมัติ
+
+### 19.2 URL bar
+- พิมพ์ URL ปกติ (`https://...`) → Enter → load
+- พิมพ์ keyword (เช่น "node-pty windows") → auto-redirect ไป **Bing search** (`https://www.bing.com/search?q=...`)
+- Protocol auto-prepend — พิมพ์ `example.com` จะกลายเป็น `https://example.com`
+
+### 19.3 ปุ่มควบคุม
+| ปุ่ม | ทำอะไร |
+|------|--------|
+| ⬅️ Back | กลับหน้าก่อนหน้า (per-tab history stack) — disabled ถ้าสุดทาง |
+| ➡️ Forward | เดินหน้า — disabled ถ้าสุดทาง |
+| ↻ Reload | reload iframe |
+| 🏠 Home | กลับไปที่ `https://www.bing.com` |
+| ↗️ External | เปิดใน real browser (เผื่อ X-Frame block) |
+
+### 19.4 Tab title behavior
+- หลัง iframe load สำเร็จ → tab label เปลี่ยนเป็น **hostname** (e.g., `Browser · google.com`)
+- ถ้า load ไม่ได้ (CORS/timeout) → label ค้างที่ URL เดิม
+
+### 19.5 State persistence
+- URL ค้างหลัง refresh page (อยู่ใน workspace state JSON)
+- ทุก tab มี history stack ของตัวเอง — ไม่ปะปนข้าม tab
+
+### 19.6 ⚠️ ข้อจำกัด `X-Frame-Options`
+- Site ที่ตั้ง header `X-Frame-Options: DENY` หรือ `frame-ancestors 'none'` จะ load ไม่ได้:
+  - google.com, youtube.com, facebook.com, twitter.com, github.com ฯลฯ
+  - แสดงเป็น page เปล่า / blocked error
+- **ทางแก้:** กด ↗️ External → เปิดใน real browser tab ใหม่
+- **แก้ถาวร (ต้องทำ Phase 2):** server-side reverse-proxy strip `X-Frame-Options` headers (ยังไม่ได้ทำ)
+
+---
+
+## 20. Scrap Tool — Overview & Phase 1 (HTTP fetch + Extract)
+
+`commit 7f46245` — เปิด **Scrap** tab → สีไอคอน emerald `#10b981` → 3-tier scraper
+
+### 20.1 Concept
+
+| Tier | ทำอะไร | Use case |
+|------|--------|----------|
+| **1. Static** (default) | HTTP fetch + Cheerio parse | site ปกติ + เร็ว ~100ms |
+| **2. Browser** | Playwright headless render | SPA (React/Vue) + รัน JS + scroll |
+| **3. AI** | Claude API ช่วย generate selectors | ผู้ใช้ไม่ต้องรู้ CSS |
+
+### 20.2 UI ส่วนต่างๆ
+
+```
+┌─ Toolbar ──────────────────────────────────────────────────────┐
+│ [🌐 URL] [Mode▾] [☐ scroll] [▷ Run] [Extract] [🎯 Pick]        │
+│         [🔁 Batch] [🔐 Auth] [💾 Save] [📂 Recipes]            │
+├─ Preview (iframe sandbox) ──────┬─ Selectors + Result ─────────┤
+│                                 │ Field name | CSS selector    │
+│  Live HTML preview              │ Name       | .product-title  │
+│  click element เพื่อ pick       │ Price      | .price          │
+│                                 │ Image      | .img@src        │
+│                                 │ [+ Add field]                │
+│                                 ├─ Result table preview ───────┤
+│                                 │ Export: [JSON] [CSV]         │
+└─────────────────────────────────┴──────────────────────────────┘
+```
+
+### 20.3 Static mode workflow (Phase 1)
+
+1. **ใส่ URL** (e.g., `https://news.ycombinator.com`)
+2. กด **▷ Run** → preview แสดง HTML rendered
+3. **ตั้ง Selectors:**
+   - **Root selector** (optional) — ถ้ามี → จะ scrape เป็น list (loop ทุก match)
+     - Example: `.athing` (HN story container)
+   - **Field rows** — field name + CSS selector + (optional) attribute extractor:
+     - `.titleline > a` → text จาก link
+     - `.titleline > a@href` → ค่าใน `href` attribute (เพิ่ม `@attr`)
+     - `.subline .age@title` → title attribute ของ age span
+4. กด **Extract** → table preview แสดงผลด้านขวาล่าง
+5. **Export JSON / CSV** หรือ **💾 Save Recipe**
+
+### 20.4 Selector syntax
+
+| Pattern | ความหมาย |
+|---------|----------|
+| `.class` | element ที่ match class |
+| `#id` | element ที่ match id |
+| `tag.class > child` | nested descendant |
+| `selector@attr` | คืน attribute แทน text (e.g., `@href`, `@src`, `@data-id`) |
+| `selector[attr=val]` | filter ด้วย attribute |
+| `:nth-child(n)`, `:first-child`, `:contains(text)` | Cheerio extensions |
+
+### 20.5 Smart attribute guess
+
+เมื่อ pick element อัตโนมัติ — ระบบเดา attribute จาก field name:
+- field มี `url` / `link` / `href` → ตั้ง `@href`
+- field มี `img` / `image` / `photo` / `picture` → ตั้ง `@src`
+- อื่นๆ → คืน text content
+
+### 20.6 Export
+
+- **JSON** — pretty-printed, ทุก row พร้อม `_source` URL (กรณี batch)
+- **CSV** — column header + escape ปกติ (ผ่าน `csv-stringify`)
+
+---
+
+## 21. Scrap Tool — Phase 2: Visual Selector Picker
+
+`commit 0666574` — กด **🎯 Pick** mode → click element ใน preview → auto-fill selector
+
+### 21.1 เริ่ม Pick mode
+
+1. รัน fetch หน้าเว็บก่อน (จะ pick ไม่ได้ถ้าไม่มี HTML)
+2. กดปุ่ม **🎯 Pick** บน toolbar → ปุ่มเปลี่ยนเป็น highlight สีม่วง
+3. ขอบ preview iframe ขึ้น **outline สีม่วง 2px** + bar ด้านบนบอกว่ากำลัง pick field ไหน
+4. **เลื่อน mouse บน iframe** → element ใต้ cursor highlight ด้วย border + tooltip selector
+5. **คลิก element** → CSS selector auto-fill ลง field ว่างแรกใน Selectors pane
+6. cursor advance ไป **field ว่างถัดไป** อัตโนมัติ — pick ต่อได้เลย
+7. ถึง field สุดท้าย → pick mode ปิดอัตโนมัติ
+8. กด **Esc** ในระหว่าง pick → cancel
+
+### 21.2 Sandbox flip pattern (🔐 ปลอดภัย)
+
+> Implementation detail สำคัญ — เก็บไว้เผื่อ debug
+
+- ปกติ iframe sandbox = `allow-same-origin` (script ภายนอกรันไม่ได้)
+- ตอน **pick mode** → flip เป็น `allow-scripts allow-same-origin`
+- **ก่อน inject picker overlay** → **strip `<script>` tags ทั้งหมด** ของหน้าเว็บออกก่อน
+- เฉพาะ picker JS ของเราเท่านั้นที่รัน → ไม่มี code ของ external site ทำงาน
+- หลัง pick เสร็จ → reset sandbox + fetch HTML ใหม่
+
+### 21.3 Selector generation algorithm
+
+ตอน user click element ระบบ:
+1. ลอง `#id` ก่อน (สั้นและ stable สุด)
+2. ถ้าไม่มี id → ลอง `.class.subclass` (limit 3 classes)
+3. ถ้า class ไม่ unique → ใช้ tag + class + `:nth-child(n)`
+4. fallback → path จาก root (e.g., `body > div > section > article`)
+5. **smart attr** — เดา `@href` / `@src` จาก field name
+
+### 21.4 Root selector pick
+
+- หลัง pick field แล้วเห็น "เอ๊ะ ต้องการแบบ list" → กด **🎯 Pick** อีกครั้ง โดย cursor ว่างที่ Root field
+- click container → auto-fill root selector (e.g., `.product-card`)
+- รัน Extract → ระบบ loop หา root ทุก match → apply field selectors เป็น relative
+
+### 21.5 Tips
+
+- 💡 element เล็กเกินไป → zoom in browser (Ctrl+Plus) ก่อน pick
+- 💡 element overlap (link ครอบรูป) → pick element ใหญ่กว่าก่อน แล้วใส่ relative selector ใน field
+- 💡 ถ้า class generated random (Tailwind/CSS-in-JS) → pick element แล้วแก้ selector manual ใช้ tag/structure
+
+---
+
+## 22. Scrap Tool — Phase 3: Browser Mode (Playwright)
+
+ใช้กับ JS-heavy SPA — รัน JavaScript จริง + รอ selector + scroll
+
+### 22.1 เปลี่ยน Mode
+
+- บน toolbar → dropdown **Mode**:
+  - `Static` (default) — fast HTTP fetch
+  - `Browser` — Playwright Chromium headless
+- เลือก `Browser` → fetch ครั้งถัดไปจะใช้ Playwright
+
+### 22.2 Browser mode options
+
+- **☐ scroll** (toolbar) → scroll-to-bottom 3 ครั้งก่อน parse (สำหรับ infinite scroll feed)
+- รอ `networkidle` auto (Playwright รอ network เงียบ ~500ms)
+- Timeout = 30 วินาที (จะ throw timeout error ถ้าโหลดไม่จบ)
+
+### 22.3 Use cases
+
+| Site | Mode |
+|------|------|
+| Wikipedia / blog / news | Static ✅ (เร็วกว่า 10x) |
+| Apple Store / Lazada / Shopee | Browser ✅ (React/Vue + lazy load) |
+| Twitter / X / Instagram | Browser ✅ + ต้อง auth (ดู 23) |
+| Static landing page | Static ✅ |
+| Single-page admin app | Browser ✅ |
+
+### 22.4 ข้อจำกัด
+
+- **ช้ากว่า Static ~3-10x** (Playwright spawn browser, render, network idle)
+- **RAM ~200MB/instance** — ระบบ reuse + close หลัง 30s idle
+- บาง site ตรวจจับ Playwright (ผ่าน `navigator.webdriver`) → block
+- ไม่มี **stealth plugin** (จะเพิ่ม Phase 5 ถ้าต้องการ)
+
+---
+
+## 23. Scrap Tool — Phase 4a: Batch Mode (Pagination + List)
+
+`commit 54157d3` — กด **🔁 Batch** → scrape หลาย URL ทีเดียว
+
+### 23.1 เปิด Batch modal
+
+1. ตั้ง selectors + ทดสอบหน้าเดียวก่อนให้ผ่าน
+2. กด **🔁 Batch** บน toolbar → modal เปิด
+
+### 23.2 Mode A: **Pattern**
+
+ใส่ URL pattern ที่มี `{...}` placeholder:
+
+```
+https://example.com/products?page={1..10}
+```
+
+ระบบ expand เป็น URL list อัตโนมัติ:
+- `{1..10}` → 1, 2, 3, ..., 10 (10 URLs)
+- `{1..50:5}` → 1, 6, 11, 16, ..., 46 (step=5, 10 URLs)
+- `{0..100:10}` → 0, 10, 20, ..., 100 (11 URLs)
+
+**Brace expansion rule:** `{from..to}` หรือ `{from..to:step}` — รองรับ 1 placeholder ต่อ URL
+
+### 23.3 Mode B: **List**
+
+Toggle เป็น `List` → paste URL ทีละบรรทัด:
+
+```
+https://site.com/category/electronics
+https://site.com/category/books
+https://site.com/category/toys
+https://site.com/page/2
+```
+
+ทุก URL ใช้ **selectors ชุดเดียวกัน** + auth ชุดเดียวกัน
+
+### 23.4 Settings
+
+| Field | Default | คำอธิบาย |
+|-------|---------|----------|
+| **Delay (ms)** | 1000 | wait ระหว่าง request (กัน rate-limit) |
+| **Mode** | inherit | Static / Browser ตาม toolbar |
+
+### 23.5 Live progress (SSE)
+
+- กด **Start** → progress bar + log stream live ผ่าน Server-Sent Events
+- log แสดง: `[1/10] https://...?page=1 → 25 rows`
+- กด **Stop** ใดๆ ตอนใดก็ได้ → cancel signal ส่งไป server → หยุดที่หน้าปัจจุบัน
+
+### 23.6 ผลลัพธ์รวม
+
+- ทุก row จาก ทุก URL merge ใน table เดียว
+- เพิ่ม column `_source` บอก URL ต้นทาง (สำหรับ debug + filter)
+- Export JSON/CSV — รวมทุกหน้าใน file เดียว
+
+### 23.7 Tips
+
+- 🧪 ทดสอบ `{1..3}` ก่อน → ถ้า OK ค่อยเพิ่มเป็น `{1..100}`
+- ⏱ ตั้ง Delay 2000-3000ms ถ้าเว็บ rate-limit หนัก
+- 🚫 บาง site มี anti-bot ตรวจจับ pattern URL → ใช้ Browser mode + Auth (24) ช่วย
+
+---
+
+## 24. Scrap Tool — Phase 4b: Auth (Cookie + Headers)
+
+`commit 7cb8963` — กด **🔐 Auth** → ใส่ cookie + custom headers ก่อน scrape
+
+### 24.1 เก็บ cookie จาก browser
+
+1. เปิด Chrome → login เว็บที่ต้องการ scrape
+2. **F12** → Application tab → Cookies → คลิก domain
+3. copy ค่า cookie ที่ต้องใช้ (ปกติ: `session_id`, `csrf_token`, `auth`)
+4. หรือใช้ extension `EditThisCookie` / `Cookie-Editor`
+
+### 24.2 เปิด Auth modal
+
+1. กด **🔐 Auth** บน toolbar → modal เปิด
+
+### 24.3 Cookie textarea
+
+paste แบบ **raw cookie string** (เหมือนใน `document.cookie`):
+
+```
+session_id=abc123; csrf_token=xyz789; user_pref=th; remember_me=true
+```
+
+- หลายคู่ key=value คั่นด้วย `; `
+- ไม่ต้อง URL-decode (server แนบให้ตรงตามที่ใส่)
+
+### 24.4 Headers textarea
+
+ใส่ **บรรทัดละ 1 header** (key: value):
+
+```
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+X-Api-Key: sk_live_abc123
+Referer: https://app.example.com/dashboard
+User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36
+X-Csrf-Token: xyz789
+```
+
+### 24.5 Apply / Clear
+
+- **Apply** → save + ปุ่ม 🔐 บน toolbar highlight สีม่วง (บอก active)
+- **Clear** → ล้างทั้ง cookie + headers
+- ปุ่ม 🔐 ที่ highlight = auth กำลัง active
+
+### 24.6 Auth ติด recipe
+
+- กด **💾 Save Recipe** → cookie + headers ถูก save ลงไปด้วย
+- **Load Recipe** → auth restore กลับมาอัตโนมัติ
+- ⚠️ recipe JSON เก็บ raw auth — **อย่า share / commit ลง git**
+
+### 24.7 ใช้ได้กับทุก endpoint
+
+Auth ทำงานกับ:
+- ✅ Static `/api/scrap/fetch`
+- ✅ Static `/api/scrap/extract`
+- ✅ Browser `/api/scrap/browser-fetch`
+- ✅ Batch `/api/scrap/batch` (SSE)
+- ✅ Scheduled recipe auto-run
+
+### 24.8 Tips
+
+- 💡 ใช้กับ **Static mode** ดีสุด (Browser mode มี browser cookie จาก Playwright session เอง)
+- 💡 ถ้า site refresh cookie ทุก N นาที → update ใหม่ก่อน scrape ใหญ่
+- 💡 Header `Referer` สำคัญสำหรับ site ที่ block hotlink (block ถ้าไม่มี Referer)
+- 💡 Header `User-Agent` ตรงกับ Chrome real → ลด chance โดน detect bot
+
+---
+
+## 25. Scrap Tool — Phase 4c: Recipes / Schedule / Diff
+
+`commit c534a4a` — recipe = ชุด config (URL+selectors+auth+batch) ที่ save + auto-run + diff ได้
+
+### 25.1 Save Recipe
+
+1. ตั้ง URL + selectors + Auth (ถ้ามี) → ทดสอบให้ทำงานก่อน
+2. กด **💾 Save Recipe** → prompt ใส่ชื่อ (e.g., `iPhone 16 price tracker`)
+3. recipe บันทึกที่ `scraps/recipes/<id>.json` server-side
+4. Sidebar **📂 Recipes** อัปเดต — recipe card ใหม่ปรากฏ
+
+### 25.2 Recipe card layout
+
+```
+┌─ Recipe: iPhone 16 price tracker ────────────────┐
+│ ☑ Auto · every [60   ] min   last run: 5m ago     │
+│ Badge: 25 rows · changed · ✅ OK                   │
+│ [Load] [▷ Run] [History] [Delete]                 │
+└──────────────────────────────────────────────────┘
+```
+
+### 25.3 Enable Auto-Run (Scheduler)
+
+1. ติ๊ก **☑ Auto** บน recipe card
+2. ใส่ **every N min** (e.g., 60 = ทุกชั่วโมง, 1440 = วันละครั้ง)
+3. recipe เริ่มรันตามตารางทันที (single global tick interval 60s ตรวจทุก recipe)
+
+### 25.4 Badge meaning
+
+- 🟢 `N rows` — รันสำเร็จ ได้ N rows
+- 🟡 `changed` — data ต่างจาก snapshot ก่อนหน้า
+- 🔴 `error` — fetch fail / parse error (hover ดู error message)
+
+### 25.5 Manual Run
+
+- กด **▷ Run** ใน recipe card → รันทันทีโดยไม่รอ timer
+- ผลเก็บเป็น snapshot ใหม่ใน history
+
+### 25.6 History modal
+
+1. กด **History** บน recipe card → modal เปิด
+2. รายการ snapshot **newest first** — แสดง timestamp + row count + badge
+3. คงไว้ **50 snapshots** ล่าสุด (เก่ากว่านั้น auto-delete)
+
+### 25.7 Compute Diff (เปรียบเทียบ 2 snapshots)
+
+1. ใน History modal กด **Select** ที่ snapshot 1 (e.g., 1 ชม.ที่แล้ว)
+2. กด **Select** ที่ snapshot 2 (e.g., เพิ่ง run ล่าสุด)
+3. กด **Compute Diff**
+4. แสดง:
+   - 🟢 **Added rows** — row ใหม่ใน snapshot 2 ที่ไม่มีใน 1 (e.g., สินค้าใหม่)
+   - 🔴 **Removed rows** — row หายไปจาก 1 ไป 2 (e.g., สินค้าหมด)
+   - Preview 20 ตัวแรกของแต่ละกลุ่ม
+
+**Diff key:** ระบบ hash ทุก row (sorted JSON) → เทียบ set → identify added/removed
+
+### 25.8 Load Snapshot
+
+- กด **Load** ใน snapshot row → data กลับเข้าใน table ของ tab + ตั้ง URL + selectors ตามที่ run ครั้งนั้น
+
+### 25.9 Export Snapshot
+
+- กด **⤓** ใน snapshot row → download JSON (raw rows + metadata)
+
+### 25.10 Storage layout
+
+```
+scraps/
+├── recipes/
+│   ├── <id>.json           # recipe config (URL/selectors/auth/schedule)
+│   └── ...
+└── snapshots/
+    ├── <recipe_id>/
+    │   ├── <timestamp>.json  # snapshot data
+    │   └── ...
+```
+
+### 25.11 Real workflow ตัวอย่าง
+
+**ตามราคา iPhone 16 ทุก 6 ชม.**
+
+1. URL: `https://www.apple.com/th/shop/buy-iphone/iphone-16`
+2. Mode: `Browser` (Apple.com มี JS เยอะ)
+3. Selectors:
+   - `.rf-pdpchimney-title` → `Name`
+   - `.as-price-currentprice` → `Price`
+4. ไม่มี auth (public page)
+5. **💾 Save Recipe** "iPhone 16 Apple TH"
+6. ☑ Auto · every **360** min (6 ชม.)
+7. รอ 1 วัน → กด **History** → เลือก snapshot เช้า vs snapshot เย็น → **Compute Diff**
+8. ถ้า Apple ลดราคา → diff "changed" → 🎉
+
+### 25.12 Tips & Limits
+
+- ⏱ ตั้ง every **5 min** = polling รุนแรง — ใช้กับเว็บที่ตัวเองดูแลเท่านั้น (rate-limit)
+- ⏱ ตั้ง every **1440 min** (1 วัน) = price tracker, news watch ที่เปลี่ยนช้า
+- 💾 snapshot 50 ตัว → ~500KB-5MB ต่อ recipe (ตาม data size)
+- 🔁 Diff ใช้ stringified row → ลำดับ field สำคัญ (ถ้า site เปลี่ยน order field จะถูกนับเป็น changed)
+- 🚨 ยังไม่มี **Discord webhook alert** ตอน diff มี added rows (Phase 5 ถ้าต้องการ)
+
+---
+
+## 26. Scrap Tool — API Endpoints
+
+### REST
+
+```
+POST   /api/scrap/fetch                  # static HTTP fetch + return HTML
+POST   /api/scrap/extract                # cheerio parse with selectors
+POST   /api/scrap/browser-fetch          # Playwright fetch + return HTML
+POST   /api/scrap/batch                  # SSE batch run
+
+GET    /api/scrap/recipes                # list recipes
+GET    /api/scrap/recipes/:id            # get single recipe
+POST   /api/scrap/recipes                # create
+PUT    /api/scrap/recipes/:id            # update
+DELETE /api/scrap/recipes/:id            # delete
+POST   /api/scrap/recipes/:id/run        # manual trigger
+
+GET    /api/scrap/recipes/:id/snapshots          # list snapshots
+GET    /api/scrap/recipes/:id/snapshots/:ts      # get snapshot
+POST   /api/scrap/recipes/:id/snapshots/diff     # body: {a, b} → added/removed
+```
+
+**Auth field shape** (ทุก endpoint):
+
+```json
+{
+  "url": "...",
+  "selectors": [...],
+  "auth": {
+    "cookie": "key=val; key2=val2",
+    "headers": { "Authorization": "Bearer ...", "Referer": "..." }
+  }
+}
+```
+
+---
+
+## 27. ขอบเขต & ข้อจำกัด
+
+### Claude Code Tab
 - **Claude Code CLI** ต้อง install + login OAuth ก่อน (ใช้ Max plan quota ผ่าน OAuth token)
 - **Windows only** สำหรับ admin shells (gsudo)
 - **Single-user auth** จาก `.env` (ยังไม่มี multi-user accounts)
@@ -438,6 +902,20 @@ GET    /replay/:sessionId                    # replay viewer
 - **PWA push** — manifest พร้อม แต่ไม่ได้ wire backend
 - **Replay** — ต้องมี session JSON บน disk (ใหม่กว่า persistence layer)
 
+### Browser Tab
+- ไม่ผ่าน site ที่ตั้ง `X-Frame-Options: DENY` / `frame-ancestors 'none'` (google, youtube, github, facebook ฯลฯ)
+- ไม่มี cookie/auth ที่ผ่านจาก main browser (iframe sandboxed)
+- ไม่มี ad-blocker / DevTools (เป็น iframe ธรรมดา)
+
+### Scrap Tool
+- **Static mode** ไม่ render JS — ใช้ Browser mode สำหรับ SPA
+- **Browser mode** ~200MB RAM/instance — auto-close หลัง 30s idle
+- **Pick mode** ใช้ได้เฉพาะ static HTML (preview iframe) — browser-mode pick ยังไม่มี
+- **Auth** เก็บ raw cookie/headers ใน recipe JSON — **อย่า commit ลง git public**
+- **Schedule** = single global tick (interval 60s) — recipe จำนวนมากอาจ overlap (delay 1s ระหว่าง recipe)
+- **Snapshot diff** = exact row match (lexical) — ลำดับ field สลับ = นับเป็น changed
+- **ยังไม่มี:** Discord webhook alert · proxy support · captcha solver · stealth plugin
+
 ---
 
-> ครบทุก feature เจ้! ถ้าเจอจุดที่ doc ไม่ครอบคลุม / behavior ไม่ตรงคู่มือ → บอก section ID มา จะแก้ทั้ง code + manual ทีเดียว 🍥
+> ครบทุก feature เจ้! v3.1.0 ครอบคลุม Claude Code (30 batches) + Browser tab + Scrap Tool 4 phases ถ้าเจอจุดที่ doc ไม่ครอบคลุม / behavior ไม่ตรงคู่มือ → บอก section ID มา จะแก้ทั้ง code + manual ทีเดียว 🍥
