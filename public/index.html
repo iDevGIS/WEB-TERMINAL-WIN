@@ -1519,6 +1519,16 @@
     .scrap-batch-modal input[type=text], .scrap-batch-modal input[type=number], .scrap-batch-modal textarea { width: 100%; background: rgba(0,0,0,.32); border: 1px solid rgba(255,255,255,.08); color: var(--text); border-radius: 6px; padding: 7px 10px; font: 12.5px/1.45 inherit; outline: none; box-sizing: border-box; }
     .scrap-batch-modal input:focus, .scrap-batch-modal textarea:focus { border-color: rgba(167,139,250,.45); background: rgba(0,0,0,.4); }
     .scrap-batch-modal textarea { resize: vertical; min-height: 90px; font-family: ui-monospace, 'JetBrains Mono', monospace; }
+    .scrap-script-modal { width: min(820px, 96%); max-height: 92%; }
+    .scrap-script-pre {
+      margin: 0; padding: 12px 14px; background: rgba(0,0,0,.5);
+      border: 1px solid rgba(255,255,255,.08); border-radius: 8px;
+      font-family: ui-monospace, 'JetBrains Mono', 'Consolas', monospace;
+      font-size: 12px; line-height: 1.55; color: #d8e0ff;
+      white-space: pre; overflow: auto; max-height: 42vh;
+    }
+    .scrap-script-pre::-webkit-scrollbar { width: 10px; height: 10px; }
+    .scrap-script-pre::-webkit-scrollbar-thumb { background: rgba(167,139,250,.32); border-radius: 5px; }
     .scrap-batch-modal .row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
     .scrap-batch-modal .mode-toggle { display: flex; gap: 4px; background: rgba(0,0,0,.25); padding: 3px; border-radius: 8px; border: 1px solid rgba(255,255,255,.06); }
     .scrap-batch-modal .mode-toggle button { flex: 1; background: transparent; border: none; color: var(--text2); padding: 6px 10px; border-radius: 5px; cursor: pointer; font-size: 12px; }
@@ -5726,6 +5736,667 @@
       }
     }
 
+    // === Export as Script (Node.js / Python) ===
+    const SCRAP_SCRIPT_LIBS = {
+      node: [
+        { id: 'axios-cheerio', label: 'axios + cheerio (static HTTP)' },
+        { id: 'playwright', label: 'playwright (headless browser)' }
+      ],
+      python: [
+        { id: 'requests-bs4', label: 'requests + BeautifulSoup (static)' },
+        { id: 'httpx-selectolax', label: 'httpx + selectolax (fast static)' },
+        { id: 'playwright-async', label: 'playwright (async, headless browser)' },
+        { id: 'scrapy', label: 'scrapy (spider)' }
+      ]
+    };
+    function scrapExportScriptOpen(tabId) {
+      const tab = tabs.get(tabId);
+      if (!tab || !tab.scrap) return;
+      const bd = document.getElementById(tabId + '-sc-script-bd');
+      if (!bd) return;
+      bd.classList.add('open');
+      const langSel = document.getElementById(tabId + '-sc-sx-lang');
+      const libSel = document.getElementById(tabId + '-sc-sx-lib');
+      const cached = tab.scrap.scriptExport || {};
+      langSel.value = cached.lang || 'node';
+      scrapExportScriptPopulateLibs(tabId);
+      if (cached.lib) libSel.value = cached.lib;
+      const batchEl = document.getElementById(tabId + '-sc-sx-batch');
+      const authEl = document.getElementById(tabId + '-sc-sx-auth');
+      const hasBatchData = !!(document.getElementById(tabId + '-sc-bp-pattern')?.value
+        || document.getElementById(tabId + '-sc-bp-urls')?.value);
+      batchEl.checked = cached.batch != null ? cached.batch : hasBatchData;
+      batchEl.disabled = !hasBatchData;
+      const hasAuth = !!(tab.scrap.auth && (tab.scrap.auth.cookie || (tab.scrap.auth.headers && Object.keys(tab.scrap.auth.headers).length)));
+      authEl.checked = cached.auth != null ? cached.auth : hasAuth;
+      authEl.disabled = !hasAuth;
+      scrapExportScriptUpdate(tabId);
+    }
+    function scrapExportScriptClose(tabId) {
+      const bd = document.getElementById(tabId + '-sc-script-bd');
+      if (bd) bd.classList.remove('open');
+    }
+    function scrapExportScriptPopulateLibs(tabId) {
+      const lang = document.getElementById(tabId + '-sc-sx-lang').value;
+      const libSel = document.getElementById(tabId + '-sc-sx-lib');
+      libSel.innerHTML = (SCRAP_SCRIPT_LIBS[lang] || []).map(l => `<option value="${l.id}">${l.label}</option>`).join('');
+    }
+    function scrapExportScriptUpdate(tabId) {
+      const tab = tabs.get(tabId);
+      if (!tab || !tab.scrap) return;
+      const lang = document.getElementById(tabId + '-sc-sx-lang').value;
+      const libSel = document.getElementById(tabId + '-sc-sx-lib');
+      const valid = (SCRAP_SCRIPT_LIBS[lang] || []).map(l => l.id);
+      if (!valid.includes(libSel.value)) { scrapExportScriptPopulateLibs(tabId); }
+      const lib = libSel.value;
+      const useBatch = !!document.getElementById(tabId + '-sc-sx-batch').checked;
+      const useAuth = !!document.getElementById(tabId + '-sc-sx-auth').checked;
+      const opts = scrapCollectScriptOpts(tabId, useBatch, useAuth);
+      const code = scrapBuildScript(tab, lang, lib, opts);
+      const pre = document.getElementById(tabId + '-sc-sx-preview');
+      if (pre) pre.textContent = code;
+      tab.scrap.scriptExport = { lang, lib, batch: useBatch, auth: useAuth };
+      const ext = scrapScriptExt(lang);
+      const fname = (tab.name || 'scrap').replace(/[^a-z0-9_-]+/gi,'_') + '.' + ext;
+      const st = document.getElementById(tabId + '-sc-sx-status');
+      if (st) st.textContent = `${code.split('\n').length} lines · saves as ${fname}`;
+    }
+    function scrapCollectScriptOpts(tabId, useBatch, useAuth) {
+      const tab = tabs.get(tabId);
+      const scrap = tab.scrap || {};
+      const opts = {
+        url: scrap.url || '',
+        mode: scrap.mode || 'static',
+        rootSelector: scrap.rootSelector || '',
+        fields: (scrap.fields || []).filter(f => f && f.name && f.selector).map(f => ({ name: f.name, selector: f.selector, attr: f.attr || 'text' })),
+        useBatch: false, useAuth: false,
+        cookie: '', headers: {},
+        batch: null,
+      };
+      if (useAuth && scrap.auth) {
+        opts.useAuth = true;
+        opts.cookie = scrap.auth.cookie || '';
+        opts.headers = Object.assign({}, scrap.auth.headers || {});
+      }
+      if (useBatch) {
+        const activeMode = document.querySelector(`#${tabId}-sc-batch-bd .mode-toggle button.active`);
+        const bmode = activeMode ? activeMode.getAttribute('data-bm') : 'pattern';
+        const delayMs = parseInt(document.getElementById(tabId + '-sc-bp-delay')?.value || '1000') || 0;
+        if (bmode === 'list') {
+          const raw = document.getElementById(tabId + '-sc-bp-urls')?.value || '';
+          const urls = raw.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+          if (urls.length) { opts.useBatch = true; opts.batch = { kind: 'list', urls, delayMs }; }
+        } else {
+          let pattern = document.getElementById(tabId + '-sc-bp-pattern')?.value || '';
+          const from = parseInt(document.getElementById(tabId + '-sc-bp-from')?.value || '1') || 1;
+          const to = parseInt(document.getElementById(tabId + '-sc-bp-to')?.value || '10') || 10;
+          const step = parseInt(document.getElementById(tabId + '-sc-bp-step')?.value || '1') || 1;
+          if (pattern) { opts.useBatch = true; opts.batch = { kind: 'pattern', pattern, from, to, step, delayMs }; }
+        }
+      }
+      return opts;
+    }
+    function scrapScriptExt(lang) { return lang === 'python' ? 'py' : 'mjs'; }
+    function scrapExportScriptCopy(tabId) {
+      const pre = document.getElementById(tabId + '-sc-sx-preview');
+      if (!pre) return;
+      try {
+        navigator.clipboard.writeText(pre.textContent);
+        const st = document.getElementById(tabId + '-sc-sx-status');
+        if (st) st.textContent = 'copied ✓';
+      } catch (e) {
+        const st = document.getElementById(tabId + '-sc-sx-status');
+        if (st) st.textContent = 'copy failed: ' + (e.message || e);
+      }
+    }
+    function scrapExportScriptDownload(tabId) {
+      const tab = tabs.get(tabId);
+      if (!tab) return;
+      const pre = document.getElementById(tabId + '-sc-sx-preview');
+      if (!pre) return;
+      const lang = document.getElementById(tabId + '-sc-sx-lang').value;
+      const fname = (tab.name || 'scrap').replace(/[^a-z0-9_-]+/gi,'_') + '.' + scrapScriptExt(lang);
+      const blob = new Blob([pre.textContent], { type: 'text/plain;charset=utf-8' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = fname;
+      document.body.appendChild(a); a.click();
+      setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+    }
+
+    // ---- script builders ----
+    function _scrJsStr(s) { return JSON.stringify(String(s == null ? '' : s)); }
+    function _scrPyStr(s) {
+      const t = String(s == null ? '' : s);
+      return '"' + t.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n').replace(/\r/g, '\\r') + '"';
+    }
+    function _scrCookieToObj(cookieStr) {
+      const out = {};
+      if (!cookieStr) return out;
+      for (const part of String(cookieStr).split(';')) {
+        const i = part.indexOf('=');
+        if (i <= 0) continue;
+        const k = part.slice(0, i).trim();
+        const v = part.slice(i + 1).trim();
+        if (k) out[k] = v;
+      }
+      return out;
+    }
+    function _scrPatternToTemplate(pattern) {
+      // Replace {a..b:step} or {N} placeholders with token, return {tpl, hasRange}
+      const m = pattern.match(/\{(\d+)\.\.(\d+)(?::(\d+))?\}/);
+      if (m) {
+        const tpl = pattern.replace(m[0], '__PG__');
+        return { tpl, from: parseInt(m[1]), to: parseInt(m[2]), step: parseInt(m[3] || '1') || 1, hasRange: true };
+      }
+      const tpl = pattern.replace(/\{N\}/g, '__PG__');
+      return { tpl, hasRange: false };
+    }
+    function scrapBuildScript(tab, lang, lib, opts) {
+      if (lang === 'node' && lib === 'axios-cheerio') return scrapBuildNodeAxios(opts);
+      if (lang === 'node' && lib === 'playwright') return scrapBuildNodePlaywright(opts);
+      if (lang === 'python' && lib === 'requests-bs4') return scrapBuildPyRequests(opts);
+      if (lang === 'python' && lib === 'httpx-selectolax') return scrapBuildPyHttpx(opts);
+      if (lang === 'python' && lib === 'playwright-async') return scrapBuildPyPlaywright(opts);
+      if (lang === 'python' && lib === 'scrapy') return scrapBuildPyScrapy(opts);
+      return '// unsupported combo';
+    }
+
+    function _scrBatchHeader(opts) {
+      // Returns JS-style array literal for URLs
+      if (!opts.useBatch || !opts.batch) return null;
+      if (opts.batch.kind === 'list') return { urls: opts.batch.urls, delayMs: opts.batch.delayMs };
+      const { tpl, hasRange, from, to, step } = _scrPatternToTemplate(opts.batch.pattern);
+      const lo = hasRange ? from : opts.batch.from;
+      const hi = hasRange ? to : opts.batch.to;
+      const st = hasRange ? step : opts.batch.step;
+      const urls = [];
+      for (let n = lo; n <= hi; n += st) urls.push(tpl.replace(/__PG__/g, String(n)));
+      return { urls, delayMs: opts.batch.delayMs, pattern: tpl, from: lo, to: hi, step: st };
+    }
+
+    function scrapBuildNodeAxios(opts) {
+      const batch = _scrBatchHeader(opts);
+      const fieldEntries = opts.fields.map(f => `  ${_scrJsStr(f.name)}: { selector: ${_scrJsStr(f.selector)}, attr: ${_scrJsStr(f.attr)} }`).join(',\n');
+      const headers = Object.assign({}, opts.headers);
+      if (opts.cookie) headers['Cookie'] = opts.cookie;
+      if (!headers['User-Agent']) headers['User-Agent'] = 'Mozilla/5.0 (CYBERFRAME-Scrap)';
+      const headersLit = Object.keys(headers).length
+        ? '{\n' + Object.keys(headers).map(k => `    ${_scrJsStr(k)}: ${_scrJsStr(headers[k])}`).join(',\n') + '\n  }'
+        : '{}';
+      const urlsLit = batch
+        ? '[\n' + batch.urls.map(u => `  ${_scrJsStr(u)}`).join(',\n') + '\n]'
+        : `[${_scrJsStr(opts.url)}]`;
+      return `// Generated by CYBERFRAME Scrap Tool — Node.js (axios + cheerio)
+// Install:  npm i axios cheerio
+// Run:      node ${(opts.url ? new URL(opts.url, 'http://x/').hostname || 'scrap' : 'scrap').replace(/[^a-z0-9_-]+/gi,'_')}.mjs
+import axios from 'axios';
+import * as cheerio from 'cheerio';
+import { writeFileSync } from 'node:fs';
+
+const URLS = ${urlsLit};
+const DELAY_MS = ${batch ? (batch.delayMs || 0) : 0};
+const HEADERS = ${headersLit};
+const ROOT_SELECTOR = ${_scrJsStr(opts.rootSelector)};
+const FIELDS = {
+${fieldEntries}
+};
+
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+function extractValue($, node, attr) {
+  if (!node || !node.length) return '';
+  if (!attr || attr === 'text') return node.text().trim().replace(/\\s+/g, ' ');
+  if (attr === 'html') return node.html() || '';
+  return (node.attr(attr) || '').trim();
+}
+function absolutize(val, attr, baseUrl) {
+  if (!val) return val;
+  if (attr === 'href' || attr === 'src') {
+    try { return new URL(val, baseUrl).toString(); } catch { return val; }
+  }
+  return val;
+}
+async function scrapeOne(url) {
+  const r = await axios.get(url, { headers: HEADERS, timeout: 30000, validateStatus: () => true });
+  if (r.status >= 400) throw new Error('HTTP ' + r.status);
+  const $ = cheerio.load(r.data);
+  const rows = [];
+  const nodes = ROOT_SELECTOR ? $(ROOT_SELECTOR) : $('html').first();
+  nodes.each((_, el) => {
+    const $el = $(el);
+    const row = { _source: url };
+    for (const [name, { selector, attr }] of Object.entries(FIELDS)) {
+      const node = selector ? $el.find(selector).first() : $el;
+      row[name] = absolutize(extractValue($, node, attr), attr, url);
+    }
+    rows.push(row);
+  });
+  return rows;
+}
+
+(async () => {
+  const all = [];
+  for (let i = 0; i < URLS.length; i++) {
+    const url = URLS[i];
+    try {
+      const rows = await scrapeOne(url);
+      console.log(\`[\${i + 1}/\${URLS.length}] \${rows.length} rows · \${url}\`);
+      all.push(...rows);
+    } catch (e) {
+      console.error(\`[\${i + 1}/\${URLS.length}] ERROR \${url}: \${e.message}\`);
+    }
+    if (DELAY_MS && i + 1 < URLS.length) await sleep(DELAY_MS);
+  }
+  writeFileSync('scrap-output.json', JSON.stringify(all, null, 2));
+  console.log(\`✓ wrote \${all.length} rows → scrap-output.json\`);
+})();
+`;
+    }
+
+    function scrapBuildNodePlaywright(opts) {
+      const batch = _scrBatchHeader(opts);
+      const fieldEntries = opts.fields.map(f => `  ${_scrJsStr(f.name)}: { selector: ${_scrJsStr(f.selector)}, attr: ${_scrJsStr(f.attr)} }`).join(',\n');
+      const cookieObj = _scrCookieToObj(opts.cookie);
+      const cookiesLit = Object.keys(cookieObj).length
+        ? '[\n' + Object.keys(cookieObj).map(k => `    { name: ${_scrJsStr(k)}, value: ${_scrJsStr(cookieObj[k])}, url: URLS[0] }`).join(',\n') + '\n  ]'
+        : '[]';
+      const extraHeadersLit = Object.keys(opts.headers).length
+        ? '{\n' + Object.keys(opts.headers).map(k => `    ${_scrJsStr(k)}: ${_scrJsStr(opts.headers[k])}`).join(',\n') + '\n  }'
+        : '{}';
+      const urlsLit = batch
+        ? '[\n' + batch.urls.map(u => `  ${_scrJsStr(u)}`).join(',\n') + '\n]'
+        : `[${_scrJsStr(opts.url)}]`;
+      return `// Generated by CYBERFRAME Scrap Tool — Node.js (Playwright)
+// Install:  npm i playwright && npx playwright install chromium
+// Run:      node scrap.mjs
+import { chromium } from 'playwright';
+import { writeFileSync } from 'node:fs';
+
+const URLS = ${urlsLit};
+const DELAY_MS = ${batch ? (batch.delayMs || 0) : 0};
+const ROOT_SELECTOR = ${_scrJsStr(opts.rootSelector)};
+const FIELDS = {
+${fieldEntries}
+};
+const EXTRA_HEADERS = ${extraHeadersLit};
+const COOKIES = ${cookiesLit};
+
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+(async () => {
+  const browser = await chromium.launch({ headless: true });
+  const context = await browser.newContext({ extraHTTPHeaders: EXTRA_HEADERS });
+  if (COOKIES.length) await context.addCookies(COOKIES);
+  const page = await context.newPage();
+  const all = [];
+  for (let i = 0; i < URLS.length; i++) {
+    const url = URLS[i];
+    try {
+      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 });
+      const rows = await page.evaluate(({ ROOT_SELECTOR, FIELDS, url }) => {
+        function val(node, attr) {
+          if (!node) return '';
+          if (!attr || attr === 'text') return (node.textContent || '').trim().replace(/\\s+/g, ' ');
+          if (attr === 'html') return node.innerHTML || '';
+          return (node.getAttribute(attr) || '').trim();
+        }
+        function abs(v, attr) {
+          if (!v) return v;
+          if (attr === 'href' || attr === 'src') { try { return new URL(v, url).toString(); } catch { return v; } }
+          return v;
+        }
+        const nodes = ROOT_SELECTOR ? Array.from(document.querySelectorAll(ROOT_SELECTOR)) : [document.documentElement];
+        return nodes.map(el => {
+          const row = { _source: url };
+          for (const [name, { selector, attr }] of Object.entries(FIELDS)) {
+            const sub = selector ? el.querySelector(selector) : el;
+            row[name] = abs(val(sub, attr), attr);
+          }
+          return row;
+        });
+      }, { ROOT_SELECTOR, FIELDS, url });
+      console.log(\`[\${i + 1}/\${URLS.length}] \${rows.length} rows · \${url}\`);
+      all.push(...rows);
+    } catch (e) {
+      console.error(\`[\${i + 1}/\${URLS.length}] ERROR \${url}: \${e.message}\`);
+    }
+    if (DELAY_MS && i + 1 < URLS.length) await sleep(DELAY_MS);
+  }
+  await browser.close();
+  writeFileSync('scrap-output.json', JSON.stringify(all, null, 2));
+  console.log(\`✓ wrote \${all.length} rows → scrap-output.json\`);
+})();
+`;
+    }
+
+    function scrapBuildPyRequests(opts) {
+      const batch = _scrBatchHeader(opts);
+      const fields = opts.fields.map(f => `    ${_scrPyStr(f.name)}: {"selector": ${_scrPyStr(f.selector)}, "attr": ${_scrPyStr(f.attr)}}`).join(',\n');
+      const headers = Object.assign({}, opts.headers);
+      if (opts.cookie) headers['Cookie'] = opts.cookie;
+      if (!headers['User-Agent']) headers['User-Agent'] = 'Mozilla/5.0 (CYBERFRAME-Scrap)';
+      const headersLit = Object.keys(headers).length
+        ? '{\n' + Object.keys(headers).map(k => `    ${_scrPyStr(k)}: ${_scrPyStr(headers[k])}`).join(',\n') + '\n}'
+        : '{}';
+      const urlsLit = batch
+        ? '[\n' + batch.urls.map(u => `    ${_scrPyStr(u)}`).join(',\n') + '\n]'
+        : `[${_scrPyStr(opts.url)}]`;
+      return `# Generated by CYBERFRAME Scrap Tool — Python (requests + BeautifulSoup)
+# Install:  pip install requests beautifulsoup4 lxml
+# Run:      python scrap.py
+import json
+import time
+from urllib.parse import urljoin
+
+import requests
+from bs4 import BeautifulSoup
+
+URLS = ${urlsLit}
+DELAY_MS = ${batch ? (batch.delayMs || 0) : 0}
+HEADERS = ${headersLit}
+ROOT_SELECTOR = ${_scrPyStr(opts.rootSelector)}
+FIELDS = {
+${fields}
+}
+
+
+def extract_value(node, attr):
+    if node is None:
+        return ""
+    if not attr or attr == "text":
+        return " ".join(node.get_text(" ", strip=True).split())
+    if attr == "html":
+        return node.decode_contents()
+    return (node.get(attr) or "").strip()
+
+
+def absolutize(val, attr, base_url):
+    if val and attr in ("href", "src"):
+        try:
+            return urljoin(base_url, val)
+        except Exception:
+            return val
+    return val
+
+
+def scrape_one(url):
+    r = requests.get(url, headers=HEADERS, timeout=30)
+    r.raise_for_status()
+    soup = BeautifulSoup(r.text, "lxml")
+    rows = []
+    nodes = soup.select(ROOT_SELECTOR) if ROOT_SELECTOR else [soup]
+    for el in nodes:
+        row = {"_source": url}
+        for name, spec in FIELDS.items():
+            sel = spec["selector"]
+            attr = spec.get("attr") or "text"
+            sub = el.select_one(sel) if sel else el
+            row[name] = absolutize(extract_value(sub, attr), attr, url)
+        rows.append(row)
+    return rows
+
+
+def main():
+    all_rows = []
+    for i, url in enumerate(URLS, 1):
+        try:
+            rows = scrape_one(url)
+            print(f"[{i}/{len(URLS)}] {len(rows)} rows · {url}")
+            all_rows.extend(rows)
+        except Exception as e:
+            print(f"[{i}/{len(URLS)}] ERROR {url}: {e}")
+        if DELAY_MS and i < len(URLS):
+            time.sleep(DELAY_MS / 1000.0)
+    with open("scrap-output.json", "w", encoding="utf-8") as f:
+        json.dump(all_rows, f, ensure_ascii=False, indent=2)
+    print(f"✓ wrote {len(all_rows)} rows → scrap-output.json")
+
+
+if __name__ == "__main__":
+    main()
+`;
+    }
+
+    function scrapBuildPyHttpx(opts) {
+      const batch = _scrBatchHeader(opts);
+      const fields = opts.fields.map(f => `    ${_scrPyStr(f.name)}: {"selector": ${_scrPyStr(f.selector)}, "attr": ${_scrPyStr(f.attr)}}`).join(',\n');
+      const headers = Object.assign({}, opts.headers);
+      if (opts.cookie) headers['Cookie'] = opts.cookie;
+      if (!headers['User-Agent']) headers['User-Agent'] = 'Mozilla/5.0 (CYBERFRAME-Scrap)';
+      const headersLit = Object.keys(headers).length
+        ? '{\n' + Object.keys(headers).map(k => `    ${_scrPyStr(k)}: ${_scrPyStr(headers[k])}`).join(',\n') + '\n}'
+        : '{}';
+      const urlsLit = batch
+        ? '[\n' + batch.urls.map(u => `    ${_scrPyStr(u)}`).join(',\n') + '\n]'
+        : `[${_scrPyStr(opts.url)}]`;
+      return `# Generated by CYBERFRAME Scrap Tool — Python (httpx + selectolax, fast)
+# Install:  pip install httpx selectolax
+# Run:      python scrap.py
+import json
+import asyncio
+from urllib.parse import urljoin
+
+import httpx
+from selectolax.parser import HTMLParser
+
+URLS = ${urlsLit}
+DELAY_MS = ${batch ? (batch.delayMs || 0) : 0}
+HEADERS = ${headersLit}
+ROOT_SELECTOR = ${_scrPyStr(opts.rootSelector)}
+FIELDS = {
+${fields}
+}
+
+
+def extract_value(node, attr):
+    if node is None:
+        return ""
+    if not attr or attr == "text":
+        return " ".join((node.text() or "").split())
+    if attr == "html":
+        return node.html or ""
+    return (node.attributes.get(attr) or "").strip()
+
+
+def absolutize(val, attr, base_url):
+    if val and attr in ("href", "src"):
+        try:
+            return urljoin(base_url, val)
+        except Exception:
+            return val
+    return val
+
+
+async def scrape_one(client, url):
+    r = await client.get(url, timeout=30.0)
+    r.raise_for_status()
+    tree = HTMLParser(r.text)
+    rows = []
+    nodes = tree.css(ROOT_SELECTOR) if ROOT_SELECTOR else [tree.root]
+    for el in nodes:
+        row = {"_source": url}
+        for name, spec in FIELDS.items():
+            sel = spec["selector"]
+            attr = spec.get("attr") or "text"
+            sub = el.css_first(sel) if sel else el
+            row[name] = absolutize(extract_value(sub, attr), attr, url)
+        rows.append(row)
+    return rows
+
+
+async def main():
+    all_rows = []
+    async with httpx.AsyncClient(headers=HEADERS, follow_redirects=True) as client:
+        for i, url in enumerate(URLS, 1):
+            try:
+                rows = await scrape_one(client, url)
+                print(f"[{i}/{len(URLS)}] {len(rows)} rows · {url}")
+                all_rows.extend(rows)
+            except Exception as e:
+                print(f"[{i}/{len(URLS)}] ERROR {url}: {e}")
+            if DELAY_MS and i < len(URLS):
+                await asyncio.sleep(DELAY_MS / 1000.0)
+    with open("scrap-output.json", "w", encoding="utf-8") as f:
+        json.dump(all_rows, f, ensure_ascii=False, indent=2)
+    print(f"✓ wrote {len(all_rows)} rows → scrap-output.json")
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+`;
+    }
+
+    function scrapBuildPyPlaywright(opts) {
+      const batch = _scrBatchHeader(opts);
+      const fields = opts.fields.map(f => `    ${_scrPyStr(f.name)}: {"selector": ${_scrPyStr(f.selector)}, "attr": ${_scrPyStr(f.attr)}}`).join(',\n');
+      const cookieObj = _scrCookieToObj(opts.cookie);
+      const firstUrl = (batch ? batch.urls[0] : opts.url) || '';
+      const cookiesLit = Object.keys(cookieObj).length
+        ? '[\n' + Object.keys(cookieObj).map(k => `    {"name": ${_scrPyStr(k)}, "value": ${_scrPyStr(cookieObj[k])}, "url": ${_scrPyStr(firstUrl)}}`).join(',\n') + '\n]'
+        : '[]';
+      const extraHeadersLit = Object.keys(opts.headers).length
+        ? '{\n' + Object.keys(opts.headers).map(k => `    ${_scrPyStr(k)}: ${_scrPyStr(opts.headers[k])}`).join(',\n') + '\n}'
+        : '{}';
+      const urlsLit = batch
+        ? '[\n' + batch.urls.map(u => `    ${_scrPyStr(u)}`).join(',\n') + '\n]'
+        : `[${_scrPyStr(opts.url)}]`;
+      return `# Generated by CYBERFRAME Scrap Tool — Python (Playwright async, headless browser)
+# Install:  pip install playwright && playwright install chromium
+# Run:      python scrap.py
+import json
+import asyncio
+from urllib.parse import urljoin
+
+from playwright.async_api import async_playwright
+
+URLS = ${urlsLit}
+DELAY_MS = ${batch ? (batch.delayMs || 0) : 0}
+ROOT_SELECTOR = ${_scrPyStr(opts.rootSelector)}
+FIELDS = {
+${fields}
+}
+EXTRA_HEADERS = ${extraHeadersLit}
+COOKIES = ${cookiesLit}
+
+
+JS_EXTRACT = """
+(args) => {
+  const { ROOT_SELECTOR, FIELDS, url } = args;
+  function val(node, attr) {
+    if (!node) return '';
+    if (!attr || attr === 'text') return (node.textContent || '').trim().replace(/\\s+/g, ' ');
+    if (attr === 'html') return node.innerHTML || '';
+    return (node.getAttribute(attr) || '').trim();
+  }
+  function abs(v, attr) {
+    if (!v) return v;
+    if (attr === 'href' || attr === 'src') { try { return new URL(v, url).toString(); } catch { return v; } }
+    return v;
+  }
+  const nodes = ROOT_SELECTOR ? Array.from(document.querySelectorAll(ROOT_SELECTOR)) : [document.documentElement];
+  return nodes.map(el => {
+    const row = { _source: url };
+    for (const [name, spec] of Object.entries(FIELDS)) {
+      const sub = spec.selector ? el.querySelector(spec.selector) : el;
+      row[name] = abs(val(sub, spec.attr || 'text'), spec.attr || 'text');
+    }
+    return row;
+  });
+}
+"""
+
+
+async def main():
+    all_rows = []
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True)
+        context = await browser.new_context(extra_http_headers=EXTRA_HEADERS)
+        if COOKIES:
+            await context.add_cookies(COOKIES)
+        page = await context.new_page()
+        for i, url in enumerate(URLS, 1):
+            try:
+                await page.goto(url, wait_until="domcontentloaded", timeout=45000)
+                rows = await page.evaluate(JS_EXTRACT, {"ROOT_SELECTOR": ROOT_SELECTOR, "FIELDS": FIELDS, "url": url})
+                print(f"[{i}/{len(URLS)}] {len(rows)} rows · {url}")
+                all_rows.extend(rows)
+            except Exception as e:
+                print(f"[{i}/{len(URLS)}] ERROR {url}: {e}")
+            if DELAY_MS and i < len(URLS):
+                await asyncio.sleep(DELAY_MS / 1000.0)
+        await browser.close()
+    with open("scrap-output.json", "w", encoding="utf-8") as f:
+        json.dump(all_rows, f, ensure_ascii=False, indent=2)
+    print(f"✓ wrote {len(all_rows)} rows → scrap-output.json")
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+`;
+    }
+
+    function scrapBuildPyScrapy(opts) {
+      const batch = _scrBatchHeader(opts);
+      const fields = opts.fields.map(f => `        ${_scrPyStr(f.name)}: {"selector": ${_scrPyStr(f.selector)}, "attr": ${_scrPyStr(f.attr)}}`).join(',\n');
+      const headers = Object.assign({}, opts.headers);
+      if (opts.cookie) headers['Cookie'] = opts.cookie;
+      if (!headers['User-Agent']) headers['User-Agent'] = 'Mozilla/5.0 (CYBERFRAME-Scrap)';
+      const headersLit = Object.keys(headers).length
+        ? '{\n' + Object.keys(headers).map(k => `        ${_scrPyStr(k)}: ${_scrPyStr(headers[k])}`).join(',\n') + '\n    }'
+        : '{}';
+      const urlsLit = batch
+        ? '[\n' + batch.urls.map(u => `        ${_scrPyStr(u)}`).join(',\n') + '\n    ]'
+        : `[${_scrPyStr(opts.url)}]`;
+      const delaySec = batch ? ((batch.delayMs || 0) / 1000.0).toFixed(2) : '0';
+      return `# Generated by CYBERFRAME Scrap Tool — Python (Scrapy spider)
+# Install:  pip install scrapy
+# Run:      scrapy runspider scrap.py -o scrap-output.json
+import scrapy
+from urllib.parse import urljoin
+
+
+class CyberframeSpider(scrapy.Spider):
+    name = "cyberframe_scrap"
+    start_urls = ${urlsLit}
+    custom_settings = {
+        "DOWNLOAD_DELAY": ${delaySec},
+        "FEED_EXPORT_ENCODING": "utf-8",
+        "DEFAULT_REQUEST_HEADERS": ${headersLit},
+    }
+    ROOT_SELECTOR = ${_scrPyStr(opts.rootSelector)}
+    FIELDS = {
+${fields}
+    }
+
+    def parse(self, response):
+        nodes = response.css(self.ROOT_SELECTOR) if self.ROOT_SELECTOR else [response]
+        for el in nodes:
+            row = {"_source": response.url}
+            for name, spec in self.FIELDS.items():
+                sel = spec["selector"]
+                attr = spec.get("attr") or "text"
+                if sel:
+                    sub = el.css(sel)[:1]
+                else:
+                    sub = el
+                if not sub:
+                    row[name] = ""
+                    continue
+                if attr == "text":
+                    txt = sub.xpath("string(.)").get() if hasattr(sub, "xpath") else (sub.get() or "")
+                    row[name] = " ".join((txt or "").split())
+                elif attr == "html":
+                    row[name] = sub.get() if hasattr(sub, "get") else ""
+                else:
+                    val = sub.attrib.get(attr, "") if hasattr(sub, "attrib") else (sub.xpath(f"@{attr}").get() or "")
+                    if val and attr in ("href", "src"):
+                        val = urljoin(response.url, val)
+                    row[name] = val or ""
+            yield row
+`;
+    }
+
     // === Auth (Cookies + Headers) ===
     function scrapParseHeaderText(txt) {
       const out = {};
@@ -6965,6 +7636,7 @@
                 <button class="scrap-btn" onclick="scrapExport('${tabId}','json')" title="Export as JSON">JSON</button>
                 <button class="scrap-btn" onclick="scrapExport('${tabId}','csv')" title="Export as CSV">CSV</button>
                 <button class="scrap-btn" onclick="scrapExport('${tabId}','md')" title="Export as Markdown">MD</button>
+                <button class="scrap-btn" onclick="scrapExportScriptOpen('${tabId}')" title="Export as runnable Node.js / Python script">&lt;/&gt; Script</button>
               </div>
             </div>
             <div id="${tabId}-sc-rows"><div class="scrap-empty">Run a page and extract to see results.</div></div>
@@ -7031,6 +7703,38 @@
                 <button class="scrap-btn" id="${tabId}-sc-bp-stop" style="display:none" onclick="scrapBatchStop('${tabId}')">⏹ Stop</button>
               </div>
               <div class="scrap-batch-log" id="${tabId}-sc-bp-log" style="display:none"></div>
+            </div>
+          </div>
+          <div class="scrap-batch-backdrop" id="${tabId}-sc-script-bd" onclick="if(event.target.id==='${tabId}-sc-script-bd')scrapExportScriptClose('${tabId}')">
+            <div class="scrap-batch-modal scrap-script-modal">
+              <h3>&lt;/&gt; Export Script <button class="x" onclick="scrapExportScriptClose('${tabId}')">✕</button></h3>
+              <div class="row" style="grid-template-columns:1fr 1fr;gap:10px">
+                <div>
+                  <label>Language</label>
+                  <select id="${tabId}-sc-sx-lang" onchange="scrapExportScriptUpdate('${tabId}')" style="width:100%;background:rgba(0,0,0,.32);border:1px solid rgba(255,255,255,.08);color:var(--text);border-radius:6px;padding:7px 10px;font:12.5px inherit;outline:none">
+                    <option value="node">Node.js</option>
+                    <option value="python">Python</option>
+                  </select>
+                </div>
+                <div>
+                  <label>Library</label>
+                  <select id="${tabId}-sc-sx-lib" onchange="scrapExportScriptUpdate('${tabId}')" style="width:100%;background:rgba(0,0,0,.32);border:1px solid rgba(255,255,255,.08);color:var(--text);border-radius:6px;padding:7px 10px;font:12.5px inherit;outline:none"></select>
+                </div>
+              </div>
+              <label style="display:flex;align-items:center;gap:6px;margin-top:10px;text-transform:none;letter-spacing:normal;color:var(--text2);font-size:12px">
+                <input type="checkbox" id="${tabId}-sc-sx-batch" onchange="scrapExportScriptUpdate('${tabId}')"> Include Batch (use pattern/list from 🔁 Batch modal)
+              </label>
+              <label style="display:flex;align-items:center;gap:6px;margin-top:4px;text-transform:none;letter-spacing:normal;color:var(--text2);font-size:12px">
+                <input type="checkbox" id="${tabId}-sc-sx-auth" checked onchange="scrapExportScriptUpdate('${tabId}')"> Include Auth (cookies + headers, if set)
+              </label>
+              <div class="hint" id="${tabId}-sc-sx-hint" style="margin-top:8px">Generates a standalone runnable script using your current selectors, mode, auth, and batch config. No CYBERFRAME runtime needed.</div>
+              <label style="margin-top:10px">Code preview</label>
+              <pre class="scrap-script-pre" id="${tabId}-sc-sx-preview"></pre>
+              <div class="actions">
+                <span style="flex:1;font-size:11px;color:var(--text3)" id="${tabId}-sc-sx-status">—</span>
+                <button class="scrap-btn" onclick="scrapExportScriptCopy('${tabId}')">📋 Copy</button>
+                <button class="scrap-btn primary" onclick="scrapExportScriptDownload('${tabId}')">⤓ Download</button>
+              </div>
             </div>
           </div>
         </div>`;
