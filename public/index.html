@@ -1366,11 +1366,49 @@
     .scrap-snap-row.selected { background: rgba(167,139,250,.12); }
 
     .scrap-result {
-      max-height: 40%;
+      flex: 0 0 40%;
+      min-height: 0;
       overflow: auto;
       background: rgba(0,0,0,.15);
       border-top: 1px solid rgba(255,255,255,.06);
     }
+    .scrap-vresize-handle {
+      flex: 0 0 5px;
+      background: rgba(255,255,255,.04);
+      cursor: row-resize;
+      position: relative;
+      z-index: 4;
+      transition: background .12s;
+    }
+    .scrap-vresize-handle:hover,
+    .scrap-vresize-handle.dragging { background: var(--accent); }
+    .scrap-vresize-handle::after {
+      content: '';
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      height: 2px; width: 36px;
+      border-top: 1px solid rgba(255,255,255,.14);
+      border-bottom: 1px solid rgba(255,255,255,.14);
+    }
+    .scrap-tab-wrap.preview-fullscreen .scrap-toolbar,
+    .scrap-tab-wrap.preview-fullscreen .scrap-side,
+    .scrap-tab-wrap.preview-fullscreen .scrap-vresize-handle,
+    .scrap-tab-wrap.preview-fullscreen .scrap-result { display: none !important; }
+    .scrap-tab-wrap.preview-fullscreen .scrap-body { grid-template-columns: 1fr !important; }
+    .scrap-preview-status .scrap-icon-btn {
+      width: 22px; height: 22px;
+      display: inline-flex; align-items: center; justify-content: center;
+      border-radius: 5px;
+      border: 1px solid rgba(255,255,255,.08);
+      background: rgba(255,255,255,.04);
+      color: var(--text2);
+      cursor: pointer;
+      transition: all .12s;
+      padding: 0;
+    }
+    .scrap-preview-status .scrap-icon-btn:hover { background: rgba(167,139,250,.18); color: #fff; border-color: rgba(167,139,250,.4); }
+    .scrap-preview-status .scrap-icon-btn.active { background: rgba(167,139,250,.25); color: #fff; border-color: rgba(167,139,250,.5); }
     .scrap-result-header {
       padding: 6px 10px;
       font-size: 11px;
@@ -5264,6 +5302,82 @@
       if (toolbarBtn) toolbarBtn.classList.toggle('pick-mode-on', pickOn);
     }
 
+    function scrapStartVResize(tabId, e) {
+      e.preventDefault();
+      const handle = document.getElementById(tabId + '-sc-vresize');
+      const wrap = handle ? handle.closest('.scrap-tab-wrap') : null;
+      const body = wrap ? wrap.querySelector('.scrap-body') : null;
+      const result = document.getElementById(tabId + '-sc-result');
+      if (!handle || !wrap || !body || !result) return;
+      handle.classList.add('dragging');
+      document.body.style.cursor = 'row-resize';
+      document.body.style.userSelect = 'none';
+      const wrapRect = wrap.getBoundingClientRect();
+      const toolbarH = (wrap.querySelector('.scrap-toolbar')?.getBoundingClientRect().height || 0);
+      const handleH = handle.getBoundingClientRect().height;
+      const startY = e.clientY;
+      const startResultH = result.getBoundingClientRect().height;
+      const available = wrapRect.height - toolbarH - handleH;
+      function onMove(ev) {
+        const delta = ev.clientY - startY;
+        const minResult = 60, minBody = 120;
+        let newResult = Math.max(minResult, Math.min(available - minBody, startResultH - delta));
+        result.style.flex = `0 0 ${newResult}px`;
+      }
+      function onUp() {
+        handle.classList.remove('dragging');
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+      }
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    }
+
+    function scrapToggleFullscreen(tabId) {
+      const frame = document.getElementById(tabId + '-sc-frame');
+      const wrap = frame ? frame.closest('.scrap-tab-wrap') : null;
+      const btn = document.getElementById(tabId + '-sc-expand');
+      if (!wrap) return;
+      const isFs = wrap.classList.toggle('preview-fullscreen');
+      if (btn) {
+        btn.classList.toggle('active', isFs);
+        btn.title = isFs ? 'Restore preview' : 'Expand preview (hide side & results)';
+        btn.innerHTML = isFs
+          ? '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/><line x1="14" y1="10" x2="21" y2="3"/><line x1="3" y1="21" x2="10" y2="14"/></svg>'
+          : '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>';
+      }
+    }
+
+    function scrapPopoutPreview(tabId) {
+      const tab = tabs.get(tabId);
+      if (!tab || !tab.scrap || !tab.scrap.html) { scrapSetStatus(tabId, 'run page first', 'err'); return; }
+      const html = tab.scrap.html;
+      const baseUrl = tab.scrap.finalUrl || tab.scrap.url || '';
+      const hostUrl = (() => { try { return new URL(baseUrl).hostname; } catch(_) { return 'preview'; } })();
+      let safe = html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+      if (!/<base /i.test(safe)) {
+        safe = safe.replace(/<head[^>]*>/i, m => m + `<base href="${escAttr(baseUrl)}">`);
+        if (!/<head[^>]*>/i.test(safe)) safe = `<head><base href="${escAttr(baseUrl)}"></head>` + safe;
+      }
+      const newTabId = createTab('preview', { name: '🌐 ' + hostUrl });
+      setTimeout(() => {
+        const pane = document.getElementById(newTabId + '-pane');
+        if (!pane) return;
+        pane.innerHTML = `<div style="height:100%;display:flex;flex-direction:column;background:var(--bg)">
+          <div style="display:flex;align-items:center;gap:8px;padding:6px 12px;border-bottom:1px solid var(--glass-border);font-size:11.5px;color:var(--text2);flex-wrap:wrap">
+            <span style="color:var(--accent);font-weight:600">🌐 Scrap Preview</span>
+            <span style="color:var(--text3);font-size:10.5px;word-break:break-all;flex:1;min-width:0">${escHtml(baseUrl)}</span>
+            <a href="${escAttr(baseUrl)}" target="_blank" rel="noopener noreferrer" style="font-size:10.5px;color:var(--accent);text-decoration:none">↗ Open real site</a>
+          </div>
+          <iframe id="${newTabId}-popout-frame" sandbox="allow-same-origin" style="flex:1;width:100%;border:none;background:#fff"></iframe>
+        </div>`;
+        const f = document.getElementById(newTabId + '-popout-frame');
+        if (f) f.srcdoc = safe;
+      }, 30);
+    }
+
     function scrapTogglePick(tabId) {
       const tab = tabs.get(tabId);
       if (!tab || !tab.scrap || !tab.scrap.html) { scrapSetStatus(tabId, 'run page first', 'err'); return; }
@@ -6651,6 +6765,12 @@
               <div class="scrap-preview-status" id="${tabId}-sc-status">
                 <span class="pill" id="${tabId}-sc-pill-status">idle</span>
                 <span id="${tabId}-sc-final-url" style="color:var(--text3);font-size:10.5px;word-break:break-all;flex:1;min-width:0"></span>
+                <button class="scrap-icon-btn" id="${tabId}-sc-expand" onclick="scrapToggleFullscreen('${tabId}')" title="Expand preview (hide side & results)">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+                </button>
+                <button class="scrap-icon-btn" onclick="scrapPopoutPreview('${tabId}')" title="Open preview in new tab">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                </button>
               </div>
               <iframe class="scrap-preview-frame" id="${tabId}-sc-frame" sandbox="allow-same-origin"></iframe>
               <div class="scrap-pick-hint" id="${tabId}-sc-pick-hint">🎯 Click any element to capture its selector · Esc to cancel</div>
@@ -6701,6 +6821,7 @@
               </div>
             </div>
           </div>
+          <div class="scrap-vresize-handle" id="${tabId}-sc-vresize" onmousedown="scrapStartVResize('${tabId}',event)" title="Drag to resize"></div>
           <div class="scrap-result" id="${tabId}-sc-result">
             <div class="scrap-result-header">
               <span class="count" id="${tabId}-sc-count">0 rows</span>
