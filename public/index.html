@@ -5109,6 +5109,50 @@
         safe = safe.replace(/<head[^>]*>/i, m => m + `<base href="${escAttr(baseUrl)}">`);
         if (!/<head[^>]*>/i.test(safe)) safe = `<head><base href="${escAttr(baseUrl)}"></head>` + safe;
       }
+      // Inject nav-tracking script (only when pick mode is off) — intercepts <a> clicks → postMessage parent → URL bar updates
+      const navScript = !pickOn ? `
+<script>
+(function(){
+  function abs(href){ try { return new URL(href, document.baseURI).href; } catch(_) { return href || ''; } }
+  document.addEventListener('click', function(e){
+    var t = e.target;
+    while(t && t !== document.body){
+      if(t.tagName === 'A' && t.getAttribute('href')){
+        var href = abs(t.getAttribute('href'));
+        // Allow only http(s)
+        if(/^https?:/i.test(href)){
+          e.preventDefault(); e.stopPropagation();
+          try { parent.postMessage({ type: 'scrap-navigate', tabId: ${JSON.stringify(tabId)}, url: href }, '*'); } catch(_){}
+        }
+        return false;
+      }
+      t = t.parentElement;
+    }
+  }, true);
+  // Also intercept form submits (GET only)
+  document.addEventListener('submit', function(e){
+    var f = e.target;
+    if(!f || f.tagName !== 'FORM') return;
+    var method = (f.method || 'get').toLowerCase();
+    if(method !== 'get') return;
+    e.preventDefault(); e.stopPropagation();
+    try {
+      var fd = new FormData(f);
+      var params = new URLSearchParams();
+      fd.forEach(function(v,k){ params.append(k, v); });
+      var action = abs(f.getAttribute('action') || document.baseURI);
+      var sep = action.indexOf('?') >= 0 ? '&' : '?';
+      var url = action + sep + params.toString();
+      parent.postMessage({ type: 'scrap-navigate', tabId: ${JSON.stringify(tabId)}, url: url }, '*');
+    } catch(_){}
+    return false;
+  }, true);
+})();
+<\/script>` : '';
+      if (navScript) {
+        safe = safe.replace(/<\/body>/i, navScript + '</body>');
+        if (!/<\/body>/i.test(safe)) safe += navScript;
+      }
       // Inject picker overlay if pick mode is active
       if (pickOn) {
         const pickScript = `
@@ -5169,7 +5213,8 @@
         if (!/<\/body>/i.test(safe)) safe += pickScript;
         frame.setAttribute('sandbox', 'allow-scripts allow-same-origin');
       } else {
-        frame.setAttribute('sandbox', 'allow-same-origin');
+        // Need allow-scripts for nav-tracking script (page scripts already stripped above)
+        frame.setAttribute('sandbox', 'allow-scripts allow-same-origin');
       }
       frame.srcdoc = safe;
       if (pane) pane.classList.toggle('pick-on', pickOn);
@@ -5269,6 +5314,31 @@
         }
         scrapMountFrame(d.tabId);
         scrapRenderFields(d.tabId);
+      } else if (d.type === 'scrap-navigate') {
+        // Click on <a> inside preview iframe → update URL bar + auto-run
+        const tab = tabs.get(d.tabId);
+        if (!tab || !tab.scrap) return;
+        const newUrl = String(d.url || '');
+        if (!newUrl) return;
+        const prevUrl = tab.scrap.finalUrl || tab.scrap.url || '';
+        const inp = document.getElementById(d.tabId + '-sc-url');
+        if (inp) inp.value = newUrl;
+        // Track nav history for pattern detection
+        tab.scrap.navHist = tab.scrap.navHist || [];
+        if (prevUrl && tab.scrap.navHist[tab.scrap.navHist.length - 1] !== prevUrl) {
+          tab.scrap.navHist.push(prevUrl);
+        }
+        if (tab.scrap.navHist.length > 6) tab.scrap.navHist.shift();
+        // Detect numeric pattern between prev → new
+        const hint = scrapDetectPattern(prevUrl, newUrl);
+        if (hint) {
+          scrapSetStatus(d.tabId, '💡 pattern: ' + hint.pattern + ' (' + hint.from + '→' + hint.to + ') — click 🔁 Batch to use', 'ok');
+          tab.scrap.detectedPattern = hint;
+        } else {
+          scrapSetStatus(d.tabId, 'navigated → ' + newUrl.slice(0, 80));
+        }
+        // Auto-run new URL
+        scrapRun(d.tabId);
       } else if (d.type === 'scrap-pick-cancel') {
         const tab = tabs.get(d.tabId);
         if (!tab || !tab.scrap) return;
@@ -5491,6 +5561,42 @@
     }
 
     // === Batch Scrape ===
+    // Detect numeric pagination pattern between 2 URLs.
+    // Returns {pattern, from, to} or null. Inserts {N} placeholder + suggests range.
+    function scrapDetectPattern(prev, next) {
+      if (!prev || !next || prev === next) return null;
+      // Try matching numeric segments — pick the one that differs by ±1..50 ideally
+      const reNum = /(\d+)/g;
+      const segs = [];
+      let m;
+      const prevArr = []; while ((m = reNum.exec(prev)) !== null) { prevArr.push({ val: m[1], idx: m.index }); }
+      reNum.lastIndex = 0;
+      const nextArr = []; while ((m = reNum.exec(next)) !== null) { nextArr.push({ val: m[1], idx: m.index }); }
+      if (prevArr.length === 0 || nextArr.length !== prevArr.length) return null;
+      // Find first index where numbers differ
+      for (let i = 0; i < prevArr.length; i++) {
+        if (prevArr[i].val !== nextArr[i].val) {
+          // Check all other segments equal
+          let ok = true;
+          for (let j = 0; j < prevArr.length; j++) if (j !== i && prevArr[j].val !== nextArr[j].val) { ok = false; break; }
+          if (!ok) return null;
+          // Verify non-numeric parts equal
+          const stripVar = (s, arr) => {
+            let out = ''; let last = 0;
+            for (let k = 0; k < arr.length; k++) {
+              out += s.slice(last, arr[k].idx) + (k === i ? '' : arr[k].val);
+              last = arr[k].idx + arr[k].val.length;
+            }
+            return out + s.slice(last);
+          };
+          if (stripVar(prev, prevArr) !== stripVar(next, nextArr)) return null;
+          const pattern = stripVar(next, nextArr).replace('', '{N}');
+          return { pattern, from: parseInt(prevArr[i].val, 10), to: parseInt(nextArr[i].val, 10) };
+        }
+      }
+      return null;
+    }
+
     function scrapBatchOpen(tabId) {
       const tab = tabs.get(tabId);
       if (!tab || !tab.scrap) return;
@@ -5499,7 +5605,18 @@
       // Preseed pattern from current URL if pattern field is empty
       const pat = document.getElementById(tabId + '-sc-bp-pattern');
       const modeSel = document.getElementById(tabId + '-sc-bp-mode');
-      if (pat && !pat.value && tab.scrap.url) pat.value = tab.scrap.url;
+      const fromInp = document.getElementById(tabId + '-sc-bp-from');
+      const toInp = document.getElementById(tabId + '-sc-bp-to');
+      // Prefer detected pattern from navigation
+      if (pat && !pat.value) {
+        if (tab.scrap.detectedPattern) {
+          pat.value = tab.scrap.detectedPattern.pattern;
+          if (fromInp) fromInp.value = tab.scrap.detectedPattern.from;
+          if (toInp && tab.scrap.detectedPattern.to > tab.scrap.detectedPattern.from) toInp.value = String(Math.max(tab.scrap.detectedPattern.to + 9, tab.scrap.detectedPattern.from + 9));
+        } else if (tab.scrap.url) {
+          pat.value = tab.scrap.url;
+        }
+      }
       if (modeSel) modeSel.value = tab.scrap.mode || 'static';
       // Reset progress UI
       scrapBatchSetProgress(tabId, 0, 0);

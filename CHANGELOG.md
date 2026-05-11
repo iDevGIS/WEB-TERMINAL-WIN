@@ -5,6 +5,28 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [3.4.0] — 2026-05-12 — Scrap Tool: In-Preview Navigation + Pattern Auto-Detect
+
+Minor release — Scrap Tool preview iframe was inert before: clicking a `<a>` link inside scrolled to anchor or did nothing visible (URL bar never updated). Now clicks inside preview hijack to the parent: URL bar updates, auto-fetch runs, and the URL pair before/after navigation feeds a **pattern auto-detector**. When the diff is a single numeric segment (e.g. `page-1.html` → `page-2.html`), the next Batch open is pre-filled with `https://.../page-{N}.html` and `from`/`to` defaults.
+
+### Added — Client (`public/index.html`)
+- `scrapMountFrame()` injects a small `nav-tracking` script into the preview iframe whenever pick mode is off. It captures `<a>` clicks + GET `<form>` submits and `postMessage`s `{ type: 'scrap-navigate', url }` to the parent. URL is resolved against `<base>` so relative links work.
+- Window `message` handler for `scrap-navigate`: updates `#<tab>-sc-url`, pushes prior URL onto `tab.scrap.navHist`, runs `scrapDetectPattern(prev, next)`, surfaces "💡 pattern: …" in the status pill, stashes detection in `tab.scrap.detectedPattern`, then calls `scrapRun(tabId)` to fetch the new page.
+- `scrapDetectPattern(prev, next)` — finds the single numeric segment that differs between two URLs (rest must match byte-for-byte), returns `{ pattern: '...{N}...', from, to }`. Returns `null` for unrelated URLs, identical URLs, or multi-segment diffs.
+- `scrapBatchOpen()` now seeds the modal from `tab.scrap.detectedPattern` first (pattern + `from` + auto-extended `to`), falls back to `tab.scrap.url` if no detection.
+
+### Changed
+- Preview iframe `sandbox` is now `allow-scripts allow-same-origin` in both pick-off and pick-on states (was `allow-same-origin` when pick was off). Safe because the fetched page's `<script>` tags are still stripped before injection — only our trusted nav/pick scripts run.
+
+### Why
+User feedback: "address link มันไม่เปลี่ยนไง พอกด next มันเลยไม่เห็น url pattern" — clicking "next" inside the preview iframe didn't show the new URL, so users couldn't discover the pagination pattern needed for Batch. Now the URL bar mirrors in-preview navigation, and the system proposes the Batch pattern automatically.
+
+### Files touched
+- `public/index.html` — `scrapMountFrame`, message router, new `scrapDetectPattern`, `scrapBatchOpen` seed logic
+- `package.json` — `version` → `3.4.0`
+
+---
+
 ## [3.3.0] — 2026-05-12 — Scrap Tool AI Model Picker (multi-provider)
 
 Minor release — Scrap Tool ✨ AI pane swaps the single "Agent" `<select>` for a full **Model Picker** that mirrors the AI Chat "New Chat" dialog. You can now pick any model the server knows about — OpenClaw Gateway (`anthropic/*`), Claude Code CLI (`claude-code/*`), or Ollama local (`ollama/*`) — per-tab, persisted in `localStorage`.
