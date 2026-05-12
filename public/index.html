@@ -18684,8 +18684,10 @@ ${fields}
     }
 
     async function previewFile(fullPath, name) {
-      const ext = '.' + name.split('.').pop().toLowerCase();
-      if (!PREVIEWABLE_EXTS.has(ext) && name.includes('.')) {
+      // Dotfiles (.env, .env.example, .gitignore, ...) → treat as text by default
+      const isDotfile = name.startsWith('.');
+      const ext = isDotfile ? '' : ('.' + name.split('.').pop().toLowerCase());
+      if (!isDotfile && !PREVIEWABLE_EXTS.has(ext) && name.includes('.')) {
         downloadFile(fullPath);
         return;
       }

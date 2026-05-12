@@ -1062,7 +1062,7 @@ app.get("/api/files/download", requireAuth, (req, res) => {
     if (!fs.existsSync(resolved) || fs.statSync(resolved).isDirectory()) {
       return res.status(404).json({ error: "Not a file" });
     }
-    res.download(resolved);
+    res.download(resolved, path.basename(resolved), { dotfiles: "allow" });
   } catch (e) {
     res.status(400).json({ error: e.message });
   }
@@ -1334,7 +1334,8 @@ app.get("/api/files/preview", requireAuth, (req, res) => {
       const mimeMap = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp', '.svg': 'image/svg+xml', '.bmp': 'image/bmp', '.ico': 'image/x-icon' };
       res.setHeader('Content-Type', mimeMap[ext] || 'application/octet-stream');
       fs.createReadStream(resolved).pipe(res);
-    } else if (textExts.includes(ext) || ext === '') {
+    } else if (textExts.includes(ext) || ext === '' || path.basename(resolved).startsWith('.')) {
+      // Dotfiles (.env, .env.example, .gitignore, .editorconfig, ...) → always text
       const content = fs.readFileSync(resolved, 'utf8');
       res.json({ type: 'text', ext, content, size: st.size });
     } else {
@@ -2531,7 +2532,7 @@ app.get("/api/docker/containers/:id/download", requireAuth, (req, res) => {
   const tmpFile = require("path").join(tmpDir, "cf-dl-" + Date.now() + "-" + fileName);
   exec(`docker cp "${containerId}:${filePath}" "${tmpFile}"`, { timeout: 30000 }, (err, stdout, stderr) => {
     if (err) return res.status(500).json({ error: stderr || err.message });
-    res.download(tmpFile, fileName, () => {
+    res.download(tmpFile, fileName, { dotfiles: "allow" }, () => {
       require("fs").unlink(tmpFile, () => {});
     });
   });
@@ -2554,12 +2555,12 @@ app.get("/api/docker/volumes/:name/download", requireAuth, (req, res) => {
         exec(`docker cp "cf-tmp-dl:/vol${filePath}" "${tmpFile}"`, { timeout: 30000 }, (e2, so, se) => {
           exec(`docker rm cf-tmp-dl`, () => {});
           if (e2) return res.status(500).json({ error: se || e2.message });
-          res.download(tmpFile, fileName, () => { require("fs").unlink(tmpFile, () => {}); });
+          res.download(tmpFile, fileName, { dotfiles: "allow" }, () => { require("fs").unlink(tmpFile, () => {}); });
         });
       });
       return;
     }
-    res.download(tmpFile, fileName, () => { require("fs").unlink(tmpFile, () => {}); });
+    res.download(tmpFile, fileName, { dotfiles: "allow" }, () => { require("fs").unlink(tmpFile, () => {}); });
   });
 });
 
