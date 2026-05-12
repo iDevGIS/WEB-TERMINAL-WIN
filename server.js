@@ -6219,8 +6219,11 @@ function _scrapExpandUrlPattern(spec) {
 // Batch fetch+extract (sequential with delay)
 app.post("/api/scrap/batch", requireAuth, express.json({ limit: "1mb" }), async (req, res) => {
   const body = req.body || {};
-  const urls = _scrapExpandUrlPattern(body);
-  if (!urls.length) return res.status(400).json({ error: "no valid urls (provide urls[] or pattern + from/to)" });
+  const followSpec = body.follow && typeof body.follow === "object" ? body.follow : null;
+  const followStartUrl = followSpec ? String(followSpec.startUrl || "").trim() : "";
+  const urls = followSpec ? [] : _scrapExpandUrlPattern(body);
+  if (!followSpec && !urls.length) return res.status(400).json({ error: "no valid urls (provide urls[] or pattern + from/to)" });
+  if (followSpec && !/^https?:\/\//i.test(followStartUrl)) return res.status(400).json({ error: "follow: invalid startUrl" });
   const mode = ["static", "browser"].includes(body.mode) ? body.mode : "static";
   const selectors = body.selectors || {};
   const rootSelector = String(body.rootSelector || "").trim();
@@ -6243,7 +6246,10 @@ app.post("/api/scrap/batch", requireAuth, express.json({ limit: "1mb" }), async 
     res.setHeader("Connection", "keep-alive");
     res.setHeader("X-Accel-Buffering", "no");
     if (res.flushHeaders) res.flushHeaders();
-    res.write(`event: start\ndata: ${JSON.stringify({ total: urls.length, mode })}\n\n`);
+    const startMeta = followSpec
+      ? { total: Math.max(1, Math.min(200, parseInt(followSpec.maxPages) || 50)), mode, kind: "follow", strategy: followSpec.strategy === "click" ? "click" : "href" }
+      : { total: urls.length, mode, kind: "list" };
+    res.write(`event: start\ndata: ${JSON.stringify(startMeta)}\n\n`);
   }
 
   const absolutize = (v, attr, base) => {
@@ -6337,18 +6343,173 @@ app.post("/api/scrap/batch", requireAuth, express.json({ limit: "1mb" }), async 
     }
   };
 
-  for (let i = 0; i < urls.length; i++) {
-    await fetchOne(urls[i]);
-    if (delayMs && i < urls.length - 1) await new Promise(r => setTimeout(r, delayMs));
+  // Extract rows from html string + push to allRows/perPage/stream (shared with follow loop)
+  const extractAndPush = (html, url, finalUrl, status, t0) => {
+    try {
+      const $ = cheerio.load(html);
+      const fields = Object.keys(selectors || {});
+      const rows = [];
+      if (rootSelector) {
+        $(rootSelector).each((idx, el) => {
+          const row = {};
+          for (const f of fields) {
+            const def = selectors[f] || {};
+            const sel = String(def.selector || "");
+            const attr = def.attr || "text";
+            const node = sel ? $(el).find(sel).first() : $(el);
+            row[f] = absolutize(_scrapExtractValue($, node, attr), attr, finalUrl);
+          }
+          if (addSourceCol) row._source = url;
+          rows.push(row);
+        });
+      } else {
+        const row = {};
+        for (const f of fields) {
+          const def = selectors[f] || {};
+          const sel = String(def.selector || "");
+          const attr = def.attr || "text";
+          const node = sel ? $(sel).first() : $("html");
+          row[f] = absolutize(_scrapExtractValue($, node, attr), attr, finalUrl);
+        }
+        if (addSourceCol) row._source = url;
+        rows.push(row);
+      }
+      const result = { url, finalUrl, status, count: rows.length, ms: Date.now() - t0 };
+      perPage.push(result);
+      for (const r of rows) allRows.push(r);
+      if (streamMode) res.write(`event: page\ndata: ${JSON.stringify({ ...result, idx: perPage.length })}\n\n`);
+      return { $, finalUrl, count: rows.length };
+    } catch (e) {
+      const errRecord = { url, error: String(e.message || e), ms: Date.now() - t0 };
+      perPage.push(errRecord);
+      if (streamMode) res.write(`event: error\ndata: ${JSON.stringify({ ...errRecord, idx: perPage.length })}\n\n`);
+      return null;
+    }
+  };
+
+  if (followSpec) {
+    // Phase A (static, href) + Phase B (browser, click) follow loop
+    const nextSelector = String(followSpec.nextSelector || "").trim();
+    const maxPages = Math.max(1, Math.min(200, parseInt(followSpec.maxPages) || 50));
+    const strategy = followSpec.strategy === "click" ? "click" : "href";
+    const fWaitFor = String(followSpec.waitFor || waitFor || "").trim();
+    const fWaitMs = Math.min(20000, Math.max(0, parseInt(followSpec.waitMs) || 0));
+    if (!nextSelector) {
+      const err = "follow: nextSelector required";
+      if (streamMode) { res.write(`event: error\ndata: ${JSON.stringify({ error: err })}\n\n`); res.end(); return; }
+      return res.status(400).json({ error: err });
+    }
+
+    const visited = new Set();
+    let pages = 0;
+
+    if (strategy === "click" || mode === "browser") {
+      // Browser click-loop: persistent context+page across pagination
+      let browser, context, page;
+      try {
+        browser = await _getScrapBrowser();
+        context = await browser.newContext({ userAgent: SCRAP_UA, viewport: { width: 1366, height: 900 } });
+        const extraHeaders = _scrapAuthHeaders(auth);
+        if (Object.keys(extraHeaders).length) await context.setExtraHTTPHeaders(extraHeaders);
+        const cookieArr = _scrapCookieArrayForUrl(auth.cookie, followStartUrl);
+        if (cookieArr.length) await context.addCookies(cookieArr);
+        page = await context.newPage();
+        await page.goto(followStartUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
+        if (fWaitFor) { try { await page.waitForSelector(fWaitFor, { timeout: 15000 }); } catch {} }
+        if (fWaitMs) await page.waitForTimeout(fWaitMs);
+
+        while (pages < maxPages) {
+          const curUrl = page.url();
+          if (visited.has(curUrl) && pages > 0) {
+            if (streamMode) res.write(`event: stop\ndata: ${JSON.stringify({ reason: "loop-detected", url: curUrl })}\n\n`);
+            break;
+          }
+          visited.add(curUrl);
+          const t0 = Date.now();
+          if (scroll) {
+            try { await page.evaluate(async () => { await new Promise(r => { const s = Date.now(); let l = 0; const t = setInterval(() => { window.scrollBy(0, 900); if (document.body.scrollHeight === l || Date.now() - s > 8000) { clearInterval(t); r(); } l = document.body.scrollHeight; }, 250); }); }); } catch {}
+          }
+          const html = await page.content();
+          extractAndPush(html, curUrl, curUrl, 200, t0);
+          pages++;
+          if (pages >= maxPages) { if (streamMode) res.write(`event: stop\ndata: ${JSON.stringify({ reason: "max-pages" })}\n\n`); break; }
+          // Find + click next
+          const nextLoc = page.locator(nextSelector).first();
+          let canClick = false;
+          try {
+            canClick = await nextLoc.count() > 0 && await nextLoc.isVisible({ timeout: 2000 }).catch(() => false) && !(await nextLoc.evaluate(el => el.matches(':disabled, [aria-disabled="true"], .disabled, [aria-hidden="true"]')).catch(() => false));
+          } catch {}
+          if (!canClick) { if (streamMode) res.write(`event: stop\ndata: ${JSON.stringify({ reason: "no-next" })}\n\n`); break; }
+          try {
+            await Promise.race([
+              Promise.all([page.waitForLoadState("domcontentloaded", { timeout: 15000 }).catch(() => {}), nextLoc.click({ timeout: 8000 })]),
+              page.waitForTimeout(15000)
+            ]);
+          } catch (e) {
+            if (streamMode) res.write(`event: error\ndata: ${JSON.stringify({ url: curUrl, error: "click failed: " + (e.message || e) })}\n\n`);
+            break;
+          }
+          if (fWaitFor) { try { await page.waitForSelector(fWaitFor, { timeout: 10000 }); } catch {} }
+          if (fWaitMs) await page.waitForTimeout(fWaitMs);
+          if (delayMs) await page.waitForTimeout(delayMs);
+        }
+      } catch (e) {
+        if (streamMode) res.write(`event: error\ndata: ${JSON.stringify({ error: String(e.message || e) })}\n\n`);
+      } finally {
+        try { if (context) await context.close(); } catch {}
+      }
+    } else {
+      // Static href-follow loop
+      let url = followStartUrl;
+      while (pages < maxPages && url) {
+        if (visited.has(url)) {
+          if (streamMode) res.write(`event: stop\ndata: ${JSON.stringify({ reason: "loop-detected", url })}\n\n`);
+          break;
+        }
+        visited.add(url);
+        const t0 = Date.now();
+        let html, finalUrl, status, $;
+        try {
+          const r = await fetch(url, {
+            headers: { "User-Agent": SCRAP_UA, "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8", "Accept-Language": "en-US,en;q=0.7,th;q=0.5", ..._scrapAuthHeaders(auth) },
+            redirect: "follow",
+          });
+          html = await r.text();
+          finalUrl = r.url || url;
+          status = r.status;
+        } catch (e) {
+          const errRecord = { url, error: String(e.message || e), ms: Date.now() - t0 };
+          perPage.push(errRecord);
+          if (streamMode) res.write(`event: error\ndata: ${JSON.stringify({ ...errRecord, idx: perPage.length })}\n\n`);
+          break;
+        }
+        const ext = extractAndPush(html, url, finalUrl, status, t0);
+        pages++;
+        if (pages >= maxPages) { if (streamMode) res.write(`event: stop\ndata: ${JSON.stringify({ reason: "max-pages" })}\n\n`); break; }
+        if (!ext || !ext.$) break;
+        const nextNode = ext.$(nextSelector).first();
+        if (!nextNode.length) { if (streamMode) res.write(`event: stop\ndata: ${JSON.stringify({ reason: "no-next" })}\n\n`); break; }
+        const href = String(nextNode.attr("href") || "").trim();
+        if (!href || /^(javascript:|#)/i.test(href)) { if (streamMode) res.write(`event: stop\ndata: ${JSON.stringify({ reason: "no-href" })}\n\n`); break; }
+        try { url = new URL(href, ext.finalUrl).toString(); } catch { break; }
+        if (delayMs) await new Promise(r => setTimeout(r, delayMs));
+      }
+    }
+  } else {
+    for (let i = 0; i < urls.length; i++) {
+      await fetchOne(urls[i]);
+      if (delayMs && i < urls.length - 1) await new Promise(r => setTimeout(r, delayMs));
+    }
   }
 
   const payload = {
     ok: true,
-    total: urls.length,
+    total: followSpec ? perPage.length : urls.length,
     rows: allRows,
     perPage,
     durationMs: Date.now() - startedAt,
     errors: perPage.filter(p => p.error).length,
+    follow: followSpec ? { strategy: followSpec.strategy === "click" ? "click" : "href", pagesFetched: perPage.length } : undefined,
   };
   if (streamMode) { res.write(`event: done\ndata: ${JSON.stringify(payload)}\n\n`); res.end(); }
   else res.json(payload);

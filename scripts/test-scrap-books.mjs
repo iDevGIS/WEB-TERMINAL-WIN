@@ -24,7 +24,9 @@ const SKIP_SCHEDULE = process.env.CF_SKIP_SCHEDULE === "1";
 
 const BOOKS = "https://books.toscrape.com/";
 const BOOKS_PATTERN = "https://books.toscrape.com/catalogue/page-{1..3}.html";
+const QUOTES_HOME = "https://quotes.toscrape.com/";
 const HTTPBIN_HEADERS = "https://httpbin.org/headers";
+const SKIP_FOLLOW = process.env.CF_SKIP_FOLLOW === "1";
 
 const SELECTORS = {
   title: { selector: "h3 a", attr: "title" },
@@ -145,6 +147,63 @@ async function batch() {
   return { rows: data.rows.length, ms: data.durationMs };
 }
 
+async function followHrefQuotes() {
+  // Phase 5a — Static href-follow on quotes.toscrape.com (Scrapy-sanctioned)
+  // Real "Next →" anchor with href="/page/N/" — should cap at maxPages
+  const data = await jpost("/api/scrap/batch", {
+    mode: "static",
+    delayMs: 200,
+    addSourceCol: true,
+    rootSelector: "div.quote",
+    selectors: {
+      text:   { selector: "span.text",    attr: "text" },
+      author: { selector: "small.author", attr: "text" },
+    },
+    follow: {
+      startUrl: QUOTES_HOME,
+      nextSelector: "li.next a",
+      strategy: "href",
+      maxPages: 3,
+    },
+  });
+  if (data === null) throw new NotAvailable("/api/scrap/batch (follow mode not loaded — server outdated)");
+  if (!data.ok) throw new Error("follow-href batch not ok");
+  if (!data.follow || data.follow.strategy !== "href") throw new NotAvailable("/api/scrap/batch (follow.strategy missing — server outdated)");
+  if (data.follow.pagesFetched < 3) throw new Error(`expected 3 pages, got ${data.follow.pagesFetched}`);
+  if (!Array.isArray(data.rows) || data.rows.length < 25) throw new Error(`rows too few: ${data.rows?.length}`);
+  const distinctSources = new Set(data.rows.map(r => r._source));
+  if (distinctSources.size < 3) throw new Error(`expected 3 distinct sources, got ${distinctSources.size}`);
+  return { pages: data.follow.pagesFetched, rows: data.rows.length, ms: data.durationMs };
+}
+
+async function followClickBooks() {
+  // Phase 5b — Browser click-follow on books.toscrape.com
+  // Tests Playwright click loop with persistent page context
+  const data = await jpost("/api/scrap/batch", {
+    mode: "browser",
+    delayMs: 0,
+    addSourceCol: true,
+    rootSelector: "article.product_pod",
+    selectors: {
+      title: { selector: "h3 a", attr: "title" },
+      price: { selector: ".price_color", attr: "text" },
+    },
+    follow: {
+      startUrl: "https://books.toscrape.com/catalogue/page-1.html",
+      nextSelector: "li.next a",
+      strategy: "click",
+      maxPages: 2,
+      waitFor: "article.product_pod",
+    },
+  });
+  if (data === null) throw new NotAvailable("/api/scrap/batch (follow.click mode not loaded)");
+  if (!data.ok) throw new Error("follow-click batch not ok");
+  if (!data.follow || data.follow.strategy !== "click") throw new NotAvailable("/api/scrap/batch (follow.click strategy missing)");
+  if (data.follow.pagesFetched < 2) throw new Error(`expected 2 pages, got ${data.follow.pagesFetched}`);
+  if (!Array.isArray(data.rows) || data.rows.length < 30) throw new Error(`rows too few: ${data.rows?.length}`);
+  return { pages: data.follow.pagesFetched, rows: data.rows.length, ms: data.durationMs };
+}
+
 async function authHeaderEcho() {
   const data = await jpost("/api/scrap/fetch", {
     url: HTTPBIN_HEADERS,
@@ -225,7 +284,7 @@ async function diffFlow() {
 }
 
 // --- Main ---
-const total = 8;
+const total = 10;
 const startAll = Date.now();
 
 console.log(`\n${C.bold}🍥 CYBERFRAME Scrap Tool — Automated Test Suite${C.reset}`);
@@ -270,6 +329,12 @@ try {
   await run(8, "🔍 Phase 4c: Snapshot diff", async () => {
     const d = await diffFlow(); return `added=${d.added} removed=${d.removed}`;
   }, { skipFlag: SKIP_SCHEDULE ? "CF_SKIP_SCHEDULE=1" : null });
+  await run(9, "⏭ Phase 5a: Follow href (Quotes)", async () => {
+    const f = await followHrefQuotes(); return `${f.pages} pages, ${f.rows} rows, ${f.ms}ms`;
+  }, { skipFlag: SKIP_FOLLOW ? "CF_SKIP_FOLLOW=1" : null });
+  await run(10, "⏭ Phase 5b: Follow click (Books)", async () => {
+    const f = await followClickBooks(); return `${f.pages} pages, ${f.rows} rows, ${f.ms}ms`;
+  }, { skipFlag: (SKIP_FOLLOW || SKIP_BROWSER) ? "CF_SKIP_FOLLOW=1 or CF_SKIP_BROWSER=1" : null });
 
   const dur = ((Date.now() - startAll) / 1000).toFixed(1);
   console.log("=".repeat(56));

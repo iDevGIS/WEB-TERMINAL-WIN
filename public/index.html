@@ -6646,6 +6646,17 @@ ${fields}
       if (bmode === 'list') {
         const raw = document.getElementById(tabId + '-sc-bp-urls').value || '';
         spec.urls = raw.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+      } else if (bmode === 'follow') {
+        const startUrl = (document.getElementById(tabId + '-sc-bf-start').value || tab.scrap.url || '').trim();
+        const nextSelector = (document.getElementById(tabId + '-sc-bf-next').value || '').trim();
+        const strategy = document.getElementById(tabId + '-sc-bf-strategy').value || 'href';
+        const maxPages = parseInt(document.getElementById(tabId + '-sc-bf-max').value) || 20;
+        const waitMs = parseInt(document.getElementById(tabId + '-sc-bf-waitms').value) || 0;
+        const waitFor = (document.getElementById(tabId + '-sc-bf-waitfor').value || '').trim();
+        if (!startUrl || !/^https?:\/\//.test(startUrl)) { scrapBatchLog(tabId, 'follow: invalid start URL', 'err'); return; }
+        if (!nextSelector) { scrapBatchLog(tabId, 'follow: next selector required', 'err'); return; }
+        spec.follow = { startUrl, nextSelector, strategy, maxPages, waitFor, waitMs };
+        if (strategy === 'click') spec.mode = 'browser';
       } else {
         spec.pattern = document.getElementById(tabId + '-sc-bp-pattern').value || '';
         spec.from = parseInt(document.getElementById(tabId + '-sc-bp-from').value);
@@ -6709,10 +6720,17 @@ ${fields}
             }
             let json = null; try { json = JSON.parse(data); } catch {}
             if (!json) continue;
-            if (evt === 'start') { total = json.total; scrapBatchSetProgress(tabId, 0, total); scrapBatchLog(tabId, `▷ batch start: ${total} URLs, mode=${json.mode}`); }
+            if (evt === 'start') {
+              total = json.total;
+              scrapBatchSetProgress(tabId, 0, total);
+              const kind = json.kind === 'follow' ? `follow:${json.strategy}` : 'list';
+              scrapBatchLog(tabId, `▷ batch start: max ${total} pages, mode=${json.mode}, ${kind}`);
+            }
             else if (evt === 'page') {
-              done = json.idx; scrapBatchSetProgress(tabId, done, total);
+              done = json.idx; scrapBatchSetProgress(tabId, done, Math.max(total, done));
               scrapBatchLog(tabId, `[${done}/${total}] ${json.status} · ${json.count} rows · ${json.ms}ms · ${json.url}`, 'ok');
+            } else if (evt === 'stop') {
+              scrapBatchLog(tabId, `⏹ stop: ${json.reason}${json.url ? ' · ' + json.url : ''}`, json.reason === 'max-pages' ? 'ok' : 'err');
             } else if (evt === 'error') {
               done = json.idx; scrapBatchSetProgress(tabId, done, total);
               scrapBatchLog(tabId, `[${done}/${total}] ERROR ${json.url}: ${json.error}`, 'err');
@@ -7743,6 +7761,7 @@ ${fields}
               <div class="mode-toggle">
                 <button class="active" data-bm="pattern" onclick="scrapBatchMode('${tabId}','pattern',this)">URL pattern</button>
                 <button data-bm="list" onclick="scrapBatchMode('${tabId}','list',this)">URL list</button>
+                <button data-bm="follow" onclick="scrapBatchMode('${tabId}','follow',this)">⏭ Follow Next</button>
               </div>
               <div data-bm-pane="pattern">
                 <label>Pattern (use <code>{1..10}</code> or <code>{N}</code>)</label>
@@ -7757,6 +7776,25 @@ ${fields}
               <div data-bm-pane="list" style="display:none">
                 <label>URLs (one per line)</label>
                 <textarea id="${tabId}-sc-bp-urls" placeholder="https://example.com/page1&#10;https://example.com/page2"></textarea>
+              </div>
+              <div data-bm-pane="follow" style="display:none">
+                <label>Start URL</label>
+                <input type="text" id="${tabId}-sc-bf-start" placeholder="https://news.ycombinator.com/news">
+                <label>Next selector (button or link)</label>
+                <input type="text" id="${tabId}-sc-bf-next" placeholder='a.morelink   /   li.next a   /   button[aria-label="Next"]'>
+                <div class="row" style="margin-top:8px;grid-template-columns:1fr 1fr 1fr">
+                  <div><label>Strategy</label>
+                    <select id="${tabId}-sc-bf-strategy" style="width:100%;background:rgba(0,0,0,.32);border:1px solid rgba(255,255,255,.08);color:var(--text);border-radius:6px;padding:7px 10px;font:12.5px inherit;outline:none">
+                      <option value="href">Read href (static, fast)</option>
+                      <option value="click">Click (browser, any site)</option>
+                    </select>
+                  </div>
+                  <div><label>Max pages</label><input type="number" id="${tabId}-sc-bf-max" value="20" min="1" max="200"></div>
+                  <div><label>Wait after click (ms)</label><input type="number" id="${tabId}-sc-bf-waitms" value="0" min="0" step="100"></div>
+                </div>
+                <label style="margin-top:8px">Wait for selector after click (optional, click strategy only)</label>
+                <input type="text" id="${tabId}-sc-bf-waitfor" placeholder=".product, .post, .item — element that signals new page is rendered">
+                <div class="hint"><b>Read href:</b> static fetch, reads <code>href</code> from Next link. Fast — best for traditional pagination (HN, Reddit, Wordpress).<br><b>Click:</b> Playwright clicks the button — works on SPAs / JS-rendered (Pantip comments, ProductHunt). Slower but universal.</div>
               </div>
               <div class="row" style="margin-top:10px;grid-template-columns:1fr 1fr">
                 <div>
