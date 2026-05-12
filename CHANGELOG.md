@@ -5,6 +5,22 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [3.6.3] — 2026-05-12 — Scrap Tool Script Export: Scoped Ctrl+A
+
+Patch release. The Script export modal's `Ctrl+A` was hitting the document default — selecting the entire page instead of just the code preview. Users had to drag-select the code block by hand to copy it, which defeats the purpose of having a "Copy" button right there.
+
+**Fix:** added a capture-phase `keydown` listener (bound once via `window.__scrapScriptCtrlABound`) that activates only when a Script export modal (`.scrap-batch-backdrop.open[id$="-sc-script-bd"]`) is open. When fired, it:
+
+- ignores `Ctrl+A` inside `<input>`/`<textarea>`/`<select>`/contentEditable so those keep their native behavior
+- ignores events whose target sits outside the open modal (except `document.body`/`documentElement`, which the browser uses as the default focus owner when the user clicks on non-focusable content like `<pre>`/`<code>`)
+- otherwise calls `e.preventDefault()` and selects the contents of `[id$="-sc-sx-preview"]` via `Range.selectNodeContents` + `window.getSelection().addRange(range)`
+
+This means a click in the code preview followed by `Ctrl+A` selects only the code, leaving the rest of CYBERFRAME (other tabs, sidebar, terminal) untouched. Behaviour outside the modal is unchanged.
+
+**Files:** `public/index.html` (1 function, 23 lines added)
+
+---
+
 ## [3.5.0] — 2026-05-12 — Scrap Tool: Smarter AI Selector Generator
 
 Minor release — `/api/scrap/ai-selectors` was a thin one-shot prompt: terse system message, whitespace-collapsed HTML truncated at 60k chars, single LLM call, no validation. It worked but routinely returned `rootSelector` that matched zero elements (silent failure) and missed pagination structure entirely. v3.5.0 rebuilds the endpoint around four ideas: better prompt, richer HTML, structural validation with one retry, and a wider output schema that the client surfaces in the UI.

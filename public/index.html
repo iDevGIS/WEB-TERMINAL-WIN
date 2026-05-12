@@ -5791,6 +5791,30 @@
       authEl.checked = cached.auth != null ? cached.auth : hasAuth;
       authEl.disabled = !hasAuth;
       scrapExportScriptUpdate(tabId);
+      _scrapBindScriptCtrlA();
+    }
+    function _scrapBindScriptCtrlA() {
+      if (window.__scrapScriptCtrlABound) return;
+      window.__scrapScriptCtrlABound = true;
+      document.addEventListener('keydown', (e) => {
+        if (!((e.ctrlKey || e.metaKey) && (e.key === 'a' || e.key === 'A'))) return;
+        if (e.altKey || e.shiftKey) return;
+        const openBd = document.querySelector('.scrap-batch-backdrop.open[id$="-sc-script-bd"]');
+        if (!openBd) return;
+        const t = e.target;
+        if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
+        if (t && t !== document.body && t !== document.documentElement && !openBd.contains(t)) return;
+        const codeEl = openBd.querySelector('[id$="-sc-sx-preview"]');
+        if (!codeEl) return;
+        e.preventDefault();
+        e.stopPropagation();
+        const sel = window.getSelection();
+        if (!sel) return;
+        const range = document.createRange();
+        range.selectNodeContents(codeEl);
+        sel.removeAllRanges();
+        sel.addRange(range);
+      }, true);
     }
     function scrapExportScriptClose(tabId) {
       const bd = document.getElementById(tabId + '-sc-script-bd');
