@@ -5588,6 +5588,10 @@ ANALYSIS PROCESS:
    - "href" / "src" / "alt" / "title" / "data-*" → attribute value
    - For images: if you see "data-src", "data-original", "data-lazy" instead of "src", use those (lazy loading)
 7. Detect pagination ONLY when the goal implies a paginated dataset. A category sidebar typically has no pagination → "none".
+   - Use "url-pattern" ONLY when next-page URLs are pure sequential numerics (e.g. .../page-1, .../page-2, ?page=1, ?page=2). The pattern field MUST contain "{N}".
+   - Use "next-link" when next URLs use cursor tokens, opaque IDs, or hashes (e.g. ?p=2&next=abc123, /more/xY9z, JS-handled buttons). The "selector" field MUST point to the next-page anchor or button (used by Follow-Next loop).
+   - Use "infinite-scroll" when content loads on scroll with no clickable next element.
+   - Always populate "selector" for next-link / page-numbers / infinite-scroll (sentinel element). Leave empty only when type is "none".
 8. Flag any quirks in "notes": lazy images, multi-language tabs, hidden filters, requires JS, login wall, captcha, etc.
 
 OUTPUT — return ONLY valid JSON (no markdown fences, no commentary outside JSON). Schema:
@@ -5643,6 +5647,18 @@ EXAMPLE 3 — goal "get article title and body" (single record):
   },
   "paginationHint": { "type": "none", "selector": "", "pattern": "", "totalPages": 0 },
   "notes": ""
+}
+
+EXAMPLE 4 — goal "list top stories" on Hacker News-style page (next-link with cursor token, NOT url-pattern):
+{
+  "thinking": "Goal asks for stories listing, so I target the repeating story row. The 'More' link goes to /news?p=2&next=43221921 — the cursor token makes this NOT a predictable URL pattern, so paginationHint type is next-link with the selector pointing to the More anchor.",
+  "rootSelector": "tr.athing",
+  "selectors": {
+    "title": { "selector": ".titleline a", "attr": "text" },
+    "link":  { "selector": ".titleline a", "attr": "href" }
+  },
+  "paginationHint": { "type": "next-link", "selector": "a.morelink", "pattern": "", "totalPages": 0 },
+  "notes": "Next-page URL uses an opaque cursor token; use Follow-Next (href strategy) to walk pages."
 }`;
 
 // Goal classifier — picks up navigation/category keywords (TH + EN) so the

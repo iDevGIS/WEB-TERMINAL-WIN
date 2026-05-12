@@ -5784,7 +5784,8 @@
       const batchEl = document.getElementById(tabId + '-sc-sx-batch');
       const authEl = document.getElementById(tabId + '-sc-sx-auth');
       const hasBatchData = !!(document.getElementById(tabId + '-sc-bp-pattern')?.value
-        || document.getElementById(tabId + '-sc-bp-urls')?.value);
+        || document.getElementById(tabId + '-sc-bp-urls')?.value
+        || document.getElementById(tabId + '-sc-bf-next')?.value);
       batchEl.checked = cached.batch != null ? cached.batch : hasBatchData;
       batchEl.disabled = !hasBatchData;
       const hasAuth = !!(tab.scrap.auth && (tab.scrap.auth.cookie || (tab.scrap.auth.headers && Object.keys(tab.scrap.auth.headers).length)));
@@ -5866,7 +5867,22 @@
       const ext = scrapScriptExt(lang);
       const fname = (tab.name || 'scrap').replace(/[^a-z0-9_-]+/gi,'_') + '.' + ext;
       const st = document.getElementById(tabId + '-sc-sx-status');
-      if (st) st.textContent = `${code.split('\n').length} lines · saves as ${fname}`;
+      const bk = opts.batch && opts.batch.kind;
+      const bkLabel = bk === 'follow' ? ` · follow-next (${opts.batch.strategy})` : bk === 'list' ? ' · url list' : bk === 'pattern' ? ' · url pattern' : '';
+      if (st) st.textContent = `${code.split('\n').length} lines${bkLabel} · saves as ${fname}`;
+      const hint = document.getElementById(tabId + '-sc-sx-hint');
+      if (hint) {
+        if (bk === 'follow') {
+          const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+          const isStaticLib = (lib === 'axios-cheerio' || lib === 'requests-bs4' || lib === 'httpx-selectolax' || lib === 'scrapy');
+          const isClickStrat = opts.batch.strategy === 'click';
+          hint.innerHTML = isClickStrat && isStaticLib
+            ? `⚠️ <b>click</b> strategy needs a real browser — this stack is static-only. Script will fall back to <b>href</b>. Switch to a <b>Playwright</b> stack for real clicks.`
+            : `⏭ Follow-Next loop (${esc(opts.batch.strategy === 'click' ? 'Playwright click' : 'static href')}) — start <code>${esc(opts.batch.startUrl)}</code> · next <code>${esc(opts.batch.nextSelector)}</code> · max ${opts.batch.maxPages} pages.`;
+        } else {
+          hint.textContent = 'Generates a standalone runnable script using your current selectors, mode, auth, and batch config. No CYBERFRAME runtime needed.';
+        }
+      }
     }
     function scrapCollectScriptOpts(tabId, useBatch, useAuth) {
       const tab = tabs.get(tabId);
@@ -5893,6 +5909,17 @@
           const raw = document.getElementById(tabId + '-sc-bp-urls')?.value || '';
           const urls = raw.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
           if (urls.length) { opts.useBatch = true; opts.batch = { kind: 'list', urls, delayMs }; }
+        } else if (bmode === 'follow') {
+          const startUrl = (document.getElementById(tabId + '-sc-bf-start')?.value || scrap.url || '').trim();
+          const nextSelector = (document.getElementById(tabId + '-sc-bf-next')?.value || '').trim();
+          const strategy = document.getElementById(tabId + '-sc-bf-strategy')?.value || 'href';
+          const maxPages = parseInt(document.getElementById(tabId + '-sc-bf-max')?.value || '20') || 20;
+          const waitMs = parseInt(document.getElementById(tabId + '-sc-bf-waitms')?.value || '0') || 0;
+          const waitFor = (document.getElementById(tabId + '-sc-bf-waitfor')?.value || '').trim();
+          if (startUrl && nextSelector) {
+            opts.useBatch = true;
+            opts.batch = { kind: 'follow', startUrl, nextSelector, strategy, maxPages, waitMs, waitFor, delayMs };
+          }
         } else {
           let pattern = document.getElementById(tabId + '-sc-bp-pattern')?.value || '';
           const from = parseInt(document.getElementById(tabId + '-sc-bp-from')?.value || '1') || 1;
@@ -5975,6 +6002,18 @@
       // Returns batch info; pattern-mode keeps canonical pattern for runtime expansion.
       if (!opts.useBatch || !opts.batch) return null;
       if (opts.batch.kind === 'list') return { kind: 'list', urls: opts.batch.urls, delayMs: opts.batch.delayMs };
+      if (opts.batch.kind === 'follow') {
+        return {
+          kind: 'follow',
+          startUrl: opts.batch.startUrl || opts.url || '',
+          nextSelector: opts.batch.nextSelector || '',
+          strategy: opts.batch.strategy || 'href',
+          maxPages: opts.batch.maxPages || 20,
+          waitMs: opts.batch.waitMs || 0,
+          waitFor: opts.batch.waitFor || '',
+          delayMs: opts.batch.delayMs || 0,
+        };
+      }
       const { tpl, hasRange, from, to, step } = _scrPatternToTemplate(opts.batch.pattern);
       const lo = hasRange ? from : (parseInt(opts.batch.from) || 1);
       const hi = hasRange ? to : (parseInt(opts.batch.to) || 10);
@@ -6015,6 +6054,83 @@
       const headersLit = Object.keys(headers).length
         ? '{\n' + Object.keys(headers).map(k => `    ${_scrJsStr(k)}: ${_scrJsStr(headers[k])}`).join(',\n') + '\n  }'
         : '{}';
+      if (batch && batch.kind === 'follow') {
+        const fwarn = batch.strategy === 'click' ? `// NOTE: click strategy requires a real browser (Playwright). This script uses 'href' strategy because\n// axios + cheerio is static-only. Switch to the Node.js / Playwright stack for true click behavior.\n` : '';
+        return `// Generated by CYBERFRAME Scrap Tool — Node.js (axios + cheerio, Follow-Next href)
+// Install:  npm i axios cheerio
+// Run:      node scrap.mjs
+${fwarn}import axios from 'axios';
+import * as cheerio from 'cheerio';
+import { writeFileSync } from 'node:fs';
+
+const FOLLOW = {
+  startUrl: ${_scrJsStr(batch.startUrl)},
+  nextSelector: ${_scrJsStr(batch.nextSelector)},
+  maxPages: ${batch.maxPages},
+};
+const DELAY_MS = ${batch.delayMs || 0};
+const HEADERS = ${headersLit};
+const ROOT_SELECTOR = ${_scrJsStr(opts.rootSelector)};
+const FIELDS = {
+${fieldEntries}
+};
+
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+function extractValue($, node, attr) {
+  if (!node || !node.length) return '';
+  if (!attr || attr === 'text') return node.text().trim().replace(/\\s+/g, ' ');
+  if (attr === 'html') return node.html() || '';
+  return (node.attr(attr) || '').trim();
+}
+function absolutize(val, attr, baseUrl) {
+  if (!val) return val;
+  if (attr === 'href' || attr === 'src') { try { return new URL(val, baseUrl).toString(); } catch { return val; } }
+  return val;
+}
+
+(async () => {
+  const all = [];
+  let url = FOLLOW.startUrl;
+  let page = 0;
+  const seen = new Set();
+  while (url && page < FOLLOW.maxPages) {
+    if (seen.has(url)) { console.log(\`stop: loop detected at \${url}\`); break; }
+    seen.add(url);
+    try {
+      const r = await axios.get(url, { headers: HEADERS, timeout: 30000, validateStatus: () => true });
+      if (r.status >= 400) throw new Error('HTTP ' + r.status);
+      const $ = cheerio.load(r.data);
+      const rows = [];
+      const nodes = ROOT_SELECTOR ? $(ROOT_SELECTOR) : $('html').first();
+      nodes.each((_, el) => {
+        const $el = $(el);
+        const row = { _source: url };
+        for (const [name, { selector, attr }] of Object.entries(FIELDS)) {
+          const node = selector ? $el.find(selector).first() : $el;
+          row[name] = absolutize(extractValue($, node, attr), attr, url);
+        }
+        rows.push(row);
+      });
+      console.log(\`[\${page + 1}/\${FOLLOW.maxPages}] \${rows.length} rows · \${url}\`);
+      all.push(...rows);
+      const nextEl = $(FOLLOW.nextSelector).first();
+      const href = nextEl.attr('href');
+      const disabled = nextEl.is('[disabled]') || nextEl.hasClass('disabled') || nextEl.attr('aria-disabled') === 'true';
+      if (!href || disabled) { console.log('stop: no next href' + (disabled ? ' (disabled)' : '')); break; }
+      url = new URL(href, url).toString();
+    } catch (e) {
+      console.error(\`[\${page + 1}] ERROR: \${e.message}\`);
+      break;
+    }
+    page++;
+    if (DELAY_MS) await sleep(DELAY_MS);
+  }
+  writeFileSync('scrap-output.json', JSON.stringify(all, null, 2));
+  console.log(\`✓ wrote \${all.length} rows from \${page} pages → scrap-output.json\`);
+})();
+`;
+      }
       const urlBlock = _scrJsUrlBlock(batch, opts.url);
       return `// Generated by CYBERFRAME Scrap Tool — Node.js (axios + cheerio)
 // Install:  npm i axios cheerio
@@ -6087,12 +6203,100 @@ async function scrapeOne(url) {
       const batch = _scrBatchHeader(opts);
       const fieldEntries = opts.fields.map(f => `  ${_scrJsStr(f.name)}: { selector: ${_scrJsStr(f.selector)}, attr: ${_scrJsStr(f.attr)} }`).join(',\n');
       const cookieObj = _scrCookieToObj(opts.cookie);
+      const isFollow = !!(batch && batch.kind === 'follow');
+      const cookieUrlRef = isFollow ? 'FOLLOW.startUrl' : 'URLS[0]';
       const cookiesLit = Object.keys(cookieObj).length
-        ? '[\n' + Object.keys(cookieObj).map(k => `    { name: ${_scrJsStr(k)}, value: ${_scrJsStr(cookieObj[k])}, url: URLS[0] }`).join(',\n') + '\n  ]'
+        ? '[\n' + Object.keys(cookieObj).map(k => `    { name: ${_scrJsStr(k)}, value: ${_scrJsStr(cookieObj[k])}, url: ${cookieUrlRef} }`).join(',\n') + '\n  ]'
         : '[]';
       const extraHeadersLit = Object.keys(opts.headers).length
         ? '{\n' + Object.keys(opts.headers).map(k => `    ${_scrJsStr(k)}: ${_scrJsStr(opts.headers[k])}`).join(',\n') + '\n  }'
         : '{}';
+      if (isFollow) {
+        return `// Generated by CYBERFRAME Scrap Tool — Node.js (Playwright, Follow-Next ${batch.strategy})
+// Install:  npm i playwright && npx playwright install chromium
+// Run:      node scrap.mjs
+import { chromium } from 'playwright';
+import { writeFileSync } from 'node:fs';
+
+const FOLLOW = {
+  startUrl: ${_scrJsStr(batch.startUrl)},
+  nextSelector: ${_scrJsStr(batch.nextSelector)},
+  strategy: ${_scrJsStr(batch.strategy)},
+  maxPages: ${batch.maxPages},
+  waitMs: ${batch.waitMs || 0},
+  waitFor: ${_scrJsStr(batch.waitFor)},
+};
+const DELAY_MS = ${batch.delayMs || 0};
+const ROOT_SELECTOR = ${_scrJsStr(opts.rootSelector)};
+const FIELDS = {
+${fieldEntries}
+};
+const EXTRA_HEADERS = ${extraHeadersLit};
+const COOKIES = ${cookiesLit};
+
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+(async () => {
+  const browser = await chromium.launch({ headless: true });
+  const context = await browser.newContext({ extraHTTPHeaders: EXTRA_HEADERS });
+  if (COOKIES.length) await context.addCookies(COOKIES);
+  const page = await context.newPage();
+  await page.goto(FOLLOW.startUrl, { waitUntil: 'domcontentloaded', timeout: 45000 });
+  const all = [];
+  const seen = new Set();
+  let p = 0;
+  while (p < FOLLOW.maxPages) {
+    const cur = page.url();
+    if (seen.has(cur)) { console.log(\`stop: loop detected at \${cur}\`); break; }
+    seen.add(cur);
+    const rows = await page.evaluate(({ ROOT_SELECTOR, FIELDS, url }) => {
+      function val(node, attr) {
+        if (!node) return '';
+        if (!attr || attr === 'text') return (node.textContent || '').trim().replace(/\\s+/g, ' ');
+        if (attr === 'html') return node.innerHTML || '';
+        return (node.getAttribute(attr) || '').trim();
+      }
+      function abs(v, attr) {
+        if (!v) return v;
+        if (attr === 'href' || attr === 'src') { try { return new URL(v, url).toString(); } catch { return v; } }
+        return v;
+      }
+      const nodes = ROOT_SELECTOR ? Array.from(document.querySelectorAll(ROOT_SELECTOR)) : [document.documentElement];
+      return nodes.map(el => {
+        const row = { _source: url };
+        for (const [name, { selector, attr }] of Object.entries(FIELDS)) {
+          const sub = selector ? el.querySelector(selector) : el;
+          row[name] = abs(val(sub, attr), attr);
+        }
+        return row;
+      });
+    }, { ROOT_SELECTOR, FIELDS, url: cur });
+    console.log(\`[\${p + 1}/\${FOLLOW.maxPages}] \${rows.length} rows · \${cur}\`);
+    all.push(...rows);
+    const nextLoc = page.locator(FOLLOW.nextSelector).first();
+    if (await nextLoc.count() === 0) { console.log('stop: no next selector match'); break; }
+    if (FOLLOW.strategy === 'href') {
+      const href = await nextLoc.getAttribute('href');
+      if (!href) { console.log('stop: no href on next element'); break; }
+      const nextUrl = new URL(href, cur).toString();
+      await page.goto(nextUrl, { waitUntil: 'domcontentloaded', timeout: 45000 });
+    } else {
+      const isDisabled = await nextLoc.evaluate(el => !!(el.disabled || el.classList.contains('disabled') || el.getAttribute('aria-disabled') === 'true')).catch(() => false);
+      if (isDisabled) { console.log('stop: next button disabled'); break; }
+      await nextLoc.click({ timeout: 10000 }).catch((e) => { throw new Error('click failed: ' + e.message); });
+      if (FOLLOW.waitFor) await page.waitForSelector(FOLLOW.waitFor, { timeout: 15000 }).catch(() => {});
+      else if (FOLLOW.waitMs) await sleep(FOLLOW.waitMs);
+      else await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
+    }
+    p++;
+    if (DELAY_MS) await sleep(DELAY_MS);
+  }
+  await browser.close();
+  writeFileSync('scrap-output.json', JSON.stringify(all, null, 2));
+  console.log(\`✓ wrote \${all.length} rows from \${p} pages → scrap-output.json\`);
+})();
+`;
+      }
       const urlBlock = _scrJsUrlBlock(batch, opts.url);
       return `// Generated by CYBERFRAME Scrap Tool — Node.js (Playwright)
 // Install:  npm i playwright && npx playwright install chromium
@@ -6166,6 +6370,101 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
       const headersLit = Object.keys(headers).length
         ? '{\n' + Object.keys(headers).map(k => `    ${_scrPyStr(k)}: ${_scrPyStr(headers[k])}`).join(',\n') + '\n}'
         : '{}';
+      if (batch && batch.kind === 'follow') {
+        const fwarn = batch.strategy === 'click' ? `# NOTE: click strategy requires a real browser. This script uses 'href' strategy (requests + bs4 is static-only).\n# Switch to the Python / Playwright stack for true button clicks.\n` : '';
+        return `# Generated by CYBERFRAME Scrap Tool — Python (requests + BeautifulSoup, Follow-Next href)
+# Install:  pip install requests beautifulsoup4 lxml
+# Run:      python scrap.py
+${fwarn}import json
+import time
+from urllib.parse import urljoin
+
+import requests
+from bs4 import BeautifulSoup
+
+FOLLOW = {
+    "start_url": ${_scrPyStr(batch.startUrl)},
+    "next_selector": ${_scrPyStr(batch.nextSelector)},
+    "max_pages": ${batch.maxPages},
+}
+DELAY_MS = ${batch.delayMs || 0}
+HEADERS = ${headersLit}
+ROOT_SELECTOR = ${_scrPyStr(opts.rootSelector)}
+FIELDS = {
+${fields}
+}
+
+
+def extract_value(node, attr):
+    if node is None:
+        return ""
+    if not attr or attr == "text":
+        return " ".join(node.get_text(" ", strip=True).split())
+    if attr == "html":
+        return node.decode_contents()
+    return (node.get(attr) or "").strip()
+
+
+def absolutize(val, attr, base_url):
+    if val and attr in ("href", "src"):
+        try:
+            return urljoin(base_url, val)
+        except Exception:
+            return val
+    return val
+
+
+def main():
+    all_rows = []
+    url = FOLLOW["start_url"]
+    page = 0
+    seen = set()
+    while url and page < FOLLOW["max_pages"]:
+        if url in seen:
+            print(f"stop: loop detected at {url}")
+            break
+        seen.add(url)
+        try:
+            r = requests.get(url, headers=HEADERS, timeout=30)
+            r.raise_for_status()
+            soup = BeautifulSoup(r.text, "lxml")
+            rows = []
+            nodes = soup.select(ROOT_SELECTOR) if ROOT_SELECTOR else [soup]
+            for el in nodes:
+                row = {"_source": url}
+                for name, spec in FIELDS.items():
+                    sel = spec["selector"]
+                    attr = spec.get("attr") or "text"
+                    sub = el.select_one(sel) if sel else el
+                    row[name] = absolutize(extract_value(sub, attr), attr, url)
+                rows.append(row)
+            print(f"[{page + 1}/{FOLLOW['max_pages']}] {len(rows)} rows · {url}")
+            all_rows.extend(rows)
+            nxt = soup.select_one(FOLLOW["next_selector"])
+            if nxt is None:
+                print("stop: no next selector match")
+                break
+            disabled = nxt.has_attr("disabled") or "disabled" in (nxt.get("class") or []) or nxt.get("aria-disabled") == "true"
+            href = nxt.get("href")
+            if disabled or not href:
+                print("stop: next disabled or no href")
+                break
+            url = urljoin(url, href)
+        except Exception as e:
+            print(f"[{page + 1}] ERROR: {e}")
+            break
+        page += 1
+        if DELAY_MS:
+            time.sleep(DELAY_MS / 1000.0)
+    with open("scrap-output.json", "w", encoding="utf-8") as f:
+        json.dump(all_rows, f, ensure_ascii=False, indent=2)
+    print(f"✓ wrote {len(all_rows)} rows from {page} pages → scrap-output.json")
+
+
+if __name__ == "__main__":
+    main()
+`;
+      }
       const urlBlock = _scrPyUrlBlock(batch, opts.url);
       return `# Generated by CYBERFRAME Scrap Tool — Python (requests + BeautifulSoup)
 # Install:  pip install requests beautifulsoup4 lxml
@@ -6252,6 +6551,105 @@ if __name__ == "__main__":
       const headersLit = Object.keys(headers).length
         ? '{\n' + Object.keys(headers).map(k => `    ${_scrPyStr(k)}: ${_scrPyStr(headers[k])}`).join(',\n') + '\n}'
         : '{}';
+      if (batch && batch.kind === 'follow') {
+        const fwarn = batch.strategy === 'click' ? `# NOTE: click strategy requires a real browser. This script uses 'href' strategy (httpx + selectolax is static-only).\n# Switch to the Python / Playwright stack for true button clicks.\n` : '';
+        return `# Generated by CYBERFRAME Scrap Tool — Python (httpx + selectolax, Follow-Next href, fast)
+# Install:  pip install httpx selectolax
+# Run:      python scrap.py
+${fwarn}import json
+import asyncio
+from urllib.parse import urljoin
+
+import httpx
+from selectolax.parser import HTMLParser
+
+FOLLOW = {
+    "start_url": ${_scrPyStr(batch.startUrl)},
+    "next_selector": ${_scrPyStr(batch.nextSelector)},
+    "max_pages": ${batch.maxPages},
+}
+DELAY_MS = ${batch.delayMs || 0}
+HEADERS = ${headersLit}
+ROOT_SELECTOR = ${_scrPyStr(opts.rootSelector)}
+FIELDS = {
+${fields}
+}
+
+
+def extract_value(node, attr):
+    if node is None:
+        return ""
+    if not attr or attr == "text":
+        return " ".join((node.text() or "").split())
+    if attr == "html":
+        return node.html or ""
+    return (node.attributes.get(attr) or "").strip()
+
+
+def absolutize(val, attr, base_url):
+    if val and attr in ("href", "src"):
+        try:
+            return urljoin(base_url, val)
+        except Exception:
+            return val
+    return val
+
+
+async def main():
+    all_rows = []
+    url = FOLLOW["start_url"]
+    page = 0
+    seen = set()
+    async with httpx.AsyncClient(headers=HEADERS, follow_redirects=True) as client:
+        while url and page < FOLLOW["max_pages"]:
+            if url in seen:
+                print(f"stop: loop detected at {url}")
+                break
+            seen.add(url)
+            try:
+                r = await client.get(url, timeout=30.0)
+                r.raise_for_status()
+                tree = HTMLParser(r.text)
+                rows = []
+                nodes = tree.css(ROOT_SELECTOR) if ROOT_SELECTOR else [tree.root]
+                for el in nodes:
+                    row = {"_source": url}
+                    for name, spec in FIELDS.items():
+                        sel = spec["selector"]
+                        attr = spec.get("attr") or "text"
+                        sub = el.css_first(sel) if sel else el
+                        row[name] = absolutize(extract_value(sub, attr), attr, url)
+                    rows.append(row)
+                print(f"[{page + 1}/{FOLLOW['max_pages']}] {len(rows)} rows · {url}")
+                all_rows.extend(rows)
+                nxt = tree.css_first(FOLLOW["next_selector"])
+                if nxt is None:
+                    print("stop: no next selector match")
+                    break
+                attrs = nxt.attributes
+                if attrs.get("disabled") is not None or attrs.get("aria-disabled") == "true" or "disabled" in (attrs.get("class") or ""):
+                    print("stop: next disabled")
+                    break
+                href = attrs.get("href")
+                if not href:
+                    print("stop: no href on next element")
+                    break
+                url = urljoin(url, href)
+            except Exception as e:
+                print(f"[{page + 1}] ERROR: {e}")
+                break
+            page += 1
+            if DELAY_MS:
+                await asyncio.sleep(DELAY_MS / 1000.0)
+    with open("scrap-output.json", "w", encoding="utf-8") as f:
+        json.dump(all_rows, f, ensure_ascii=False, indent=2)
+    print(f"✓ wrote {len(all_rows)} rows from {page} pages → scrap-output.json")
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+`;
+      }
       const urlBlock = _scrPyUrlBlock(batch, opts.url);
       return `# Generated by CYBERFRAME Scrap Tool — Python (httpx + selectolax, fast)
 # Install:  pip install httpx selectolax
@@ -6334,13 +6732,138 @@ if __name__ == "__main__":
       const batch = _scrBatchHeader(opts);
       const fields = opts.fields.map(f => `    ${_scrPyStr(f.name)}: {"selector": ${_scrPyStr(f.selector)}, "attr": ${_scrPyStr(f.attr)}}`).join(',\n');
       const cookieObj = _scrCookieToObj(opts.cookie);
-      const firstUrl = (batch ? batch.urls[0] : opts.url) || '';
+      const isFollow = !!(batch && batch.kind === 'follow');
+      const firstUrl = isFollow
+        ? batch.startUrl
+        : ((batch && batch.kind === 'pattern') ? batch.urls[0] : (batch && batch.kind === 'list' ? batch.urls[0] : opts.url)) || '';
       const cookiesLit = Object.keys(cookieObj).length
         ? '[\n' + Object.keys(cookieObj).map(k => `    {"name": ${_scrPyStr(k)}, "value": ${_scrPyStr(cookieObj[k])}, "url": ${_scrPyStr(firstUrl)}}`).join(',\n') + '\n]'
         : '[]';
       const extraHeadersLit = Object.keys(opts.headers).length
         ? '{\n' + Object.keys(opts.headers).map(k => `    ${_scrPyStr(k)}: ${_scrPyStr(opts.headers[k])}`).join(',\n') + '\n}'
         : '{}';
+      if (isFollow) {
+        return `# Generated by CYBERFRAME Scrap Tool — Python (Playwright async, Follow-Next ${batch.strategy})
+# Install:  pip install playwright && playwright install chromium
+# Run:      python scrap.py
+import json
+import asyncio
+from urllib.parse import urljoin
+
+from playwright.async_api import async_playwright
+
+FOLLOW = {
+    "start_url": ${_scrPyStr(batch.startUrl)},
+    "next_selector": ${_scrPyStr(batch.nextSelector)},
+    "strategy": ${_scrPyStr(batch.strategy)},
+    "max_pages": ${batch.maxPages},
+    "wait_ms": ${batch.waitMs || 0},
+    "wait_for": ${_scrPyStr(batch.waitFor)},
+}
+DELAY_MS = ${batch.delayMs || 0}
+ROOT_SELECTOR = ${_scrPyStr(opts.rootSelector)}
+FIELDS = {
+${fields}
+}
+EXTRA_HEADERS = ${extraHeadersLit}
+COOKIES = ${cookiesLit}
+
+
+JS_EXTRACT = """
+(args) => {
+  const { ROOT_SELECTOR, FIELDS, url } = args;
+  function val(node, attr) {
+    if (!node) return '';
+    if (!attr || attr === 'text') return (node.textContent || '').trim().replace(/\\s+/g, ' ');
+    if (attr === 'html') return node.innerHTML || '';
+    return (node.getAttribute(attr) || '').trim();
+  }
+  function abs(v, attr) {
+    if (!v) return v;
+    if (attr === 'href' || attr === 'src') { try { return new URL(v, url).toString(); } catch { return v; } }
+    return v;
+  }
+  const nodes = ROOT_SELECTOR ? Array.from(document.querySelectorAll(ROOT_SELECTOR)) : [document.documentElement];
+  return nodes.map(el => {
+    const row = { _source: url };
+    for (const [name, spec] of Object.entries(FIELDS)) {
+      const sub = spec.selector ? el.querySelector(spec.selector) : el;
+      row[name] = abs(val(sub, spec.attr || 'text'), spec.attr || 'text');
+    }
+    return row;
+  });
+}
+"""
+
+
+async def main():
+    all_rows = []
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True)
+        context = await browser.new_context(extra_http_headers=EXTRA_HEADERS)
+        if COOKIES:
+            await context.add_cookies(COOKIES)
+        page = await context.new_page()
+        await page.goto(FOLLOW["start_url"], wait_until="domcontentloaded", timeout=45000)
+        seen = set()
+        i = 0
+        while i < FOLLOW["max_pages"]:
+            cur = page.url
+            if cur in seen:
+                print(f"stop: loop detected at {cur}")
+                break
+            seen.add(cur)
+            rows = await page.evaluate(JS_EXTRACT, {"ROOT_SELECTOR": ROOT_SELECTOR, "FIELDS": FIELDS, "url": cur})
+            print(f"[{i + 1}/{FOLLOW['max_pages']}] {len(rows)} rows · {cur}")
+            all_rows.extend(rows)
+            loc = page.locator(FOLLOW["next_selector"]).first
+            if await loc.count() == 0:
+                print("stop: no next selector match")
+                break
+            if FOLLOW["strategy"] == "href":
+                href = await loc.get_attribute("href")
+                if not href:
+                    print("stop: no href on next element")
+                    break
+                await page.goto(urljoin(cur, href), wait_until="domcontentloaded", timeout=45000)
+            else:
+                try:
+                    is_disabled = await loc.evaluate("el => !!(el.disabled || el.classList.contains('disabled') || el.getAttribute('aria-disabled') === 'true')")
+                except Exception:
+                    is_disabled = False
+                if is_disabled:
+                    print("stop: next button disabled")
+                    break
+                try:
+                    await loc.click(timeout=10000)
+                except Exception as e:
+                    print(f"stop: click failed: {e}")
+                    break
+                if FOLLOW["wait_for"]:
+                    try:
+                        await page.wait_for_selector(FOLLOW["wait_for"], timeout=15000)
+                    except Exception:
+                        pass
+                elif FOLLOW["wait_ms"]:
+                    await asyncio.sleep(FOLLOW["wait_ms"] / 1000.0)
+                else:
+                    try:
+                        await page.wait_for_load_state("networkidle", timeout=10000)
+                    except Exception:
+                        pass
+            i += 1
+            if DELAY_MS:
+                await asyncio.sleep(DELAY_MS / 1000.0)
+        await browser.close()
+    with open("scrap-output.json", "w", encoding="utf-8") as f:
+        json.dump(all_rows, f, ensure_ascii=False, indent=2)
+    print(f"✓ wrote {len(all_rows)} rows from {i} pages → scrap-output.json")
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+`;
+      }
       const urlBlock = _scrPyUrlBlock(batch, opts.url);
       return `# Generated by CYBERFRAME Scrap Tool — Python (Playwright async, headless browser)
 # Install:  pip install playwright && playwright install chromium
@@ -6426,6 +6949,62 @@ if __name__ == "__main__":
       const headersLit = Object.keys(headers).length
         ? '{\n' + Object.keys(headers).map(k => `        ${_scrPyStr(k)}: ${_scrPyStr(headers[k])}`).join(',\n') + '\n    }'
         : '{}';
+      if (batch && batch.kind === 'follow') {
+        const fwarn = batch.strategy === 'click' ? `# NOTE: click strategy requires a real browser. Scrapy is static; this spider follows 'href' on Next link.\n# Switch to Python / Playwright stack for true button clicks.\n` : '';
+        const delaySecF = ((batch.delayMs || 0) / 1000.0).toFixed(2);
+        return `# Generated by CYBERFRAME Scrap Tool — Python (Scrapy spider, Follow-Next href)
+# Install:  pip install scrapy
+# Run:      scrapy runspider scrap.py -o scrap-output.json
+${fwarn}import scrapy
+from urllib.parse import urljoin
+
+
+class CyberframeSpider(scrapy.Spider):
+    name = "cyberframe_scrap"
+    start_urls = [${_scrPyStr(batch.startUrl)}]
+    custom_settings = {
+        "DOWNLOAD_DELAY": ${delaySecF},
+        "FEED_EXPORT_ENCODING": "utf-8",
+        "DEFAULT_REQUEST_HEADERS": ${headersLit},
+        "DEPTH_LIMIT": ${batch.maxPages},
+    }
+    NEXT_SELECTOR = ${_scrPyStr(batch.nextSelector)}
+    ROOT_SELECTOR = ${_scrPyStr(opts.rootSelector)}
+    FIELDS = {
+${fields}
+    }
+
+    def parse(self, response):
+        nodes = response.css(self.ROOT_SELECTOR) if self.ROOT_SELECTOR else [response]
+        for el in nodes:
+            row = {"_source": response.url}
+            for name, spec in self.FIELDS.items():
+                sel = spec["selector"]
+                attr = spec.get("attr") or "text"
+                if sel:
+                    sub = el.css(sel)[:1]
+                else:
+                    sub = el
+                if not sub:
+                    row[name] = ""
+                    continue
+                if attr == "text":
+                    txt = sub.xpath("string(.)").get() if hasattr(sub, "xpath") else (sub.get() or "")
+                    row[name] = " ".join((txt or "").split())
+                elif attr == "html":
+                    row[name] = sub.get() if hasattr(sub, "get") else ""
+                else:
+                    val = sub.attrib.get(attr, "") if hasattr(sub, "attrib") else (sub.xpath(f"@{attr}").get() or "")
+                    if val and attr in ("href", "src"):
+                        val = urljoin(response.url, val)
+                    row[name] = val or ""
+            yield row
+        # Follow next link
+        nxt = response.css(self.NEXT_SELECTOR + "::attr(href)").get()
+        if nxt:
+            yield response.follow(nxt, callback=self.parse)
+`;
+      }
       const urlBlock = _scrPyUrlBlock(batch, opts.url);
       const delaySec = batch ? ((batch.delayMs || 0) / 1000.0).toFixed(2) : '0';
       return `# Generated by CYBERFRAME Scrap Tool — Python (Scrapy spider)
@@ -6614,6 +7193,21 @@ ${fields}
     function scrapBatchMode(tabId, mode, btn) {
       document.querySelectorAll(`#${tabId}-sc-batch-bd .mode-toggle button`).forEach(b => b.classList.toggle('active', b === btn));
       document.querySelectorAll(`#${tabId}-sc-batch-bd [data-bm-pane]`).forEach(p => { p.style.display = (p.getAttribute('data-bm-pane') === mode) ? '' : 'none'; });
+    }
+    // Open Batch modal in Follow-Next mode with pre-filled values (from AI Pagination hint)
+    function scrapOpenFollowFromAI(tabId, nextSelector, strategy) {
+      const tab = tabs.get(tabId); if (!tab || !tab.scrap) return;
+      scrapBatchOpen(tabId);
+      const btn = document.querySelector(`#${tabId}-sc-batch-bd .mode-toggle button[data-bm="follow"]`);
+      if (btn) scrapBatchMode(tabId, 'follow', btn);
+      const startInp = document.getElementById(tabId + '-sc-bf-start');
+      if (startInp && !startInp.value.trim()) startInp.value = tab.scrap.url || '';
+      const nextInp = document.getElementById(tabId + '-sc-bf-next');
+      if (nextInp) nextInp.value = nextSelector || '';
+      const stratSel = document.getElementById(tabId + '-sc-bf-strategy');
+      if (stratSel) stratSel.value = strategy || 'href';
+      const modeSel = document.getElementById(tabId + '-sc-bp-mode');
+      if (modeSel && strategy === 'click') modeSel.value = 'browser';
     }
     function scrapBatchSetProgress(tabId, done, total) {
       const bar = document.querySelector(`#${tabId}-sc-bp-bar > div`);
@@ -6926,7 +7520,15 @@ ${fields}
         if (p.pattern) detail += ` · pattern <code>${esc(p.pattern)}</code>`;
         if (p.totalPages) detail += ` · total ~${p.totalPages} pages`;
         if (p.selector) detail += ` · next selector <code>${esc(p.selector)}</code>`;
-        parts.push(`<div class="scrap-ai-card scrap-ai-card-info"><div class="scrap-ai-card-title">📄 Pagination</div><div class="scrap-ai-card-body">${detail}${p.type === 'url-pattern' ? ' <span style="opacity:.7">— click 🔁 Batch to use</span>' : ''}</div></div>`);
+        let action = '';
+        if (p.type === 'url-pattern' && p.pattern) {
+          action = ` <button class="scrap-btn-mini scrap-ai-action" onclick="scrapBatchOpen('${tabId}')" style="margin-left:6px;padding:3px 9px;font-size:11px;background:rgba(108,99,255,.18);color:#bdb4ff;border:1px solid rgba(108,99,255,.35);border-radius:4px;cursor:pointer">🔁 Use in URL Pattern</button>`;
+        } else if (p.type === 'next-link' && p.selector) {
+          action = ` <button class="scrap-btn-mini scrap-ai-action" onclick="scrapOpenFollowFromAI('${tabId}', ${JSON.stringify(p.selector).replace(/"/g, '&quot;')}, 'href')" style="margin-left:6px;padding:3px 9px;font-size:11px;background:rgba(108,99,255,.18);color:#bdb4ff;border:1px solid rgba(108,99,255,.35);border-radius:4px;cursor:pointer">⏭ Use in Follow-Next</button>`;
+        } else if (p.type === 'infinite-scroll' && p.selector) {
+          action = ` <button class="scrap-btn-mini scrap-ai-action" onclick="scrapOpenFollowFromAI('${tabId}', ${JSON.stringify(p.selector).replace(/"/g, '&quot;')}, 'click')" style="margin-left:6px;padding:3px 9px;font-size:11px;background:rgba(108,99,255,.18);color:#bdb4ff;border:1px solid rgba(108,99,255,.35);border-radius:4px;cursor:pointer">⏭ Use in Follow-Next (click)</button>`;
+        }
+        parts.push(`<div class="scrap-ai-card scrap-ai-card-info"><div class="scrap-ai-card-title">📄 Pagination</div><div class="scrap-ai-card-body">${detail}${action}</div></div>`);
       }
       if (a.notes) {
         parts.push(`<div class="scrap-ai-card scrap-ai-card-warn"><div class="scrap-ai-card-title">⚠️ Notes</div><div class="scrap-ai-card-body">${esc(a.notes)}</div></div>`);
@@ -7841,7 +8443,7 @@ ${fields}
                 </div>
               </div>
               <label style="display:flex;align-items:center;gap:6px;margin-top:10px;text-transform:none;letter-spacing:normal;color:var(--text2);font-size:12px">
-                <input type="checkbox" id="${tabId}-sc-sx-batch" onchange="scrapExportScriptUpdate('${tabId}')"> Include Batch (use pattern/list from 🔁 Batch modal)
+                <input type="checkbox" id="${tabId}-sc-sx-batch" onchange="scrapExportScriptUpdate('${tabId}')"> Include Batch (use pattern / list / follow-next from 🔁 Batch modal)
               </label>
               <label style="display:flex;align-items:center;gap:6px;margin-top:4px;text-transform:none;letter-spacing:normal;color:var(--text2);font-size:12px">
                 <input type="checkbox" id="${tabId}-sc-sx-auth" checked onchange="scrapExportScriptUpdate('${tabId}')"> Include Auth (cookies + headers, if set)
