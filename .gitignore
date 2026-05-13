@@ -3,7 +3,11 @@ node_modules/
 
 # Logs
 *.log
+*.err
 npm-debug.log*
+nohup.out
+logs/
+debug-*.txt
 
 # OS files
 Thumbs.db
