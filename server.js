@@ -1789,15 +1789,324 @@ const CROSS_TAB_TOOLS = [
       },
     },
   },
+  // === Phase 3 Batch 1 (v3.11.0) — editor write / FS write / docker deep / browser / admin / tabs / snippets ===
+  {
+    type: 'function',
+    function: {
+      name: 'save_file',
+      description: 'Write UTF-8 text content to a file on disk. Overwrites the file. Does NOT auto-refresh open editor tabs — call open_file_in_editor after if the user should see the change.',
+      parameters: {
+        type: 'object',
+        properties: {
+          path: { type: 'string', description: 'Absolute or workspace-relative file path.' },
+          content: { type: 'string', description: 'New file content (UTF-8).' },
+        },
+        required: ['path', 'content'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'insert_at_line',
+      description: 'Insert text at a 1-based line in an already-open Monaco editor tab. The existing line is pushed down. Use \\n in text for line breaks.',
+      parameters: {
+        type: 'object',
+        properties: {
+          path: { type: 'string', description: 'File path of the open editor tab.' },
+          line: { type: 'integer', description: '1-based line number to insert at.' },
+          text: { type: 'string', description: 'Text to insert (include trailing \\n if you want it on its own line).' },
+        },
+        required: ['path', 'line', 'text'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'replace_in_file',
+      description: 'Find-and-replace a UNIQUE substring in an open Monaco editor tab. Fails if find appears 0 or >1 times — pass enough surrounding context to make it unique.',
+      parameters: {
+        type: 'object',
+        properties: {
+          path: { type: 'string', description: 'File path of the open editor tab.' },
+          find: { type: 'string', description: 'Exact substring to locate (must be unique).' },
+          replace: { type: 'string', description: 'Replacement text.' },
+        },
+        required: ['path', 'find', 'replace'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'create_file',
+      description: 'Create an empty new file in the given directory.',
+      parameters: {
+        type: 'object',
+        properties: {
+          dir: { type: 'string', description: 'Parent directory path.' },
+          name: { type: 'string', description: 'New filename (with extension).' },
+        },
+        required: ['dir', 'name'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'create_folder',
+      description: 'Create a new folder under the given parent directory.',
+      parameters: {
+        type: 'object',
+        properties: {
+          dir: { type: 'string', description: 'Parent directory path.' },
+          name: { type: 'string', description: 'New folder name.' },
+        },
+        required: ['dir', 'name'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'delete_path',
+      description: 'Delete a file or folder (recursive for folders). DESTRUCTIVE — only call when the user explicitly asked to delete the path.',
+      parameters: {
+        type: 'object',
+        properties: {
+          path: { type: 'string', description: 'File or folder path to delete.' },
+        },
+        required: ['path'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'rename_path',
+      description: 'Rename a file or folder within the same parent directory (no path separators allowed in newName).',
+      parameters: {
+        type: 'object',
+        properties: {
+          path: { type: 'string', description: 'Current path.' },
+          newName: { type: 'string', description: 'New base name only — no slashes.' },
+        },
+        required: ['path', 'newName'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'move_path',
+      description: 'Move a file or folder into a different directory (keeps its name).',
+      parameters: {
+        type: 'object',
+        properties: {
+          src: { type: 'string', description: 'Source path.' },
+          destDir: { type: 'string', description: 'Destination directory.' },
+        },
+        required: ['src', 'destDir'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'docker_logs',
+      description: 'Fetch the last N lines of logs from a Docker container.',
+      parameters: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'Container id or name.' },
+          tail: { type: 'integer', description: 'Lines to return (default 100, max 1000).' },
+        },
+        required: ['id'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'docker_inspect',
+      description: 'Return inspection details for a container (state, image, env, mounts, networks, ports).',
+      parameters: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'Container id or name.' },
+        },
+        required: ['id'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'docker_images',
+      description: 'List all Docker images on the host (tags, size, created).',
+      parameters: { type: 'object', properties: {}, required: [] },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'docker_volumes',
+      description: 'List all Docker volumes (name, driver, mountpoint).',
+      parameters: { type: 'object', properties: {}, required: [] },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'docker_networks',
+      description: 'List all Docker networks (name, driver, scope, subnet, gateway, container count).',
+      parameters: { type: 'object', properties: {}, required: [] },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'browser_reload',
+      description: 'Reload the page currently shown in the active (or specified) browser tab.',
+      parameters: {
+        type: 'object',
+        properties: {
+          tabId: { type: 'string', description: 'Optional: browser tab id.' },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'browser_get_url',
+      description: 'Return the URL currently loaded in the active (or specified) browser tab.',
+      parameters: {
+        type: 'object',
+        properties: {
+          tabId: { type: 'string', description: 'Optional: browser tab id.' },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'kill_process',
+      description: 'Send SIGTERM to a process by PID. DESTRUCTIVE — only call when the user explicitly asked.',
+      parameters: {
+        type: 'object',
+        properties: {
+          pid: { type: 'integer', description: 'Process id to kill.' },
+        },
+        required: ['pid'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'server_info',
+      description: 'Return Web-Terminal server runtime info (pid, memory, uptime, active sessions, available shells).',
+      parameters: { type: 'object', properties: {}, required: [] },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'tts_speak',
+      description: 'Speak text via Edge Neural TTS (Thai/English auto-detect). Plays the audio in the user\'s browser. Max ~1000 chars.',
+      parameters: {
+        type: 'object',
+        properties: {
+          text: { type: 'string', description: 'Text to speak (max ~1000 chars).' },
+          voice: { type: 'string', description: 'Optional voice id (e.g. th-TH-PremwadeeNeural, en-US-JennyNeural).' },
+        },
+        required: ['text'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'activity_log',
+      description: 'Return recent admin activity events (file saves/deletes, killed processes, restarts, etc.).',
+      parameters: {
+        type: 'object',
+        properties: {
+          limit: { type: 'integer', description: 'Events to return (default 25, max 200).' },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'rename_tab',
+      description: 'Change the display name of any tab.',
+      parameters: {
+        type: 'object',
+        properties: {
+          tabId: { type: 'string', description: 'Tab id to rename.' },
+          name: { type: 'string', description: 'New display name.' },
+        },
+        required: ['tabId', 'name'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'duplicate_editor_tab',
+      description: 'Open another editor tab pointing at the same file as an existing editor tab (preserves unsaved buffer).',
+      parameters: {
+        type: 'object',
+        properties: {
+          tabId: { type: 'string', description: 'Editor tab id to duplicate.' },
+        },
+        required: ['tabId'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'list_snippets',
+      description: 'List all saved command snippets (id, name, command, category).',
+      parameters: { type: 'object', properties: {}, required: [] },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'add_snippet',
+      description: 'Save a new command snippet for quick re-use.',
+      parameters: {
+        type: 'object',
+        properties: {
+          name: { type: 'string', description: 'Display name.' },
+          command: { type: 'string', description: 'Shell command body.' },
+          category: { type: 'string', description: 'Optional category/group label.' },
+        },
+        required: ['name', 'command'],
+      },
+    },
+  },
 ];
 
 function _ctiSystemPreamble() {
   return (
-    'You are connected to the CYBERFRAME UI via Cross-Tab Intelligence tools. ' +
-    'You can list_tabs, get_active_tab, read_file, open_editor, open_file_in_editor, list_files, run_terminal, run_in_active_terminal, browser_navigate, scrap_run, docker_list, docker_action, notify, create_terminal, switch_tab, close_tab, split_tab, set_active_session. ' +
-    'Prefer reading state first (list_tabs, get_active_tab) before acting. ' +
-    'Chain tools when needed (e.g. list_files → open_file_in_editor with line). ' +
-    'Always confirm with a short summary after the last tool returns.'
+    'You are connected to the CYBERFRAME UI via Cross-Tab Intelligence tools (41 total). ' +
+    'Read state: list_tabs, get_active_tab, read_file, list_files, server_info, activity_log, list_snippets, docker_list, docker_images, docker_volumes, docker_networks, docker_inspect, docker_logs, browser_get_url. ' +
+    'Open / navigate: open_editor, open_file_in_editor, browser_navigate, browser_reload, create_terminal, switch_tab, set_active_session, split_tab. ' +
+    'Mutate / write: save_file, insert_at_line, replace_in_file, create_file, create_folder, rename_path, move_path, delete_path, rename_tab, duplicate_editor_tab, add_snippet. ' +
+    'Execute: run_terminal, run_in_active_terminal, scrap_run, docker_action, kill_process, tts_speak. ' +
+    'Tear down: close_tab. UI: notify. ' +
+    'Always prefer reading state first (list_tabs, get_active_tab) before mutating. Chain tools to fulfill multi-step asks. After the final tool returns, confirm with a short summary in the user\'s language. DESTRUCTIVE tools (delete_path, kill_process, docker_action stop/restart, close_tab) require explicit user intent — do not infer them from vague phrasing.'
   );
 }
 

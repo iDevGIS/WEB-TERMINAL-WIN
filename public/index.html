@@ -11598,6 +11598,324 @@ ${fields}
         if (!cur || cur.type !== 'terminal') return { error: 'Active tab is not a terminal.' };
         return await window.__crossTabTools.run_terminal({ command: cmd, tabId: cur.id });
       },
+      // === Phase 3 Batch 1 (v3.11.0) — editor write / FS write / docker deep / browser / admin / tabs / snippets ===
+      async save_file(args) {
+        const p = args && args.path;
+        const content = args && args.content;
+        if (!p) return { error: 'path is required' };
+        if (typeof content !== 'string') return { error: 'content (string) is required' };
+        try {
+          const r = await fetch('/api/files/save', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ filePath: p, content }),
+          });
+          const d = await r.json().catch(() => ({}));
+          if (!r.ok || d.error) return { error: d.error || ('HTTP ' + r.status) };
+          return { ok: true, path: p, bytes: content.length };
+        } catch (e) { return { error: 'save failed: ' + (e && e.message || e) }; }
+      },
+      async insert_at_line(args) {
+        const p = args && args.path;
+        const line = args && args.line;
+        const text = args && args.text;
+        if (!p) return { error: 'path is required' };
+        if (!Number.isFinite(line) || line < 1) return { error: 'line must be a positive integer (1-based)' };
+        if (typeof text !== 'string') return { error: 'text is required' };
+        let editorTab = null;
+        for (const t of tabs.values()) {
+          if (t.type === 'editor' && t.filePath === p && t.monacoEditor) { editorTab = t; break; }
+        }
+        if (!editorTab) return { error: 'Editor tab for ' + p + ' is not open. Call open_editor first.' };
+        try {
+          editorTab.monacoEditor.executeEdits('cti-insert', [{
+            range: { startLineNumber: line, startColumn: 1, endLineNumber: line, endColumn: 1 },
+            text,
+            forceMoveMarkers: true,
+          }]);
+          return { ok: true, path: p, line, inserted: text.length };
+        } catch (e) { return { error: 'insert failed: ' + (e && e.message || e) }; }
+      },
+      async replace_in_file(args) {
+        const p = args && args.path;
+        const find = args && args.find;
+        const replace = args && args.replace;
+        if (!p) return { error: 'path is required' };
+        if (typeof find !== 'string' || !find) return { error: 'find (non-empty string) is required' };
+        if (typeof replace !== 'string') return { error: 'replace is required' };
+        let editorTab = null;
+        for (const t of tabs.values()) {
+          if (t.type === 'editor' && t.filePath === p && t.monacoEditor) { editorTab = t; break; }
+        }
+        if (!editorTab) return { error: 'Editor tab for ' + p + ' is not open. Call open_editor first.' };
+        try {
+          const v = editorTab.monacoEditor.getValue() || '';
+          const idx = v.indexOf(find);
+          if (idx < 0) return { error: 'find string not found in ' + p };
+          if (v.indexOf(find, idx + 1) >= 0) return { error: 'find string is not unique (appears more than once) — add surrounding context' };
+          const newV = v.slice(0, idx) + replace + v.slice(idx + find.length);
+          editorTab.monacoEditor.setValue(newV);
+          return { ok: true, path: p, oldLen: v.length, newLen: newV.length };
+        } catch (e) { return { error: 'replace failed: ' + (e && e.message || e) }; }
+      },
+      async create_file(args) {
+        const dir = args && args.dir;
+        const name = args && args.name;
+        if (!dir || !name) return { error: 'dir and name are required' };
+        try {
+          const r = await fetch('/api/files/new-file', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dirPath: dir, name }) });
+          const d = await r.json().catch(() => ({}));
+          if (!r.ok || d.error) return { error: d.error || ('HTTP ' + r.status) };
+          return { ok: true, dir, name };
+        } catch (e) { return { error: 'create_file failed: ' + (e && e.message || e) }; }
+      },
+      async create_folder(args) {
+        const dir = args && args.dir;
+        const name = args && args.name;
+        if (!dir || !name) return { error: 'dir and name are required' };
+        try {
+          const r = await fetch('/api/files/new-folder', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dirPath: dir, name }) });
+          const d = await r.json().catch(() => ({}));
+          if (!r.ok || d.error) return { error: d.error || ('HTTP ' + r.status) };
+          return { ok: true, dir, name };
+        } catch (e) { return { error: 'create_folder failed: ' + (e && e.message || e) }; }
+      },
+      async delete_path(args) {
+        const p = args && args.path;
+        if (!p) return { error: 'path is required' };
+        try {
+          const r = await fetch('/api/files/delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ filePath: p }) });
+          const d = await r.json().catch(() => ({}));
+          if (!r.ok || d.error) return { error: d.error || ('HTTP ' + r.status) };
+          return { ok: true, path: p, deleted: true };
+        } catch (e) { return { error: 'delete failed: ' + (e && e.message || e) }; }
+      },
+      async rename_path(args) {
+        const p = args && args.path;
+        const newName = args && args.newName;
+        if (!p || !newName) return { error: 'path and newName are required' };
+        if (/[\/\\]/.test(newName)) return { error: 'newName must not contain path separators — use move_path instead' };
+        try {
+          const r = await fetch('/api/files/rename', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ oldPath: p, newName }) });
+          const d = await r.json().catch(() => ({}));
+          if (!r.ok || d.error) return { error: d.error || ('HTTP ' + r.status) };
+          return { ok: true, oldPath: p, newName };
+        } catch (e) { return { error: 'rename failed: ' + (e && e.message || e) }; }
+      },
+      async move_path(args) {
+        const src = args && args.src;
+        const destDir = args && args.destDir;
+        if (!src || !destDir) return { error: 'src and destDir are required' };
+        try {
+          const r = await fetch('/api/files/move', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ srcPath: src, destDir }) });
+          const d = await r.json().catch(() => ({}));
+          if (!r.ok || d.error) return { error: d.error || ('HTTP ' + r.status) };
+          return { ok: true, src, destDir };
+        } catch (e) { return { error: 'move failed: ' + (e && e.message || e) }; }
+      },
+      async docker_logs(args) {
+        const id = args && args.id;
+        if (!id) return { error: 'id is required' };
+        const tail = Math.max(1, Math.min(1000, parseInt(args && args.tail) || 100));
+        try {
+          const r = await fetch('/api/docker/containers/' + encodeURIComponent(id) + '/logs?tail=' + tail);
+          if (!r.ok) {
+            const e = await r.json().catch(() => ({}));
+            return { error: e.error || ('logs failed: HTTP ' + r.status) };
+          }
+          const d = await r.json();
+          const lines = Array.isArray(d.lines) ? d.lines : [];
+          const preview = lines.length > 200 ? lines.slice(-200) : lines;
+          return { id, tail, count: lines.length, lines: preview, truncated: lines.length > preview.length };
+        } catch (e) { return { error: 'docker_logs failed: ' + (e && e.message || e) }; }
+      },
+      async docker_inspect(args) {
+        const id = args && args.id;
+        if (!id) return { error: 'id is required' };
+        try {
+          const r = await fetch('/api/docker/containers/' + encodeURIComponent(id));
+          if (!r.ok) {
+            const e = await r.json().catch(() => ({}));
+            return { error: e.error || ('inspect failed: HTTP ' + r.status) };
+          }
+          const c = await r.json();
+          if (c.error) return { error: c.error };
+          return {
+            id: (c.Id || '').slice(0, 12),
+            name: (c.Name || '').replace(/^\//, ''),
+            image: c.Config && c.Config.Image,
+            state: c.State && c.State.Status,
+            startedAt: c.State && c.State.StartedAt,
+            finishedAt: c.State && c.State.FinishedAt,
+            exitCode: c.State && c.State.ExitCode,
+            restartCount: c.RestartCount,
+            cmd: c.Config && c.Config.Cmd,
+            entrypoint: c.Config && c.Config.Entrypoint,
+            workingDir: c.Config && c.Config.WorkingDir,
+            env: ((c.Config && c.Config.Env) || []).slice(0, 30),
+            mounts: (c.Mounts || []).map(m => ({ type: m.Type, source: m.Source, dest: m.Destination, mode: m.Mode })),
+            networks: Object.keys((c.NetworkSettings && c.NetworkSettings.Networks) || {}),
+            ports: (c.NetworkSettings && c.NetworkSettings.Ports) || {},
+          };
+        } catch (e) { return { error: 'docker_inspect failed: ' + (e && e.message || e) }; }
+      },
+      async docker_images() {
+        try {
+          const r = await fetch('/api/docker/images');
+          if (!r.ok) return { error: 'images failed: HTTP ' + r.status };
+          const list = await r.json();
+          const arr = Array.isArray(list) ? list : [];
+          return { count: arr.length, images: arr.slice(0, 100) };
+        } catch (e) { return { error: 'docker_images failed: ' + (e && e.message || e) }; }
+      },
+      async docker_volumes() {
+        try {
+          const r = await fetch('/api/docker/volumes');
+          if (!r.ok) return { error: 'volumes failed: HTTP ' + r.status };
+          const list = await r.json();
+          const arr = Array.isArray(list) ? list : [];
+          return { count: arr.length, volumes: arr };
+        } catch (e) { return { error: 'docker_volumes failed: ' + (e && e.message || e) }; }
+      },
+      async docker_networks() {
+        try {
+          const r = await fetch('/api/docker/networks');
+          if (!r.ok) return { error: 'networks failed: HTTP ' + r.status };
+          const list = await r.json();
+          const arr = Array.isArray(list) ? list : [];
+          return { count: arr.length, networks: arr };
+        } catch (e) { return { error: 'docker_networks failed: ' + (e && e.message || e) }; }
+      },
+      async browser_reload(args) {
+        let targetTab = null;
+        if (args && args.tabId) targetTab = tabs.get(args.tabId);
+        if (!targetTab) {
+          const cur = tabs.get(activeTabId);
+          if (cur && cur.type === 'browser') targetTab = cur;
+        }
+        if (!targetTab) {
+          for (const t of tabs.values()) { if (t.type === 'browser') { targetTab = t; break; } }
+        }
+        if (!targetTab) return { error: 'No browser tab open.' };
+        const iframe = targetTab.paneEl && targetTab.paneEl.querySelector('iframe');
+        if (!iframe) return { error: 'Browser iframe not found.' };
+        try {
+          const cur = iframe.src;
+          iframe.src = 'about:blank';
+          setTimeout(() => { try { iframe.src = cur; } catch {} }, 30);
+          return { ok: true, tabId: targetTab.id, url: cur };
+        } catch (e) { return { error: 'reload failed: ' + (e && e.message || e) }; }
+      },
+      async browser_get_url(args) {
+        let targetTab = null;
+        if (args && args.tabId) targetTab = tabs.get(args.tabId);
+        if (!targetTab) {
+          const cur = tabs.get(activeTabId);
+          if (cur && cur.type === 'browser') targetTab = cur;
+        }
+        if (!targetTab) {
+          for (const t of tabs.values()) { if (t.type === 'browser') { targetTab = t; break; } }
+        }
+        if (!targetTab) return { error: 'No browser tab open.' };
+        const iframe = targetTab.paneEl && targetTab.paneEl.querySelector('iframe');
+        return { ok: true, tabId: targetTab.id, url: (iframe && iframe.src) || targetTab.url || null };
+      },
+      async kill_process(args) {
+        const pid = parseInt(args && args.pid);
+        if (!Number.isFinite(pid) || pid <= 0) return { error: 'pid (positive integer) is required' };
+        try {
+          const r = await fetch('/api/admin/kill-process', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pid }) });
+          const d = await r.json().catch(() => ({}));
+          if (!r.ok || d.error) return { error: d.error || ('HTTP ' + r.status) };
+          return { ok: true, pid };
+        } catch (e) { return { error: 'kill failed: ' + (e && e.message || e) }; }
+      },
+      async server_info() {
+        try {
+          const r = await fetch('/api/admin/server');
+          if (!r.ok) return { error: 'server info failed: HTTP ' + r.status };
+          return await r.json();
+        } catch (e) { return { error: 'server_info failed: ' + (e && e.message || e) }; }
+      },
+      async tts_speak(args) {
+        const text = args && args.text;
+        if (!text || !text.trim()) return { error: 'text is required' };
+        try {
+          const r = await fetch('/api/tts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: text.slice(0, 1000), voice: args && args.voice }),
+          });
+          if (!r.ok) {
+            const e = await r.json().catch(() => ({}));
+            return { error: e.error || ('TTS failed: HTTP ' + r.status) };
+          }
+          const blob = await r.blob();
+          const url = URL.createObjectURL(blob);
+          const audio = new Audio(url);
+          audio.play().catch(() => {});
+          setTimeout(() => { try { URL.revokeObjectURL(url); } catch {} }, 60000);
+          return { ok: true, chars: Math.min(text.length, 1000), played: true };
+        } catch (e) { return { error: 'tts_speak failed: ' + (e && e.message || e) }; }
+      },
+      async activity_log(args) {
+        const limit = Math.max(1, Math.min(200, parseInt(args && args.limit) || 25));
+        try {
+          const r = await fetch('/api/activity?limit=' + limit);
+          if (!r.ok) return { error: 'activity failed: HTTP ' + r.status };
+          const events = await r.json();
+          const arr = Array.isArray(events) ? events : [];
+          return { count: arr.length, events: arr };
+        } catch (e) { return { error: 'activity_log failed: ' + (e && e.message || e) }; }
+      },
+      async rename_tab(args) {
+        const id = args && (args.tabId || args.tab_id);
+        const name = args && args.name;
+        if (!id) return { error: 'tabId is required' };
+        if (!name || !String(name).trim()) return { error: 'name is required' };
+        const t = tabs.get(id);
+        if (!t) return { error: 'Unknown tabId: ' + id };
+        t.name = String(name).trim().slice(0, 60);
+        try { if (typeof renderTabs === 'function') renderTabs(); } catch {}
+        return { ok: true, tabId: id, name: t.name };
+      },
+      async duplicate_editor_tab(args) {
+        const id = args && (args.tabId || args.tab_id);
+        if (!id) return { error: 'tabId is required' };
+        const t = tabs.get(id);
+        if (!t) return { error: 'Unknown tabId: ' + id };
+        if (t.type !== 'editor') return { error: 'duplicate_editor_tab only works on editor tabs.' };
+        if (!t.filePath) return { error: 'Source editor tab has no file path.' };
+        try {
+          const content = t.monacoEditor ? (t.monacoEditor.getValue() || '') : '';
+          if (typeof openFileInTab === 'function') openFileInTab(t.filePath, content);
+          return { ok: true, sourceTabId: id, path: t.filePath };
+        } catch (e) { return { error: 'duplicate failed: ' + (e && e.message || e) }; }
+      },
+      async list_snippets() {
+        try {
+          const r = await fetch('/api/snippets');
+          if (!r.ok) return { error: 'snippets failed: HTTP ' + r.status };
+          const list = await r.json();
+          const arr = Array.isArray(list) ? list : [];
+          return { count: arr.length, snippets: arr };
+        } catch (e) { return { error: 'list_snippets failed: ' + (e && e.message || e) }; }
+      },
+      async add_snippet(args) {
+        const name = args && args.name;
+        const command = args && args.command;
+        if (!name || !command) return { error: 'name and command are required' };
+        try {
+          const r = await fetch('/api/snippets', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, command, category: (args && args.category) || 'general' }),
+          });
+          const d = await r.json().catch(() => ({}));
+          if (!r.ok || d.error) return { error: d.error || ('HTTP ' + r.status) };
+          return { ok: true, name, command };
+        } catch (e) { return { error: 'add_snippet failed: ' + (e && e.message || e) }; }
+      },
     };
 
     // === Sidekick proactive suggestion bus (v3.10.0) ===
