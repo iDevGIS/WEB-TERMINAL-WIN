@@ -4841,6 +4841,7 @@
       <div class="right">
         <span class="copilot-model-pill" id="copilot-model-pill" title="คลิกเปลี่ยน model">openclaw</span>
         <span class="copilot-ic-btn tools-on" id="copilot-tools-btn" title="Cross-Tab Tools · คลิก toggle">🛠</span>
+        <span class="copilot-ic-btn" id="copilot-clear-btn" title="Clear chat history (Shift = ไม่ confirm)">🧹</span>
         <span class="copilot-ic-btn" id="copilot-mode-btn" title="เปลี่ยน mode">⊟</span>
         <span class="copilot-ic-btn" id="copilot-close-btn" title="ปิด">✕</span>
       </div>
@@ -21775,6 +21776,7 @@ ${fields}
 
       $('copilot-close-btn').addEventListener('click', () => setOpen(false));
       $('copilot-tools-btn').addEventListener('click', toggleTools);
+      $('copilot-clear-btn').addEventListener('click', (e) => clearMessages(e.shiftKey));
       $('copilot-mode-btn').addEventListener('click', toggleModeStrip);
       $('copilot-model-pill').addEventListener('click', cycleModel);
       $('copilot-input').addEventListener('keydown', e => {
@@ -21882,6 +21884,21 @@ ${fields}
     function updateModelPill(){
       const pill = $('copilot-model-pill');
       if (pill) pill.textContent = state.model;
+    }
+
+    /* ---------- Clear ---------- */
+    function clearMessages(skipConfirm){
+      if (state.messages.length === 0) { toast('ยังไม่มีอะไรให้ลบจ้า'); return; }
+      if (!skipConfirm && !confirm(`Clear chat history (${state.messages.length} items)? Shift+คลิก ครั้งหน้าเพื่อข้าม confirm`)) return;
+      try { state.abortCtrl?.abort(); } catch {}
+      state.streaming = false;
+      state.abortCtrl = null;
+      state.messages = [];
+      saveLS(LS_MESSAGES, state.messages);
+      try { setSendDisabled(false); } catch {}
+      render();
+      toast('🧹 Cleared');
+      try { $('copilot-input')?.focus(); } catch {}
     }
 
     /* ---------- Render ---------- */
