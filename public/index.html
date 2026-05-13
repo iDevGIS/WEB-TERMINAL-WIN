@@ -4553,9 +4553,261 @@
     }
     .agent-refresh-note { font-size: 10px; color: var(--text3); text-align: center; margin-top: 8px; }
 
+    /* ============================================
+       Floating Co-Pilot v3.9.0
+       ============================================ */
+    .copilot-launcher {
+      position: fixed; right: 28px; bottom: 28px;
+      width: 56px; height: 56px; border-radius: 50%;
+      background: linear-gradient(135deg, #a855f7 0%, #06b6d4 100%);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 26px; cursor: pointer; z-index: 9999;
+      box-shadow:
+        0 8px 32px rgba(168,85,247,.55),
+        0 0 0 6px rgba(168,85,247,.08),
+        0 0 24px rgba(6,182,212,.4);
+      transition: transform .18s cubic-bezier(.4,0,.2,1), box-shadow .18s, opacity .15s;
+      user-select: none;
+    }
+    .copilot-launcher:hover { transform: scale(1.08); box-shadow: 0 12px 40px rgba(168,85,247,.7), 0 0 0 8px rgba(168,85,247,.12), 0 0 32px rgba(6,182,212,.55); }
+    .copilot-launcher:active { transform: scale(.95); }
+    .copilot-launcher.dragging { transition: none; cursor: grabbing; opacity: .85; }
+    .copilot-launcher.open { opacity: .4; }
+    .copilot-launcher.open:hover { opacity: 1; }
+    .copilot-launcher::before {
+      content: ''; position: absolute; inset: -6px; border-radius: 50%;
+      background: radial-gradient(circle, rgba(168,85,247,.3), transparent 70%);
+      z-index: -1; pointer-events: none;
+    }
+    .copilot-launcher .copilot-dot {
+      position: absolute; top: -2px; right: -2px;
+      width: 12px; height: 12px; border-radius: 50%;
+      background: #22c55e; border: 2px solid #060818;
+      box-shadow: 0 0 8px #22c55e;
+      display: none;
+    }
+    .copilot-launcher.tools-on .copilot-dot { display: block; }
+
+    .copilot-panel {
+      position: fixed;
+      background: rgba(13,16,32,.85);
+      border: 1px solid rgba(168,85,247,.3);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      box-shadow:
+        0 24px 80px rgba(0,0,0,.7),
+        0 0 60px rgba(168,85,247,.15),
+        inset 0 1px 0 rgba(255,255,255,.06);
+      display: none; flex-direction: column; overflow: hidden;
+      z-index: 9998; color: var(--text);
+      transition: opacity .2s ease, transform .25s cubic-bezier(.4,0,.2,1);
+    }
+    .copilot-panel.open { display: flex; }
+    .copilot-panel.bubble {
+      right: 100px; bottom: 28px;
+      width: 400px; height: 580px;
+      border-radius: 16px;
+    }
+    .copilot-panel.sidebar {
+      top: 0; right: 0; bottom: 0;
+      width: 420px; height: 100vh;
+      border-radius: 0;
+      border-top: none; border-right: none; border-bottom: none;
+    }
+    body.copilot-sidebar-open #main,
+    body.copilot-sidebar-open .main,
+    body.copilot-sidebar-open #content { margin-right: 420px; }
+    @media (max-width: 700px) {
+      .copilot-panel.bubble { right: 12px; left: 12px; bottom: 92px; width: auto; height: 70vh; }
+      .copilot-panel.sidebar { width: 100vw; }
+      body.copilot-sidebar-open #main,
+      body.copilot-sidebar-open .main,
+      body.copilot-sidebar-open #content { margin-right: 0; }
+    }
+    .copilot-header {
+      padding: 12px 16px;
+      background: linear-gradient(90deg, rgba(168,85,247,.22), rgba(6,182,212,.18));
+      border-bottom: 1px solid rgba(255,255,255,.08);
+      display: flex; align-items: center; gap: 10px; flex-shrink: 0;
+    }
+    .copilot-title { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; }
+    .copilot-title-ic {
+      width: 26px; height: 26px; border-radius: 50%;
+      background: linear-gradient(135deg, #a855f7, #06b6d4);
+      display: flex; align-items: center; justify-content: center; font-size: 14px;
+    }
+    .copilot-header .right { margin-left: auto; display: flex; gap: 6px; align-items: center; }
+    .copilot-model-pill {
+      font-size: 10px; padding: 3px 8px; background: rgba(34,197,94,.18);
+      color: #86efac; border-radius: 999px; border: 1px solid rgba(34,197,94,.25);
+      cursor: pointer; user-select: none; max-width: 160px; overflow: hidden;
+      text-overflow: ellipsis; white-space: nowrap;
+    }
+    .copilot-ic-btn {
+      width: 26px; height: 26px; display: flex; align-items: center; justify-content: center;
+      background: rgba(255,255,255,.06); border-radius: 6px; font-size: 12px;
+      border: 1px solid rgba(255,255,255,.08); cursor: pointer;
+      transition: background .15s, border-color .15s;
+    }
+    .copilot-ic-btn:hover { background: rgba(255,255,255,.1); border-color: rgba(255,255,255,.15); }
+    .copilot-ic-btn.tools-on { background: rgba(34,197,94,.18); color: #86efac; border-color: rgba(34,197,94,.3); }
+
+    .copilot-body {
+      flex: 1; padding: 16px; overflow-y: auto;
+      display: flex; flex-direction: column; gap: 14px;
+      scrollbar-width: thin; scrollbar-color: rgba(168,85,247,.3) transparent;
+    }
+    .copilot-body::-webkit-scrollbar { width: 6px; }
+    .copilot-body::-webkit-scrollbar-thumb { background: rgba(168,85,247,.3); border-radius: 3px; }
+
+    .copilot-msg { max-width: 90%; font-size: 13px; line-height: 1.55; }
+    .copilot-msg.user { align-self: flex-end; }
+    .copilot-msg.assistant { align-self: flex-start; }
+    .copilot-msg .bub-u {
+      background: linear-gradient(135deg, rgba(168,85,247,.28), rgba(6,182,212,.18));
+      padding: 9px 13px; border-radius: 14px 14px 4px 14px;
+      border: 1px solid rgba(168,85,247,.3); word-wrap: break-word;
+    }
+    .copilot-msg .bub-a {
+      background: rgba(255,255,255,.05);
+      padding: 9px 13px; border-radius: 14px 14px 14px 4px;
+      border: 1px solid rgba(255,255,255,.08); word-wrap: break-word;
+    }
+    .copilot-msg .bub-a code {
+      background: rgba(168,85,247,.18); padding: 1px 6px; border-radius: 4px;
+      color: #c084fc; font-family: 'JetBrains Mono', 'Cascadia Code', monospace; font-size: 11.5px;
+    }
+    .copilot-msg .bub-a pre {
+      background: rgba(0,0,0,.4); padding: 8px 10px; border-radius: 6px; margin: 6px 0;
+      overflow-x: auto; font-family: 'JetBrains Mono', monospace; font-size: 11.5px;
+      white-space: pre; max-width: 100%;
+    }
+    .copilot-msg .avatar {
+      width: 22px; height: 22px; border-radius: 50%;
+      background: linear-gradient(135deg,#a855f7,#06b6d4);
+      display: inline-flex; align-items: center; justify-content: center;
+      font-size: 11px; margin-bottom: 4px;
+    }
+    .copilot-tool-card {
+      background: rgba(168,85,247,.1);
+      border: 1px solid rgba(168,85,247,.25);
+      border-radius: 10px; padding: 10px 12px;
+      font-size: 11.5px; align-self: flex-start; max-width: 92%;
+    }
+    .copilot-tool-card .tool-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+    .copilot-tool-card .tool-name { color: #c084fc; font-family: 'JetBrains Mono', monospace; font-weight: 600; }
+    .copilot-tool-card .tool-stat {
+      margin-left: auto; font-size: 10px; padding: 2px 8px;
+      border-radius: 999px; border: 1px solid;
+    }
+    .copilot-tool-card .tool-stat.running { background: rgba(251,191,36,.15); color: #fbbf24; border-color: rgba(251,191,36,.3); }
+    .copilot-tool-card .tool-stat.done { background: rgba(34,197,94,.18); color: #86efac; border-color: rgba(34,197,94,.25); }
+    .copilot-tool-card .tool-stat.error { background: rgba(248,113,113,.18); color: #fca5a5; border-color: rgba(248,113,113,.25); }
+    .copilot-tool-card .tool-body {
+      background: rgba(0,0,0,.3); padding: 6px 8px; border-radius: 6px;
+      font-family: 'JetBrains Mono', monospace; font-size: 10.5px; color: #a8e8f7;
+      white-space: pre-wrap; line-height: 1.5; max-height: 200px; overflow-y: auto;
+    }
+
+    .copilot-footer {
+      padding: 10px 12px; border-top: 1px solid rgba(255,255,255,.07);
+      background: rgba(0,0,0,.25); display: flex; gap: 8px; align-items: center;
+      flex-shrink: 0;
+    }
+    .copilot-input {
+      flex: 1; background: rgba(255,255,255,.06);
+      border-radius: 999px; padding: 8px 14px;
+      font-size: 12.5px; color: var(--text);
+      border: 1px solid rgba(255,255,255,.08); outline: none;
+      font-family: inherit;
+      transition: border-color .15s, background .15s;
+    }
+    .copilot-input:focus { border-color: rgba(168,85,247,.5); background: rgba(255,255,255,.08); }
+    .copilot-send-btn {
+      width: 36px; height: 36px; border-radius: 50%; flex-shrink: 0;
+      background: linear-gradient(135deg, #a855f7, #06b6d4);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px; color: #fff; border: none; cursor: pointer;
+      transition: transform .15s, opacity .15s;
+    }
+    .copilot-send-btn:hover { transform: scale(1.06); }
+    .copilot-send-btn:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+
+    .copilot-mode-strip {
+      position: fixed; bottom: 16px; display: none; gap: 6px; padding: 6px;
+      background: rgba(13,16,32,.7);
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: 999px; backdrop-filter: blur(16px);
+      font-size: 11px; z-index: 9997;
+    }
+    .copilot-mode-strip.show { display: flex; }
+    .copilot-mode-strip .mode {
+      padding: 5px 11px; border-radius: 999px;
+      color: var(--text2); display: flex; align-items: center; gap: 5px; cursor: pointer;
+      border: 1px solid transparent;
+    }
+    .copilot-mode-strip .mode:hover { color: var(--text); }
+    .copilot-mode-strip .mode.active {
+      background: linear-gradient(90deg, rgba(168,85,247,.35), rgba(6,182,212,.25));
+      color: #fff; border-color: rgba(168,85,247,.4);
+    }
+
+    .copilot-empty {
+      color: var(--text3); font-size: 12.5px; text-align: center;
+      padding: 30px 16px; line-height: 1.7;
+    }
+    .copilot-empty .hint { color: #c084fc; font-family: 'JetBrains Mono', monospace; font-size: 11px; }
+
+    .copilot-typing { display: inline-flex; gap: 4px; align-items: center; padding: 4px 0; }
+    .copilot-typing span {
+      width: 6px; height: 6px; border-radius: 50%; background: #a855f7;
+      animation: copilot-pulse 1.2s infinite ease-in-out;
+    }
+    .copilot-typing span:nth-child(2) { animation-delay: .15s; }
+    .copilot-typing span:nth-child(3) { animation-delay: .3s; }
+    @keyframes copilot-pulse {
+      0%, 80%, 100% { opacity: .3; transform: scale(.8); }
+      40% { opacity: 1; transform: scale(1); }
+    }
+
   </style>
 </head>
 <body>
+  <!-- Floating Co-Pilot v3.9.0 -->
+  <div class="copilot-launcher" id="copilot-launcher" title="Co-Pilot · กดเปิด chat ลอย">
+    🤖
+    <span class="copilot-dot"></span>
+  </div>
+  <div class="copilot-panel bubble" id="copilot-panel" role="dialog" aria-label="Co-Pilot chat">
+    <div class="copilot-header">
+      <div class="copilot-title">
+        <span class="copilot-title-ic">🤖</span>
+        <span>Co-Pilot</span>
+      </div>
+      <div class="right">
+        <span class="copilot-model-pill" id="copilot-model-pill" title="คลิกเปลี่ยน model">openclaw</span>
+        <span class="copilot-ic-btn tools-on" id="copilot-tools-btn" title="Cross-Tab Tools · คลิก toggle">🛠</span>
+        <span class="copilot-ic-btn" id="copilot-mode-btn" title="เปลี่ยน mode">⊟</span>
+        <span class="copilot-ic-btn" id="copilot-close-btn" title="ปิด">✕</span>
+      </div>
+    </div>
+    <div class="copilot-body" id="copilot-body">
+      <div class="copilot-empty" id="copilot-empty">
+        🍥 สวัสดีค้าลูกพี่ — เจ้คือ Co-Pilot ลอยข้างๆ<br>
+        ลองพิมพ์: <span class="hint">"list tabs ที่เปิดอยู่"</span> หรือ <span class="hint">"เปิด package.json"</span>
+      </div>
+    </div>
+    <div class="copilot-footer">
+      <input class="copilot-input" id="copilot-input" type="text" placeholder="พิมพ์ข้อความ หรือ /command..." autocomplete="off">
+      <button class="copilot-send-btn" id="copilot-send-btn" title="ส่ง (Enter)">↑</button>
+    </div>
+  </div>
+  <div class="copilot-mode-strip" id="copilot-mode-strip">
+    <div class="mode active" data-mode="bubble">💬 Bubble</div>
+    <div class="mode" data-mode="sidebar">📐 Sidebar</div>
+    <div class="mode" data-mode="fullscreen">⛶ Fullscreen</div>
+  </div>
+
   <!-- File Manager Drawer -->
   <div id="file-drawer-overlay" class="file-drawer-overlay" onclick="closeFileModal()"></div>
   <div id="file-drawer" class="file-drawer">
@@ -20484,6 +20736,460 @@ ${fields}
         });
       });
     })();
+  </script>
+
+  <!-- ============================================
+       Floating Co-Pilot v3.9.0 — independent chat
+       reuses backend /api/chat + Cross-Tab Tools dispatcher
+       ============================================ -->
+  <script>
+  (function(){
+    'use strict';
+    const LS_OPEN = 'cyberframe.copilot.open';
+    const LS_MODE = 'cyberframe.copilot.mode';
+    const LS_TOOLS = 'cyberframe.copilot.tools';
+    const LS_MODEL = 'cyberframe.copilot.model';
+    const LS_MESSAGES = 'cyberframe.copilot.messages';
+    const LS_LAUNCHER_POS = 'cyberframe.copilot.launcherPos';
+
+    const state = {
+      open: false,
+      mode: 'bubble',
+      enableTools: true,
+      model: 'openclaw',
+      messages: [],
+      streaming: false,
+      abortCtrl: null,
+    };
+
+    function $(id){ return document.getElementById(id); }
+    function loadLS(k, def){ try { const v = localStorage.getItem(k); return v == null ? def : JSON.parse(v); } catch { return def; } }
+    function saveLS(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
+
+    function init(){
+      state.open = loadLS(LS_OPEN, false);
+      state.mode = loadLS(LS_MODE, 'bubble');
+      state.enableTools = loadLS(LS_TOOLS, true);
+      state.model = loadLS(LS_MODEL, 'openclaw');
+      state.messages = loadLS(LS_MESSAGES, []);
+
+      const launcher = $('copilot-launcher');
+      if (!launcher) return;
+      launcher.addEventListener('click', toggleOpen);
+      makeDraggable(launcher);
+      restoreLauncherPos(launcher);
+
+      $('copilot-close-btn').addEventListener('click', () => setOpen(false));
+      $('copilot-tools-btn').addEventListener('click', toggleTools);
+      $('copilot-mode-btn').addEventListener('click', toggleModeStrip);
+      $('copilot-model-pill').addEventListener('click', cycleModel);
+      $('copilot-input').addEventListener('keydown', e => {
+        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+      });
+      $('copilot-send-btn').addEventListener('click', send);
+
+      document.querySelectorAll('#copilot-mode-strip .mode').forEach(el => {
+        el.addEventListener('click', () => setMode(el.dataset.mode));
+      });
+
+      applyOpenState(); applyToolsState(); applyModePosition(); updateModelPill();
+      render();
+    }
+
+    /* ---------- Open / Close ---------- */
+    function setOpen(v){
+      state.open = !!v; saveLS(LS_OPEN, state.open); applyOpenState();
+      if (state.open) setTimeout(() => $('copilot-input')?.focus(), 50);
+    }
+    function toggleOpen(e){
+      if (e && (e.detail || 0) === 0 && launcherWasDragged) return;
+      setOpen(!state.open);
+    }
+    function applyOpenState(){
+      const panel = $('copilot-panel');
+      const launcher = $('copilot-launcher');
+      if (state.open) { panel.classList.add('open'); launcher.classList.add('open'); }
+      else { panel.classList.remove('open'); launcher.classList.remove('open'); $('copilot-mode-strip').classList.remove('show'); }
+    }
+
+    /* ---------- Tools ---------- */
+    function toggleTools(){
+      state.enableTools = !state.enableTools; saveLS(LS_TOOLS, state.enableTools); applyToolsState();
+      toast(state.enableTools ? '🛠 Cross-Tab Tools enabled' : 'Cross-Tab Tools disabled');
+    }
+    function applyToolsState(){
+      const btn = $('copilot-tools-btn');
+      const launcher = $('copilot-launcher');
+      if (state.enableTools) { btn.classList.add('tools-on'); launcher.classList.add('tools-on'); }
+      else { btn.classList.remove('tools-on'); launcher.classList.remove('tools-on'); }
+    }
+
+    /* ---------- Mode ---------- */
+    function toggleModeStrip(){ $('copilot-mode-strip').classList.toggle('show'); }
+    function setMode(mode){
+      // fullscreen = jump to existing Chat tab (best of both worlds)
+      if (mode === 'fullscreen') {
+        try {
+          // try to find or activate Chat tab
+          if (window.activateChatTab) window.activateChatTab();
+          else if (window.newTab && window.tabs) {
+            // open chat tab via existing flow
+            const ev = new CustomEvent('cyberframe:open-chat-tab');
+            window.dispatchEvent(ev);
+          }
+        } catch {}
+        setOpen(false);
+        $('copilot-mode-strip').classList.remove('show');
+        return;
+      }
+      state.mode = mode; saveLS(LS_MODE, mode);
+      applyModePosition();
+      document.querySelectorAll('#copilot-mode-strip .mode').forEach(el => {
+        el.classList.toggle('active', el.dataset.mode === mode);
+      });
+    }
+    function applyModePosition(){
+      const panel = $('copilot-panel');
+      const strip = $('copilot-mode-strip');
+      panel.classList.remove('bubble', 'sidebar');
+      panel.classList.add(state.mode === 'sidebar' ? 'sidebar' : 'bubble');
+      document.body.classList.toggle('copilot-sidebar-open', state.mode === 'sidebar' && state.open);
+      // strip position follows panel
+      if (state.mode === 'sidebar') strip.style.right = '440px';
+      else strip.style.right = '510px';
+      // sync active highlight
+      document.querySelectorAll('#copilot-mode-strip .mode').forEach(el => {
+        el.classList.toggle('active', el.dataset.mode === state.mode);
+      });
+    }
+
+    /* ---------- Model ---------- */
+    function cycleModel(){
+      // simple cycle through common options
+      const options = ['openclaw', 'claude-opus-4-7', 'claude-sonnet-4-6', 'ollama'];
+      const idx = options.indexOf(state.model);
+      state.model = options[(idx + 1) % options.length];
+      saveLS(LS_MODEL, state.model); updateModelPill();
+      toast(`Model → ${state.model}`);
+    }
+    function updateModelPill(){
+      const pill = $('copilot-model-pill');
+      if (pill) pill.textContent = state.model;
+    }
+
+    /* ---------- Render ---------- */
+    function render(){
+      const body = $('copilot-body');
+      const empty = $('copilot-empty');
+      if (!body) return;
+      if (state.messages.length === 0) {
+        body.innerHTML = '';
+        body.appendChild(empty || document.createTextNode(''));
+        return;
+      }
+      body.innerHTML = '';
+      state.messages.forEach(m => body.appendChild(renderMsg(m)));
+      body.scrollTop = body.scrollHeight;
+    }
+    function renderMsg(m){
+      if (m.type === 'tool') return renderToolCard(m);
+      const wrap = document.createElement('div');
+      wrap.className = 'copilot-msg ' + (m.role === 'user' ? 'user' : 'assistant');
+      if (m.role === 'assistant') {
+        const av = document.createElement('span'); av.className = 'avatar'; av.textContent = '🤖';
+        wrap.appendChild(av); wrap.appendChild(document.createElement('br'));
+      }
+      const bub = document.createElement('div');
+      bub.className = m.role === 'user' ? 'bub-u' : 'bub-a';
+      bub.innerHTML = renderContent(m.content || '');
+      wrap.appendChild(bub);
+      return wrap;
+    }
+    function renderToolCard(m){
+      const card = document.createElement('div');
+      card.className = 'copilot-tool-card';
+      card.innerHTML = `
+        <div class="tool-head">
+          <span class="tool-name">${esc(m.name || '')}</span>
+          <span class="tool-stat ${m.status || 'running'}">${m.status === 'done' ? '✓ done' : m.status === 'error' ? '✗ error' : '⏳ running'}</span>
+        </div>
+        <div class="tool-body">${esc(formatToolBody(m))}</div>
+      `;
+      return card;
+    }
+    function formatToolBody(m){
+      let s = '';
+      try { s = JSON.stringify(m.args || {}, null, 2); } catch { s = String(m.args); }
+      if (m.result !== undefined) {
+        let r = '';
+        try { r = typeof m.result === 'string' ? m.result : JSON.stringify(m.result, null, 2); } catch { r = String(m.result); }
+        s += '\n→ ' + r;
+      }
+      return s;
+    }
+    function renderContent(text){
+      // minimal markdown: code fences, inline code, line breaks
+      const codeFenced = String(text).replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) => `<pre>${esc(code)}</pre>`);
+      return codeFenced
+        .replace(/`([^`]+)`/g, (_, c) => `<code>${esc(c)}</code>`)
+        .replace(/\n/g, '<br>');
+    }
+    function esc(s){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+    /* ---------- Send + Stream ---------- */
+    async function send(){
+      const inp = $('copilot-input');
+      const txt = (inp.value || '').trim();
+      if (!txt || state.streaming) return;
+      inp.value = '';
+      state.messages.push({ role: 'user', content: txt, ts: Date.now() });
+      saveMessages(); render();
+      await stream();
+    }
+    function saveMessages(){
+      // keep last 200 messages to stay within localStorage
+      const trimmed = state.messages.slice(-200);
+      saveLS(LS_MESSAGES, trimmed);
+    }
+    async function stream(maxRounds = 6, round = 0){
+      if (round >= maxRounds) { state.streaming = false; return; }
+      state.streaming = true; setSendDisabled(true);
+
+      // build payload
+      const apiMessages = state.messages.filter(m => m.type !== 'tool').map(m => ({
+        role: m.role, content: typeof m.content === 'string' ? m.content : (m.content || '')
+      }));
+
+      const tools = (state.enableTools && window.__crossTabTools)
+        ? buildToolsSchema()
+        : undefined;
+
+      const placeholder = { role: 'assistant', content: '', ts: Date.now(), _pending: true };
+      state.messages.push(placeholder); render();
+
+      let assistantText = '';
+      let toolCalls = []; // collected during stream
+      try {
+        state.abortCtrl = new AbortController();
+        const res = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          signal: state.abortCtrl.signal,
+          body: JSON.stringify({
+            messages: apiMessages,
+            model: state.model,
+            stream: true,
+            enableTools: !!state.enableTools,
+            tools: tools,
+          })
+        });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const reader = res.body.getReader();
+        const dec = new TextDecoder();
+        let buf = '';
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buf += dec.decode(value, { stream: true });
+          let idx;
+          while ((idx = buf.indexOf('\n\n')) >= 0) {
+            const event = buf.slice(0, idx); buf = buf.slice(idx + 2);
+            for (const line of event.split('\n')) {
+              if (!line.startsWith('data:')) continue;
+              const data = line.slice(5).trim();
+              if (data === '[DONE]') continue;
+              try {
+                const obj = JSON.parse(data);
+                const delta = obj.choices?.[0]?.delta || {};
+                if (delta.content) {
+                  assistantText += delta.content;
+                  placeholder.content = assistantText;
+                  // light re-render of last bubble
+                  updateLastAssistant(assistantText);
+                }
+                if (delta.tool_calls) {
+                  for (const tc of delta.tool_calls) {
+                    const i = tc.index ?? toolCalls.length;
+                    toolCalls[i] ||= { id: '', name: '', argsText: '' };
+                    if (tc.id) toolCalls[i].id = tc.id;
+                    if (tc.function?.name) toolCalls[i].name = tc.function.name;
+                    if (tc.function?.arguments) toolCalls[i].argsText += tc.function.arguments;
+                  }
+                }
+              } catch {}
+            }
+          }
+        }
+      } catch (e) {
+        placeholder.content = (assistantText || '') + `\n\n⚠️ ${e.message || e}`;
+        render();
+        state.streaming = false; setSendDisabled(false); saveMessages();
+        return;
+      }
+      placeholder._pending = false; placeholder.content = assistantText;
+
+      // try inline parse if no native tool calls came
+      if (toolCalls.length === 0 && state.enableTools && assistantText) {
+        const inline = parseInlineToolCalls(assistantText);
+        if (inline && inline.length) {
+          toolCalls = inline.map((c, i) => ({ id: 'inline_'+i, name: c.name, argsText: JSON.stringify(c.arguments || {}), _inline: true }));
+          // strip toolcall blocks from displayed text
+          placeholder.content = assistantText.replace(/```toolcall[\s\S]*?```/g, '').trim();
+        }
+      }
+
+      saveMessages(); render();
+
+      if (toolCalls.length > 0) {
+        for (const tc of toolCalls) {
+          let args = {};
+          try { args = JSON.parse(tc.argsText || '{}'); } catch {}
+          const card = { type: 'tool', name: tc.name, args, status: 'running', ts: Date.now() };
+          state.messages.push(card); render();
+          let result;
+          try {
+            result = await execTool(tc.name, args);
+            card.result = result; card.status = 'done';
+          } catch (e) {
+            card.result = { error: e.message || String(e) }; card.status = 'error';
+          }
+          render(); saveMessages();
+          // push tool result back as user message (Gateway-compatible)
+          state.messages.push({
+            role: 'user',
+            content: `[tool_result:${tc.name}]\n${typeof result === 'string' ? result : JSON.stringify(result || card.result)}`,
+            ts: Date.now(), _toolResult: true
+          });
+        }
+        saveMessages();
+        return stream(maxRounds, round + 1);
+      }
+
+      state.streaming = false; setSendDisabled(false);
+    }
+    function updateLastAssistant(text){
+      const body = $('copilot-body');
+      if (!body) return;
+      const lastBub = body.querySelector('.copilot-msg.assistant:last-of-type .bub-a');
+      if (lastBub) lastBub.innerHTML = renderContent(text);
+      body.scrollTop = body.scrollHeight;
+    }
+    function setSendDisabled(d){
+      const b = $('copilot-send-btn');
+      if (b) b.disabled = !!d;
+    }
+
+    /* ---------- Tool execution ---------- */
+    async function execTool(name, args){
+      // prefer existing dispatcher
+      if (typeof window._ctiExecuteToolCall === 'function') {
+        return await window._ctiExecuteToolCall({ function: { name, arguments: JSON.stringify(args || {}) } });
+      }
+      const fn = window.__crossTabTools && window.__crossTabTools[name];
+      if (!fn) throw new Error('Unknown tool: ' + name);
+      return await fn(args || {});
+    }
+    function parseInlineToolCalls(text){
+      if (typeof window._ctiParseInlineToolCalls === 'function') {
+        const calls = window._ctiParseInlineToolCalls(text) || [];
+        return calls.map(c => ({ name: c.function?.name || c.name, arguments: c.function?.arguments ? safeJson(c.function.arguments) : (c.arguments || {}) }));
+      }
+      // fallback inline parser
+      const out = [];
+      const re = /```toolcall\s*\n([\s\S]*?)```/g;
+      let m;
+      while ((m = re.exec(text))) {
+        try { const o = JSON.parse(m[1]); if (o.name) out.push(o); } catch {}
+      }
+      return out;
+    }
+    function safeJson(s){ try { return JSON.parse(s); } catch { return {}; } }
+    function buildToolsSchema(){
+      const reg = window.__crossTabTools || {};
+      return Object.keys(reg).map(name => ({
+        type: 'function',
+        function: { name, description: reg[name]._description || '', parameters: reg[name]._parameters || { type: 'object', properties: {} } }
+      }));
+    }
+
+    /* ---------- Drag launcher ---------- */
+    let launcherWasDragged = false;
+    function makeDraggable(el){
+      let sx, sy, ox, oy, moving = false;
+      el.addEventListener('mousedown', start);
+      el.addEventListener('touchstart', e => { const t = e.touches[0]; start({ clientX: t.clientX, clientY: t.clientY, preventDefault: () => e.preventDefault() }); }, { passive: true });
+
+      function start(e){
+        moving = false; launcherWasDragged = false;
+        const r = el.getBoundingClientRect();
+        sx = e.clientX; sy = e.clientY; ox = r.left; oy = r.top;
+        document.addEventListener('mousemove', move);
+        document.addEventListener('mouseup', end);
+        document.addEventListener('touchmove', tmove, { passive: false });
+        document.addEventListener('touchend', end);
+      }
+      function move(e){ apply(e.clientX, e.clientY); }
+      function tmove(e){ e.preventDefault(); const t = e.touches[0]; apply(t.clientX, t.clientY); }
+      function apply(cx, cy){
+        const dx = cx - sx, dy = cy - sy;
+        if (Math.abs(dx) > 4 || Math.abs(dy) > 4) {
+          moving = true; launcherWasDragged = true;
+          el.classList.add('dragging');
+          el.style.right = 'auto'; el.style.bottom = 'auto';
+          el.style.left = (ox + dx) + 'px';
+          el.style.top = (oy + dy) + 'px';
+        }
+      }
+      function end(){
+        document.removeEventListener('mousemove', move);
+        document.removeEventListener('mouseup', end);
+        document.removeEventListener('touchmove', tmove);
+        document.removeEventListener('touchend', end);
+        if (moving) {
+          el.classList.remove('dragging');
+          // snap to nearest corner
+          const r = el.getBoundingClientRect();
+          const W = window.innerWidth, H = window.innerHeight;
+          const cx = r.left + r.width/2, cy = r.top + r.height/2;
+          const right = cx > W/2, bottom = cy > H/2;
+          el.style.left = 'auto'; el.style.top = 'auto';
+          el.style.right = right ? '28px' : 'auto';
+          el.style.bottom = bottom ? '28px' : 'auto';
+          if (!right) el.style.left = '28px';
+          if (!bottom) el.style.top = '28px';
+          saveLS(LS_LAUNCHER_POS, { right, bottom });
+        }
+        setTimeout(() => { launcherWasDragged = false; }, 200);
+      }
+    }
+    function restoreLauncherPos(el){
+      const p = loadLS(LS_LAUNCHER_POS, { right: true, bottom: true });
+      el.style.left = 'auto'; el.style.top = 'auto'; el.style.right = 'auto'; el.style.bottom = 'auto';
+      if (p.right) el.style.right = '28px'; else el.style.left = '28px';
+      if (p.bottom) el.style.bottom = '28px'; else el.style.top = '28px';
+    }
+
+    /* ---------- Toast ---------- */
+    function toast(msg){
+      if (typeof window.cfToast === 'function') return window.cfToast(msg);
+      console.log('[copilot]', msg);
+    }
+
+    /* ---------- Public API ---------- */
+    window.copilot = {
+      open: () => setOpen(true),
+      close: () => setOpen(false),
+      toggle: () => setOpen(!state.open),
+      setMode,
+      addMessage: m => { state.messages.push(m); saveMessages(); render(); },
+      clear: () => { state.messages = []; saveMessages(); render(); },
+      state,
+    };
+
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+    else init();
+  })();
   </script>
 </body>
 </html>

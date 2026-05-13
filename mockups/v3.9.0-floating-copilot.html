@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<title>CYBERFRAME — Floating Co-Pilot v3.9.0 mockup</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    width: 1280px; height: 800px;
+    font-family: 'Segoe UI', 'Inter', system-ui, sans-serif;
+    background: radial-gradient(ellipse at 20% 10%, #1a1130 0%, #060818 60%);
+    color: #e6e8f0;
+    overflow: hidden;
+  }
+
+  /* ---- Mock app shell ---- */
+  .topbar {
+    height: 44px;
+    background: linear-gradient(90deg, rgba(168,85,247,.18), rgba(6,182,212,.18));
+    border-bottom: 1px solid rgba(255,255,255,.08);
+    display: flex; align-items: center; padding: 0 16px;
+    gap: 12px;
+    backdrop-filter: blur(20px);
+  }
+  .logo { font-weight: 700; background: linear-gradient(90deg,#a855f7,#06b6d4);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    font-size: 16px; letter-spacing: .5px; }
+  .tabs { display: flex; gap: 4px; margin-left: 24px; flex: 1; }
+  .tab {
+    padding: 6px 14px; font-size: 13px;
+    background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.06);
+    border-radius: 8px 8px 0 0; color: #c4c7d4;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .tab.active { background: rgba(168,85,247,.15); color: #fff; border-color: rgba(168,85,247,.35); }
+  .tab .x { opacity: .4; font-size: 11px; margin-left: 4px; }
+  .toolbar-r { display: flex; gap: 8px; align-items: center; font-size: 12px; color: #9aa0b3; }
+  .pill { padding: 4px 10px; background: rgba(255,255,255,.05); border-radius: 999px;
+    border: 1px solid rgba(255,255,255,.08); }
+
+  /* ---- Editor mock ---- */
+  .editor-wrap {
+    position: absolute; top: 44px; left: 0; right: 0; bottom: 0;
+    padding: 20px 24px;
+    display: grid; grid-template-columns: 240px 1fr;
+    gap: 16px;
+  }
+  .sidebar {
+    background: rgba(255,255,255,.025); border: 1px solid rgba(255,255,255,.05);
+    border-radius: 10px; padding: 16px; font-size: 12px;
+  }
+  .sidebar h4 { font-size: 11px; text-transform: uppercase; letter-spacing: 1px;
+    color: #7a7f95; margin-bottom: 10px; }
+  .sidebar .file { padding: 5px 8px; border-radius: 6px; color: #c4c7d4;
+    margin-bottom: 2px; cursor: default; }
+  .sidebar .file.sel { background: rgba(6,182,212,.18); color: #a8e8f7; }
+  .sidebar .file .ic { opacity: .6; margin-right: 6px; }
+
+  .editor {
+    background: rgba(8,10,22,.7); border: 1px solid rgba(255,255,255,.06);
+    border-radius: 10px; overflow: hidden; position: relative;
+  }
+  .editor-header {
+    height: 32px; background: rgba(255,255,255,.03); border-bottom: 1px solid rgba(255,255,255,.05);
+    display: flex; align-items: center; padding: 0 14px; font-size: 11px; color: #888c9d;
+    gap: 8px;
+  }
+  .editor-body {
+    padding: 14px 18px; font-family: 'Cascadia Code', 'Consolas', monospace;
+    font-size: 12.5px; line-height: 1.7; color: #c8ccdb;
+  }
+  .editor-body .ln { color: #4a4f63; display: inline-block; width: 28px; user-select: none; }
+  .editor-body .kw { color: #c084fc; }
+  .editor-body .fn { color: #67e8f9; }
+  .editor-body .str { color: #fbbf24; }
+  .editor-body .cm { color: #6b7280; font-style: italic; }
+  .editor-body .pl { color: #a8e8f7; }
+
+  /* ---- Floating launcher ---- */
+  .launcher {
+    position: fixed; right: 28px; bottom: 28px;
+    width: 56px; height: 56px; border-radius: 50%;
+    background: linear-gradient(135deg, #a855f7 0%, #06b6d4 100%);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 26px;
+    box-shadow:
+      0 8px 32px rgba(168,85,247,.55),
+      0 0 0 6px rgba(168,85,247,.08),
+      0 0 24px rgba(6,182,212,.4);
+    cursor: pointer; z-index: 9999;
+  }
+  .launcher::after {
+    content: ''; position: absolute; inset: -6px; border-radius: 50%;
+    background: radial-gradient(circle, rgba(168,85,247,.3), transparent 70%);
+    z-index: -1;
+  }
+  .launcher .dot {
+    position: absolute; top: -2px; right: -2px;
+    width: 12px; height: 12px; border-radius: 50%;
+    background: #22c55e; border: 2px solid #060818;
+    box-shadow: 0 0 8px #22c55e;
+  }
+
+  /* ---- Popup chat ---- */
+  .popup {
+    position: fixed; right: 100px; bottom: 28px;
+    width: 400px; height: 580px;
+    background: rgba(13,16,32,.85);
+    border: 1px solid rgba(168,85,247,.3);
+    border-radius: 16px;
+    backdrop-filter: blur(24px);
+    box-shadow:
+      0 24px 80px rgba(0,0,0,.7),
+      0 0 60px rgba(168,85,247,.15),
+      inset 0 1px 0 rgba(255,255,255,.06);
+    display: flex; flex-direction: column; overflow: hidden;
+    z-index: 9998;
+  }
+  .popup-header {
+    padding: 12px 16px;
+    background: linear-gradient(90deg, rgba(168,85,247,.22), rgba(6,182,212,.18));
+    border-bottom: 1px solid rgba(255,255,255,.08);
+    display: flex; align-items: center; gap: 10px;
+  }
+  .popup-title {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 13px; font-weight: 600;
+  }
+  .popup-title .ic {
+    width: 26px; height: 26px; border-radius: 50%;
+    background: linear-gradient(135deg, #a855f7, #06b6d4);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px;
+  }
+  .popup-header .right { margin-left: auto; display: flex; gap: 6px; align-items: center; }
+  .model-pill {
+    font-size: 10px; padding: 3px 8px; background: rgba(34,197,94,.18);
+    color: #86efac; border-radius: 999px; border: 1px solid rgba(34,197,94,.25);
+  }
+  .ic-btn {
+    width: 26px; height: 26px; display: flex; align-items: center; justify-content: center;
+    background: rgba(255,255,255,.06); border-radius: 6px; font-size: 12px;
+    border: 1px solid rgba(255,255,255,.08);
+  }
+  .ic-btn.tools-on { background: rgba(34,197,94,.18); color: #86efac; border-color: rgba(34,197,94,.3); }
+
+  .popup-body {
+    flex: 1; padding: 16px; overflow-y: auto;
+    display: flex; flex-direction: column; gap: 14px;
+  }
+  .msg { max-width: 90%; font-size: 13px; line-height: 1.55; }
+  .msg.u { align-self: flex-end; }
+  .msg.a { align-self: flex-start; }
+  .msg .bub-u {
+    background: linear-gradient(135deg, rgba(168,85,247,.28), rgba(6,182,212,.18));
+    padding: 9px 13px; border-radius: 14px 14px 4px 14px;
+    border: 1px solid rgba(168,85,247,.3);
+  }
+  .msg .bub-a {
+    background: rgba(255,255,255,.05);
+    padding: 9px 13px; border-radius: 14px 14px 14px 4px;
+    border: 1px solid rgba(255,255,255,.08);
+  }
+  .msg.a .avatar {
+    width: 22px; height: 22px; border-radius: 50%;
+    background: linear-gradient(135deg,#a855f7,#06b6d4);
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 11px; margin-bottom: 4px;
+  }
+  .tool-card {
+    background: rgba(168,85,247,.1);
+    border: 1px solid rgba(168,85,247,.25);
+    border-radius: 10px; padding: 10px 12px;
+    font-size: 11.5px; align-self: flex-start; max-width: 92%;
+  }
+  .tool-card .tool-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .tool-card .tool-name { color: #c084fc; font-family: monospace; font-weight: 600; }
+  .tool-card .tool-stat { margin-left: auto; font-size: 10px;
+    padding: 2px 8px; background: rgba(34,197,94,.18); color: #86efac;
+    border-radius: 999px; border: 1px solid rgba(34,197,94,.25); }
+  .tool-card .tool-body {
+    background: rgba(0,0,0,.3); padding: 6px 8px; border-radius: 6px;
+    font-family: monospace; font-size: 10.5px; color: #a8e8f7;
+    white-space: pre-wrap; line-height: 1.5;
+  }
+
+  .popup-footer {
+    padding: 10px 12px; border-top: 1px solid rgba(255,255,255,.07);
+    background: rgba(0,0,0,.25); display: flex; gap: 8px; align-items: center;
+  }
+  .input-wrap {
+    flex: 1; background: rgba(255,255,255,.06);
+    border-radius: 999px; padding: 8px 14px;
+    font-size: 12.5px; color: #9aa0b3;
+    border: 1px solid rgba(255,255,255,.08);
+  }
+  .send-btn {
+    width: 36px; height: 36px; border-radius: 50%;
+    background: linear-gradient(135deg, #a855f7, #06b6d4);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; color: #fff;
+  }
+
+  /* ---- Mode chooser ---- */
+  .mode-strip {
+    position: fixed; bottom: 16px; right: 510px;
+    display: flex; gap: 6px; padding: 6px;
+    background: rgba(13,16,32,.7);
+    border: 1px solid rgba(255,255,255,.08);
+    border-radius: 999px; backdrop-filter: blur(16px);
+    font-size: 11px;
+  }
+  .mode-strip .mode {
+    padding: 5px 11px; border-radius: 999px;
+    color: #9aa0b3; display: flex; align-items: center; gap: 5px;
+  }
+  .mode-strip .mode.active {
+    background: linear-gradient(90deg, rgba(168,85,247,.35), rgba(6,182,212,.25));
+    color: #fff; border: 1px solid rgba(168,85,247,.4);
+  }
+
+  /* ---- Caption ---- */
+  .caption {
+    position: fixed; top: 60px; right: 24px;
+    padding: 8px 14px; background: rgba(13,16,32,.75);
+    border: 1px solid rgba(168,85,247,.3);
+    border-radius: 10px; font-size: 11px;
+    color: #c4c7d4; backdrop-filter: blur(12px);
+  }
+  .caption b { color: #c084fc; }
+</style>
+</head>
+<body>
+
+  <!-- TOPBAR -->
+  <div class="topbar">
+    <div class="logo">CYBERFRAME</div>
+    <div class="tabs">
+      <div class="tab active">📂 Files <span class="x">×</span></div>
+      <div class="tab">📝 server.js <span class="x">×</span></div>
+      <div class="tab">⚡ PowerShell <span class="x">×</span></div>
+      <div class="tab">🐳 nginx-1 logs <span class="x">×</span></div>
+    </div>
+    <div class="toolbar-r">
+      <span class="pill">🟢 ws://gyozen:3000</span>
+      <span class="pill">v3.9.0</span>
+    </div>
+  </div>
+
+  <!-- EDITOR -->
+  <div class="editor-wrap">
+    <div class="sidebar">
+      <h4>workspace</h4>
+      <div class="file"><span class="ic">📁</span>public</div>
+      <div class="file sel"><span class="ic">📄</span>server.js</div>
+      <div class="file"><span class="ic">📄</span>package.json</div>
+      <div class="file"><span class="ic">📄</span>README.md</div>
+      <div class="file"><span class="ic">📄</span>.env</div>
+      <div class="file"><span class="ic">📄</span>.env.example</div>
+      <div class="file"><span class="ic">📁</span>node_modules</div>
+    </div>
+    <div class="editor">
+      <div class="editor-header">📄 server.js — line 1842/3964 • UTF-8 • LF</div>
+      <div class="editor-body">
+<span class="ln">1842</span><span class="cm">// CTI: handle inline tool-use protocol via Gateway</span><br>
+<span class="ln">1843</span><span class="kw">function</span> <span class="fn">_ctiInlineToolsInstruction</span>(<span class="pl">tools</span>) {<br>
+<span class="ln">1844</span>&nbsp;&nbsp;<span class="kw">const</span> <span class="pl">catalog</span> = <span class="pl">tools</span>.<span class="fn">map</span>(<span class="pl">t</span> =&gt; ({<br>
+<span class="ln">1845</span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="pl">name</span>: <span class="pl">t</span>.<span class="pl">function</span>.<span class="pl">name</span>,<br>
+<span class="ln">1846</span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="pl">desc</span>: <span class="pl">t</span>.<span class="pl">function</span>.<span class="pl">description</span>,<br>
+<span class="ln">1847</span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="pl">params</span>: <span class="pl">t</span>.<span class="pl">function</span>.<span class="pl">parameters</span> || {},<br>
+<span class="ln">1848</span>&nbsp;&nbsp;}));<br>
+<span class="ln">1849</span>&nbsp;&nbsp;<span class="kw">return</span> <span class="str">`To call a tool, emit a fenced block:\n\`\`\`toolcall\n...\n\`\`\``</span>;<br>
+<span class="ln">1850</span>}<br>
+<span class="ln">1851</span><br>
+<span class="ln">1852</span><span class="cm">// v3.9.0 — Floating Co-Pilot launcher hook</span><br>
+<span class="ln">1853</span><span class="pl">app</span>.<span class="fn">get</span>(<span class="str">'/api/copilot/state'</span>, <span class="kw">async</span> (<span class="pl">req, res</span>) =&gt; {<br>
+<span class="ln">1854</span>&nbsp;&nbsp;<span class="kw">const</span> <span class="pl">snapshot</span> = <span class="kw">await</span> <span class="fn">_buildTabsSnapshot</span>();<br>
+<span class="ln">1855</span>&nbsp;&nbsp;<span class="pl">res</span>.<span class="fn">json</span>({ <span class="pl">ok</span>: <span class="kw">true</span>, <span class="pl">snapshot</span>, <span class="pl">model</span>: <span class="str">'openclaw'</span> });<br>
+<span class="ln">1856</span>});<br>
+      </div>
+    </div>
+  </div>
+
+  <!-- CAPTION -->
+  <div class="caption">
+    <b>v3.9.0 — Floating Co-Pilot</b><br>
+    🤖 ลอยข้างๆ ตลอด · กดเปิด popup · ไม่ต้องสลับ tab
+  </div>
+
+  <!-- POPUP CHAT -->
+  <div class="popup">
+    <div class="popup-header">
+      <div class="popup-title">
+        <span class="ic">🤖</span>
+        <span>Co-Pilot</span>
+      </div>
+      <div class="right">
+        <span class="model-pill">openclaw · Opus 4.7</span>
+        <span class="ic-btn tools-on" title="Tools enabled">🛠</span>
+        <span class="ic-btn">⊟</span>
+        <span class="ic-btn">✕</span>
+      </div>
+    </div>
+
+    <div class="popup-body">
+      <div class="msg u"><div class="bub-u">เปิด server.js แล้วบอก line ที่จัดการ Gateway tool-use หน่อย</div></div>
+
+      <div class="msg a">
+        <span class="avatar">🤖</span>
+        <div class="bub-a">ได้เลยค้าลูกพี่ — ขอเช็คก่อน 🍥</div>
+      </div>
+
+      <div class="tool-card">
+        <div class="tool-head">
+          <span class="tool-name">open_editor</span>
+          <span class="tool-stat">✓ done</span>
+        </div>
+        <div class="tool-body">{ "path": "server.js" }
+→ { "ok": true, "tab_id": "tab-12", "lines": 3964 }</div>
+      </div>
+
+      <div class="tool-card">
+        <div class="tool-head">
+          <span class="tool-name">read_file</span>
+          <span class="tool-stat">✓ done</span>
+        </div>
+        <div class="tool-body">{ "path": "server.js", "from": 1840, "to": 1860 }
+→ 20 lines returned</div>
+      </div>
+
+      <div class="msg a">
+        <span class="avatar">🤖</span>
+        <div class="bub-a">
+          เปิดไฟล์ให้แล้ว · scroll ไป <b>line 1843</b> ฟังก์ชัน
+          <code style="background:rgba(168,85,247,.2);padding:1px 5px;border-radius:4px;color:#c084fc;font-size:12px;">_ctiInlineToolsInstruction()</code>
+          คือจุดที่ inject tools schema เข้า system prompt ก่อนส่งผ่าน Gateway ค้า 🍥
+        </div>
+      </div>
+    </div>
+
+    <div class="popup-footer">
+      <div class="input-wrap">พิมพ์ข้อความ หรือ /command ...</div>
+      <div class="send-btn">↑</div>
+    </div>
+  </div>
+
+  <!-- MODE STRIP -->
+  <div class="mode-strip">
+    <div class="mode active">💬 Bubble</div>
+    <div class="mode">📐 Sidebar</div>
+    <div class="mode">⛶ Fullscreen</div>
+  </div>
+
+  <!-- LAUNCHER -->
+  <div class="launcher">
+    🤖
+    <span class="dot"></span>
+  </div>
+
+</body>
+</html>
