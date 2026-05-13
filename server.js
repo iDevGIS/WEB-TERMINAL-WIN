@@ -2331,6 +2331,66 @@ const CROSS_TAB_TOOLS = [
       },
     },
   },
+  {
+    type: 'function',
+    function: {
+      name: 'scrap_heal_recipe',
+      description: 'Self-heal a Scrap recipe: ask AI to regenerate broken CSS selectors, validate by dry-run, then apply. Use when a recipe returns far fewer rows than usual or empty results. Selectors get backed up; rollback is available via scrap_rollback_recipe.',
+      parameters: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'Recipe id to heal.' },
+          goal: { type: 'string', description: 'Optional natural-language hint about what the recipe should extract.' },
+          dryRun: { type: 'boolean', description: 'If true, return candidate selectors without applying them. Default false.' },
+        },
+        required: ['id'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'scrap_rollback_recipe',
+      description: 'Rollback a Scrap recipe to its most recent selector backup (after a previous heal). Use when a healed recipe still misbehaves.',
+      parameters: {
+        type: 'object',
+        properties: { id: { type: 'string', description: 'Recipe id to rollback.' } },
+        required: ['id'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'scrap_set_schedule',
+      description: 'Update the schedule for a Scrap recipe (enable/disable, interval in minutes).',
+      parameters: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'Recipe id.' },
+          enabled: { type: 'boolean', description: 'Enable or disable scheduled runs.' },
+          intervalMin: { type: 'number', description: 'Interval between runs in minutes (>=1).' },
+          alwaysSnapshot: { type: 'boolean', description: 'Snapshot every run regardless of change. Default false.' },
+        },
+        required: ['id'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'scrap_heal_events',
+      description: 'List recent self-heal events (attempts, successes, failures, rollbacks). Useful for status checks.',
+      parameters: {
+        type: 'object',
+        properties: {
+          since: { type: 'string', description: 'ISO timestamp; only events strictly after this time are returned.' },
+          limit: { type: 'number', description: 'Max events to return (1..200). Default 20.' },
+        },
+        required: [],
+      },
+    },
+  },
   // Workspaces
   {
     type: 'function',
@@ -6972,6 +7032,210 @@ function _scrapDiffRows(a, b) {
   return { changed: true, added, removed };
 }
 
+// === Self-Healing v3.13.0 ====================================================
+const SCRAP_HEAL_LOG = path.join(SCRAP_DIR, "heal-events.jsonl");
+function _scrapHealEventsAppend(evt) {
+  try {
+    const line = JSON.stringify({ at: new Date().toISOString(), ...evt }) + "\n";
+    fs.appendFileSync(SCRAP_HEAL_LOG, line);
+  } catch (e) { console.error("[scrap-heal-log]", e.message || e); }
+}
+function _scrapHealEventsRead(sinceIso, limit) {
+  try {
+    if (!fs.existsSync(SCRAP_HEAL_LOG)) return [];
+    const lines = fs.readFileSync(SCRAP_HEAL_LOG, "utf8").split(/\r?\n/).filter(Boolean);
+    const sinceMs = sinceIso ? Date.parse(sinceIso) : 0;
+    const out = [];
+    for (let i = lines.length - 1; i >= 0; i--) {
+      try {
+        const j = JSON.parse(lines[i]);
+        if (sinceMs && Date.parse(j.at) <= sinceMs) break;
+        out.push(j);
+        if (limit && out.length >= limit) break;
+      } catch {}
+    }
+    return out.reverse();
+  } catch { return []; }
+}
+
+// Detect if a recipe run signals breakage relative to its history.
+function _scrapDetectBreakage(recipe, result) {
+  const newCount = (result && result.rows) ? result.rows.length : 0;
+  const oldCount = recipe.lastRowCount || 0;
+  if (oldCount > 0 && newCount === 0) return { broken: true, reason: "collapsed_to_zero", oldCount, newCount };
+  if (oldCount >= 10 && newCount < oldCount * 0.1) return { broken: true, reason: "dropped_90_pct", oldCount, newCount };
+  if (oldCount >= 3 && newCount < oldCount * 0.3) return { broken: true, reason: "dropped_70_pct", oldCount, newCount };
+  return { broken: false, oldCount, newCount };
+}
+
+// Throttle: don't attempt heal more than once per 30 minutes per recipe.
+function _scrapHealThrottled(recipe) {
+  const last = recipe.selfHeal?.lastHealAttemptAt ? Date.parse(recipe.selfHeal.lastHealAttemptAt) : 0;
+  if (!last) return false;
+  return (Date.now() - last) < 30 * 60 * 1000;
+}
+
+// Fetch raw HTML for a recipe URL (static path — ai-selectors gets cleaned HTML).
+async function _scrapFetchRawHtml(recipe) {
+  const auth = recipe.auth || {};
+  const r = await fetch(String(recipe.url), {
+    headers: {
+      "User-Agent": SCRAP_UA,
+      "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+      "Accept-Language": "en-US,en;q=0.7,th;q=0.5",
+      ..._scrapAuthHeaders(auth),
+    },
+    redirect: "follow",
+  });
+  const html = await r.text();
+  return { html, finalUrl: r.url || recipe.url, status: r.status };
+}
+
+// Attempt self-heal: re-ask AI for selectors, validate, dry-run, return candidate.
+async function _scrapAttemptHeal(recipe, opts = {}) {
+  const goal = String(opts.goal || recipe.selfHeal?.goal || recipe.name || "Extract the main listing items with the same fields as before").trim();
+  // 1. Fetch fresh HTML
+  let html, finalUrl;
+  try {
+    const f = await _scrapFetchRawHtml(recipe);
+    html = f.html; finalUrl = f.finalUrl;
+  } catch (e) {
+    return { healed: false, error: "fetch_failed: " + (e.message || String(e)) };
+  }
+  if (!html || html.length < 100) {
+    return { healed: false, error: "fetch_empty_html" };
+  }
+  // 2. Call AI for new selectors (reuse internal helpers, same as /api/scrap/ai-selectors)
+  const currentFields = Object.keys(recipe.selectors || {}).map(k => ({ name: k, ...(recipe.selectors[k] || {}) }));
+  const cleaned = _scrapAIClean(html, { keepChrome: false });
+  const compact = cleaned.length > 150000 ? cleaned.slice(0, 150000) + "\n<!-- ... truncated ... -->" : cleaned;
+  const ctxLine = currentFields.length
+    ? `\n\nEXISTING SELECTORS (rescue these — keep the same field names; pick a new rootSelector if the page restructured):\n${JSON.stringify(currentFields, null, 2)}`
+    : "";
+  const userMsg = `Goal: ${goal}${ctxLine}\n\nHTML:\n\`\`\`html\n${compact}\n\`\`\``;
+  let aiResp;
+  try {
+    aiResp = await _scrapAICall({ sys: SCRAP_AI_SYS, userMsg, reqModel: "", agentId: "main", providerHint: "" });
+  } catch (e) {
+    return { healed: false, error: "ai_call_failed: " + (e.message || String(e)) };
+  }
+  const parsed = _scrapAIParseJSON(aiResp.text);
+  if (!parsed) return { healed: false, error: "ai_no_json", aiRaw: (aiResp.text || "").slice(0, 400) };
+  const valid = _scrapAIValidate(html, parsed);
+  if (!valid.ok) return { healed: false, error: "ai_invalid_selectors", validation: valid, parsed: { rootSelector: parsed.rootSelector, fields: Object.keys(parsed.selectors || {}) } };
+
+  // 3. Map AI fields back to user's original field names where possible (preserve schema).
+  const aiSelectors = parsed.selectors || {};
+  const origFieldNames = Object.keys(recipe.selectors || {});
+  const aiFieldNames = Object.keys(aiSelectors);
+  const finalSelectors = {};
+  if (origFieldNames.length) {
+    for (const name of origFieldNames) {
+      if (aiSelectors[name]) finalSelectors[name] = aiSelectors[name];
+    }
+    // If AI returned same count but different names, do positional zip fallback
+    if (Object.keys(finalSelectors).length === 0 && aiFieldNames.length === origFieldNames.length) {
+      for (let i = 0; i < origFieldNames.length; i++) {
+        finalSelectors[origFieldNames[i]] = aiSelectors[aiFieldNames[i]];
+      }
+    }
+    // If still empty, accept AI names
+    if (Object.keys(finalSelectors).length === 0) Object.assign(finalSelectors, aiSelectors);
+  } else {
+    Object.assign(finalSelectors, aiSelectors);
+  }
+
+  const candidate = {
+    ...recipe,
+    rootSelector: parsed.rootSelector || recipe.rootSelector,
+    selectors: finalSelectors,
+  };
+
+  // 4. Dry-run the candidate to verify rowCount recovery.
+  let testResult;
+  try {
+    testResult = await _scrapRunRecipe(candidate);
+  } catch (e) {
+    return { healed: false, error: "test_run_failed: " + (e.message || String(e)), candidate: { rootSelector: candidate.rootSelector, fields: Object.keys(finalSelectors) } };
+  }
+  const newRowCount = testResult.rows.length;
+  const oldRowCount = recipe.lastRowCount || 0;
+  // Recovery threshold: >= 50% of old count, or at least 3 rows for fresh/zero recipes.
+  const recoveryOk = (oldRowCount > 0 ? newRowCount >= Math.max(1, Math.floor(oldRowCount * 0.5)) : newRowCount >= 3);
+  if (!recoveryOk) {
+    return {
+      healed: false,
+      error: "low_rowcount",
+      newRowCount, oldRowCount,
+      candidate: { rootSelector: candidate.rootSelector, fields: Object.keys(finalSelectors) },
+    };
+  }
+  return {
+    healed: true,
+    newRowCount, oldRowCount,
+    oldSelectors: { rootSelector: recipe.rootSelector, selectors: recipe.selectors || {} },
+    newSelectors: { rootSelector: candidate.rootSelector, selectors: finalSelectors },
+    rows: testResult.rows,
+    finalUrl: testResult.finalUrl,
+    status: testResult.status,
+    aiNotes: parsed.notes || "",
+  };
+}
+
+// Apply a successful heal candidate to the persisted recipe + save snapshot + log event.
+function _scrapApplyHeal(recipe, healResult, trigger) {
+  const now = new Date().toISOString();
+  const prev = recipe.selfHeal?.previousSelectors || [];
+  // Keep last 3 selector backups for rollback.
+  const backup = { at: now, rootSelector: healResult.oldSelectors.rootSelector, selectors: healResult.oldSelectors.selectors };
+  const newPrev = [backup, ...prev].slice(0, 3);
+  recipe.rootSelector = healResult.newSelectors.rootSelector;
+  recipe.selectors = healResult.newSelectors.selectors;
+  recipe.selfHeal = {
+    enabled: recipe.selfHeal?.enabled !== false,
+    goal: recipe.selfHeal?.goal || "",
+    lastHealedAt: now,
+    lastHealAttemptAt: now,
+    healCount: (recipe.selfHeal?.healCount || 0) + 1,
+    previousSelectors: newPrev,
+  };
+  recipe.lastRunAt = now;
+  recipe.lastRowCount = healResult.newRowCount;
+  recipe.lastHash = _scrapHashRows(healResult.rows);
+  recipe.lastChangedAt = now;
+  recipe.lastError = null;
+  recipe.updatedAt = now;
+  _scrapSaveSnapshot(recipe.id, {
+    at: now, hash: recipe.lastHash, rowCount: healResult.newRowCount, rows: healResult.rows,
+    source: healResult.finalUrl, status: healResult.status,
+    trigger: trigger || "self-heal", selfHealed: true,
+  });
+  _scrapHealEventsAppend({
+    type: "success", recipeId: recipe.id, recipeName: recipe.name,
+    oldRowCount: healResult.oldRowCount, newRowCount: healResult.newRowCount,
+    oldSelectors: healResult.oldSelectors, newSelectors: healResult.newSelectors,
+    trigger,
+  });
+  return recipe;
+}
+
+// Roll back to the most recent backup of selectors.
+function _scrapRollbackHeal(recipe) {
+  const prev = recipe.selfHeal?.previousSelectors || [];
+  if (!prev.length) return { rolledBack: false, error: "no_backup" };
+  const last = prev[0];
+  recipe.rootSelector = last.rootSelector;
+  recipe.selectors = last.selectors;
+  recipe.selfHeal = {
+    ...(recipe.selfHeal || {}),
+    previousSelectors: prev.slice(1),
+    lastRolledBackAt: new Date().toISOString(),
+  };
+  recipe.updatedAt = new Date().toISOString();
+  _scrapHealEventsAppend({ type: "rollback", recipeId: recipe.id, recipeName: recipe.name, restored: { rootSelector: last.rootSelector, fields: Object.keys(last.selectors || {}) } });
+  return { rolledBack: true, restored: { rootSelector: last.rootSelector, selectors: last.selectors } };
+}
+
 async function _scrapRunRecipe(recipe) {
   // Reuse batch pipeline for single URL or list (just one element)
   const cheerio = require("cheerio");
@@ -7072,23 +7336,64 @@ async function _scrapTick() {
       const intervalMs = Math.max(60, parseInt(sch.intervalMin) || 60) * 60 * 1000;
       const lastMs = rec.lastRunAt ? Date.parse(rec.lastRunAt) : 0;
       if (lastMs && (now - lastMs) < intervalMs) continue;
+      // Capture pre-run row count for breakage detection later
+      const prevRowCount = rec.lastRowCount || 0;
       try {
         const result = await _scrapRunRecipe(rec);
         const hash = _scrapHashRows(result.rows);
         const changed = hash !== rec.lastHash;
-        rec.lastRunAt = new Date().toISOString();
-        rec.lastRowCount = result.rows.length;
-        rec.lastHash = hash;
-        rec.lastError = null;
-        if (changed) rec.lastChangedAt = rec.lastRunAt;
-        // Snapshot on first run or change
-        if (changed || !rec.lastHash || sch.alwaysSnapshot) {
-          _scrapSaveSnapshot(rec.id, { at: rec.lastRunAt, hash, rowCount: result.rows.length, rows: result.rows, source: result.finalUrl, status: result.status, trigger: "schedule" });
+        const nowIso = new Date().toISOString();
+
+        // === Self-Healing: detect breakage BEFORE mutating recipe state =========
+        const selfHealOn = rec.selfHeal?.enabled !== false; // default ON
+        const breakage = _scrapDetectBreakage({ lastRowCount: prevRowCount }, result);
+        let healed = false;
+
+        if (selfHealOn && breakage.broken && !_scrapHealThrottled(rec)) {
+          rec.selfHeal = { ...(rec.selfHeal || {}), lastHealAttemptAt: nowIso, enabled: true };
+          _scrapHealEventsAppend({
+            type: "attempt", recipeId: rec.id, recipeName: rec.name,
+            reason: breakage.reason, oldRowCount: breakage.oldCount, newRowCount: breakage.newCount,
+            trigger: "schedule",
+          });
+          try {
+            const heal = await _scrapAttemptHeal(rec, {});
+            if (heal.healed) {
+              _scrapApplyHeal(rec, heal, "schedule");
+              healed = true;
+            } else {
+              _scrapHealEventsAppend({
+                type: "failure", recipeId: rec.id, recipeName: rec.name,
+                reason: breakage.reason, error: heal.error || "unknown",
+                oldRowCount: breakage.oldCount, newRowCount: breakage.newCount,
+                trigger: "schedule",
+              });
+            }
+          } catch (he) {
+            _scrapHealEventsAppend({ type: "failure", recipeId: rec.id, recipeName: rec.name, reason: breakage.reason, error: "exception: " + (he.message || String(he)), trigger: "schedule" });
+          }
+        }
+
+        if (!healed) {
+          // Normal update path (no heal or heal failed — keep recipe as is, record the run)
+          rec.lastRunAt = nowIso;
+          rec.lastRowCount = result.rows.length;
+          rec.lastHash = hash;
+          rec.lastError = null;
+          if (changed) rec.lastChangedAt = nowIso;
+          // Snapshot on first run, change, or always-snapshot mode
+          if (changed || !rec.lastHash || sch.alwaysSnapshot) {
+            _scrapSaveSnapshot(rec.id, { at: nowIso, hash, rowCount: result.rows.length, rows: result.rows, source: result.finalUrl, status: result.status, trigger: "schedule" });
+          }
         }
         mutated = true;
       } catch (e) {
         rec.lastError = String(e.message || e);
         rec.lastRunAt = new Date().toISOString();
+        _scrapHealEventsAppend({
+          type: "fetch_error", recipeId: rec.id, recipeName: rec.name,
+          error: rec.lastError, trigger: "schedule",
+        });
         mutated = true;
       }
     }
@@ -7181,6 +7486,19 @@ app.post("/api/scrap/recipes", requireAuth, express.json({ limit: "512kb" }), (r
       intervalMin: Math.max(1, parseInt(sch.intervalMin) || 60),
       alwaysSnapshot: !!sch.alwaysSnapshot,
     },
+    selfHeal: (() => {
+      const incoming = body.selfHeal || {};
+      const ex = existing.selfHeal || {};
+      return {
+        enabled: incoming.enabled != null ? !!incoming.enabled : (ex.enabled != null ? !!ex.enabled : true), // default ON
+        goal: String(incoming.goal != null ? incoming.goal : (ex.goal || "")),
+        lastHealedAt: ex.lastHealedAt || null,
+        lastHealAttemptAt: ex.lastHealAttemptAt || null,
+        lastRolledBackAt: ex.lastRolledBackAt || null,
+        healCount: ex.healCount || 0,
+        previousSelectors: Array.isArray(ex.previousSelectors) ? ex.previousSelectors.slice(0, 3) : [],
+      };
+    })(),
     lastRunAt: existing.lastRunAt || null,
     lastRowCount: existing.lastRowCount || 0,
     lastHash: existing.lastHash || "",
@@ -7200,6 +7518,68 @@ app.delete("/api/scrap/recipes/:id", requireAuth, (req, res) => {
   const recipes = loadScrapRecipes().filter(r => r.id !== req.params.id);
   saveScrapRecipes(recipes);
   res.json({ ok: true });
+});
+
+// === Self-Healing endpoints (v3.13.0) =========================================
+// Manual heal trigger — attempt to repair a recipe's selectors using AI.
+// body: { goal?: string, dryRun?: boolean }
+app.post("/api/scrap/recipes/:id/heal", requireAuth, express.json({ limit: "128kb" }), async (req, res) => {
+  const recipes = loadScrapRecipes();
+  const rec = recipes.find(r => r.id === req.params.id);
+  if (!rec) return res.status(404).json({ error: "recipe not found" });
+  const body = req.body || {};
+  const dryRun = !!body.dryRun;
+  try {
+    const result = await _scrapAttemptHeal(rec, { goal: body.goal });
+    if (!result.healed) {
+      _scrapHealEventsAppend({ type: "failure", recipeId: rec.id, recipeName: rec.name, error: result.error || "unknown", trigger: dryRun ? "manual-dryrun" : "manual" });
+      return res.status(422).json({ ok: false, ...result });
+    }
+    if (dryRun) {
+      return res.json({ ok: true, dryRun: true, candidate: { rootSelector: result.newSelectors.rootSelector, selectors: result.newSelectors.selectors }, newRowCount: result.newRowCount, oldRowCount: result.oldRowCount, aiNotes: result.aiNotes });
+    }
+    _scrapApplyHeal(rec, result, "manual");
+    saveScrapRecipes(recipes);
+    res.json({ ok: true, dryRun: false, recipe: rec, newRowCount: result.newRowCount, oldRowCount: result.oldRowCount, aiNotes: result.aiNotes });
+  } catch (e) {
+    _scrapHealEventsAppend({ type: "failure", recipeId: rec.id, recipeName: rec.name, error: "exception: " + (e.message || String(e)), trigger: dryRun ? "manual-dryrun" : "manual" });
+    res.status(500).json({ error: String(e.message || e) });
+  }
+});
+
+// Rollback a recipe to its most recent selector backup.
+app.post("/api/scrap/recipes/:id/rollback", requireAuth, (req, res) => {
+  const recipes = loadScrapRecipes();
+  const rec = recipes.find(r => r.id === req.params.id);
+  if (!rec) return res.status(404).json({ error: "recipe not found" });
+  const out = _scrapRollbackHeal(rec);
+  if (!out.rolledBack) return res.status(422).json(out);
+  saveScrapRecipes(recipes);
+  res.json({ ok: true, recipe: rec, restored: out.restored });
+});
+
+// Poll heal events (used by Sidekick + Scrap UI to fire proactive cards).
+app.get("/api/scrap/heal-events", requireAuth, (req, res) => {
+  const since = String(req.query.since || "").trim();
+  const limit = Math.min(200, Math.max(1, parseInt(req.query.limit) || 50));
+  const events = _scrapHealEventsRead(since, limit);
+  res.json({ ok: true, events, latestAt: events.length ? events[events.length - 1].at : null });
+});
+
+// Toggle / update recipe schedule from anywhere (chat tools).
+app.post("/api/scrap/recipes/:id/schedule", requireAuth, express.json({ limit: "16kb" }), (req, res) => {
+  const recipes = loadScrapRecipes();
+  const rec = recipes.find(r => r.id === req.params.id);
+  if (!rec) return res.status(404).json({ error: "recipe not found" });
+  const body = req.body || {};
+  rec.schedule = {
+    enabled: body.enabled != null ? !!body.enabled : !!(rec.schedule?.enabled),
+    intervalMin: Math.max(1, parseInt(body.intervalMin) || rec.schedule?.intervalMin || 60),
+    alwaysSnapshot: body.alwaysSnapshot != null ? !!body.alwaysSnapshot : !!(rec.schedule?.alwaysSnapshot),
+  };
+  rec.updatedAt = new Date().toISOString();
+  saveScrapRecipes(recipes);
+  res.json({ ok: true, recipe: rec });
 });
 
 // Expand batch URL spec: { urls: [...] } and/or { pattern: "..{1..10}..", from, to, step }

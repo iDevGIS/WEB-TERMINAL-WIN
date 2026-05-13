@@ -12152,6 +12152,64 @@ ${fields}
           return { id, count: arr.length, snapshots: arr };
         } catch (e) { return { error: 'scrap_list_snapshots failed: ' + (e && e.message || e) }; }
       },
+      async scrap_heal_recipe(args) {
+        const id = args && args.id;
+        if (!id) return { error: 'id is required' };
+        const body = {};
+        if (args && args.goal) body.goal = String(args.goal);
+        if (args && args.dryRun != null) body.dryRun = !!args.dryRun;
+        try {
+          const r = await fetch('/api/scrap/recipes/' + encodeURIComponent(id) + '/heal', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+          });
+          const d = await r.json().catch(() => ({}));
+          if (!r.ok && r.status !== 422) return { error: d.error || ('HTTP ' + r.status) };
+          // 422 = heal attempt finished but didn't pass recovery — still return useful payload
+          return d;
+        } catch (e) { return { error: 'scrap_heal_recipe failed: ' + (e && e.message || e) }; }
+      },
+      async scrap_rollback_recipe(args) {
+        const id = args && args.id;
+        if (!id) return { error: 'id is required' };
+        try {
+          const r = await fetch('/api/scrap/recipes/' + encodeURIComponent(id) + '/rollback', { method: 'POST' });
+          const d = await r.json().catch(() => ({}));
+          if (!r.ok) return { error: d.error || ('HTTP ' + r.status) };
+          return d;
+        } catch (e) { return { error: 'scrap_rollback_recipe failed: ' + (e && e.message || e) }; }
+      },
+      async scrap_set_schedule(args) {
+        const id = args && args.id;
+        if (!id) return { error: 'id is required' };
+        const payload = {};
+        if (args && args.enabled != null) payload.enabled = !!args.enabled;
+        if (args && args.intervalMin != null) payload.intervalMin = parseInt(args.intervalMin) || 60;
+        if (args && args.alwaysSnapshot != null) payload.alwaysSnapshot = !!args.alwaysSnapshot;
+        try {
+          const r = await fetch('/api/scrap/recipes/' + encodeURIComponent(id) + '/schedule', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+          const d = await r.json().catch(() => ({}));
+          if (!r.ok) return { error: d.error || ('HTTP ' + r.status) };
+          return d;
+        } catch (e) { return { error: 'scrap_set_schedule failed: ' + (e && e.message || e) }; }
+      },
+      async scrap_heal_events(args) {
+        const params = new URLSearchParams();
+        if (args && args.since) params.set('since', String(args.since));
+        if (args && args.limit) params.set('limit', String(parseInt(args.limit) || 20));
+        const qs = params.toString();
+        try {
+          const r = await fetch('/api/scrap/heal-events' + (qs ? ('?' + qs) : ''));
+          if (!r.ok) return { error: 'heal-events failed: HTTP ' + r.status };
+          const d = await r.json();
+          return { count: (d.events || []).length, events: d.events || [], latestAt: d.latestAt };
+        } catch (e) { return { error: 'scrap_heal_events failed: ' + (e && e.message || e) }; }
+      },
       async list_workspaces() {
         try {
           const r = await fetch('/api/workspaces');
@@ -12338,6 +12396,126 @@ ${fields}
     };
 
     window.__sidekickActions = window.__sidekickActions || {};
+
+    // === Heal events poller (v3.13.0) ========================================
+    // Fetches /api/scrap/heal-events periodically; fires Sidekick proactive cards
+    // when self-healing happens in the background (schedule tick or manual run).
+    const SIDEKICK_HEAL_KEY = 'cyberframe.sidekick.healEventsSince';
+    let _sidekickHealTimer = null;
+    async function _sidekickPollHealEvents() {
+      try {
+        const since = localStorage.getItem(SIDEKICK_HEAL_KEY) || '';
+        const qs = new URLSearchParams();
+        if (since) qs.set('since', since);
+        qs.set('limit', '10');
+        const r = await fetch('/api/scrap/heal-events?' + qs.toString(), { credentials: 'same-origin' });
+        if (!r.ok) return;
+        const d = await r.json();
+        const events = Array.isArray(d.events) ? d.events : [];
+        if (!events.length) return;
+        for (const ev of events) {
+          if (ev.type === 'success') {
+            const id = 'heal-success-' + ev.recipeId + '-' + ev.at;
+            window.__sidekick.suggest({
+              id,
+              type: 'scrape-self-healed',
+              severity: 'info',
+              title: '🤖 Recipe self-healed',
+              message: `"${ev.recipeName}" auto-repaired: ${ev.oldRowCount} → ${ev.newRowCount} rows. ตรวจสอบผลหน่อย?`,
+              actions: [
+                {
+                  label: 'View recipe',
+                  primary: true,
+                  handler: () => {
+                    try {
+                      if (typeof openScrapTab === 'function') openScrapTab();
+                      setTimeout(() => {
+                        const ev2 = new CustomEvent('scrap:focus-recipe', { detail: { id: ev.recipeId } });
+                        window.dispatchEvent(ev2);
+                      }, 250);
+                    } catch (e) { console.error(e); }
+                  }
+                },
+                {
+                  label: 'Rollback',
+                  handler: async () => {
+                    try {
+                      const rr = await fetch('/api/scrap/recipes/' + encodeURIComponent(ev.recipeId) + '/rollback', { method: 'POST' });
+                      const dd = await rr.json().catch(() => ({}));
+                      if (rr.ok) {
+                        window.__sidekick && window.__sidekick.suggest({
+                          type: 'scrape-rolled-back',
+                          severity: 'info',
+                          title: '↩ Rolled back',
+                          message: `"${ev.recipeName}" restored to previous selectors.`,
+                        });
+                      } else {
+                        alert('Rollback failed: ' + (dd.error || rr.status));
+                      }
+                    } catch (e) { alert('Rollback failed: ' + e.message); }
+                  }
+                },
+              ],
+            });
+          } else if (ev.type === 'failure') {
+            const id = 'heal-failure-' + ev.recipeId + '-' + ev.at;
+            window.__sidekick.suggest({
+              id,
+              type: 'scrape-heal-failed',
+              severity: 'warning',
+              title: '⚠ Recipe broken',
+              message: `"${ev.recipeName}" ดึงข้อมูลไม่ได้ (${ev.reason || 'unknown'}) — auto-heal ลองแล้วไม่ผ่าน: ${ev.error || ''}`,
+              actions: [
+                {
+                  label: 'Manual fix',
+                  primary: true,
+                  handler: () => {
+                    try {
+                      if (typeof openScrapTab === 'function') openScrapTab();
+                      setTimeout(() => {
+                        const ev2 = new CustomEvent('scrap:focus-recipe', { detail: { id: ev.recipeId } });
+                        window.dispatchEvent(ev2);
+                      }, 250);
+                    } catch (e) { console.error(e); }
+                  }
+                },
+                {
+                  label: 'Retry heal',
+                  handler: async () => {
+                    try {
+                      const rr = await fetch('/api/scrap/recipes/' + encodeURIComponent(ev.recipeId) + '/heal', {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
+                      });
+                      const dd = await rr.json().catch(() => ({}));
+                      if (rr.ok && dd.ok) {
+                        window.__sidekick.suggest({ type: 'scrape-self-healed', severity: 'info', title: '🤖 Heal retried', message: `"${ev.recipeName}" repaired: ${dd.oldRowCount} → ${dd.newRowCount} rows.` });
+                      } else {
+                        alert('Heal retry failed: ' + (dd.error || rr.status));
+                      }
+                    } catch (e) { alert('Heal retry failed: ' + e.message); }
+                  }
+                },
+              ],
+            });
+          }
+        }
+        const latest = d.latestAt || events[events.length - 1].at;
+        if (latest) localStorage.setItem(SIDEKICK_HEAL_KEY, latest);
+      } catch (e) {
+        // silent — network blips are normal
+      }
+    }
+    function _sidekickStartHealPoller() {
+      if (_sidekickHealTimer) return;
+      // First check after 5s so we don't blast on page load
+      setTimeout(_sidekickPollHealEvents, 5000);
+      _sidekickHealTimer = setInterval(_sidekickPollHealEvents, 60_000);
+    }
+    if (document.readyState === 'complete' || document.readyState === 'interactive') {
+      _sidekickStartHealPoller();
+    } else {
+      document.addEventListener('DOMContentLoaded', _sidekickStartHealPoller);
+    }
 
     function _sidekickRender() {
       const launcher = document.getElementById('copilot-launcher');
