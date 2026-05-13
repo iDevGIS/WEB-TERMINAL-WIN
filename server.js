@@ -1545,6 +1545,163 @@ const OPENCLAW_CLI = process.env.CYBERFRAME_CLI || process.env.AGENT_CLI || "ope
 const _clawdDir = process.env.CYBERFRAME_AGENT_DIR || process.env.AGENT_DIR || '.openclaw'; // e.g. '.clawdbot' or '.moltbot'
 const _cyberframeNames = {}; // sessionId → display name
 
+// === Cross-Tab Intelligence Tools (Phase 1 MVP, v3.8.0) ===
+// 10 tools that let the chat AI inspect & control other CYBERFRAME tabs.
+// OpenAI tool-call format — passes through OpenClaw Gateway / Ollama.
+const CROSS_TAB_TOOLS = [
+  {
+    type: 'function',
+    function: {
+      name: 'list_tabs',
+      description: 'List all currently open tabs in the CYBERFRAME UI with id, type, name, and brief state (e.g. URL for browser tabs, file path for editor tabs).',
+      parameters: { type: 'object', properties: {}, required: [] },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_active_tab',
+      description: 'Return the currently focused tab plus its current content/state (visible terminal output, editor text, browser URL, scrap last result, docker list, etc.).',
+      parameters: { type: 'object', properties: {}, required: [] },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'read_file',
+      description: 'Read a text file from the workspace and return its content. Use for small/medium files (<512KB).',
+      parameters: {
+        type: 'object',
+        properties: {
+          path: { type: 'string', description: 'Workspace-relative or absolute path under the allowed root.' },
+        },
+        required: ['path'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'open_editor',
+      description: 'Open a file in an editor tab (Monaco). Creates a new editor tab or focuses an existing one.',
+      parameters: {
+        type: 'object',
+        properties: {
+          path: { type: 'string', description: 'Path to the file to open.' },
+        },
+        required: ['path'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'list_files',
+      description: 'List entries (files + directories) in a workspace directory. Returns name, type, size.',
+      parameters: {
+        type: 'object',
+        properties: {
+          path: { type: 'string', description: 'Directory path (default = workspace root).' },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'run_terminal',
+      description: 'Type a command into the active terminal tab and execute it (appends a newline). Use sparingly — destructive commands need explicit user intent.',
+      parameters: {
+        type: 'object',
+        properties: {
+          command: { type: 'string', description: 'Shell command to run.' },
+          tabId: { type: 'string', description: 'Optional: terminal tab id. Omit to use the focused terminal tab.' },
+        },
+        required: ['command'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'browser_navigate',
+      description: 'Open a URL in the browser tab. Creates a new browser tab if none exists, otherwise navigates the active/specified one.',
+      parameters: {
+        type: 'object',
+        properties: {
+          url: { type: 'string', description: 'URL to navigate to (http/https).' },
+          tabId: { type: 'string', description: 'Optional: existing browser tab id.' },
+        },
+        required: ['url'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'scrap_run',
+      description: 'Trigger the Scrap tool to fetch+extract using the recipe currently configured in a scrap tab (or create a new tab with the given url + selectors).',
+      parameters: {
+        type: 'object',
+        properties: {
+          tabId: { type: 'string', description: 'Optional: existing scrap tab id. Omit to use the focused scrap tab.' },
+          url: { type: 'string', description: 'Optional: override the URL before running.' },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'docker_list',
+      description: 'List all Docker containers with id, name, state, status, image, and primary port mapping.',
+      parameters: { type: 'object', properties: {}, required: [] },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'docker_action',
+      description: 'Perform an action on a Docker container (start, stop, restart, pause, unpause).',
+      parameters: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'Container id or name.' },
+          action: { type: 'string', enum: ['start', 'stop', 'restart', 'pause', 'unpause'], description: 'Lifecycle action to perform.' },
+        },
+        required: ['id', 'action'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'notify',
+      description: 'Show a toast notification in the CYBERFRAME UI. Use to surface a result/warning to the user.',
+      parameters: {
+        type: 'object',
+        properties: {
+          message: { type: 'string', description: 'Text to display.' },
+          type: { type: 'string', enum: ['info', 'success', 'warning', 'error'], description: 'Visual variant (default: info).' },
+        },
+        required: ['message'],
+      },
+    },
+  },
+];
+
+function _ctiSystemPreamble() {
+  return (
+    'You are connected to the CYBERFRAME UI via Cross-Tab Intelligence tools. ' +
+    'You can list_tabs, read_file, open_editor, list_files, run_terminal, browser_navigate, scrap_run, docker_list, docker_action, notify. ' +
+    'Prefer reading state first (list_tabs, get_active_tab) before acting. ' +
+    'Chain tools when needed (e.g. list_files → open_editor). ' +
+    'Always confirm with a short summary after the last tool returns.'
+  );
+}
+
 // === TTS (Edge Neural Voices) ===
 const { MsEdgeTTS, OUTPUT_FORMAT } = require("msedge-tts");
 
@@ -1743,15 +1900,19 @@ app.post("/api/chat", requireAuth, async (req, res) => {
   const { messages, model } = req.body;
   if (!messages || !Array.isArray(messages)) return res.status(400).json({ error: "messages required" });
 
-  const { sessionId, sessionName, agentId } = req.body;
+  const { sessionId, sessionName, agentId, enableTools } = req.body;
   // Store session name mapping for Agent Monitor display
   if (sessionId && sessionName) {
     _cyberframeNames[sessionId] = sessionName;
   }
   // Inject workspace context as system message (SOUL.md, USER.md, IDENTITY.md)
+  // + Cross-Tab Intelligence preamble when tools are enabled.
   const wsCtx = _getWorkspaceContext();
-  const augMessages = wsCtx
-    ? [{ role: 'system', content: 'You are an AI assistant. Here is your identity and context:' + wsCtx }, ...messages]
+  const sysParts = [];
+  if (wsCtx) sysParts.push('You are an AI assistant. Here is your identity and context:' + wsCtx);
+  if (enableTools) sysParts.push(_ctiSystemPreamble());
+  const augMessages = sysParts.length
+    ? [{ role: 'system', content: sysParts.join('\n\n') }, ...messages]
     : messages;
 
   // Determine routing: Claude Code SDK, Ollama, or OpenClaw Gateway
@@ -1932,9 +2093,10 @@ app.post("/api/chat", requireAuth, async (req, res) => {
       // Direct Ollama proxy — bypass OpenClaw Gateway
       const ollamaPayload = {
         model: ollamaModel,
-        messages: augMessages.map(m => ({ role: m.role, content: m.content })),
+        messages: augMessages.map(m => ({ role: m.role, content: m.content, ...(m.tool_calls ? { tool_calls: m.tool_calls } : {}), ...(m.tool_call_id ? { tool_call_id: m.tool_call_id } : {}) })),
         stream: true,
       };
+      if (enableTools) ollamaPayload.tools = CROSS_TAB_TOOLS;
       upstream = await fetch('http://127.0.0.1:11434/v1/chat/completions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1949,6 +2111,7 @@ app.post("/api/chat", requireAuth, async (req, res) => {
         stream: true,
         user: sessionId ? 'cyberframe-' + sessionId : 'cyberframe-' + Date.now(),
       };
+      if (enableTools) payload.tools = CROSS_TAB_TOOLS;
       upstream = await fetch(OPENCLAW_GW + '/v1/chat/completions', {
         method: 'POST',
         headers: {
