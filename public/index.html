@@ -20794,6 +20794,11 @@ ${fields}
 
       applyOpenState(); applyToolsState(); applyModePosition(); updateModelPill();
       render();
+
+      // re-anchor panel on viewport resize
+      window.addEventListener('resize', () => {
+        if (state.open && state.mode === 'bubble') positionPanelNearLauncher();
+      });
     }
 
     /* ---------- Open / Close ---------- */
@@ -20808,7 +20813,10 @@ ${fields}
     function applyOpenState(){
       const panel = $('copilot-panel');
       const launcher = $('copilot-launcher');
-      if (state.open) { panel.classList.add('open'); launcher.classList.add('open'); }
+      if (state.open) {
+        panel.classList.add('open'); launcher.classList.add('open');
+        positionPanelNearLauncher();
+      }
       else { panel.classList.remove('open'); launcher.classList.remove('open'); $('copilot-mode-strip').classList.remove('show'); }
     }
 
@@ -20861,6 +20869,8 @@ ${fields}
       document.querySelectorAll('#copilot-mode-strip .mode').forEach(el => {
         el.classList.toggle('active', el.dataset.mode === state.mode);
       });
+      // bubble: anchor panel to launcher
+      if (state.open) positionPanelNearLauncher();
     }
 
     /* ---------- Model ---------- */
@@ -21139,6 +21149,8 @@ ${fields}
           el.style.right = 'auto'; el.style.bottom = 'auto';
           el.style.left = (ox + dx) + 'px';
           el.style.top = (oy + dy) + 'px';
+          // panel follows launcher in real-time while open
+          if (state.open && state.mode === 'bubble') positionPanelNearLauncher();
         }
       }
       function end(){
@@ -21158,6 +21170,7 @@ ${fields}
           el.style.left = left + 'px';
           el.style.top = top + 'px';
           saveLS(LS_LAUNCHER_POS, { left, top });
+          if (state.open && state.mode === 'bubble') positionPanelNearLauncher();
         }
         setTimeout(() => { launcherWasDragged = false; }, 200);
       }
@@ -21179,6 +21192,48 @@ ${fields}
       const top = Math.max(M, Math.min(H - size - M, +p.top || 0));
       el.style.left = left + 'px';
       el.style.top = top + 'px';
+    }
+
+    /* ---------- Panel follows launcher ---------- */
+    function positionPanelNearLauncher(){
+      const panel = $('copilot-panel');
+      const launcher = $('copilot-launcher');
+      if (!panel || !launcher) return;
+      // mobile: let CSS handle (full-width overlay)
+      if (window.innerWidth <= 700) {
+        panel.style.left = ''; panel.style.top = '';
+        panel.style.right = ''; panel.style.bottom = '';
+        return;
+      }
+      // sidebar mode: docked right, don't reposition
+      if (state.mode === 'sidebar') {
+        panel.style.left = ''; panel.style.top = '';
+        panel.style.right = ''; panel.style.bottom = '';
+        return;
+      }
+      const lr = launcher.getBoundingClientRect();
+      const W = window.innerWidth, H = window.innerHeight, M = 12;
+      const pw = panel.offsetWidth || 400;
+      const ph = panel.offsetHeight || 580;
+      // horizontal: place opposite side of launcher's screen half
+      const launcherCenterX = lr.left + lr.width / 2;
+      let left;
+      if (launcherCenterX > W / 2) {
+        left = lr.left - pw - M;
+        if (left < M) left = M;
+      } else {
+        left = lr.right + M;
+        if (left + pw > W - M) left = W - pw - M;
+      }
+      // vertical: align panel bottom near launcher bottom (panel rises up)
+      let top = lr.bottom - ph;
+      if (top < M) top = lr.top;
+      if (top + ph > H - M) top = H - ph - M;
+      if (top < M) top = M;
+      panel.style.left = left + 'px';
+      panel.style.top = top + 'px';
+      panel.style.right = 'auto';
+      panel.style.bottom = 'auto';
     }
 
     /* ---------- Toast ---------- */
