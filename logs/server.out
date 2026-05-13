@@ -1,0 +1,13 @@
+[dotenv@17.3.1] injecting env (9) from .env -- tip: ⚙️  write to custom object with { processEnv: myObject }
+[Claude] Restored 1 session(s) from disk
+⚡ CYBERFRAME running at http://127.0.0.1:3000
+🔐 Login: admin / ****
+🖥️  VNC proxy: ws://127.0.0.1:3000/vnc-ws → localhost:5900
+⏰ Session timeout: 1800s
+[VS Code] Already running on port 8080
+🤖 Agent status cache warmed
+[+] admin WebSocket connected from 100.67.35.6
+[-] admin WebSocket disconnected, detaching 0 sessions
+[+] admin WebSocket connected from 100.67.35.6
+[-] admin WebSocket disconnected, detaching 0 sessions
+[+] admin WebSocket connected from 100.67.35.6

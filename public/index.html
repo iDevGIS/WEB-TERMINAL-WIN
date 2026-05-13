@@ -4557,7 +4557,7 @@
        Floating Co-Pilot v3.9.0
        ============================================ */
     .copilot-launcher {
-      position: fixed; right: 28px; bottom: 28px;
+      position: fixed; right: 28px; bottom: 88px;
       width: 56px; height: 56px; border-radius: 50%;
       background: linear-gradient(135deg, #a855f7 0%, #06b6d4 100%);
       display: flex; align-items: center; justify-content: center;
@@ -21148,26 +21148,37 @@ ${fields}
         document.removeEventListener('touchend', end);
         if (moving) {
           el.classList.remove('dragging');
-          // snap to nearest corner
+          // free position — clamp inside viewport with 8px margin
           const r = el.getBoundingClientRect();
           const W = window.innerWidth, H = window.innerHeight;
-          const cx = r.left + r.width/2, cy = r.top + r.height/2;
-          const right = cx > W/2, bottom = cy > H/2;
-          el.style.left = 'auto'; el.style.top = 'auto';
-          el.style.right = right ? '28px' : 'auto';
-          el.style.bottom = bottom ? '28px' : 'auto';
-          if (!right) el.style.left = '28px';
-          if (!bottom) el.style.top = '28px';
-          saveLS(LS_LAUNCHER_POS, { right, bottom });
+          const M = 8;
+          const left = Math.max(M, Math.min(W - r.width - M, r.left));
+          const top = Math.max(M, Math.min(H - r.height - M, r.top));
+          el.style.right = 'auto'; el.style.bottom = 'auto';
+          el.style.left = left + 'px';
+          el.style.top = top + 'px';
+          saveLS(LS_LAUNCHER_POS, { left, top });
         }
         setTimeout(() => { launcherWasDragged = false; }, 200);
       }
     }
     function restoreLauncherPos(el){
-      const p = loadLS(LS_LAUNCHER_POS, { right: true, bottom: true });
+      const p = loadLS(LS_LAUNCHER_POS, null);
+      if (!p) return; // keep CSS default (right: 28px, bottom: 88px)
       el.style.left = 'auto'; el.style.top = 'auto'; el.style.right = 'auto'; el.style.bottom = 'auto';
-      if (p.right) el.style.right = '28px'; else el.style.left = '28px';
-      if (p.bottom) el.style.bottom = '28px'; else el.style.top = '28px';
+      // legacy snap format → convert to absolute
+      if (typeof p.right === 'boolean' || typeof p.bottom === 'boolean') {
+        if (p.right) el.style.right = '28px'; else el.style.left = '28px';
+        if (p.bottom) el.style.bottom = '88px'; else el.style.top = '28px';
+        return;
+      }
+      // new free-position format
+      const W = window.innerWidth, H = window.innerHeight, M = 8;
+      const size = 56;
+      const left = Math.max(M, Math.min(W - size - M, +p.left || 0));
+      const top = Math.max(M, Math.min(H - size - M, +p.top || 0));
+      el.style.left = left + 'px';
+      el.style.top = top + 'px';
     }
 
     /* ---------- Toast ---------- */
