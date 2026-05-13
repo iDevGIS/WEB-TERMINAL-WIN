@@ -11420,8 +11420,8 @@ ${fields}
           }
         }
         if (!sid) return { error: 'Terminal session not ready.' };
-        if (!window.ws || window.ws.readyState !== WebSocket.OPEN) return { error: 'WS not connected.' };
-        window.ws.send(JSON.stringify({ type: 'input', id: sid, data: cmd + '\r' }));
+        if (!ws || ws.readyState !== WebSocket.OPEN) return { error: 'WS not connected.' };
+        ws.send(JSON.stringify({ type: 'input', id: sid, data: cmd + '\r' }));
         return { ok: true, tabId: targetTab.id, sessionId: sid, command: cmd };
       },
       async browser_navigate(args) {
@@ -11528,8 +11528,14 @@ ${fields}
         let commandError = null;
         if (initialCmd && sessionId) {
           try {
-            if (window.ws && window.ws.readyState === WebSocket.OPEN) {
-              window.ws.send(JSON.stringify({ type: 'input', id: sessionId, data: String(initialCmd) + '\r' }));
+            // Wait up to 2s for WS to become OPEN (race after fresh session create)
+            const wsWaitStart = Date.now();
+            while (Date.now() - wsWaitStart < 2000) {
+              if (ws && ws.readyState === WebSocket.OPEN) break;
+              await new Promise(r => setTimeout(r, 50));
+            }
+            if (ws && ws.readyState === WebSocket.OPEN) {
+              ws.send(JSON.stringify({ type: 'input', id: sessionId, data: String(initialCmd) + '\r' }));
               commandSent = true;
             } else { commandError = 'WS not connected.'; }
           } catch (e) { commandError = String(e.message || e); }
