@@ -4554,7 +4554,8 @@
     .agent-refresh-note { font-size: 10px; color: var(--text3); text-align: center; margin-top: 8px; }
 
     /* ============================================
-       Floating Co-Pilot v3.9.0
+       Floating Sidekick v3.9.2
+       (class names `copilot-*` kept for backwards-compat)
        ============================================ */
     .copilot-launcher {
       position: fixed; right: 28px; bottom: 88px;
@@ -4773,16 +4774,16 @@
   </style>
 </head>
 <body>
-  <!-- Floating Co-Pilot v3.9.0 -->
-  <div class="copilot-launcher" id="copilot-launcher" title="Co-Pilot · กดเปิด chat ลอย">
+  <!-- Floating Sidekick v3.9.2 -->
+  <div class="copilot-launcher" id="copilot-launcher" title="Sidekick · กดเปิด chat ลอย">
     🤖
     <span class="copilot-dot"></span>
   </div>
-  <div class="copilot-panel bubble" id="copilot-panel" role="dialog" aria-label="Co-Pilot chat">
+  <div class="copilot-panel bubble" id="copilot-panel" role="dialog" aria-label="Sidekick chat">
     <div class="copilot-header">
       <div class="copilot-title">
         <span class="copilot-title-ic">🤖</span>
-        <span>Co-Pilot</span>
+        <span>Sidekick</span>
       </div>
       <div class="right">
         <span class="copilot-model-pill" id="copilot-model-pill" title="คลิกเปลี่ยน model">openclaw</span>
@@ -4793,7 +4794,7 @@
     </div>
     <div class="copilot-body" id="copilot-body">
       <div class="copilot-empty" id="copilot-empty">
-        🍥 สวัสดีค้าลูกพี่ — เจ้คือ Co-Pilot ลอยข้างๆ<br>
+        🍥 สวัสดีค้าลูกพี่ — เจ้คือ Sidekick ลอยข้างๆ<br>
         ลองพิมพ์: <span class="hint">"list tabs ที่เปิดอยู่"</span> หรือ <span class="hint">"เปิด package.json"</span>
       </div>
     </div>
@@ -20739,8 +20740,9 @@ ${fields}
   </script>
 
   <!-- ============================================
-       Floating Co-Pilot v3.9.0 — independent chat
+       Floating Sidekick v3.9.2 — independent chat
        reuses backend /api/chat + Cross-Tab Tools dispatcher
+       (renamed from "Co-Pilot" v3.9.0–3.9.1; internal class names kept)
        ============================================ -->
   <script>
   (function(){
@@ -20815,7 +20817,10 @@ ${fields}
       const launcher = $('copilot-launcher');
       if (state.open) {
         panel.classList.add('open'); launcher.classList.add('open');
+        // 1st: position immediately (uses fallback dimensions if not laid out yet)
         positionPanelNearLauncher();
+        // 2nd: re-position after first paint (real offsetWidth/offsetHeight available)
+        requestAnimationFrame(() => positionPanelNearLauncher());
       }
       else { panel.classList.remove('open'); launcher.classList.remove('open'); $('copilot-mode-strip').classList.remove('show'); }
     }
@@ -21239,7 +21244,7 @@ ${fields}
     /* ---------- Toast ---------- */
     function toast(msg){
       if (typeof window.cfToast === 'function') return window.cfToast(msg);
-      console.log('[copilot]', msg);
+      console.log('[sidekick]', msg);
     }
 
     /* ---------- Public API ---------- */
