@@ -11521,13 +11521,27 @@ ${fields}
         }
         // Buffer for shell prompt to render before accepting input
         if (sessionId) await new Promise(r => setTimeout(r, isAdmin ? 1500 : 700));
+        // Optional: run a command immediately in the new shell (chained create+run)
+        const initialCmd = args && (args.command || args.run);
+        let commandSent = false;
+        let commandError = null;
+        if (initialCmd && sessionId) {
+          try {
+            if (window.ws && window.ws.readyState === WebSocket.OPEN) {
+              window.ws.send(JSON.stringify({ type: 'input', id: sessionId, data: String(initialCmd) + '\r' }));
+              commandSent = true;
+            } else { commandError = 'WS not connected.'; }
+          } catch (e) { commandError = String(e.message || e); }
+        }
         return {
           ok: true,
           started: true,
           sessionReady: !!sessionId,
           profile: { id: profile.id, name: profile.name },
           tabId: createdTabId,
-          sessionId
+          sessionId,
+          commandSent,
+          ...(commandError ? { commandError } : {}),
         };
       },
       async switch_tab(args) {
@@ -11915,6 +11929,344 @@ ${fields}
           if (!r.ok || d.error) return { error: d.error || ('HTTP ' + r.status) };
           return { ok: true, name, command };
         } catch (e) { return { error: 'add_snippet failed: ' + (e && e.message || e) }; }
+      },
+      // === v3.12.0 batch: extended coverage ===
+      async list_shells() {
+        try {
+          const r = await fetch('/api/shells');
+          if (!r.ok) return { error: 'shells failed: HTTP ' + r.status };
+          const list = await r.json();
+          const arr = Array.isArray(list) ? list : [];
+          return { count: arr.length, shells: arr.map(s => ({ id: s.id, name: s.name, exec: s.cmd || s.command || '' })) };
+        } catch (e) { return { error: 'list_shells failed: ' + (e && e.message || e) }; }
+      },
+      async list_terminal_sessions() {
+        try {
+          const r = await fetch('/api/sessions');
+          if (!r.ok) return { error: 'sessions failed: HTTP ' + r.status };
+          const list = await r.json();
+          const arr = Array.isArray(list) ? list : (list.sessions || []);
+          return { count: arr.length, sessions: arr };
+        } catch (e) { return { error: 'list_terminal_sessions failed: ' + (e && e.message || e) }; }
+      },
+      async kill_terminal_session(args) {
+        const id = args && (args.sessionId || args.id);
+        if (!id) return { error: 'sessionId is required' };
+        try {
+          const r = await fetch('/api/sessions/' + encodeURIComponent(id), { method: 'DELETE' });
+          const d = await r.json().catch(() => ({}));
+          if (!r.ok || d.error) return { error: d.error || ('HTTP ' + r.status) };
+          return { ok: true, sessionId: id, killed: true };
+        } catch (e) { return { error: 'kill_terminal_session failed: ' + (e && e.message || e) }; }
+      },
+      async rename_terminal_session(args) {
+        const id = args && (args.sessionId || args.id);
+        const name = args && args.name;
+        if (!id || !name) return { error: 'sessionId and name are required' };
+        try {
+          const r = await fetch('/api/sessions/' + encodeURIComponent(id) + '/rename', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name }),
+          });
+          const d = await r.json().catch(() => ({}));
+          if (!r.ok || d.error) return { error: d.error || ('HTTP ' + r.status) };
+          return { ok: true, sessionId: id, name };
+        } catch (e) { return { error: 'rename_terminal_session failed: ' + (e && e.message || e) }; }
+      },
+      async export_session_transcript(args) {
+        const id = args && (args.sessionId || args.id);
+        if (!id) return { error: 'sessionId is required' };
+        try {
+          const r = await fetch('/api/sessions/' + encodeURIComponent(id) + '/export');
+          if (!r.ok) return { error: 'export failed: HTTP ' + r.status };
+          const text = await r.text();
+          const clipped = text.length > 10240 ? (text.slice(0, 10240) + '\n... (truncated, full size ' + text.length + ' bytes)') : text;
+          return { ok: true, sessionId: id, bytes: text.length, transcript: clipped };
+        } catch (e) { return { error: 'export_session_transcript failed: ' + (e && e.message || e) }; }
+      },
+      async search_files(args) {
+        const q = args && args.query;
+        if (!q) return { error: 'query is required' };
+        const path = (args && args.path) || '';
+        try {
+          const url = '/api/claude/file-search?q=' + encodeURIComponent(q) + (path ? '&path=' + encodeURIComponent(path) : '');
+          const r = await fetch(url);
+          if (!r.ok) return { error: 'search failed: HTTP ' + r.status };
+          const d = await r.json();
+          const matches = (d.matches || d.results || d.files || []).slice(0, 50);
+          return { query: q, path: path || '.', count: matches.length, matches };
+        } catch (e) { return { error: 'search_files failed: ' + (e && e.message || e) }; }
+      },
+      async list_processes() {
+        try {
+          const r = await fetch('/api/admin/processes');
+          if (!r.ok) return { error: 'processes failed: HTTP ' + r.status };
+          const d = await r.json();
+          const arr = (d.processes || d || []).slice(0, 100);
+          return { count: arr.length, processes: arr };
+        } catch (e) { return { error: 'list_processes failed: ' + (e && e.message || e) }; }
+      },
+      async get_listening_ports() {
+        try {
+          const r = await fetch('/api/admin/ports');
+          if (!r.ok) return { error: 'ports failed: HTTP ' + r.status };
+          const d = await r.json();
+          const arr = d.ports || d || [];
+          return { count: Array.isArray(arr) ? arr.length : 0, ports: arr };
+        } catch (e) { return { error: 'get_listening_ports failed: ' + (e && e.message || e) }; }
+      },
+      async get_arp_table() {
+        try {
+          const r = await fetch('/api/admin/arp');
+          if (!r.ok) return { error: 'arp failed: HTTP ' + r.status };
+          const d = await r.json();
+          return d;
+        } catch (e) { return { error: 'get_arp_table failed: ' + (e && e.message || e) }; }
+      },
+      async get_routes() {
+        try {
+          const r = await fetch('/api/admin/routes');
+          if (!r.ok) return { error: 'routes failed: HTTP ' + r.status };
+          const d = await r.json();
+          return d;
+        } catch (e) { return { error: 'get_routes failed: ' + (e && e.message || e) }; }
+      },
+      async get_vpn_status() {
+        try {
+          const r = await fetch('/api/admin/vpn');
+          if (!r.ok) return { error: 'vpn failed: HTTP ' + r.status };
+          const d = await r.json();
+          return d;
+        } catch (e) { return { error: 'get_vpn_status failed: ' + (e && e.message || e) }; }
+      },
+      async list_connected_clients() {
+        try {
+          const r = await fetch('/api/admin/clients');
+          if (!r.ok) return { error: 'clients failed: HTTP ' + r.status };
+          const d = await r.json();
+          const arr = d.clients || d || [];
+          return { count: Array.isArray(arr) ? arr.length : 0, clients: arr };
+        } catch (e) { return { error: 'list_connected_clients failed: ' + (e && e.message || e) }; }
+      },
+      async tailscale_status() {
+        try {
+          const r = await fetch('/api/admin/tailscale');
+          if (!r.ok) return { error: 'tailscale failed: HTTP ' + r.status };
+          const d = await r.json();
+          return d;
+        } catch (e) { return { error: 'tailscale_status failed: ' + (e && e.message || e) }; }
+      },
+      async docker_remove_container(args) {
+        const id = args && args.id;
+        if (!id) return { error: 'id is required' };
+        const force = !!(args && args.force);
+        try {
+          const r = await fetch('/api/docker/containers/' + encodeURIComponent(id) + (force ? '?force=1' : ''), { method: 'DELETE' });
+          const d = await r.json().catch(() => ({}));
+          if (!r.ok || d.error) return { error: d.error || ('HTTP ' + r.status) };
+          return { ok: true, id, removed: true };
+        } catch (e) { return { error: 'docker_remove_container failed: ' + (e && e.message || e) }; }
+      },
+      async docker_compose_file() {
+        try {
+          const r = await fetch('/api/docker/compose-file');
+          if (!r.ok) return { error: 'compose-file failed: HTTP ' + r.status };
+          const d = await r.json();
+          return d;
+        } catch (e) { return { error: 'docker_compose_file failed: ' + (e && e.message || e) }; }
+      },
+      async docker_browse_container(args) {
+        const id = args && args.id;
+        if (!id) return { error: 'id is required' };
+        const p = (args && args.path) || '/';
+        try {
+          const r = await fetch('/api/docker/containers/' + encodeURIComponent(id) + '/browse?path=' + encodeURIComponent(p));
+          if (!r.ok) return { error: 'browse failed: HTTP ' + r.status };
+          const d = await r.json();
+          return { id, path: p, ...d };
+        } catch (e) { return { error: 'docker_browse_container failed: ' + (e && e.message || e) }; }
+      },
+      async docker_browse_volume(args) {
+        const name = args && args.name;
+        if (!name) return { error: 'name is required' };
+        const p = (args && args.path) || '/';
+        try {
+          const r = await fetch('/api/docker/volumes/' + encodeURIComponent(name) + '/browse?path=' + encodeURIComponent(p));
+          if (!r.ok) return { error: 'browse failed: HTTP ' + r.status };
+          const d = await r.json();
+          return { name, path: p, ...d };
+        } catch (e) { return { error: 'docker_browse_volume failed: ' + (e && e.message || e) }; }
+      },
+      async scrap_list_recipes() {
+        try {
+          const r = await fetch('/api/scrap/recipes');
+          if (!r.ok) return { error: 'recipes failed: HTTP ' + r.status };
+          const list = await r.json();
+          const arr = Array.isArray(list) ? list : (list.recipes || []);
+          return { count: arr.length, recipes: arr.map(x => ({ id: x.id, name: x.name, url: x.url, selectorCount: Object.keys(x.selectors || {}).length, mode: x.mode })) };
+        } catch (e) { return { error: 'scrap_list_recipes failed: ' + (e && e.message || e) }; }
+      },
+      async scrap_save_recipe(args) {
+        const name = args && args.name;
+        const url = args && args.url;
+        const selectors = args && args.selectors;
+        if (!name || !url || !selectors) return { error: 'name, url, selectors are required' };
+        const mode = (args && args.mode) || 'fetch';
+        try {
+          const r = await fetch('/api/scrap/recipes', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, url, selectors, mode }),
+          });
+          const d = await r.json().catch(() => ({}));
+          if (!r.ok || d.error) return { error: d.error || ('HTTP ' + r.status) };
+          return { ok: true, id: d.id, name };
+        } catch (e) { return { error: 'scrap_save_recipe failed: ' + (e && e.message || e) }; }
+      },
+      async scrap_run_recipe(args) {
+        const id = args && args.id;
+        if (!id) return { error: 'id is required' };
+        try {
+          const r = await fetch('/api/scrap/recipes/' + encodeURIComponent(id) + '/run', { method: 'POST' });
+          const d = await r.json().catch(() => ({}));
+          if (!r.ok || d.error) return { error: d.error || ('HTTP ' + r.status) };
+          return d;
+        } catch (e) { return { error: 'scrap_run_recipe failed: ' + (e && e.message || e) }; }
+      },
+      async scrap_list_snapshots(args) {
+        const id = args && args.id;
+        if (!id) return { error: 'id is required' };
+        try {
+          const r = await fetch('/api/scrap/recipes/' + encodeURIComponent(id) + '/snapshots');
+          if (!r.ok) return { error: 'snapshots failed: HTTP ' + r.status };
+          const list = await r.json();
+          const arr = Array.isArray(list) ? list : (list.snapshots || []);
+          return { id, count: arr.length, snapshots: arr };
+        } catch (e) { return { error: 'scrap_list_snapshots failed: ' + (e && e.message || e) }; }
+      },
+      async list_workspaces() {
+        try {
+          const r = await fetch('/api/workspaces');
+          if (!r.ok) return { error: 'workspaces failed: HTTP ' + r.status };
+          const list = await r.json();
+          const arr = Array.isArray(list) ? list : (list.workspaces || []);
+          return { count: arr.length, workspaces: arr };
+        } catch (e) { return { error: 'list_workspaces failed: ' + (e && e.message || e) }; }
+      },
+      async save_workspace_layout(args) {
+        const name = args && args.name;
+        if (!name) return { error: 'name is required' };
+        // Build snapshot from current tabs Map (mirror format used by Save dialog elsewhere)
+        const tabSnapshot = [];
+        try {
+          for (const [tid, t] of tabs.entries()) {
+            tabSnapshot.push({
+              id: tid,
+              type: t.type,
+              name: t.name,
+              filePath: t.filePath || null,
+              url: t.url || null,
+              shellId: t.shellId || null,
+            });
+          }
+        } catch (e) { return { error: 'snapshot failed: ' + (e && e.message || e) }; }
+        try {
+          const r = await fetch('/api/workspaces', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, description: (args && args.description) || '', tabs: { tabs: tabSnapshot, activeTabId } }),
+          });
+          const d = await r.json().catch(() => ({}));
+          if (!r.ok || d.error) return { error: d.error || ('HTTP ' + r.status) };
+          return { ok: true, id: d.id, name, tabCount: tabSnapshot.length };
+        } catch (e) { return { error: 'save_workspace_layout failed: ' + (e && e.message || e) }; }
+      },
+      async load_workspace_layout(args) {
+        const id = args && args.id;
+        if (!id) return { error: 'id is required' };
+        try {
+          const r = await fetch('/api/workspaces/' + encodeURIComponent(id));
+          if (!r.ok) return { error: 'load failed: HTTP ' + r.status };
+          const d = await r.json();
+          // Defer to existing applyWorkspaceState if available; otherwise return raw + ask user to apply
+          if (typeof applyWorkspaceState === 'function') {
+            try { applyWorkspaceState(d.tabs || d, { overwrite: !!(args && args.overwrite) }); return { ok: true, id, applied: true }; }
+            catch (e) { return { ok: true, id, applied: false, applyError: String(e.message || e), data: d }; }
+          }
+          return { ok: true, id, applied: false, note: 'applyWorkspaceState not available — workspace fetched but UI not restored.', data: d };
+        } catch (e) { return { error: 'load_workspace_layout failed: ' + (e && e.message || e) }; }
+      },
+      async code_symbols(args) {
+        const p = args && args.path;
+        if (!p) return { error: 'path is required' };
+        try {
+          const r = await fetch('/api/lsp/symbols?path=' + encodeURIComponent(p));
+          if (!r.ok) return { error: 'symbols failed: HTTP ' + r.status };
+          const d = await r.json();
+          return { path: p, ...d };
+        } catch (e) { return { error: 'code_symbols failed: ' + (e && e.message || e) }; }
+      },
+      async code_peek(args) {
+        const p = args && args.path;
+        const line = args && args.line;
+        const col = args && (args.column || args.col);
+        if (!p || !line || !col) return { error: 'path, line, column are required' };
+        try {
+          const r = await fetch('/api/lsp/peek?path=' + encodeURIComponent(p) + '&line=' + line + '&col=' + col);
+          if (!r.ok) return { error: 'peek failed: HTTP ' + r.status };
+          const d = await r.json();
+          return { path: p, line, column: col, ...d };
+        } catch (e) { return { error: 'code_peek failed: ' + (e && e.message || e) }; }
+      },
+      async git_status() {
+        try {
+          const r = await fetch('/api/git/status');
+          if (!r.ok) return { error: 'git status failed: HTTP ' + r.status };
+          const d = await r.json();
+          return d;
+        } catch (e) { return { error: 'git_status failed: ' + (e && e.message || e) }; }
+      },
+      async git_pr_status() {
+        try {
+          const r = await fetch('/api/git/pr-status');
+          if (!r.ok) return { error: 'git pr-status failed: HTTP ' + r.status };
+          const d = await r.json();
+          return d;
+        } catch (e) { return { error: 'git_pr_status failed: ' + (e && e.message || e) }; }
+      },
+      async take_screenshot(args) {
+        const m = (args && typeof args.monitor === 'number') ? args.monitor : 0;
+        try {
+          const r = await fetch('/api/spy/screenshot?monitor=' + m);
+          if (!r.ok) return { error: 'screenshot failed: HTTP ' + r.status };
+          const ct = r.headers.get('content-type') || '';
+          if (ct.startsWith('image/')) {
+            const buf = await r.arrayBuffer();
+            const b64 = btoa(String.fromCharCode(...new Uint8Array(buf)));
+            return { ok: true, monitor: m, mime: ct, bytes: buf.byteLength, dataUri: 'data:' + ct + ';base64,' + b64.slice(0, 64) + '... (truncated for chat — image was captured)' };
+          }
+          const d = await r.json().catch(() => ({}));
+          return { ok: true, monitor: m, ...d };
+        } catch (e) { return { error: 'take_screenshot failed: ' + (e && e.message || e) }; }
+      },
+      async list_monitors() {
+        try {
+          const r = await fetch('/api/spy/monitors');
+          if (!r.ok) return { error: 'monitors failed: HTTP ' + r.status };
+          const d = await r.json();
+          return d;
+        } catch (e) { return { error: 'list_monitors failed: ' + (e && e.message || e) }; }
+      },
+      async delete_snippet(args) {
+        const id = args && args.id;
+        if (!id) return { error: 'id is required' };
+        try {
+          const r = await fetch('/api/snippets/' + encodeURIComponent(id), { method: 'DELETE' });
+          const d = await r.json().catch(() => ({}));
+          if (!r.ok || d.error) return { error: d.error || ('HTTP ' + r.status) };
+          return { ok: true, id, deleted: true };
+        } catch (e) { return { error: 'delete_snippet failed: ' + (e && e.message || e) }; }
       },
     };
 

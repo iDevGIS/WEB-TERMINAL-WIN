@@ -1694,11 +1694,12 @@ const CROSS_TAB_TOOLS = [
     type: 'function',
     function: {
       name: 'create_terminal',
-      description: 'Open a new terminal tab with the given shell profile. Returns the new tab id once the WS session is created (lookup via list_tabs after a short delay).',
+      description: 'Open a new terminal tab with the given shell profile. Optionally runs a command in the new shell immediately (preferred for chained "open X and run Y" requests — avoids losing track of session ids across tool calls). Returns { tabId, sessionId, profile }.',
       parameters: {
         type: 'object',
         properties: {
           profile: { type: 'string', description: 'Shell profile id or human name fragment (pwsh, powershell, cmd, admin_pwsh, admin powershell, gitbash, wsl, bash, zsh, fish). Defaults to the first available shell.' },
+          command: { type: 'string', description: 'Optional: command to run in the new shell immediately after it spawns. Use this for "open X and run Y" requests instead of chaining run_terminal afterwards.' },
         },
         required: [],
       },
@@ -2096,17 +2097,377 @@ const CROSS_TAB_TOOLS = [
       },
     },
   },
+  // === v3.12.0 batch: extended coverage (30 new tools) ===
+  // Terminal/Sessions
+  {
+    type: 'function',
+    function: {
+      name: 'list_shells',
+      description: 'List all shell profiles available on this host (pwsh, cmd, bash, gitbash, wsl, admin variants, etc.) with id, name, and exec command.',
+      parameters: { type: 'object', properties: {}, required: [] },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'list_terminal_sessions',
+      description: 'List ALL backend terminal sessions (id, shell, cwd, alive flag) — independent of which tabs are showing them in the UI.',
+      parameters: { type: 'object', properties: {}, required: [] },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'kill_terminal_session',
+      description: 'Force-close a backend terminal session by id (kills the PTY). Destructive — confirm intent.',
+      parameters: {
+        type: 'object',
+        properties: { sessionId: { type: 'string', description: 'Backend session id (from list_terminal_sessions).' } },
+        required: ['sessionId'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'rename_terminal_session',
+      description: 'Rename a terminal session label used in the UI session sidebar.',
+      parameters: {
+        type: 'object',
+        properties: {
+          sessionId: { type: 'string', description: 'Backend session id.' },
+          name: { type: 'string', description: 'New label.' },
+        },
+        required: ['sessionId', 'name'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'export_session_transcript',
+      description: 'Export the captured transcript (scrollback) of a backend terminal session as plain text. Returns first ~10KB.',
+      parameters: {
+        type: 'object',
+        properties: { sessionId: { type: 'string', description: 'Backend session id.' } },
+        required: ['sessionId'],
+      },
+    },
+  },
+  // Files - search
+  {
+    type: 'function',
+    function: {
+      name: 'search_files',
+      description: 'Full-text search across workspace files (ripgrep-backed). Returns top matching files with line snippets.',
+      parameters: {
+        type: 'object',
+        properties: {
+          query: { type: 'string', description: 'Search query (literal or regex).' },
+          path: { type: 'string', description: 'Optional: directory to search within (default = workspace root).' },
+        },
+        required: ['query'],
+      },
+    },
+  },
+  // Admin / System
+  {
+    type: 'function',
+    function: {
+      name: 'list_processes',
+      description: 'List currently running processes (pid, name, cpu%, mem). Top entries by CPU.',
+      parameters: { type: 'object', properties: {}, required: [] },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_listening_ports',
+      description: 'List network ports currently listening on the host (netstat).',
+      parameters: { type: 'object', properties: {}, required: [] },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_arp_table',
+      description: 'Return the host ARP table (mac/ip pairs on the local network).',
+      parameters: { type: 'object', properties: {}, required: [] },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_routes',
+      description: 'Return the host routing table (route print).',
+      parameters: { type: 'object', properties: {}, required: [] },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_vpn_status',
+      description: 'Return VPN/Tailscale connection status (active interface, ip, peers).',
+      parameters: { type: 'object', properties: {}, required: [] },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'list_connected_clients',
+      description: 'List CYBERFRAME WebSocket clients currently connected (browser sessions, with ip/ua/last-seen).',
+      parameters: { type: 'object', properties: {}, required: [] },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'tailscale_status',
+      description: 'Get full Tailscale node status — self ip, peer list, magic dns, serve config.',
+      parameters: { type: 'object', properties: {}, required: [] },
+    },
+  },
+  // Docker - extended
+  {
+    type: 'function',
+    function: {
+      name: 'docker_remove_container',
+      description: 'Remove a Docker container (must be stopped or use force). Destructive — confirm intent.',
+      parameters: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'Container id or name.' },
+          force: { type: 'boolean', description: 'Force-remove even if running.' },
+        },
+        required: ['id'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'docker_compose_file',
+      description: 'Read the workspace docker-compose.yml file contents.',
+      parameters: { type: 'object', properties: {}, required: [] },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'docker_browse_container',
+      description: 'List files inside a running container filesystem (ls -la at the given path).',
+      parameters: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'Container id or name.' },
+          path: { type: 'string', description: 'Path inside the container (default /).' },
+        },
+        required: ['id'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'docker_browse_volume',
+      description: 'List files inside a Docker volume (via temp alpine helper).',
+      parameters: {
+        type: 'object',
+        properties: {
+          name: { type: 'string', description: 'Volume name.' },
+          path: { type: 'string', description: 'Path inside the volume (default /).' },
+        },
+        required: ['name'],
+      },
+    },
+  },
+  // Scrap recipes
+  {
+    type: 'function',
+    function: {
+      name: 'scrap_list_recipes',
+      description: 'List all saved Scrap recipes (id, name, url, selectors count).',
+      parameters: { type: 'object', properties: {}, required: [] },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'scrap_save_recipe',
+      description: 'Save a new Scrap recipe (or overwrite by id).',
+      parameters: {
+        type: 'object',
+        properties: {
+          name: { type: 'string', description: 'Recipe display name.' },
+          url: { type: 'string', description: 'Target URL.' },
+          selectors: { type: 'object', description: 'Selector map: { field: ".css selector" }.' },
+          mode: { type: 'string', enum: ['fetch', 'browser'], description: 'Fetch mode (fetch = static HTML, browser = headless render).' },
+        },
+        required: ['name', 'url', 'selectors'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'scrap_run_recipe',
+      description: 'Run a saved Scrap recipe by id and return its results.',
+      parameters: {
+        type: 'object',
+        properties: { id: { type: 'string', description: 'Recipe id.' } },
+        required: ['id'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'scrap_list_snapshots',
+      description: 'List historical snapshots (results) for a recipe.',
+      parameters: {
+        type: 'object',
+        properties: { id: { type: 'string', description: 'Recipe id.' } },
+        required: ['id'],
+      },
+    },
+  },
+  // Workspaces
+  {
+    type: 'function',
+    function: {
+      name: 'list_workspaces',
+      description: 'List saved workspace layouts (tab + pane configurations) with id, name, tabCount, savedAt.',
+      parameters: { type: 'object', properties: {}, required: [] },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'save_workspace_layout',
+      description: 'Snapshot the current tab/pane layout into a named workspace for later restore.',
+      parameters: {
+        type: 'object',
+        properties: {
+          name: { type: 'string', description: 'Workspace display name.' },
+          description: { type: 'string', description: 'Optional notes.' },
+        },
+        required: ['name'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'load_workspace_layout',
+      description: 'Restore a saved workspace layout (re-creates tabs/panes). Will not close existing tabs unless overwrite=true.',
+      parameters: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'Workspace id from list_workspaces.' },
+          overwrite: { type: 'boolean', description: 'Replace current tabs entirely (default false: additive).' },
+        },
+        required: ['id'],
+      },
+    },
+  },
+  // LSP / Code intelligence
+  {
+    type: 'function',
+    function: {
+      name: 'code_symbols',
+      description: 'List code symbols (functions, classes, exports) in a file via LSP. Useful to find a definition before opening or editing.',
+      parameters: {
+        type: 'object',
+        properties: { path: { type: 'string', description: 'File path (relative or absolute).' } },
+        required: ['path'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'code_peek',
+      description: 'Peek the definition or references at a given line+column via LSP.',
+      parameters: {
+        type: 'object',
+        properties: {
+          path: { type: 'string', description: 'File path.' },
+          line: { type: 'integer', description: '1-based line number.' },
+          column: { type: 'integer', description: '1-based column.' },
+        },
+        required: ['path', 'line', 'column'],
+      },
+    },
+  },
+  // Git
+  {
+    type: 'function',
+    function: {
+      name: 'git_status',
+      description: 'Return git status for the workspace (branch, uncommitted files, ahead/behind).',
+      parameters: { type: 'object', properties: {}, required: [] },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'git_pr_status',
+      description: 'Return GitHub PR status for the current branch (open PRs, CI checks, reviews).',
+      parameters: { type: 'object', properties: {}, required: [] },
+    },
+  },
+  // Spy / desktop
+  {
+    type: 'function',
+    function: {
+      name: 'take_screenshot',
+      description: 'Capture a screenshot of the host desktop and return it as a base64 data URI (or stored file path).',
+      parameters: {
+        type: 'object',
+        properties: { monitor: { type: 'integer', description: 'Monitor index (0 = primary).' } },
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'list_monitors',
+      description: 'List connected displays/monitors with resolution.',
+      parameters: { type: 'object', properties: {}, required: [] },
+    },
+  },
+  // Snippets
+  {
+    type: 'function',
+    function: {
+      name: 'delete_snippet',
+      description: 'Delete a saved command snippet by id.',
+      parameters: {
+        type: 'object',
+        properties: { id: { type: 'string', description: 'Snippet id.' } },
+        required: ['id'],
+      },
+    },
+  },
 ];
 
 function _ctiSystemPreamble() {
   return (
-    'You are connected to the CYBERFRAME UI via Cross-Tab Intelligence tools (41 total). ' +
-    'Read state: list_tabs, get_active_tab, read_file, list_files, server_info, activity_log, list_snippets, docker_list, docker_images, docker_volumes, docker_networks, docker_inspect, docker_logs, browser_get_url. ' +
-    'Open / navigate: open_editor, open_file_in_editor, browser_navigate, browser_reload, create_terminal, switch_tab, set_active_session, split_tab. ' +
-    'Mutate / write: save_file, insert_at_line, replace_in_file, create_file, create_folder, rename_path, move_path, delete_path, rename_tab, duplicate_editor_tab, add_snippet. ' +
-    'Execute: run_terminal, run_in_active_terminal, scrap_run, docker_action, kill_process, tts_speak. ' +
-    'Tear down: close_tab. UI: notify. ' +
-    'Always prefer reading state first (list_tabs, get_active_tab) before mutating. Chain tools to fulfill multi-step asks. After the final tool returns, confirm with a short summary in the user\'s language. DESTRUCTIVE tools (delete_path, kill_process, docker_action stop/restart, close_tab) require explicit user intent — do not infer them from vague phrasing.'
+    'You are connected to the CYBERFRAME UI via Cross-Tab Intelligence tools (~71 total).' +
+    ' Major categories: read state (list_tabs, get_active_tab, read_file, list_files, search_files, server_info, activity_log, list_snippets, list_shells, list_terminal_sessions, list_connected_clients, list_processes, list_monitors, list_workspaces, scrap_list_recipes/snapshots, git_status, git_pr_status, code_symbols, code_peek);' +
+    ' docker (list/images/volumes/networks/inspect/logs/action/remove/compose_file/browse_container/browse_volume);' +
+    ' network/admin (get_listening_ports/arp_table/routes/vpn_status, tailscale_status);' +
+    ' open/navigate (open_editor, open_file_in_editor, browser_navigate, browser_reload, create_terminal, switch_tab, set_active_session, split_tab, load_workspace_layout);' +
+    ' mutate/write (save_file, insert_at_line, replace_in_file, create_file, create_folder, rename_path, move_path, delete_path, rename_tab, duplicate_editor_tab, add_snippet, delete_snippet, save_workspace_layout, scrap_save_recipe);' +
+    ' execute (run_terminal, run_in_active_terminal, scrap_run, scrap_run_recipe, docker_action, kill_process, kill_terminal_session, rename_terminal_session, export_session_transcript, tts_speak, take_screenshot);' +
+    ' UI (notify); teardown (close_tab).' +
+    ' RULES:' +
+    ' (1) Always read state first before mutating.' +
+    ' (2) When a request is "open X and run Y" (e.g. "open admin powershell and run whoami"), prefer passing `command` directly to create_terminal in ONE call — do NOT split into create_terminal+run_terminal.' +
+    ' (3) If you DO split a chain across tool calls, you MUST carry forward identifiers (sessionId, tabId, recipe id, etc.) returned by the previous tool. Do not call follow-ups with empty args.' +
+    ' (4) Confirm with a short summary in the user\'s language after the final tool returns.' +
+    ' (5) DESTRUCTIVE tools (delete_path, kill_process, kill_terminal_session, docker_action stop/restart, docker_remove_container, close_tab) require explicit user intent — never infer from vague phrasing.'
   );
 }
 
@@ -2143,6 +2504,8 @@ function _ctiInlineToolsInstruction() {
     '- Output AT MOST ONE toolcall block per turn (chain tools across turns).\n' +
     '- Arguments must be a valid JSON object (use `{}` if no args).\n' +
     '- Prefer reading state first (`list_tabs`, `get_active_tab`) before mutating.\n' +
+    '- **Chaining**: "open X and run Y" → use `create_terminal` with both `profile` and `command` set in ONE call. Do not split into create_terminal then run_terminal — the AI loses the session id otherwise.\n' +
+    '- **Carry forward ids**: when one tool returns sessionId/tabId/id, you MUST pass it back into the next related tool. Never call run_terminal without sessionId if you just created a new terminal.\n' +
     '- After tool results, summarise the outcome in plain text — do not include another toolcall block in your final answer.\n' +
     '- Up to 6 tool rounds per request.\n\n' +
     'Available tools:\n\n' + toolList
