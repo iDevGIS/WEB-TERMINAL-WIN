@@ -1,0 +1,66 @@
+{
+  "$comment": "Sample pipeline for v4.0.0-alpha.1 backend smoke test. POST this to /api/scrap/pipelines, then POST /api/scrap/pipelines/<id>/run.",
+  "name": "Quotes scrape with self-heal",
+  "description": "Fetch quotes.toscrape.com homepage, extract quote text + author, self-heal if selectors break, store as JSON.",
+  "blocks": [
+    {
+      "id": "b_fetch",
+      "type": "fetch",
+      "position": { "x": 60, "y": 80 },
+      "config": {
+        "url": "https://quotes.toscrape.com/",
+        "mode": "static"
+      },
+      "next": ["b_extract"]
+    },
+    {
+      "id": "b_extract",
+      "type": "extract",
+      "position": { "x": 360, "y": 80 },
+      "config": {
+        "rootSelector": ".quote",
+        "selectors": {
+          "text": { "selector": ".text", "attr": "text" },
+          "author": { "selector": ".author", "attr": "text" },
+          "link": { "selector": "a", "attr": "href" }
+        },
+        "autoHeal": true
+      },
+      "next": ["b_heal"],
+      "healFallback": "b_heal"
+    },
+    {
+      "id": "b_heal",
+      "type": "self_heal",
+      "position": { "x": 660, "y": 80 },
+      "config": {
+        "goal": "Extract each quote: the quote text, the author name, and the link to the author page."
+      },
+      "next": ["b_transform"]
+    },
+    {
+      "id": "b_transform",
+      "type": "transform",
+      "position": { "x": 960, "y": 80 },
+      "config": {
+        "ops": [
+          { "op": "dedupe", "field": "text" },
+          { "op": "sort", "field": "author" },
+          { "op": "limit", "count": 20 }
+        ]
+      },
+      "next": ["b_store"]
+    },
+    {
+      "id": "b_store",
+      "type": "store",
+      "position": { "x": 1260, "y": 80 },
+      "config": {
+        "target": "quotes-sample.json",
+        "format": "json"
+      },
+      "next": []
+    }
+  ],
+  "startBlock": "b_fetch"
+}
