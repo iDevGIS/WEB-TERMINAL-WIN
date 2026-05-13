@@ -1694,12 +1694,12 @@ const CROSS_TAB_TOOLS = [
     type: 'function',
     function: {
       name: 'create_terminal',
-      description: 'Open a new terminal tab with the given shell profile. Optionally runs a command in the new shell immediately (preferred for chained "open X and run Y" requests — avoids losing track of session ids across tool calls). Returns { tabId, sessionId, profile }.',
+      description: 'Open a new terminal tab AND optionally run a command in it in ONE call. ALWAYS pass `command` if the user mentioned running anything ("open X and run Y", "เปิด X แล้วรัน Y", "เปิด pwsh แล้ว whoami"). Do NOT split into create_terminal + run_terminal — the new sessionId is not returned in time for chaining. Returns { tabId, sessionId, profile, commandSent }.',
       parameters: {
         type: 'object',
         properties: {
           profile: { type: 'string', description: 'Shell profile id or human name fragment (pwsh, powershell, cmd, admin_pwsh, admin powershell, gitbash, wsl, bash, zsh, fish). Defaults to the first available shell.' },
-          command: { type: 'string', description: 'Optional: command to run in the new shell immediately after it spawns. Use this for "open X and run Y" requests instead of chaining run_terminal afterwards.' },
+          command: { type: 'string', description: 'REQUIRED whenever user asks to run a command in a NEW terminal. Example: user says "open admin powershell and run whoami" → set command: "whoami". Do NOT leave this empty and then call run_terminal afterwards.' },
         },
         required: [],
       },
@@ -2504,10 +2504,24 @@ function _ctiInlineToolsInstruction() {
     '- Output AT MOST ONE toolcall block per turn (chain tools across turns).\n' +
     '- Arguments must be a valid JSON object (use `{}` if no args).\n' +
     '- Prefer reading state first (`list_tabs`, `get_active_tab`) before mutating.\n' +
-    '- **Chaining**: "open X and run Y" → use `create_terminal` with both `profile` and `command` set in ONE call. Do not split into create_terminal then run_terminal — the AI loses the session id otherwise.\n' +
-    '- **Carry forward ids**: when one tool returns sessionId/tabId/id, you MUST pass it back into the next related tool. Never call run_terminal without sessionId if you just created a new terminal.\n' +
+    '- **Chain "open X and run Y" in ONE call**: pass BOTH `profile` AND `command` to `create_terminal`. Do NOT split into create_terminal then run_terminal — the new sessionId is not returned in time.\n' +
+    '- **Carry forward ids**: when a tool returns sessionId/tabId/id, you MUST pass it back into the next related tool.\n' +
     '- After tool results, summarise the outcome in plain text — do not include another toolcall block in your final answer.\n' +
     '- Up to 6 tool rounds per request.\n\n' +
+    '## Examples — follow these patterns exactly\n\n' +
+    '**Example 1** — user: "เปิด admin powershell แล้วรัน whoami"\n' +
+    '```toolcall\n' +
+    '{"name":"create_terminal","arguments":{"profile":"admin_pwsh","command":"whoami"}}\n' +
+    '```\n' +
+    '(ONE call — do NOT call run_terminal afterwards)\n\n' +
+    '**Example 2** — user: "open git bash and run npm install"\n' +
+    '```toolcall\n' +
+    '{"name":"create_terminal","arguments":{"profile":"gitbash","command":"npm install"}}\n' +
+    '```\n\n' +
+    '**Example 3** — user: "run ls in the current terminal" (existing terminal, no new tab)\n' +
+    '```toolcall\n' +
+    '{"name":"run_in_active_terminal","arguments":{"command":"ls"}}\n' +
+    '```\n\n' +
     'Available tools:\n\n' + toolList
   );
 }
