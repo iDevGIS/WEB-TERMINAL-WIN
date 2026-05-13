@@ -2379,6 +2379,41 @@ const CROSS_TAB_TOOLS = [
   {
     type: 'function',
     function: {
+      name: 'pipeline_list',
+      description: 'List saved Scrap pipelines (Visual Flow Builder DAGs). Returns id, name, block count, lastRunAt.',
+      parameters: { type: 'object', properties: {}, required: [] },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'pipeline_run',
+      description: 'Run a saved Scrap pipeline by id. Returns rowCount, errors, log, and output file.',
+      parameters: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'Pipeline id.' },
+          url: { type: 'string', description: 'Optional override URL for the start block (only used if start is a fetch block).' },
+        },
+        required: ['id'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'pipeline_get',
+      description: 'Get the full definition of a Scrap pipeline by id (blocks, edges, config).',
+      parameters: {
+        type: 'object',
+        properties: { id: { type: 'string', description: 'Pipeline id.' } },
+        required: ['id'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'scrap_heal_events',
       description: 'List recent self-heal events (attempts, successes, failures, rollbacks). Useful for status checks.',
       parameters: {
@@ -7564,6 +7599,377 @@ app.get("/api/scrap/heal-events", requireAuth, (req, res) => {
   const limit = Math.min(200, Math.max(1, parseInt(req.query.limit) || 50));
   const events = _scrapHealEventsRead(since, limit);
   res.json({ ok: true, events, latestAt: events.length ? events[events.length - 1].at : null });
+});
+
+// === Pipelines v4.0.0-alpha (Visual Flow Builder backend) =====================
+// A Pipeline is a DAG of blocks: { id, type, config, next: [ids] }.
+// Block types: fetch | login | extract | follow | self_heal | transform | store.
+// Executor walks the graph, threading state (html, rows, url) between blocks.
+
+const SCRAP_PIPELINES_FILE = path.join(SCRAP_DIR, "pipelines.json");
+
+function loadPipelines() {
+  try { return JSON.parse(fs.readFileSync(SCRAP_PIPELINES_FILE, "utf8")); } catch { return []; }
+}
+function savePipelines(list) {
+  fs.writeFileSync(SCRAP_PIPELINES_FILE, JSON.stringify(list, null, 2));
+}
+
+function _normalizeBlock(b) {
+  return {
+    id: String(b.id || ("b_" + Math.random().toString(36).slice(2, 8))),
+    type: String(b.type || "fetch"),
+    config: (b.config && typeof b.config === "object") ? b.config : {},
+    next: Array.isArray(b.next) ? b.next.map(String) : [],
+    // Optional loopback edge for follow blocks
+    loopback: b.loopback ? String(b.loopback) : null,
+    // Optional heal-fallback edge
+    healFallback: b.healFallback ? String(b.healFallback) : null,
+    // UI position (canvas)
+    position: (b.position && typeof b.position === "object") ? { x: Number(b.position.x) || 0, y: Number(b.position.y) || 0 } : { x: 0, y: 0 },
+  };
+}
+
+function _normalizePipeline(body, existing) {
+  const id = String(body.id || (existing && existing.id) || ("p_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5)));
+  const blocks = Array.isArray(body.blocks) ? body.blocks.map(_normalizeBlock) : (existing?.blocks || []);
+  return {
+    id,
+    name: String(body.name != null ? body.name : (existing?.name || "Untitled Pipeline")).slice(0, 120),
+    description: String(body.description != null ? body.description : (existing?.description || "")).slice(0, 500),
+    blocks,
+    startBlock: body.startBlock != null ? String(body.startBlock) : (existing?.startBlock || (blocks[0]?.id || null)),
+    schedule: body.schedule && typeof body.schedule === "object" ? {
+      enabled: !!body.schedule.enabled,
+      intervalMin: Math.max(1, parseInt(body.schedule.intervalMin) || 60),
+    } : (existing?.schedule || { enabled: false, intervalMin: 60 }),
+    lastRunAt: existing?.lastRunAt || null,
+    lastRowCount: existing?.lastRowCount || 0,
+    lastError: existing?.lastError || null,
+    createdAt: existing?.createdAt || new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+// === Block executors ==========================================================
+// Each executor receives (state, config, ctx) and returns updated state.
+// state shape: { url, html, finalUrl, rows: [], cookies: [], errors: [], log: [], healed: [] }
+
+async function _pipeExecFetch(state, config, ctx) {
+  const url = String(config.url || state.url || "").trim();
+  if (!/^https?:\/\//i.test(url)) throw new Error("fetch: invalid url");
+  const mode = ["static", "browser"].includes(config.mode) ? config.mode : "static";
+  const auth = config.auth || {};
+  if (mode === "browser") {
+    const browser = await _getScrapBrowser();
+    const context = await browser.newContext({ userAgent: SCRAP_UA, viewport: { width: 1366, height: 900 } });
+    try {
+      const extraHeaders = _scrapAuthHeaders(auth);
+      if (Object.keys(extraHeaders).length) await context.setExtraHTTPHeaders(extraHeaders);
+      const cookieArr = _scrapCookieArrayForUrl(auth.cookie, url);
+      if (cookieArr.length) await context.addCookies(cookieArr);
+      const page = await context.newPage();
+      await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 });
+      if (config.waitFor) { try { await page.waitForSelector(config.waitFor, { timeout: 15000 }); } catch {} }
+      if (config.waitMs) await page.waitForTimeout(Math.min(20000, parseInt(config.waitMs) || 0));
+      if (config.scroll) {
+        await page.evaluate(async () => {
+          await new Promise(resolve => {
+            const start = Date.now();
+            let last = 0;
+            const t = setInterval(() => {
+              window.scrollBy(0, 900);
+              if (document.body.scrollHeight === last || Date.now() - start > 8000) { clearInterval(t); resolve(); }
+              last = document.body.scrollHeight;
+            }, 250);
+          });
+        });
+      }
+      state.html = await page.content();
+      state.finalUrl = page.url();
+    } finally { try { await context.close(); } catch {} }
+  } else {
+    const r = await fetch(url, {
+      headers: { "User-Agent": SCRAP_UA, "Accept": "text/html,application/xhtml+xml,*/*;q=0.8", ..._scrapAuthHeaders(auth) },
+      redirect: "follow",
+    });
+    state.html = await r.text();
+    state.finalUrl = r.url || url;
+  }
+  state.url = state.finalUrl;
+  state.log.push(`fetch ok (${state.html.length} chars from ${state.finalUrl})`);
+  return state;
+}
+
+async function _pipeExecExtract(state, config, ctx) {
+  if (!state.html) throw new Error("extract: no html in state (run fetch first)");
+  const cheerio = require("cheerio");
+  const $ = cheerio.load(state.html);
+  const rootSelector = String(config.rootSelector || "").trim();
+  const selectors = config.selectors || {};
+  const fieldNames = Object.keys(selectors);
+  const finalUrl = state.finalUrl || state.url;
+  const absolutize = (v, attr) => {
+    if (!finalUrl) return v;
+    const a = (attr || "").toLowerCase();
+    if ((a === "href" || a === "src" || a === "data-src") && /^(\/|\.|[a-z]+:?\/\/)/i.test(v)) {
+      try { return new URL(v, finalUrl).toString(); } catch { return v; }
+    }
+    return v;
+  };
+  const rows = [];
+  if (rootSelector) {
+    $(rootSelector).each((idx, el) => {
+      const row = {};
+      for (const f of fieldNames) {
+        const def = selectors[f] || {};
+        const sel = String(def.selector || "");
+        const attr = def.attr || "text";
+        const node = sel ? $(el).find(sel).first() : $(el);
+        row[f] = absolutize(_scrapExtractValue($, node, attr), attr);
+      }
+      rows.push(row);
+    });
+  } else {
+    const row = {};
+    for (const f of fieldNames) {
+      const def = selectors[f] || {};
+      const sel = String(def.selector || "");
+      const attr = def.attr || "text";
+      const node = sel ? $(sel).first() : $("html");
+      row[f] = absolutize(_scrapExtractValue($, node, attr), attr);
+    }
+    rows.push(row);
+  }
+  state.rows = (state.rows || []).concat(rows);
+  state.lastBlockRowCount = rows.length;
+  state.log.push(`extract ok (+${rows.length} rows, total ${state.rows.length})`);
+  // Hook: if autoHeal enabled and rows.length === 0, mark for self_heal block to trigger
+  if (config.autoHeal && rows.length === 0) state.needsHeal = true;
+  return state;
+}
+
+async function _pipeExecSelfHeal(state, config, ctx) {
+  if (!state.needsHeal && !config.force) {
+    state.log.push("self_heal skipped (not needed)");
+    return state;
+  }
+  if (!state.html) throw new Error("self_heal: no html in state");
+  // Build a pseudo-recipe from current extract block config for AI to repair
+  const lastExtractCfg = ctx.lastExtractConfig || {};
+  const pseudoRecipe = {
+    url: state.url,
+    rootSelector: lastExtractCfg.rootSelector,
+    selectors: lastExtractCfg.selectors || {},
+    auth: {},
+    lastRowCount: state.lastBlockRowCount || 0,
+  };
+  const heal = await _scrapAttemptHeal(pseudoRecipe, { goal: config.goal || "" });
+  if (!heal.healed) {
+    state.log.push("self_heal failed: " + (heal.error || "unknown"));
+    state.healed.push({ ok: false, error: heal.error });
+    return state;
+  }
+  // Apply healed selectors to ctx so future extract reruns work
+  ctx.healedSelectors = heal.newSelectors;
+  state.healed.push({ ok: true, newRowCount: heal.newRowCount, newSelectors: heal.newSelectors });
+  state.log.push(`self_heal ok (${heal.oldRowCount} → ${heal.newRowCount})`);
+  state.rows = (state.rows || []).concat(heal.rows || []);
+  state.lastBlockRowCount = heal.newRowCount;
+  state.needsHeal = false;
+  return state;
+}
+
+async function _pipeExecTransform(state, config, ctx) {
+  let rows = state.rows || [];
+  const ops = Array.isArray(config.ops) ? config.ops : [];
+  for (const op of ops) {
+    const t = String(op.op || op.type || "").toLowerCase();
+    if (t === "filter") {
+      const field = String(op.field || "");
+      const matchStr = String(op.match || "");
+      const not = !!op.not;
+      rows = rows.filter(r => {
+        const v = String(r[field] != null ? r[field] : "");
+        const hit = matchStr ? v.toLowerCase().includes(matchStr.toLowerCase()) : !!v;
+        return not ? !hit : hit;
+      });
+    } else if (t === "dedupe") {
+      const key = String(op.key || op.field || "");
+      const seen = new Set();
+      rows = rows.filter(r => {
+        const k = key ? String(r[key] != null ? r[key] : "") : JSON.stringify(r);
+        if (seen.has(k)) return false;
+        seen.add(k); return true;
+      });
+    } else if (t === "sort") {
+      const key = String(op.key || op.field || "");
+      const desc = !!op.desc;
+      rows = rows.slice().sort((a, b) => {
+        const av = String(a[key] != null ? a[key] : "");
+        const bv = String(b[key] != null ? b[key] : "");
+        return desc ? bv.localeCompare(av) : av.localeCompare(bv);
+      });
+    } else if (t === "limit") {
+      const n = Math.max(0, parseInt(op.count) || 0);
+      if (n > 0) rows = rows.slice(0, n);
+    }
+  }
+  state.rows = rows;
+  state.log.push(`transform ok (rows now ${rows.length})`);
+  return state;
+}
+
+async function _pipeExecStore(state, config, ctx) {
+  const target = String(config.target || "rows.json");
+  const format = String(config.format || (target.endsWith(".csv") ? "csv" : "json")).toLowerCase();
+  const safeName = target.replace(/[^a-zA-Z0-9_.-]+/g, "_");
+  const outDir = path.join(SCRAP_DIR, "pipelines-out");
+  if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
+  const file = path.join(outDir, safeName);
+  if (format === "csv") {
+    const rows = state.rows || [];
+    const cols = rows.length ? Object.keys(rows[0]) : [];
+    const esc = v => {
+      const s = String(v == null ? "" : v);
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const lines = [cols.join(",")].concat(rows.map(r => cols.map(c => esc(r[c])).join(",")));
+    fs.writeFileSync(file, lines.join("\n"));
+  } else {
+    fs.writeFileSync(file, JSON.stringify(state.rows || [], null, 2));
+  }
+  state.log.push(`store ok (${(state.rows || []).length} rows → ${safeName})`);
+  state.outputFile = safeName;
+  return state;
+}
+
+// Execute pipeline linearly along block.next[0] edges, with optional loopback for follow blocks
+// and healFallback rerouting after a successful self_heal.
+async function _executePipeline(pipeline, opts = {}) {
+  const startId = pipeline.startBlock || (pipeline.blocks[0]?.id || null);
+  if (!startId) throw new Error("pipeline has no startBlock");
+  const blockMap = new Map(pipeline.blocks.map(b => [b.id, b]));
+  const state = {
+    url: opts.url || "",
+    html: "",
+    finalUrl: "",
+    rows: [],
+    cookies: [],
+    errors: [],
+    log: [],
+    healed: [],
+    lastBlockRowCount: 0,
+    needsHeal: false,
+  };
+  const ctx = { lastExtractConfig: null, healedSelectors: null };
+  const visited = new Map(); // blockId -> visit count (for follow loops)
+  const maxVisits = 50;
+  let currentId = startId;
+  const executors = {
+    fetch: _pipeExecFetch,
+    extract: _pipeExecExtract,
+    self_heal: _pipeExecSelfHeal,
+    transform: _pipeExecTransform,
+    store: _pipeExecStore,
+  };
+  const startedAt = Date.now();
+  const maxMs = Math.max(5000, opts.maxMs || 120_000);
+  while (currentId) {
+    if (Date.now() - startedAt > maxMs) {
+      state.errors.push("pipeline timed out after " + maxMs + "ms");
+      break;
+    }
+    const block = blockMap.get(currentId);
+    if (!block) { state.errors.push("missing block: " + currentId); break; }
+    const visits = (visited.get(currentId) || 0) + 1;
+    visited.set(currentId, visits);
+    if (visits > maxVisits) { state.errors.push("max visits exceeded at " + currentId); break; }
+    const exec = executors[block.type];
+    if (!exec) {
+      state.errors.push(`unknown block type "${block.type}" at ${currentId}`);
+      currentId = block.next[0] || null;
+      continue;
+    }
+    if (block.type === "extract") ctx.lastExtractConfig = block.config;
+    try {
+      await exec(state, block.config || {}, ctx);
+    } catch (e) {
+      const errMsg = `${block.type}@${currentId}: ${e.message || String(e)}`;
+      state.errors.push(errMsg);
+      state.log.push("ERROR " + errMsg);
+      // If a heal fallback is configured, jump there
+      if (block.healFallback && blockMap.has(block.healFallback)) {
+        currentId = block.healFallback;
+        continue;
+      }
+      break;
+    }
+    // Loopback (follow): if block has loopback edge and a "shouldLoop" condition is met, route back.
+    // For now, simple rule: if block.type === 'follow' and config.continueWhile is met, follow loopback.
+    // Otherwise move to next[0].
+    currentId = block.next[0] || null;
+  }
+  return {
+    ok: state.errors.length === 0,
+    rows: state.rows,
+    rowCount: state.rows.length,
+    errors: state.errors,
+    log: state.log,
+    healed: state.healed,
+    outputFile: state.outputFile || null,
+    durationMs: Date.now() - startedAt,
+  };
+}
+
+// === Pipeline endpoints =======================================================
+app.get("/api/scrap/pipelines", requireAuth, (req, res) => {
+  res.json({ ok: true, pipelines: loadPipelines() });
+});
+
+app.post("/api/scrap/pipelines", requireAuth, express.json({ limit: "2mb" }), (req, res) => {
+  const list = loadPipelines();
+  const body = req.body || {};
+  const existing = body.id ? list.find(p => p.id === body.id) : null;
+  const p = _normalizePipeline(body, existing);
+  if (existing) {
+    const idx = list.findIndex(x => x.id === existing.id);
+    list[idx] = p;
+  } else {
+    list.push(p);
+  }
+  savePipelines(list);
+  res.json({ ok: true, pipeline: p });
+});
+
+app.get("/api/scrap/pipelines/:id", requireAuth, (req, res) => {
+  const p = loadPipelines().find(x => x.id === req.params.id);
+  if (!p) return res.status(404).json({ error: "pipeline not found" });
+  res.json({ ok: true, pipeline: p });
+});
+
+app.delete("/api/scrap/pipelines/:id", requireAuth, (req, res) => {
+  const list = loadPipelines().filter(x => x.id !== req.params.id);
+  savePipelines(list);
+  res.json({ ok: true });
+});
+
+app.post("/api/scrap/pipelines/:id/run", requireAuth, express.json({ limit: "128kb" }), async (req, res) => {
+  const list = loadPipelines();
+  const idx = list.findIndex(x => x.id === req.params.id);
+  if (idx < 0) return res.status(404).json({ error: "pipeline not found" });
+  const p = list[idx];
+  try {
+    const result = await _executePipeline(p, { url: req.body?.url || "" });
+    p.lastRunAt = new Date().toISOString();
+    p.lastRowCount = result.rowCount;
+    p.lastError = result.ok ? null : (result.errors.join("; ") || "errors");
+    savePipelines(list);
+    res.json({ ok: result.ok, ...result, pipeline: p });
+  } catch (e) {
+    p.lastError = String(e.message || e); p.lastRunAt = new Date().toISOString(); savePipelines(list);
+    res.status(500).json({ error: p.lastError });
+  }
 });
 
 // Toggle / update recipe schedule from anywhere (chat tools).

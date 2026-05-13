@@ -12198,6 +12198,41 @@ ${fields}
           return d;
         } catch (e) { return { error: 'scrap_set_schedule failed: ' + (e && e.message || e) }; }
       },
+      async pipeline_list() {
+        try {
+          const r = await fetch('/api/scrap/pipelines');
+          if (!r.ok) return { error: 'pipelines failed: HTTP ' + r.status };
+          const d = await r.json();
+          const arr = Array.isArray(d) ? d : (d.pipelines || []);
+          return { count: arr.length, pipelines: arr.map(p => ({ id: p.id, name: p.name, description: p.description, blockCount: (p.blocks || []).length, lastRunAt: p.lastRunAt, lastRowCount: p.lastRowCount, lastError: p.lastError })) };
+        } catch (e) { return { error: 'pipeline_list failed: ' + (e && e.message || e) }; }
+      },
+      async pipeline_get(args) {
+        const id = args && args.id;
+        if (!id) return { error: 'id is required' };
+        try {
+          const r = await fetch('/api/scrap/pipelines/' + encodeURIComponent(id));
+          const d = await r.json().catch(() => ({}));
+          if (!r.ok) return { error: d.error || ('HTTP ' + r.status) };
+          return d.pipeline || d;
+        } catch (e) { return { error: 'pipeline_get failed: ' + (e && e.message || e) }; }
+      },
+      async pipeline_run(args) {
+        const id = args && args.id;
+        if (!id) return { error: 'id is required' };
+        const body = {};
+        if (args && args.url) body.url = String(args.url);
+        try {
+          const r = await fetch('/api/scrap/pipelines/' + encodeURIComponent(id) + '/run', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+          });
+          const d = await r.json().catch(() => ({}));
+          if (!r.ok) return { error: d.error || ('HTTP ' + r.status) };
+          return d;
+        } catch (e) { return { error: 'pipeline_run failed: ' + (e && e.message || e) }; }
+      },
       async scrap_heal_events(args) {
         const params = new URLSearchParams();
         if (args && args.since) params.set('since', String(args.since));
