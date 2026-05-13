@@ -4589,6 +4589,58 @@
     }
     .copilot-launcher.tools-on .copilot-dot { display: block; }
 
+    /* Proactive suggestion badge + cards (v3.10.0) */
+    .copilot-launcher .copilot-badge {
+      position: absolute; top: -6px; left: -6px;
+      min-width: 20px; height: 20px; padding: 0 6px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #ef4444, #f97316);
+      color: #fff; font-size: 10.5px; font-weight: 800;
+      display: none; align-items: center; justify-content: center;
+      box-shadow: 0 2px 10px rgba(239,68,68,.55);
+      border: 2px solid #060818;
+      animation: cf-sk-pulse 1.8s ease-in-out infinite;
+    }
+    .copilot-launcher.has-suggestions .copilot-badge { display: flex; }
+    @keyframes cf-sk-pulse {
+      0%,100% { transform: scale(1); box-shadow: 0 2px 10px rgba(239,68,68,.5); }
+      50%     { transform: scale(1.15); box-shadow: 0 4px 16px rgba(239,68,68,.75); }
+    }
+    .copilot-suggestions { display: flex; flex-direction: column; gap: 8px; padding: 12px 12px 4px; }
+    .copilot-suggestion {
+      position: relative;
+      background: linear-gradient(135deg, rgba(239,68,68,.12), rgba(168,85,247,.06));
+      border: 1px solid rgba(239,68,68,.35);
+      border-radius: 12px; padding: 10px 30px 10px 12px;
+      font-size: 12.5px; color: var(--text); line-height: 1.5;
+    }
+    .copilot-suggestion.severity-warning {
+      background: linear-gradient(135deg, rgba(245,158,11,.12), rgba(168,85,247,.06));
+      border-color: rgba(245,158,11,.4);
+    }
+    .copilot-suggestion.severity-info {
+      background: linear-gradient(135deg, rgba(6,182,212,.12), rgba(168,85,247,.06));
+      border-color: rgba(6,182,212,.4);
+    }
+    .copilot-suggestion-title { font-weight: 700; font-size: 12.5px; color: #fca5a5; margin-bottom: 4px; display: flex; align-items: center; gap: 6px; }
+    .copilot-suggestion.severity-warning .copilot-suggestion-title { color: #fbbf24; }
+    .copilot-suggestion.severity-info .copilot-suggestion-title { color: #67e8f9; }
+    .copilot-suggestion-body { color: var(--text2); font-size: 12px; }
+    .copilot-suggestion-actions { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+    .copilot-suggestion-btn {
+      background: rgba(168,85,247,.18); border: 1px solid rgba(168,85,247,.35);
+      color: #c4b5fd; padding: 4px 10px; border-radius: 8px; font-size: 11px;
+      cursor: pointer; transition: all .15s; font-weight: 600;
+    }
+    .copilot-suggestion-btn:hover { background: rgba(168,85,247,.3); color: #fff; transform: translateY(-1px); }
+    .copilot-suggestion-btn.primary { background: rgba(168,85,247,.4); color: #fff; border-color: rgba(168,85,247,.65); }
+    .copilot-suggestion-dismiss {
+      position: absolute; top: 6px; right: 8px;
+      background: transparent; border: none; color: var(--text2);
+      font-size: 14px; cursor: pointer; opacity: .55; padding: 2px 6px; line-height: 1;
+    }
+    .copilot-suggestion-dismiss:hover { opacity: 1; color: #fff; }
+
     .copilot-panel {
       position: fixed;
       background: rgba(13,16,32,.85);
@@ -4778,6 +4830,7 @@
   <div class="copilot-launcher" id="copilot-launcher" title="Sidekick · กดเปิด chat ลอย">
     🤖
     <span class="copilot-dot"></span>
+    <span class="copilot-badge"></span>
   </div>
   <div class="copilot-panel bubble" id="copilot-panel" role="dialog" aria-label="Sidekick chat">
     <div class="copilot-header">
@@ -5986,8 +6039,23 @@
         const d = await scrapJson(r);
         if (!r.ok || d.error) throw new Error(d.error || 'extract failed');
         tab.scrap.rows = d.rows || [];
+        tab._scrapLastResult = { count: tab.scrap.rows.length, rootSelector, ts: Date.now() };
         scrapRenderRows(tabId);
         scrapSetStatus(tabId, `extracted ${d.count} rows`, 'ok');
+        // Proactive trigger — 0 rows extracted (likely selector mismatch)
+        if (tab.scrap.rows.length === 0 && window.__sidekick) {
+          const rootShown = rootSelector || '(none)';
+          window.__sidekick.suggest({
+            id: 'scrap-empty-' + tabId,
+            type: 'scrap-empty',
+            severity: 'warning',
+            title: 'Scrap: 0 rows extracted',
+            message: 'Root selector "' + rootShown + '" matched no items. HTML structure may have changed — try a different selector or open the scrap tab.',
+            actions: [
+              { label: 'Open this scrap', primary: true, handler: () => { try { switchTab(tabId); } catch {} } },
+            ],
+          });
+        }
       } catch (e) {
         scrapSetStatus(tabId, 'error: ' + (e.message || e), 'err');
       }
@@ -11411,7 +11479,215 @@ ${fields}
         if (typeof showToast === 'function') showToast(msg, type);
         return { ok: true };
       },
+      async create_terminal(args) {
+        const want = ((args && (args.profile || args.shell)) || '').toString().toLowerCase().trim();
+        if (typeof createSessionWithShell !== 'function') return { error: 'createSessionWithShell unavailable' };
+        if (!Array.isArray(availableShells) || availableShells.length === 0) return { error: 'No shell profiles loaded yet' };
+        let profile = null;
+        if (want) {
+          profile = availableShells.find(s => s.id.toLowerCase() === want)
+            || availableShells.find(s => (s.name || '').toLowerCase() === want)
+            || availableShells.find(s => (s.name || '').toLowerCase().includes(want))
+            || availableShells.find(s => s.id.toLowerCase().includes(want.replace(/[\s_-]/g, '')));
+        }
+        if (!profile) profile = availableShells[0];
+        const tabIdsBefore = new Set([...tabs.keys()]);
+        try { createSessionWithShell(profile.id); }
+        catch (e) { return { error: 'createSessionWithShell failed: ' + (e && e.message || e) }; }
+        let createdTabId = null;
+        for (const tid of tabs.keys()) { if (!tabIdsBefore.has(tid)) { createdTabId = tid; break; } }
+        return { ok: true, started: true, profile: { id: profile.id, name: profile.name }, tabId: createdTabId };
+      },
+      async switch_tab(args) {
+        const id = args && (args.tabId || args.tab_id);
+        if (!id) return { error: 'tabId is required' };
+        if (!tabs.has(id)) return { error: 'Unknown tabId: ' + id };
+        if (typeof switchTab !== 'function') return { error: 'switchTab unavailable' };
+        switchTab(id);
+        return { ok: true, tabId: id, activeTabId };
+      },
+      async close_tab(args) {
+        const id = args && (args.tabId || args.tab_id);
+        if (!id) return { error: 'tabId is required' };
+        if (!tabs.has(id)) return { error: 'Unknown tabId: ' + id };
+        if (typeof closeTab !== 'function') return { error: 'closeTab unavailable' };
+        closeTab(id);
+        return { ok: true, tabId: id, closed: true };
+      },
+      async split_tab(args) {
+        const dir = (args && args.direction) || 'horizontal';
+        if (dir !== 'horizontal' && dir !== 'vertical') return { error: 'direction must be horizontal or vertical' };
+        if (typeof splitTerminal !== 'function') return { error: 'splitTerminal unavailable' };
+        const cur = activeTabId && tabs.get(activeTabId);
+        if (!cur || cur.type !== 'terminal') return { error: 'No terminal tab focused. Switch to a terminal first.' };
+        if (window.innerWidth < 1024) return { error: 'Split not available on this viewport (mobile).' };
+        if (cur.panes && cur.panes.length >= 4) return { error: 'Tab already has the maximum of 4 panes.' };
+        try { splitTerminal(dir); } catch (e) { return { error: 'splitTerminal failed: ' + (e && e.message || e) }; }
+        return { ok: true, direction: dir, tabId: cur.id };
+      },
+      async set_active_session(args) {
+        const sid = args && (args.sessionId || args.session_id);
+        if (!sid) return { error: 'sessionId is required' };
+        if (typeof attachToSession !== 'function') return { error: 'attachToSession unavailable' };
+        try { attachToSession(sid); } catch (e) { return { error: 'attach failed: ' + (e && e.message || e) }; }
+        return { ok: true, sessionId: sid };
+      },
+      async open_file_in_editor(args) {
+        const p = args && args.path;
+        if (!p) return { error: 'path is required' };
+        const line = Number.isFinite(args && args.line) ? Math.max(1, Math.floor(args.line)) : null;
+        try {
+          const r = await fetch('/api/files/preview?path=' + encodeURIComponent(p));
+          if (!r.ok) return { error: 'preview failed: HTTP ' + r.status };
+          const d = await r.json();
+          if (d.error) return { error: d.error };
+          if (typeof openFileInTab === 'function') openFileInTab(p, d.content || '');
+          if (line) {
+            setTimeout(() => {
+              try {
+                for (const t of tabs.values()) {
+                  if (t.type === 'editor' && t.filePath === p && t.monacoEditor) {
+                    t.monacoEditor.revealLineInCenter(line);
+                    t.monacoEditor.setPosition({ lineNumber: line, column: 1 });
+                    t.monacoEditor.focus();
+                    break;
+                  }
+                }
+              } catch {}
+            }, 250);
+          }
+          return { ok: true, path: p, opened: true, line };
+        } catch (e) { return { error: String(e.message || e) }; }
+      },
+      async run_in_active_terminal(args) {
+        const cmd = args && args.command;
+        if (!cmd) return { error: 'command is required' };
+        const cur = activeTabId && tabs.get(activeTabId);
+        if (!cur || cur.type !== 'terminal') return { error: 'Active tab is not a terminal.' };
+        return await window.__crossTabTools.run_terminal({ command: cmd, tabId: cur.id });
+      },
     };
+
+    // === Sidekick proactive suggestion bus (v3.10.0) ===
+    // - In-memory queue of {id,type,severity,title,message,actions}
+    // - Throttle per type (silence 1h via localStorage) to avoid noise
+    // - Renders into #copilot-suggestions slot + flashes launcher badge
+    window.__sidekickSuggestions = window.__sidekickSuggestions || [];
+    const SIDEKICK_DISMISS_TTL_MS = 60 * 60 * 1000;
+    const SIDEKICK_DISMISS_KEY = 'cyberframe.sidekick.dismissed';
+    const SIDEKICK_MAX_QUEUE = 8;
+
+    function _sidekickGetDismissed() {
+      try { return JSON.parse(localStorage.getItem(SIDEKICK_DISMISS_KEY) || '{}'); }
+      catch { return {}; }
+    }
+    function _sidekickSetDismissed(m) {
+      try { localStorage.setItem(SIDEKICK_DISMISS_KEY, JSON.stringify(m)); } catch {}
+    }
+    function _sidekickIsThrottled(type) {
+      if (!type) return false;
+      const m = _sidekickGetDismissed();
+      const ts = m[type];
+      return !!(ts && (Date.now() - ts) < SIDEKICK_DISMISS_TTL_MS);
+    }
+
+    window.__sidekick = {
+      suggest(s) {
+        if (!s || !s.type || !s.message) return false;
+        if (_sidekickIsThrottled(s.type)) return false;
+        const id = s.id || (s.type + '-' + Date.now());
+        if (window.__sidekickSuggestions.find(x => x.id === id)) return false;
+        const item = {
+          id,
+          type: s.type,
+          severity: s.severity || 'warning',
+          title: s.title || 'Sidekick',
+          message: s.message,
+          actions: Array.isArray(s.actions) ? s.actions : [],
+          ts: Date.now(),
+        };
+        window.__sidekickSuggestions.unshift(item);
+        if (window.__sidekickSuggestions.length > SIDEKICK_MAX_QUEUE) {
+          window.__sidekickSuggestions.length = SIDEKICK_MAX_QUEUE;
+        }
+        _sidekickRender();
+        return true;
+      },
+      dismiss(id, silenceType) {
+        window.__sidekickSuggestions = window.__sidekickSuggestions.filter(x => x.id !== id);
+        if (silenceType) {
+          const m = _sidekickGetDismissed();
+          m[silenceType] = Date.now();
+          _sidekickSetDismissed(m);
+        }
+        _sidekickRender();
+      },
+      clear() {
+        window.__sidekickSuggestions = [];
+        _sidekickRender();
+      },
+    };
+
+    window.__sidekickActions = window.__sidekickActions || {};
+
+    function _sidekickRender() {
+      const launcher = document.getElementById('copilot-launcher');
+      const count = window.__sidekickSuggestions.length;
+      if (launcher) {
+        launcher.classList.toggle('has-suggestions', count > 0);
+        const badge = launcher.querySelector('.copilot-badge');
+        if (badge) badge.textContent = count > 9 ? '9+' : String(count);
+      }
+      const body = document.getElementById('copilot-body');
+      if (!body) return;
+      let host = document.getElementById('copilot-suggestions');
+      if (!host) {
+        host = document.createElement('div');
+        host.id = 'copilot-suggestions';
+        host.className = 'copilot-suggestions';
+        body.insertBefore(host, body.firstChild);
+      }
+      if (!count) { host.innerHTML = ''; return; }
+      const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+      host.innerHTML = window.__sidekickSuggestions.map(item => {
+        // Register handlers via __sidekickActions keyed by id+aix (escape unsafe in inline)
+        const actionsHtml = (item.actions || []).map((a, i) => {
+          const key = item.id + '__' + i;
+          window.__sidekickActions[key] = a.handler || null;
+          return `<button class="copilot-suggestion-btn${a.primary ? ' primary' : ''}" data-akey="${esc(key)}">${esc(a.label || 'Action')}</button>`;
+        }).join('');
+        const icon = item.severity === 'warning' ? '⚠' : (item.severity === 'info' ? 'ℹ' : '●');
+        return `<div class="copilot-suggestion severity-${esc(item.severity)}">
+          <div class="copilot-suggestion-title">${icon} ${esc(item.title)}</div>
+          <div class="copilot-suggestion-body">${esc(item.message)}</div>
+          ${actionsHtml ? `<div class="copilot-suggestion-actions">${actionsHtml}</div>` : ''}
+          <button class="copilot-suggestion-dismiss" data-sid="${esc(item.id)}" data-silence="${esc(item.type)}" title="ปิด + เงียบ 1 ชั่วโมง">✕</button>
+        </div>`;
+      }).join('');
+      host.querySelectorAll('.copilot-suggestion-dismiss').forEach(b => {
+        b.onclick = () => window.__sidekick.dismiss(b.dataset.sid, b.dataset.silence);
+      });
+      host.querySelectorAll('.copilot-suggestion-btn').forEach(b => {
+        b.onclick = () => {
+          const key = b.dataset.akey;
+          const handler = window.__sidekickActions[key];
+          if (typeof handler === 'function') {
+            try { handler(); } catch (e) { console.error('[sidekick action]', e); }
+          }
+          // Auto-open panel if closed (so user sees the action result)
+          try {
+            const panel = document.getElementById('copilot-panel');
+            if (panel && !panel.classList.contains('open')) {
+              if (typeof openCopilotPanel === 'function') openCopilotPanel();
+              else panel.classList.add('open');
+            }
+          } catch {}
+          // Dismiss the suggestion (acted on)
+          const sid = key.split('__')[0];
+          window.__sidekick.dismiss(sid);
+        };
+      });
+    }
 
     async function _ctiExecuteToolCall(call) {
       const name = call?.function?.name;
@@ -18420,6 +18696,20 @@ ${fields}
               currentSessionId = null;
             }
             refreshSessions();
+            // Proactive trigger — non-zero exit (something errored, not a clean close)
+            if (window.__sidekick && Number.isFinite(msg.code) && msg.code !== 0) {
+              const shortId = msg.id ? msg.id.slice(0, 8) : '?';
+              window.__sidekick.suggest({
+                id: 'term-exit-' + (msg.id || Date.now()),
+                type: 'term-exit-nonzero',
+                severity: 'warning',
+                title: 'Terminal exited with code ' + msg.code,
+                message: 'Session ' + shortId + ' ended unexpectedly. The last command may have failed — open a new terminal to retry?',
+                actions: [
+                  { label: '+ New terminal', primary: true, handler: () => { try { createSession(); } catch {} } },
+                ],
+              });
+            }
             break;
           }
           case 'detached':

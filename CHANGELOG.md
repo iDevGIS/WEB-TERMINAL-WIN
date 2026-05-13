@@ -5,6 +5,73 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [3.10.0] — 2026-05-13 — Phase 2: Tool Gaps + Proactive Sidekick
+
+Big Phase 2 ship covering three buckets in one cut: repo hygiene, the missing "create/modify" half of the Cross-Tab tool surface, and Sidekick's first proactive trigger (so the chat starts noticing problems on its own instead of waiting to be asked).
+
+### Why
+
+After v3.9.x Floating Sidekick smoke-tested clean, the next requests surfaced gaps:
+1. AI could `list_tabs` / `read_file` but couldn't *create* a new terminal, *switch* tabs, *close* tabs, *split* a pane, or *jump to a specific line* — so "เปิด admin powershell แล้วรัน whoami" died on missing verbs.
+2. Sidekick was passive — the user had to know there was a problem before opening the panel.
+3. Several `*.err` / `nohup.out` / `logs/*` files were tracked in git, polluting every commit diff.
+
+### Added — Cross-Tab Tools (server.js + public/index.html)
+
+8 new tools added to `CROSS_TAB_TOOLS` catalog and `window.__crossTabTools` dispatcher:
+
+- `create_terminal({profile})` — open a new terminal tab with a chosen shell profile (resolves via id, name fragment, or first available). Returns the new tabId once `createSessionWithShell` registers it.
+- `switch_tab({tabId})` — focus an existing tab.
+- `close_tab({tabId})` — close a tab; active tab is reassigned automatically.
+- `split_tab({direction})` — split the focused terminal tab horizontally/vertically (max 4 panes, desktop only).
+- `set_active_session({sessionId})` — attach/focus a backend session by id (reuses `attachToSession`).
+- `open_file_in_editor({path, line?})` — open in Monaco and optionally `revealLineInCenter(line)` + `setPosition` + `focus()`. Lets the AI point the user at an exact error line.
+- `run_in_active_terminal({command})` — convenience wrapper around `run_terminal` that always uses the focused terminal (no `tabId` plumbing).
+- `_ctiSystemPreamble()` updated to mention every new tool so native-tools providers (Ollama) see them too.
+
+### Added — Sidekick Proactive Suggestion Bus (public/index.html)
+
+- `window.__sidekick.suggest({id?, type, severity, title, message, actions})` — central API for any module to surface a non-blocking nudge.
+- `__sidekick.dismiss(id, silenceType?)` — drop a card; optional `silenceType` writes a 1-hour TTL into `cyberframe.sidekick.dismissed` (localStorage) to throttle the same trigger type.
+- `__sidekick.clear()` — wipe queue.
+- In-memory queue caps at 8 cards (FIFO drop oldest).
+- `_sidekickRender()` rebuilds a `#copilot-suggestions` slot inserted at the top of the Sidekick panel body; also toggles `.has-suggestions` on `#copilot-launcher` with a red pulse badge showing the count.
+- Actions are wired through a `window.__sidekickActions[id__index]` map (instead of inline handlers) so render is XSS-safe — labels/text are HTML-escaped throughout.
+- Clicking an action auto-opens the panel (if closed) so the user sees the result, then dismisses the card.
+
+### Added — Proactive Triggers
+
+- **Scrap 0-rows**: `scrapExtract()` checks `tab.scrap.rows.length === 0` after a successful extract and surfaces a `scrap-empty` suggestion ("Root selector `…` matched no items — HTML may have changed"). One action: jump to the scrap tab.
+- **Terminal exit ≠ 0**: WS `session-died` handler inspects `msg.code`; non-zero codes raise a `term-exit-nonzero` suggestion ("Session ended unexpectedly") with one action: spawn a new terminal.
+- Both triggers honour the per-type 1h dismiss TTL so the user can silence noisy types.
+
+### Added — Suggestion UI (public/index.html)
+
+- `.copilot-badge` styled red→orange gradient pill, animated `cf-sk-pulse` (1.8s ease-in-out infinite) at `top:-6px;left:-6px` of the launcher.
+- `.copilot-suggestion` cards rendered above the empty/chat content — gradient tinted by severity (warning amber, info cyan, default red).
+- `.copilot-suggestion-actions` row with `.copilot-suggestion-btn` (purple translucent) + `.primary` variant.
+- `.copilot-suggestion-dismiss` (`✕`) at top-right with `data-silence` so the dismiss writes the throttle key.
+
+### Changed — `.gitignore`
+
+- Added `*.err`, `nohup.out`, `logs/`, `debug-*.txt`.
+- `git rm --cached` removed 8 tracked artifacts: `.err`, `nohup.out`, `logs/server-20260512-*.log.err` (4 files), `logs/server.err`, `logs/server.out`. Working copies kept.
+
+### Notes / Deferred
+
+- **Docker error → Sidekick suggestion**: not wired in v3.10.0 because Docker log streaming uses an SSE endpoint that doesn't currently broadcast structured error events to the UI. Planned for Phase 2.2 — would tap `/api/docker/containers/:id/logs` follow stream and pattern-match `Error|exited|restart loop`.
+- **Action button → "Investigate with Sidekick"** (open chat with pre-filled prompt): scaffolded via auto-open-on-action but no canned prompts yet. Same Phase 2.2 cut.
+- Per-type 1h silence is single-key — multi-instance throttling (e.g. ignore one specific scrap-empty but not all) would need a `<type>:<id>` compound key. Not in scope.
+
+### Files Touched
+
+- `server.js` — `CROSS_TAB_TOOLS` (+8 entries), `_ctiSystemPreamble` (catalog list).
+- `public/index.html` — launcher badge HTML, suggestion CSS block, 8 new client tool handlers, suggestion bus (~120 lines), 2 trigger hooks (scrap + session-died).
+- `.gitignore` — log/err/nohup/logs/ patterns.
+- `package.json` — version bump 3.9.3 → 3.10.0.
+
+---
+
 ## [3.8.1] — 2026-05-13 — Cross-Tab Tools: Inline Protocol for OpenClaw Gateway
 
 Patch release. v3.8.0 shipped 10 cross-tab tools with native OpenAI tool-use, but the default chat provider (OpenClaw Gateway) routes through coding-session agents that **strip the `tools` payload** before reaching the model — so the only way `enableTools` actually worked was to switch to `anthropic/claude-opus-4-7` direct API (= billable). v3.8.1 keeps Claude Max subscription free by teaching the model an inline `toolcall` fenced-block protocol via the system prompt when the upstream provider doesn't honour native tools.

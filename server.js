@@ -1690,14 +1690,113 @@ const CROSS_TAB_TOOLS = [
       },
     },
   },
+  {
+    type: 'function',
+    function: {
+      name: 'create_terminal',
+      description: 'Open a new terminal tab with the given shell profile. Returns the new tab id once the WS session is created (lookup via list_tabs after a short delay).',
+      parameters: {
+        type: 'object',
+        properties: {
+          profile: { type: 'string', description: 'Shell profile id or human name fragment (pwsh, powershell, cmd, admin_pwsh, admin powershell, gitbash, wsl, bash, zsh, fish). Defaults to the first available shell.' },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'switch_tab',
+      description: 'Switch focus to an existing tab by id.',
+      parameters: {
+        type: 'object',
+        properties: {
+          tabId: { type: 'string', description: 'Target tab id from list_tabs.' },
+        },
+        required: ['tabId'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'close_tab',
+      description: 'Close a tab by id. The active tab will be reassigned automatically.',
+      parameters: {
+        type: 'object',
+        properties: {
+          tabId: { type: 'string', description: 'Tab id to close.' },
+        },
+        required: ['tabId'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'split_tab',
+      description: 'Split the currently active terminal tab horizontally or vertically. Only works on terminal tabs; max 4 panes. Will open the shell picker for the new pane.',
+      parameters: {
+        type: 'object',
+        properties: {
+          direction: { type: 'string', enum: ['horizontal', 'vertical'], description: 'Split direction (horizontal = side by side, vertical = top/bottom).' },
+        },
+        required: ['direction'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'set_active_session',
+      description: 'Attach a backend terminal session id to the UI (creates/focuses the tab or pane that owns it).',
+      parameters: {
+        type: 'object',
+        properties: {
+          sessionId: { type: 'string', description: 'Backend session id (from list_tabs sessions or terminal events).' },
+        },
+        required: ['sessionId'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'open_file_in_editor',
+      description: 'Open a file in the Monaco editor tab and optionally jump to a specific line. Use this when you want to point the user at a precise location (e.g. an error line).',
+      parameters: {
+        type: 'object',
+        properties: {
+          path: { type: 'string', description: 'Path to the file to open.' },
+          line: { type: 'integer', description: 'Optional 1-based line number to reveal+select.' },
+        },
+        required: ['path'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'run_in_active_terminal',
+      description: 'Convenience wrapper around run_terminal that always targets the currently focused terminal tab. Fails if no terminal is focused.',
+      parameters: {
+        type: 'object',
+        properties: {
+          command: { type: 'string', description: 'Shell command to execute.' },
+        },
+        required: ['command'],
+      },
+    },
+  },
 ];
 
 function _ctiSystemPreamble() {
   return (
     'You are connected to the CYBERFRAME UI via Cross-Tab Intelligence tools. ' +
-    'You can list_tabs, read_file, open_editor, list_files, run_terminal, browser_navigate, scrap_run, docker_list, docker_action, notify. ' +
+    'You can list_tabs, get_active_tab, read_file, open_editor, open_file_in_editor, list_files, run_terminal, run_in_active_terminal, browser_navigate, scrap_run, docker_list, docker_action, notify, create_terminal, switch_tab, close_tab, split_tab, set_active_session. ' +
     'Prefer reading state first (list_tabs, get_active_tab) before acting. ' +
-    'Chain tools when needed (e.g. list_files → open_editor). ' +
+    'Chain tools when needed (e.g. list_files → open_file_in_editor with line). ' +
     'Always confirm with a short summary after the last tool returns.'
   );
 }
