@@ -5,6 +5,55 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [3.8.1] — 2026-05-13 — Cross-Tab Tools: Inline Protocol for OpenClaw Gateway
+
+Patch release. v3.8.0 shipped 10 cross-tab tools with native OpenAI tool-use, but the default chat provider (OpenClaw Gateway) routes through coding-session agents that **strip the `tools` payload** before reaching the model — so the only way `enableTools` actually worked was to switch to `anthropic/claude-opus-4-7` direct API (= billable). v3.8.1 keeps Claude Max subscription free by teaching the model an inline `toolcall` fenced-block protocol via the system prompt when the upstream provider doesn't honour native tools.
+
+### Why
+
+User feedback: "direct Anthropic API จะเสียตังเยอะ" — Gateway = Claude Max (flat-rate) + Anthropic SDK = per-token billing. v3.8.0 forced the second to get tool-use; v3.8.1 makes the first work too.
+
+### Added — Server (`server.js`)
+
+- `_ctiInlineToolsInstruction()` — generates a long-form system-prompt section from `CROSS_TAB_TOOLS`:
+  - Protocol: model emits exactly one fenced ` ```toolcall ` block with `{"name": "...", "arguments": {...}}` then stops; client executes and replies with a `[tool_result:NAME]` user message; loop up to 6 rounds.
+  - Embeds each tool's name, description, and parameter list (with required-flag + enum hints) so the model has the full schema without `tools` payload.
+
+### Changed — Server (`server.js`)
+
+- Chat handler (`/api/chat`) determines `isClaudeCode`/`isOllama`/`isOpenClaw` **before** building the system prompt so the routing-specific preamble can be picked correctly.
+- When `enableTools=true`: native preamble (`_ctiSystemPreamble`) for Ollama, inline-protocol (`_ctiInlineToolsInstruction`) for OpenClaw Gateway.
+- Removed `payload.tools = CROSS_TAB_TOOLS` from the OpenClaw branch — Gateway was stripping it anyway and the upstream agent had its own tool set bleeding into the response.
+
+### Added — Client (`public/index.html`)
+
+- `_ctiParseInlineToolCalls(text)` — extracts fenced ` ```toolcall ` blocks from streamed assistant text, parses JSON, returns OpenAI-shaped `{ id, type, function: { name, arguments } }` objects with `_inline: true` and `_raw` (original block) markers for later cleanup.
+
+### Changed — Client (`_chatSendStream`)
+
+- Tool-call sourcing now checks native streaming deltas first; if none arrive and `sess.enableTools=true`, falls back to inline parser on `fullContent`.
+- Inline mode: strips the raw ` ```toolcall ` block from the displayed assistant bubble (the tool card below renders the call + result; raw JSON in the bubble was noise).
+- Inline mode: pushes assistant message with raw `fullContent` (no `tool_calls` array) so OpenClaw Gateway doesn't reject the next-round replay.
+- Inline mode: pushes tool result as `role: 'user'` with `[tool_result:NAME]\n<json>` marker (Gateway rejects `role: 'tool'`).
+- Native mode unchanged — Ollama / direct Anthropic still use OpenAI `tool_calls` + `role: 'tool'` history.
+- `MAX_TOOL_ROUNDS = 6` cap applies to both modes (anti-runaway).
+
+### Files touched
+
+- `server.js` — `_ctiInlineToolsInstruction()` new helper, chat handler routing-detection reorder, OpenClaw branch `payload.tools` removal.
+- `public/index.html` — `_ctiParseInlineToolCalls` new helper, `_chatSendStream` tool-call sourcing + inline-mode rendering + history-push branches.
+- `package.json` — version 3.8.0 → 3.8.1.
+- `CHANGELOG.md` — this entry.
+
+### How to use
+
+1. Open Chat tab in CYBERFRAME.
+2. Keep the default `🟢 openclaw - Claude Opus 4.7 1M` model (no need to switch to direct Anthropic).
+3. Click the 🛠 Tools button in chat header (green dot = enabled).
+4. Try a prompt like "list_tabs ที่เปิดอยู่หน่อย" — the model will emit a `toolcall` block, the client parses + executes, and a final-answer summary follows.
+
+---
+
 ## [3.6.3] — 2026-05-12 — Scrap Tool Script Export: Scoped Ctrl+A
 
 Patch release. The Script export modal's `Ctrl+A` was hitting the document default — selecting the entire page instead of just the code preview. Users had to drag-select the code block by hand to copy it, which defeats the purpose of having a "Copy" button right there.

@@ -11177,6 +11177,36 @@ ${fields}
       }
     }
 
+    // Inline `toolcall` fenced-block parser — used when the upstream provider
+    // (OpenClaw Gateway) strips native tool-use payload and the model emits
+    // tool calls as fenced ```toolcall code blocks via system-prompt protocol.
+    function _ctiParseInlineToolCalls(text) {
+      if (!text) return [];
+      const calls = [];
+      const re = /```toolcall\s*\n?([\s\S]*?)\n?```/g;
+      let m;
+      while ((m = re.exec(text)) !== null) {
+        const body = (m[1] || '').trim();
+        if (!body) continue;
+        try {
+          const obj = JSON.parse(body);
+          if (obj && typeof obj.name === 'string') {
+            calls.push({
+              id: 'inline_' + Math.random().toString(36).slice(2),
+              type: 'function',
+              function: {
+                name: obj.name,
+                arguments: JSON.stringify(obj.arguments == null ? {} : obj.arguments),
+              },
+              _inline: true,
+              _raw: m[0],
+            });
+          }
+        } catch { /* malformed JSON inside toolcall block — skip */ }
+      }
+      return calls;
+    }
+
     function _ctiRenderToolBlock(messagesEl, call, parentBubble) {
       const block = document.createElement('div');
       block.className = 'tool-card running';
@@ -11343,45 +11373,85 @@ ${fields}
         clearInterval(watchdog);
 
         // === Cross-Tab Intelligence: tool-call execution + recursion ===
-        const validToolCalls = toolCallsAccum.filter(c => c && c.function && c.function.name);
+        // Two sources: (1) native OpenAI tool_calls deltas (Ollama / direct Anthropic),
+        //              (2) inline `toolcall` fenced blocks in text (OpenClaw Gateway fallback).
+        let validToolCalls = toolCallsAccum.filter(c => c && c.function && c.function.name);
+        let isInlineMode = false;
+        if (validToolCalls.length === 0 && fullContent && sess.enableTools) {
+          const inlineCalls = _ctiParseInlineToolCalls(fullContent);
+          if (inlineCalls.length > 0) {
+            validToolCalls = inlineCalls;
+            isInlineMode = true;
+          }
+        }
         if (validToolCalls.length > 0 && _round < MAX_TOOL_ROUNDS) {
+          // For inline mode, strip the `toolcall` fenced block from the displayed text
+          // (the tool card below renders the call + result; raw JSON in the bubble is noise).
+          let displayText = fullContent;
+          if (isInlineMode) {
+            for (const c of validToolCalls) {
+              if (c._raw) displayText = displayText.replace(c._raw, '');
+            }
+            displayText = displayText.trim();
+          }
           // Finalize visible assistant bubble (text portion, if any)
           const contentEl = aiBubble.querySelector('.msg-content');
           if (contentEl) {
-            if (fullContent && typeof marked !== 'undefined') {
-              contentEl.innerHTML = marked.parse(fullContent);
+            if (displayText && typeof marked !== 'undefined') {
+              contentEl.innerHTML = marked.parse(displayText);
               contentEl.querySelectorAll('pre code').forEach(el => {
                 if (!el.dataset.highlighted) { hljs.highlightElement(el); el.dataset.highlighted = '1'; }
               });
-            } else if (fullContent) {
-              contentEl.innerHTML = escHtml(fullContent).replace(/\n/g, '<br>');
+            } else if (displayText) {
+              contentEl.innerHTML = escHtml(displayText).replace(/\n/g, '<br>');
             } else {
               contentEl.innerHTML = '<span style="color:var(--text3);font-size:11px">Calling ' + validToolCalls.length + ' tool' + (validToolCalls.length > 1 ? 's' : '') + '…</span>';
             }
           }
-          // Push assistant message with tool_calls into history (so the next round has full context)
-          sess.messages.push({
-            role: 'assistant',
-            content: fullContent || '',
-            tool_calls: validToolCalls.map(c => ({ id: c.id || ('call_' + Math.random().toString(36).slice(2)), type: 'function', function: { name: c.function.name, arguments: c.function.arguments || '{}' } })),
-            ts: Date.now(),
-          });
+          // Push assistant message — in inline mode keep raw fenced-block content
+          // (so the model sees its own toolcall when context is replayed); in native
+          // mode attach OpenAI-style tool_calls array.
+          if (isInlineMode) {
+            sess.messages.push({
+              role: 'assistant',
+              content: fullContent,
+              ts: Date.now(),
+            });
+          } else {
+            sess.messages.push({
+              role: 'assistant',
+              content: fullContent || '',
+              tool_calls: validToolCalls.map(c => ({ id: c.id || ('call_' + Math.random().toString(36).slice(2)), type: 'function', function: { name: c.function.name, arguments: c.function.arguments || '{}' } })),
+              ts: Date.now(),
+            });
+          }
           const assistantMsg = sess.messages[sess.messages.length - 1];
           // Render + execute each tool call, then push tool messages
           for (let i = 0; i < validToolCalls.length; i++) {
-            const call = assistantMsg.tool_calls[i];
+            const call = isInlineMode ? validToolCalls[i] : assistantMsg.tool_calls[i];
             const blockEl = _ctiRenderToolBlock(messagesEl, call, aiBubble);
             _smartScroll(messagesEl);
             let result;
             try { result = await _ctiExecuteToolCall(call); }
             catch (e) { result = { error: String(e && e.message || e) }; }
             _ctiSetToolResult(blockEl, result);
-            sess.messages.push({
-              role: 'tool',
-              tool_call_id: call.id,
-              content: typeof result === 'string' ? result : JSON.stringify(result),
-              ts: Date.now(),
-            });
+            const resultStr = typeof result === 'string' ? result : JSON.stringify(result);
+            if (isInlineMode) {
+              // OpenClaw Gateway rejects role='tool' — feed result back as a user message
+              // with a deterministic marker matching the system-prompt protocol.
+              sess.messages.push({
+                role: 'user',
+                content: '[tool_result:' + call.function.name + ']\n' + resultStr,
+                ts: Date.now(),
+              });
+            } else {
+              sess.messages.push({
+                role: 'tool',
+                tool_call_id: call.id,
+                content: resultStr,
+                ts: Date.now(),
+              });
+            }
           }
           // Reset stream state for next round; the recursive call will reinitialise
           tab.chatStreaming = false;

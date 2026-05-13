@@ -1702,6 +1702,45 @@ function _ctiSystemPreamble() {
   );
 }
 
+// Inline tool-use protocol for providers that strip native `tools` payload
+// (e.g. OpenClaw Gateway, which routes through coding sessions and replaces tools).
+// The model emits a fenced `toolcall` block; the client parses, executes,
+// and posts the result back as a plain user message.
+function _ctiInlineToolsInstruction() {
+  const toolList = CROSS_TAB_TOOLS.map(t => {
+    const f = t.function;
+    const props = (f.parameters && f.parameters.properties) || {};
+    const reqd = (f.parameters && f.parameters.required) || [];
+    const keys = Object.keys(props);
+    const params = keys.length
+      ? keys.map(k => {
+          const v = props[k] || {};
+          const r = reqd.includes(k) ? ' (required)' : '';
+          const en = Array.isArray(v.enum) ? ` [${v.enum.join('|')}]` : '';
+          return `    - ${k}${en}${r}: ${v.description || ''}`;
+        }).join('\n')
+      : '    (no parameters)';
+    return `- \`${f.name}\`: ${f.description}\n${params}`;
+  }).join('\n\n');
+
+  return (
+    '## Cross-Tab Tools (Inline Protocol)\n\n' +
+    'You can control the CYBERFRAME UI using tools. To invoke a tool, output **exactly one** fenced code block tagged `toolcall` containing a JSON object, then STOP. Do not predict the result.\n\n' +
+    'Format:\n' +
+    '```toolcall\n' +
+    '{"name": "tool_name_here", "arguments": {"key": "value"}}\n' +
+    '```\n\n' +
+    'After you stop, the system will execute the tool and send the result back as the next user message starting with `[tool_result:NAME]`. You may then call another tool or write a final answer to the user.\n\n' +
+    'Rules:\n' +
+    '- Output AT MOST ONE toolcall block per turn (chain tools across turns).\n' +
+    '- Arguments must be a valid JSON object (use `{}` if no args).\n' +
+    '- Prefer reading state first (`list_tabs`, `get_active_tab`) before mutating.\n' +
+    '- After tool results, summarise the outcome in plain text — do not include another toolcall block in your final answer.\n' +
+    '- Up to 6 tool rounds per request.\n\n' +
+    'Available tools:\n\n' + toolList
+  );
+}
+
 // === TTS (Edge Neural Voices) ===
 const { MsEdgeTTS, OUTPUT_FORMAT } = require("msedge-tts");
 
@@ -1905,21 +1944,27 @@ app.post("/api/chat", requireAuth, async (req, res) => {
   if (sessionId && sessionName) {
     _cyberframeNames[sessionId] = sessionName;
   }
+  // Determine routing first — needed before building system prompt
+  // (OpenClaw Gateway needs the inline-protocol instruction since it strips native tools).
+  const isClaudeCode = model && model.startsWith('claude-code/');
+  const claudeCodeModel = isClaudeCode ? model.replace('claude-code/', '') : null;
+  const isOllama = model && model.startsWith('ollama/');
+  const ollamaModel = isOllama ? model.replace('ollama/', '') : null;
+  const isOpenClaw = !isClaudeCode && !isOllama;
+
   // Inject workspace context as system message (SOUL.md, USER.md, IDENTITY.md)
   // + Cross-Tab Intelligence preamble when tools are enabled.
   const wsCtx = _getWorkspaceContext();
   const sysParts = [];
   if (wsCtx) sysParts.push('You are an AI assistant. Here is your identity and context:' + wsCtx);
-  if (enableTools) sysParts.push(_ctiSystemPreamble());
+  if (enableTools) {
+    // OpenClaw Gateway proxies to coding-session agents that strip `tools` payload —
+    // use inline `toolcall` protocol via system prompt instead of native tool-use.
+    sysParts.push(isOpenClaw ? _ctiInlineToolsInstruction() : _ctiSystemPreamble());
+  }
   const augMessages = sysParts.length
     ? [{ role: 'system', content: sysParts.join('\n\n') }, ...messages]
     : messages;
-
-  // Determine routing: Claude Code SDK, Ollama, or OpenClaw Gateway
-  const isClaudeCode = model && model.startsWith('claude-code/');
-  const claudeCodeModel = isClaudeCode ? model.replace('claude-code/', '') : null;
-  const isOllama = model && model.startsWith('ollama/');
-  const ollamaModel = isOllama ? model.replace('ollama/', '') : null;
 
   // === Claude Code SDK route ===
   if (isClaudeCode) {
@@ -2111,7 +2156,8 @@ app.post("/api/chat", requireAuth, async (req, res) => {
         stream: true,
         user: sessionId ? 'cyberframe-' + sessionId : 'cyberframe-' + Date.now(),
       };
-      if (enableTools) payload.tools = CROSS_TAB_TOOLS;
+      // Gateway strips/replaces `tools` field (routes through coding-session agents) —
+      // tool-use comes from the inline `toolcall` protocol added to the system prompt above.
       upstream = await fetch(OPENCLAW_GW + '/v1/chat/completions', {
         method: 'POST',
         headers: {
