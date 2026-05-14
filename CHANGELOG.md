@@ -5,6 +5,26 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [4.9.0] — 2026-05-15 — Flow Builder: dock minimap inside right sidebar
+
+### Changed
+
+- **Minimap moved from floating canvas overlay → docked at the bottom of the Properties sidebar.** Previously absolute-positioned at `bottom: 12px; right: 12px;` of `.fb-canvas-wrap` (overlapping blocks near the bottom-right corner of the canvas). Now lives inside a new `.fb-props-foot` footer slot in the right sidebar so the canvas is uncluttered and the minimap is always anchored to the inspector chrome.
+- **`.fb-props` restructured** into a flex column with two sub-regions: `.fb-props-body` (the existing scrollable content area — block details / empty state) and `.fb-props-foot` (the new fixed minimap dock). Inspector content is wiped on pipeline change, but the minimap dock survives because innerHTML updates now target `-fb-props-body` instead of `-fb-props`.
+- **Show button (`🗺 Show Minimap`)** also moved into the dock — appears in the footer slot when the minimap is collapsed via the `×` toggle. Same `cf:fb-mini-hidden` localStorage flag, same `fbMinimapToggle` behavior.
+
+### Why
+
+The floating minimap drew attention away from canvas content and frequently obscured the last block in long pipelines. Sidebar-docked is the IDE-standard placement (VS Code, Figma, Excalidraw all dock minimap-style overviews inside an inspector chrome). Free canvas area is more valuable than a floating widget.
+
+### Notes
+
+- **Client-only — no server restart required.** Just hard-refresh the Flow Builder tab.
+- Pan-by-click and viewport-rect drag continue to work; the minimap still queries `fb-canvas-wrap` via `getBoundingClientRect()` for scroll math (no DOM-parent dependency).
+- `fbShowProps` and `fbClearCanvas` now target `-fb-props-body` with a fallback to `-fb-props` for backward compatibility.
+
+---
+
 ## [4.8.1] — 2026-05-15 — Hotfix: Flow Builder bottom panel vertical resize
 
 ### Fixed

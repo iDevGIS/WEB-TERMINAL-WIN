@@ -1616,19 +1616,22 @@
     .fb-block.fb-done    { border-color: rgba(52,211,153,.6) !important; }
     .fb-block.fb-err     { border-color: rgba(248,113,113,.7) !important; box-shadow: 0 0 0 2px rgba(248,113,113,.3), 0 6px 22px rgba(248,113,113,.25) !important; }
 
-    /* v4.0.3 — Phase C: Minimap (bottom-right of canvas-wrap) */
-    .fb-minimap { position: absolute; bottom: 12px; right: 12px; width: 200px; height: 140px; background: rgba(8,10,22,.85); border: 1px solid rgba(168,85,247,.35); border-radius: 8px; backdrop-filter: blur(8px); box-shadow: 0 6px 22px rgba(0,0,0,.5); z-index: 8; overflow: hidden; cursor: pointer; }
+    /* v4.9.0 — Minimap docked at bottom of right sidebar (Properties panel) */
+    .fb-minimap { position: relative; width: 100%; height: 160px; background: rgba(8,10,22,.55); border: 1px solid rgba(168,85,247,.32); border-radius: 8px; overflow: hidden; cursor: pointer; flex-shrink: 0; }
     .fb-minimap.fb-mini-hidden { display: none; }
     .fb-minimap svg { display: block; width: 100%; height: 100%; }
     .fb-minimap .fb-mini-vp { fill: rgba(168,85,247,.18); stroke: #a855f7; stroke-width: 1.5; }
     .fb-minimap .fb-mini-blk { stroke-width: .8; }
     .fb-minimap .fb-mini-edge { stroke: rgba(167,139,250,.45); stroke-width: 1; fill: none; }
-    .fb-minimap .fb-mini-toggle { position: absolute; top: 4px; right: 4px; width: 16px; height: 16px; border-radius: 3px; background: rgba(0,0,0,.5); color: #a78bfa; font-size: 10px; line-height: 16px; text-align: center; cursor: pointer; user-select: none; }
+    .fb-minimap .fb-mini-toggle { position: absolute; top: 4px; right: 4px; width: 18px; height: 18px; border-radius: 3px; background: rgba(0,0,0,.5); color: #a78bfa; font-size: 11px; line-height: 18px; text-align: center; cursor: pointer; user-select: none; z-index: 2; }
     .fb-minimap .fb-mini-toggle:hover { background: rgba(168,85,247,.3); color: #fff; }
-    .fb-mini-show-btn { position: absolute; bottom: 12px; right: 12px; padding: 4px 9px; border-radius: 6px; background: rgba(168,85,247,.85); color: #fff; font-size: 10.5px; font-weight: 600; cursor: pointer; user-select: none; z-index: 8; box-shadow: 0 4px 14px rgba(0,0,0,.45); display: none; }
+    .fb-mini-show-btn { padding: 6px 9px; border-radius: 6px; background: rgba(168,85,247,.85); color: #fff; font-size: 11px; font-weight: 600; cursor: pointer; user-select: none; text-align: center; display: none; flex-shrink: 0; }
     .fb-mini-show-btn:hover { background: #a855f7; }
 
-    .fb-props { background: rgba(8,10,22,.6); border-left: 1px solid rgba(255,255,255,.05); padding: 16px; overflow-y: auto; }
+    .fb-props { background: rgba(8,10,22,.6); border-left: 1px solid rgba(255,255,255,.05); overflow: hidden; display: flex; flex-direction: column; min-height: 0; }
+    .fb-props-body { flex: 1; min-height: 0; overflow-y: auto; padding: 16px; }
+    .fb-props-foot { padding: 10px 12px 12px; border-top: 1px solid rgba(255,255,255,.05); display: flex; flex-direction: column; gap: 8px; flex-shrink: 0; background: rgba(0,0,0,.18); }
+    .fb-props-foot h4 { font-size: 9.5px; letter-spacing: 1.4px; text-transform: uppercase; color: #7a7f95; margin: 0; font-weight: 600; }
     .fb-props h3 { font-size: 13px; color: #d8c8ff; margin: 0 0 12px; display: flex; align-items: center; gap: 8px; }
     .fb-props .empty { color: var(--text3); font-size: 12px; padding: 20px 6px; text-align: center; }
     .fb-props .row { margin-bottom: 10px; }
@@ -6152,7 +6155,7 @@
     }
 
     function fbShowProps(tabId, block) {
-      const host = document.getElementById(tabId + '-fb-props');
+      const host = document.getElementById(tabId + '-fb-props-body') || document.getElementById(tabId + '-fb-props');
       if (!host) return;
       if (!block) { host.innerHTML = '<div class="empty">Click a block to inspect properties · drag to move · Del to remove</div>'; return; }
       const meta = FB_TYPE_META[block.type] || { ico: '⬛', label: block.type };
@@ -6297,7 +6300,7 @@
     function fbClearCanvas(tabId) {
       const canvas = document.getElementById(tabId + '-fb-canvas');
       if (canvas) canvas.innerHTML = '<div class="fb-canvas-empty"><span class="big">🎨</span><div>Select a pipeline above to view its flow</div></div>';
-      const props = document.getElementById(tabId + '-fb-props');
+      const props = document.getElementById(tabId + '-fb-props-body') || document.getElementById(tabId + '-fb-props');
       if (props) props.innerHTML = '<div class="empty">Select a pipeline to begin</div>';
     }
 
@@ -11949,15 +11952,20 @@ ${fields}
               <div class="fb-canvas" id="${tabId}-fb-canvas">
                 <div class="fb-canvas-empty"><span class="big">🎨</span><div>Select a pipeline above — or click <b>＋ New</b> + drag blocks here</div></div>
               </div>
-              <div class="fb-minimap" id="${tabId}-fb-minimap" title="Click to pan · drag viewport rect" onclick="fbMinimapClick(event, '${tabId}')">
-                <div class="fb-mini-toggle" onclick="event.stopPropagation(); fbMinimapToggle('${tabId}', false)">×</div>
-                <svg id="${tabId}-fb-minimap-svg" viewBox="0 0 200 140" preserveAspectRatio="xMidYMid meet"></svg>
-              </div>
-              <div class="fb-mini-show-btn" id="${tabId}-fb-mini-show" onclick="fbMinimapToggle('${tabId}', true)">🗺 Minimap</div>
             </div>
             <div class="fb-vresize fb-vresize-r" onmousedown="fbStartVResize(event,'${tabId}','right')" title="Drag to resize · double-click to reset"></div>
             <div class="fb-props" id="${tabId}-fb-props">
-              <div class="empty">Select a pipeline to begin</div>
+              <div class="fb-props-body" id="${tabId}-fb-props-body">
+                <div class="empty">Select a pipeline to begin</div>
+              </div>
+              <div class="fb-props-foot">
+                <h4>🗺 Minimap</h4>
+                <div class="fb-minimap" id="${tabId}-fb-minimap" title="Click to pan · drag viewport rect" onclick="fbMinimapClick(event, '${tabId}')">
+                  <div class="fb-mini-toggle" onclick="event.stopPropagation(); fbMinimapToggle('${tabId}', false)" title="Hide minimap">×</div>
+                  <svg id="${tabId}-fb-minimap-svg" viewBox="0 0 200 140" preserveAspectRatio="xMidYMid meet"></svg>
+                </div>
+                <div class="fb-mini-show-btn" id="${tabId}-fb-mini-show" onclick="fbMinimapToggle('${tabId}', true)">🗺 Show Minimap</div>
+              </div>
             </div>
           </div>
           <div class="fb-hresize" onmousedown="fbStartHResize(event,'${tabId}')" title="Drag to resize · double-click to reset"></div>
