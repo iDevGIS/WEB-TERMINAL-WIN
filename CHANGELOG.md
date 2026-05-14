@@ -5,6 +5,33 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [4.11.0] — 2026-05-15 — Flow Builder: Phase F 🅰 keyboard shortcuts
+
+### Added
+
+- **Keyboard shortcuts for Flow Builder** (only fire while a Flow Builder tab is active and you aren't typing in an input):
+  - `[` — toggle left palette panel
+  - `]` — toggle right Properties panel
+  - `\` — toggle bottom console panel
+  - `Ctrl/Cmd + 0` — reset panel sizes + show all
+  - `Ctrl/Cmd + S` — save pipeline _(existed before)_
+  - `Ctrl/Cmd + Enter` — run current pipeline
+  - `Delete` / `Backspace` — remove selected block _(existed before)_
+  - `?` — open shortcuts help modal
+- **Help modal** (`fbShowShortcuts`) — purple `<kbd>` pills + descriptions + ESC/backdrop close. Re-press `?` to toggle.
+- **Toolbar `⌨ ?` button** next to the panel toggles for discoverability; tooltips on panel toggles, Reset, and Run now name their shortcuts inline.
+
+### Why
+
+After v4.8 introduced collapsible/resizable panels and v4.9–v4.10 finished the stroke-SVG visual sweep, the next friction was mouse-only access for high-frequency actions (toggle palette to read code, hide console after long runs, re-run after a tiny tweak). Keys cover all panel actions plus run/save/reset, while the `?` modal stays self-documenting so users don't have to remember.
+
+### Files
+
+- `public/index.html` — extended Flow Builder `keydown` listener (~25 LOC) · added `fbShowShortcuts` modal (~38 LOC) · updated 4 toolbar button tooltips · added `⌨ ?` toolbar button.
+- `package.json` — bumped `version` to `4.11.0`.
+
+---
+
 ## [4.10.0] — 2026-05-15 — Flow Builder: stroke-SVG icons for block types
 
 ### Changed

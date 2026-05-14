@@ -6486,6 +6486,52 @@
       overlay.appendChild(panel);
       document.body.appendChild(overlay);
     }
+    // v4.11.0 — Keyboard shortcuts help modal
+    function fbShowShortcuts(tabId) {
+      // re-use any open shortcuts modal
+      const existing = document.querySelector('.fb-modal-overlay[data-fb-shortcuts="1"]');
+      if (existing) { existing.remove(); return; }
+      const rows = [
+        { k: '[',           d: 'Toggle left palette panel' },
+        { k: ']',           d: 'Toggle right Properties panel' },
+        { k: '\\',          d: 'Toggle bottom console panel' },
+        { k: 'Ctrl/Cmd + 0', d: 'Reset panel sizes + show all' },
+        { k: 'Ctrl/Cmd + S', d: 'Save pipeline' },
+        { k: 'Ctrl/Cmd + ↵', d: 'Run pipeline' },
+        { k: 'Delete / Backspace', d: 'Remove selected block' },
+        { k: '?',            d: 'Show this help' },
+      ];
+      const overlay = document.createElement('div');
+      overlay.className = 'fb-modal-overlay';
+      overlay.dataset.fbShortcuts = '1';
+      overlay.addEventListener('click', (ev) => { if (ev.target === overlay) overlay.remove(); });
+      const panel = document.createElement('div');
+      panel.className = 'fb-modal';
+      panel.style.maxWidth = '460px';
+      const closeBtn = document.createElement('button');
+      closeBtn.type = 'button'; closeBtn.className = 'fb-modal-close'; closeBtn.textContent = '✕';
+      closeBtn.addEventListener('click', () => overlay.remove());
+      const header = document.createElement('div');
+      header.className = 'fb-modal-header';
+      header.innerHTML = '<span>⌨ Flow Builder shortcuts</span>';
+      header.appendChild(closeBtn);
+      const body = document.createElement('div');
+      body.className = 'fb-modal-body';
+      const tableHtml = rows.map(r =>
+        '<div style="display:flex;justify-content:space-between;gap:18px;padding:8px 6px;border-bottom:1px solid rgba(255,255,255,0.05);">'
+        + '<kbd style="font-family:ui-monospace,Consolas,monospace;background:rgba(168,85,247,0.18);border:1px solid rgba(168,85,247,0.35);border-radius:6px;padding:3px 9px;color:#e9d5ff;white-space:nowrap;">' + escHtml(r.k) + '</kbd>'
+        + '<span style="color:var(--text);opacity:0.88;text-align:right;">' + escHtml(r.d) + '</span>'
+        + '</div>'
+      ).join('');
+      body.innerHTML = tableHtml + '<div style="padding:10px 6px 4px;color:#9ca3af;font-size:11.5px;">Shortcuts only fire while a Flow Builder tab is active and you aren\'t typing in a field.</div>';
+      panel.appendChild(header); panel.appendChild(body);
+      overlay.appendChild(panel);
+      document.body.appendChild(overlay);
+      // ESC to close
+      function onKey(e) { if (e.key === 'Escape') { overlay.remove(); document.removeEventListener('keydown', onKey, true); } }
+      document.addEventListener('keydown', onKey, true);
+    }
+
     // v4.0.3 — Phase C: Minimap (mini map of canvas + viewport indicator)
     const FB_MINI = { W: 200, H: 140, CANVAS_W: 2400, CANVAS_H: 1600 };
     const FB_MINI_TYPE_COLOR = {
@@ -8665,7 +8711,15 @@
       try { fbMinimapRender(tabId); } catch (e) {}
     }
 
-    // Keyboard shortcuts: Del = remove block, Ctrl/Cmd+S = save (only when Flow Builder is active)
+    // v4.11.0 Keyboard shortcuts (Flow Builder only)
+    //   Ctrl/Cmd+S    → save
+    //   Delete/Backsp → remove selected block
+    //   [             → toggle left palette
+    //   ]             → toggle right Properties
+    //   \             → toggle bottom console
+    //   Ctrl/Cmd+0    → reset panels (size + show all)
+    //   Ctrl/Cmd+↵    → run pipeline
+    //   ?             → show shortcuts help modal
     document.addEventListener('keydown', (ev) => {
       const activeTab = (typeof activeTabId !== 'undefined' && activeTabId) || window.activeTabId;
       if (!activeTab) return;
@@ -8674,17 +8728,37 @@
       if (t.type !== 'flow-builder') return;
       const tag = (ev.target && ev.target.tagName) || '';
       const inField = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (ev.target && ev.target.isContentEditable);
+      const mod = ev.ctrlKey || ev.metaKey;
       // Ctrl+S / Cmd+S → save
-      if ((ev.ctrlKey || ev.metaKey) && !ev.shiftKey && !ev.altKey && (ev.key === 's' || ev.key === 'S')) {
+      if (mod && !ev.shiftKey && !ev.altKey && (ev.key === 's' || ev.key === 'S')) {
         ev.preventDefault();
         fbSave(activeTab);
+        return;
+      }
+      // Ctrl+0 / Cmd+0 → reset panels
+      if (mod && !ev.shiftKey && !ev.altKey && (ev.key === '0' || ev.code === 'Digit0')) {
+        ev.preventDefault();
+        fbPanelReset(activeTab);
+        return;
+      }
+      // Ctrl+Enter / Cmd+Enter → run
+      if (mod && !ev.shiftKey && !ev.altKey && (ev.key === 'Enter')) {
+        ev.preventDefault();
+        try { fbRun(activeTab); } catch {}
         return;
       }
       // Delete / Backspace → remove selected block (only when not typing)
       if ((ev.key === 'Delete' || ev.key === 'Backspace') && !inField && t.fb.selectedBlockId) {
         ev.preventDefault();
         fbDeleteSelectedBlock(activeTab);
+        return;
       }
+      // Panel toggles + help — only when not typing, no modifiers
+      if (inField || ev.ctrlKey || ev.metaKey || ev.altKey) return;
+      if (ev.key === '[') { ev.preventDefault(); fbPanelToggle(activeTab, 'left'); return; }
+      if (ev.key === ']') { ev.preventDefault(); fbPanelToggle(activeTab, 'right'); return; }
+      if (ev.key === '\\') { ev.preventDefault(); fbPanelToggle(activeTab, 'bottom'); return; }
+      if (ev.key === '?') { ev.preventDefault(); fbShowShortcuts(activeTab); return; }
     });
 
     // === end Flow Builder helpers =============================================
@@ -11975,15 +12049,16 @@ ${fields}
             <button class="fb-btn" onclick="fbExportScriptOpen('${tabId}')" title="Export pipeline as runnable Node.js / Python script"><svg class="fb-ico" viewBox="0 0 24 24"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg> Script</button>
             <button class="fb-btn" onclick="fbDiffOpen('${tabId}')" title="Compare current pipeline with a saved snapshot (auto-captured before every save, last 20 kept)"><svg class="fb-ico" viewBox="0 0 24 24"><circle cx="5" cy="6" r="2.5"/><circle cx="19" cy="18" r="2.5"/><path d="M13 6h3a2 2 0 0 1 2 2v7.5"/><path d="M11 18H8a2 2 0 0 1-2-2V8.5"/><polyline points="9 16 11 18 9 20"/><polyline points="15 8 13 6 15 4"/></svg> Diff</button>
             <span style="width:1px;height:18px;background:rgba(255,255,255,.08);margin:0 4px"></span>
-            <button class="fb-btn fb-tgl fb-on" id="${tabId}-fb-tgl-left"   onclick="fbPanelToggle('${tabId}','left')"   title="Toggle left palette panel"><svg class="fb-ico" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/></svg></button>
-            <button class="fb-btn fb-tgl fb-on" id="${tabId}-fb-tgl-bottom" onclick="fbPanelToggle('${tabId}','bottom')" title="Toggle bottom console panel"><svg class="fb-ico" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="15" x2="21" y2="15"/></svg></button>
-            <button class="fb-btn fb-tgl fb-on" id="${tabId}-fb-tgl-right"  onclick="fbPanelToggle('${tabId}','right')"  title="Toggle right properties panel"><svg class="fb-ico" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="15" y1="3" x2="15" y2="21"/></svg></button>
-            <button class="fb-btn fb-tgl"       id="${tabId}-fb-tgl-reset"  onclick="fbPanelReset('${tabId}')" title="Reset panel sizes + show all"><svg class="fb-ico" viewBox="0 0 24 24"><polyline points="3 7 3 12 8 12"/><path d="M3.5 12a8.5 8.5 0 1 1 2.4 5.9"/></svg></button>
+            <button class="fb-btn fb-tgl fb-on" id="${tabId}-fb-tgl-left"   onclick="fbPanelToggle('${tabId}','left')"   title="Toggle left palette panel  [ "><svg class="fb-ico" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/></svg></button>
+            <button class="fb-btn fb-tgl fb-on" id="${tabId}-fb-tgl-bottom" onclick="fbPanelToggle('${tabId}','bottom')" title="Toggle bottom console panel  \\ "><svg class="fb-ico" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="15" x2="21" y2="15"/></svg></button>
+            <button class="fb-btn fb-tgl fb-on" id="${tabId}-fb-tgl-right"  onclick="fbPanelToggle('${tabId}','right')"  title="Toggle right properties panel  ] "><svg class="fb-ico" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="15" y1="3" x2="15" y2="21"/></svg></button>
+            <button class="fb-btn fb-tgl"       id="${tabId}-fb-tgl-reset"  onclick="fbPanelReset('${tabId}')" title="Reset panel sizes + show all  (Ctrl+0)"><svg class="fb-ico" viewBox="0 0 24 24"><polyline points="3 7 3 12 8 12"/><path d="M3.5 12a8.5 8.5 0 1 1 2.4 5.9"/></svg></button>
+            <button class="fb-btn fb-tgl"       id="${tabId}-fb-tgl-help"   onclick="fbShowShortcuts('${tabId}')" title="Show keyboard shortcuts  ( ? )"><svg class="fb-ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></button>
             <span class="fb-spacer"></span>
             <span class="fb-meta" id="${tabId}-fb-meta"></span>
             <span class="fb-meta" id="${tabId}-fb-dirty" style="color:#fde68a;display:none">● unsaved</span>
             <button class="fb-btn" onclick="fbDelete('${tabId}')" title="Delete pipeline"><svg class="fb-ico" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg></button>
-            <button class="fb-btn primary" onclick="fbRun('${tabId}')" title="Run pipeline"><svg class="fb-ico solid" viewBox="0 0 24 24"><polygon points="6 4 20 12 6 20 6 4"/></svg> Run</button>
+            <button class="fb-btn primary" onclick="fbRun('${tabId}')" title="Run pipeline  (Ctrl+Enter)"><svg class="fb-ico solid" viewBox="0 0 24 24"><polygon points="6 4 20 12 6 20 6 4"/></svg> Run</button>
           </div>
           <div class="fb-main">
             <div class="fb-palette">
