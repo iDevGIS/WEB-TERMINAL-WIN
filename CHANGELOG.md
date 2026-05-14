@@ -5,6 +5,42 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [4.12.0] — 2026-05-15 — Flow Builder: Phase F 🅱 layout presets
+
+### Added
+
+- **Three named layout presets** for the Flow Builder shell — switch with a single click or keystroke:
+  - **Editor** _(default)_ — all three panels visible at default sizes (left 240 / right 320 / bottom 130). For authoring + running side-by-side.
+  - **Reading** — hide the left palette and bottom console, widen Properties to 360. For inspecting block details without distraction.
+  - **Run** — hide both side panels, expand the bottom console to 280px. Maximises canvas + log space during a live run.
+- **Toolbar segmented control** — `Editor / Reading / Run` buttons rendered after the panel toggles. The active preset glows purple (`fb-on`); any manual toggle or resize switches the indicator back to "custom".
+- **Keyboard shortcuts** (only fire while a Flow Builder tab is active and you aren't typing in an input):
+  - `1` — Editor preset
+  - `2` — Reading preset
+  - `3` — Run preset
+- **Shortcuts help modal** updated with the three new rows.
+
+### Why
+
+After a few hours of authoring a pipeline in the new shell, the panel-toggle keys (`[ ] \`) start feeling like opcodes — three or four keystrokes to switch into "Run mode" or "deep-read mode". Named presets short-circuit that. A single tap reshapes the whole shell, the active preset is visible at a glance, and any custom layout the user falls into is still preserved (the preset indicator just clears).
+
+### How to apply
+
+- Click any of `Editor / Reading / Run` in the toolbar — panel visibility + sizes update instantly (with smooth slide-in/out for hidden panels).
+- Or hit `1` / `2` / `3` for the same effect without leaving the keyboard.
+- Any manual `[ ] \` toggle, divider drag, double-click handle, or `Ctrl+0` reset will mark the layout as custom (preset pill clears). `Ctrl+0` snaps back to **Editor** explicitly.
+- State persists in `localStorage['cf:fb-panel-v1']` (now includes `preset` field). Reload reopens the last preset / custom layout.
+
+### Internal
+
+- `FB_PANEL.PRESETS = { editor, reading, run }` — single source of truth for preset dimensions + visibility.
+- `fbPanelApplyPreset(tabId, name)` — sets state, saves, applies, re-renders minimap.
+- `fbPanelGetState()` extended with `preset` field (sticky across reloads).
+- `fbPanelApply()` highlights the active preset button (`fb-on` class).
+- Manual edits (`fbPanelToggle`, resize `onUp` for both axes) explicitly null the preset → "custom layout" state.
+
+---
+
 ## [4.11.0] — 2026-05-15 — Flow Builder: Phase F 🅰 keyboard shortcuts
 
 ### Added
