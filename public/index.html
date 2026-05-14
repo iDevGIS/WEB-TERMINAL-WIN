@@ -6221,6 +6221,31 @@
     }
 
     // v4.0.3 — Phase C: live block status helper
+    // v4.1.0 — also sync minimap block fill
+    const FB_MINI_STATUS_COLOR = { running: '#fde047', done: '#34d399', err: '#f87171' };
+    function _fbMinimapPaintBlock(tabId, blockId, status) {
+      const svg = document.getElementById(tabId + '-fb-minimap-svg');
+      if (!svg) return;
+      const t = tabs.get(tabId);
+      const blocks = (t && t.fb && t.fb.current && t.fb.current.blocks) || [];
+      const idx = blocks.findIndex(b => b.id === blockId);
+      if (idx < 0) return;
+      // mini rects are appended after edges; same index order as blocks loop in fbMinimapRender
+      const rects = svg.querySelectorAll('rect.fb-mini-blk');
+      const rect = rects[idx];
+      if (!rect) return;
+      const overrideColor = FB_MINI_STATUS_COLOR[status];
+      if (overrideColor) {
+        rect.setAttribute('fill', overrideColor);
+        rect.setAttribute('fill-opacity', status === 'running' ? '0.95' : '0.8');
+        rect.setAttribute('stroke', overrideColor);
+      } else {
+        const base = FB_MINI_TYPE_COLOR[blocks[idx].type] || '#a855f7';
+        rect.setAttribute('fill', base);
+        rect.setAttribute('fill-opacity', '0.65');
+        rect.setAttribute('stroke', base);
+      }
+    }
     function _fbSetBlockStatus(tabId, blockId, status, footerText) {
       const canvas = document.getElementById(tabId + '-fb-canvas');
       if (!canvas) return;
@@ -6246,6 +6271,7 @@
           else ft.appendChild(document.createTextNode(footerText));
         }
       }
+      _fbMinimapPaintBlock(tabId, blockId, status);
     }
 
     function _fbResetBlockStates(tabId) {
@@ -6259,6 +6285,8 @@
           dot.classList.add('idle');
         }
       });
+      // v4.1.0 — restore minimap base colors
+      try { fbMinimapRender(tabId); } catch {}
     }
 
     async function fbRun(tabId) {
@@ -13431,6 +13459,59 @@ ${fields}
           if (!r.ok) return { error: d.error || ('HTTP ' + r.status) };
           return d;
         } catch (e) { return { error: 'pipeline_run failed: ' + (e && e.message || e) }; }
+      },
+      async pipeline_save(args) {
+        if (!args || !args.name || !Array.isArray(args.blocks)) return { error: 'name + blocks[] required' };
+        const body = {
+          name: String(args.name),
+          description: args.description ? String(args.description) : '',
+          blocks: args.blocks,
+        };
+        if (args.id) body.id = String(args.id);
+        if (args.startBlock) body.startBlock = String(args.startBlock);
+        try {
+          const r = await fetch('/api/scrap/pipelines', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+          });
+          const d = await r.json().catch(() => ({}));
+          if (!r.ok) return { error: d.error || ('HTTP ' + r.status) };
+          return d;
+        } catch (e) { return { error: 'pipeline_save failed: ' + (e && e.message || e) }; }
+      },
+      async pipeline_delete(args) {
+        const id = args && args.id;
+        if (!id) return { error: 'id is required' };
+        try {
+          const r = await fetch('/api/scrap/pipelines/' + encodeURIComponent(id), { method: 'DELETE' });
+          if (!r.ok) {
+            const d = await r.json().catch(() => ({}));
+            return { error: d.error || ('HTTP ' + r.status) };
+          }
+          return { ok: true, id };
+        } catch (e) { return { error: 'pipeline_delete failed: ' + (e && e.message || e) }; }
+      },
+      async pipeline_set_schedule(args) {
+        const id = args && args.id;
+        if (!id) return { error: 'id is required' };
+        try {
+          const gr = await fetch('/api/scrap/pipelines/' + encodeURIComponent(id));
+          if (!gr.ok) return { error: 'pipeline_get failed: HTTP ' + gr.status };
+          const gd = await gr.json().catch(() => ({}));
+          const cur = gd.pipeline || gd;
+          if (!cur || !cur.id) return { error: 'pipeline not found' };
+          const body = Object.assign({}, cur, {
+            schedule: {
+              enabled: !!args.enabled,
+              intervalMin: Math.max(1, parseInt(args.intervalMin) || (cur.schedule && cur.schedule.intervalMin) || 60),
+            },
+          });
+          const sr = await fetch('/api/scrap/pipelines', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+          });
+          const d = await sr.json().catch(() => ({}));
+          if (!sr.ok) return { error: d.error || ('HTTP ' + sr.status) };
+          return { ok: true, id, schedule: (d.pipeline && d.pipeline.schedule) || body.schedule };
+        } catch (e) { return { error: 'pipeline_set_schedule failed: ' + (e && e.message || e) }; }
       },
       async scrap_heal_events(args) {
         const params = new URLSearchParams();

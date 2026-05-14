@@ -1,7 +1,7 @@
 # 🛠 Sidekick Tool Catalog
 
-> **CYBERFRAME Cross-Tab Intelligence — v3.12.3**
-> **71 tools** across 14 categories · Generated 2026-05-14
+> **CYBERFRAME Cross-Tab Intelligence — v4.1.0**
+> **74 tools** across 14 categories · Generated 2026-05-14
 
 Sidekick เป็น floating AI co-pilot ใน CYBERFRAME ที่สั่งงานทุก tab/feature ผ่าน chat ได้
 Tools รัน cross-tab — สั่ง chat แล้วเห็นผลใน editor/terminal/docker/browser/scrap tab จริง
@@ -22,7 +22,7 @@ Tools รัน cross-tab — สั่ง chat แล้วเห็นผล�
 | ⚡ Execute | `create_terminal` `run_terminal` `run_in_active_terminal` `kill_terminal_session` `browser_reload` | 5 |
 | 🧭 Navigation / Tabs | `list_tabs` `get_active_tab` `switch_tab` `close_tab` `rename_tab` `split_tab` `set_active_session` `rename_terminal_session` `open_editor` `open_file_in_editor` `duplicate_editor_tab` `browser_navigate` `browser_get_url` `list_shells` `list_terminal_sessions` | 15 |
 | 🐳 Docker | `docker_list` `docker_action` `docker_logs` `docker_inspect` `docker_images` `docker_volumes` `docker_networks` `docker_remove_container` `docker_compose_file` `docker_browse_container` `docker_browse_volume` | 11 |
-| 🔍 Scrap | `scrap_run` `scrap_list_recipes` `scrap_save_recipe` `scrap_run_recipe` `scrap_list_snapshots` | 5 |
+| 🔍 Scrap | `scrap_run` `scrap_list_recipes` `scrap_save_recipe` `scrap_run_recipe` `scrap_list_snapshots` `pipeline_list` `pipeline_get` `pipeline_run` `pipeline_save` `pipeline_delete` `pipeline_set_schedule` `scrap_heal_events` | 12 |
 | 🗂 Workspace Layouts | `list_workspaces` `save_workspace_layout` `load_workspace_layout` | 3 |
 | 📦 Snippets | `list_snippets` | 1 |
 | 🌐 Network / Admin | `get_listening_ports` `get_arp_table` `get_routes` `get_vpn_status` `list_connected_clients` `tailscale_status` `list_processes` | 7 |
@@ -30,7 +30,7 @@ Tools รัน cross-tab — สั่ง chat แล้วเห็นผล�
 | 🖥 Display / Capture | `take_screenshot` `list_monitors` | 2 |
 | 🔊 Voice | `tts_speak` | 1 |
 | 📢 Notify | `notify` | 1 |
-| **TOTAL** | | **71** |
+| **TOTAL** | | **78** |
 
 ---
 
@@ -123,7 +123,9 @@ Tools รัน cross-tab — สั่ง chat แล้วเห็นผล�
 
 ---
 
-## 🔍 Scrap — Web Scraping (5)
+## 🔍 Scrap — Web Scraping (12)
+
+### Recipes (single-source extract)
 
 | Tool | Description | Required | Optional |
 |------|-------------|----------|----------|
@@ -132,6 +134,18 @@ Tools รัน cross-tab — สั่ง chat แล้วเห็นผล�
 | `scrap_save_recipe` | Save/overwrite recipe | `name` `url` `selectors` | `mode` (fetch\|browser) |
 | `scrap_run_recipe` | รัน recipe by id + คืนผล | `id` | — |
 | `scrap_list_snapshots` | List historical snapshots ของ recipe | `id` | — |
+| `scrap_heal_events` | List recent self-heal attempts/results | — | `since` `limit` |
+
+### Pipelines (Visual Flow Builder DAGs)
+
+| Tool | Description | Required | Optional |
+|------|-------------|----------|----------|
+| `pipeline_list` | List saved pipelines (id/name/blockCount/lastRunAt) | — | — |
+| `pipeline_get` | Full pipeline definition (blocks/edges/config) | `id` | — |
+| `pipeline_run` | Run pipeline once + return rows/errors/output | `id` | `url` |
+| `pipeline_save` | Create/update pipeline (full body) ⚠️ | `name` `blocks` | `id` `description` `startBlock` |
+| `pipeline_delete` | Delete pipeline by id ⚠️ **DESTRUCTIVE** | `id` | — |
+| `pipeline_set_schedule` | Turn auto-run on/off + set interval (≥1 min) | `id` `enabled` | `intervalMin` |
 
 ---
 

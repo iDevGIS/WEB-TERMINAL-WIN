@@ -2414,6 +2414,52 @@ const CROSS_TAB_TOOLS = [
   {
     type: 'function',
     function: {
+      name: 'pipeline_save',
+      description: 'Create or update a Scrap pipeline. Omit id to create new; include id to update existing. Returns the saved pipeline.',
+      parameters: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'Pipeline id (omit to create new).' },
+          name: { type: 'string', description: 'Display name.' },
+          description: { type: 'string', description: 'Optional notes.' },
+          blocks: { type: 'array', description: 'Array of block objects (id/type/config/next/position).' },
+          startBlock: { type: 'string', description: 'Id of the entry block.' },
+        },
+        required: ['name', 'blocks'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'pipeline_delete',
+      description: 'Delete a Scrap pipeline by id. Destructive — cannot be undone.',
+      parameters: {
+        type: 'object',
+        properties: { id: { type: 'string', description: 'Pipeline id.' } },
+        required: ['id'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'pipeline_set_schedule',
+      description: 'Enable or disable a pipeline schedule (auto-run every intervalMin minutes). Use this to put a pipeline on autopilot.',
+      parameters: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'Pipeline id.' },
+          enabled: { type: 'boolean', description: 'Turn schedule on/off.' },
+          intervalMin: { type: 'number', description: 'Interval between runs in minutes (>=1). Defaults to existing or 60.' },
+        },
+        required: ['id', 'enabled'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'scrap_heal_events',
       description: 'List recent self-heal events (attempts, successes, failures, rollbacks). Useful for status checks.',
       parameters: {
@@ -7443,6 +7489,49 @@ const SCRAP_TICK_MS = 60_000;
 setInterval(_scrapTick, SCRAP_TICK_MS).unref();
 // Kick once after startup
 setTimeout(_scrapTick, 15_000).unref?.();
+
+// v4.1.0 — Pipeline scheduler (auto-run pipelines flagged schedule.enabled)
+let _pipelineTickInFlight = false;
+async function _pipelineTick() {
+  if (_pipelineTickInFlight) return;
+  _pipelineTickInFlight = true;
+  try {
+    const pipelines = loadPipelines();
+    if (!pipelines.length) return;
+    const now = Date.now();
+    let mutated = false;
+    for (const p of pipelines) {
+      const sch = p.schedule;
+      if (!sch || !sch.enabled) continue;
+      const intervalMs = Math.max(60, parseInt(sch.intervalMin) || 60) * 60 * 1000;
+      const lastMs = p.lastRunAt ? new Date(p.lastRunAt).getTime() : 0;
+      if (lastMs && now - lastMs < intervalMs) continue;
+      const nowIso = new Date().toISOString();
+      const t0 = Date.now();
+      try {
+        const result = await _executePipeline(p, {});
+        p.lastRunAt = nowIso;
+        p.lastRowCount = (result && result.rowCount) || 0;
+        p.lastError = (result && Array.isArray(result.errors) && result.errors.length) ? result.errors.join("; ").slice(0, 500) : null;
+        p.lastDurationMs = Date.now() - t0;
+        mutated = true;
+      } catch (e) {
+        p.lastRunAt = nowIso;
+        p.lastError = String(e.message || e).slice(0, 500);
+        p.lastDurationMs = Date.now() - t0;
+        mutated = true;
+      }
+    }
+    if (mutated) savePipelines(pipelines);
+  } catch (e) {
+    console.error("[pipeline-tick]", e.message || e);
+  } finally {
+    _pipelineTickInFlight = false;
+  }
+}
+const PIPELINE_TICK_MS = 60_000;
+setInterval(_pipelineTick, PIPELINE_TICK_MS).unref();
+setTimeout(_pipelineTick, 30_000).unref?.();
 
 // Run recipe on demand
 app.post("/api/scrap/recipes/:id/run", requireAuth, async (req, res) => {
