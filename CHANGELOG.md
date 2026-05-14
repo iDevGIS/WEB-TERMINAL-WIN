@@ -5,6 +5,26 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [4.10.0] — 2026-05-15 — Flow Builder: stroke-SVG icons for block types
+
+### Changed
+
+- **Block-type icons swapped from emoji to lucide-style stroke SVGs.** All 7 block types (Fetch URL, Login, Extract, Follow Next, AI Self-Heal, Transform, Store) now render with crisp 16×16 line icons in the left palette, on canvas block headers, in the right Properties heading, and in the error inspector cards.
+- Icon shapes: `fetch` → globe · `login` → log-in arrow · `extract` → list lines · `follow` → chevrons-right · `self_heal` → sparkles · `transform` → shuffle · `store` → database cylinder.
+- New helper class `.fb-bico` (16×16 default · `stroke="currentColor"` · `fill="none"` · `stroke-width="2"`) with `.fb-pb-ico .fb-bico` / `.fb-bh-ico .fb-bico` / `.fb-err-ico .fb-bico` size overrides per context.
+- Canvas block icon color now mirrors palette tints per block type (cyan/purple/emerald/orange/pink/indigo/yellow) so `currentColor` inheritance carries the right hue inside the tinted icon background.
+- Central `FB_BLOCK_SVG` map keeps SVG markup in one place; `FB_TYPE_META.ico` now references that map so palette / canvas / properties / error-inspector stay in sync from a single source of truth.
+
+### Why
+
+User feedback continued from v4.9.3 toolbar overhaul: emoji block-type icons still looked AI-generated and rendered differently on Windows vs. iOS vs. Linux. Replacing them brings the entire Flow Builder UI to a consistent stroke-SVG visual language. No behavior change.
+
+### Files
+
+- `public/index.html` — added `FB_BLOCK_SVG` map + retargeted `FB_TYPE_META.ico` (~13 LOC); added `.fb-bico` size/style CSS + per-context size overrides (~5 LOC); added per-canvas-block-type icon color rules (~7 LOC); replaced 7 palette emoji glyphs with `${FB_BLOCK_SVG.xxx}` template interpolations.
+
+---
+
 ## [4.9.3] — 2026-05-15 — Flow Builder: modern stroke-SVG toolbar icons
 
 ### Changed

@@ -1570,6 +1570,11 @@
     .fb-pb-ai       .fb-pb-ico { background: rgba(244,114,182,.18); color: #f9a8d4; }
     .fb-pb-transform .fb-pb-ico { background: rgba(99,102,241,.18); color: #a5b4fc; }
     .fb-pb-store    .fb-pb-ico { background: rgba(234,179,8,.18);  color: #fde68a; }
+    /* v4.10.0 — lucide-style stroke icons for block types (palette / canvas / props heading / error cards) */
+    .fb-bico { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
+    .fb-pb-ico .fb-bico { width: 16px; height: 16px; }
+    .fb-bh-ico .fb-bico { width: 14px; height: 14px; }
+    .fb-err-ico .fb-bico { width: 15px; height: 15px; vertical-align: -3px; }
     .fb-pb-label { font-weight: 600; font-size: 12px; }
     .fb-pb-sub { font-size: 10.5px; color: var(--text3); }
 
@@ -1609,6 +1614,14 @@
     .fb-block.t-self_heal { border-left: 3px solid #f472b6; }
     .fb-block.t-transform { border-left: 3px solid #6366f1; }
     .fb-block.t-store    { border-left: 3px solid #eab308; }
+    /* v4.10.0 — canvas block icon colors (mirror palette tints so currentColor SVG looks right) */
+    .fb-block.t-fetch    .fb-bh-ico { color: #67e8f9; }
+    .fb-block.t-follow   .fb-bh-ico { color: #c084fc; }
+    .fb-block.t-extract  .fb-bh-ico { color: #6ee7b7; }
+    .fb-block.t-login    .fb-bh-ico { color: #fdba74; }
+    .fb-block.t-self_heal .fb-bh-ico { color: #f9a8d4; }
+    .fb-block.t-transform .fb-bh-ico { color: #a5b4fc; }
+    .fb-block.t-store    .fb-bh-ico { color: #fde68a; }
     .fb-block.t-start    { border-left: 3px solid #67e8f9; outline: 2px solid rgba(103,232,249,.35); outline-offset: 1px; }
 
     /* v4.0.3 — Phase C: live SSE progress dot states */
@@ -5830,14 +5843,24 @@
     }
 
     // === Flow Builder helpers (v4.0.0-alpha.2 — Phase A: view-only) ============
+    // v4.10.0 — block-type icons upgraded from emoji to lucide-style stroke SVG
+    const FB_BLOCK_SVG = {
+      fetch:     '<svg class="fb-bico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>',
+      follow:    '<svg class="fb-bico" viewBox="0 0 24 24"><polyline points="13 17 18 12 13 7"/><polyline points="6 17 11 12 6 7"/></svg>',
+      extract:   '<svg class="fb-bico" viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>',
+      login:     '<svg class="fb-bico" viewBox="0 0 24 24"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>',
+      self_heal: '<svg class="fb-bico" viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 3v3M21 4.5h-3M5 17v2M6 18H4"/></svg>',
+      transform: '<svg class="fb-bico" viewBox="0 0 24 24"><path d="M16 3h5v5"/><path d="M4 20L21 3"/><path d="M21 16v5h-5"/><path d="M15 15l6 6"/><path d="M4 4l5 5"/></svg>',
+      store:     '<svg class="fb-bico" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.66 4.03 3 9 3s9-1.34 9-3V5"/><path d="M3 12c0 1.66 4.03 3 9 3s9-1.34 9-3"/></svg>',
+    };
     const FB_TYPE_META = {
-      fetch:     { ico: '🌐', label: 'Fetch URL',     bg: 'rgba(6,182,212,.18)'  },
-      follow:    { ico: '➡️', label: 'Follow Next',   bg: 'rgba(168,85,247,.18)' },
-      extract:   { ico: '📋', label: 'Extract',       bg: 'rgba(16,185,129,.18)' },
-      login:     { ico: '🔑', label: 'Login',         bg: 'rgba(251,146,60,.18)' },
-      self_heal: { ico: '✨', label: 'AI Self-Heal',  bg: 'rgba(244,114,182,.18)' },
-      transform: { ico: '⚙️', label: 'Transform',     bg: 'rgba(99,102,241,.18)' },
-      store:     { ico: '🗄️', label: 'Store',         bg: 'rgba(234,179,8,.18)'  },
+      fetch:     { ico: FB_BLOCK_SVG.fetch,     label: 'Fetch URL',     bg: 'rgba(6,182,212,.18)'  },
+      follow:    { ico: FB_BLOCK_SVG.follow,    label: 'Follow Next',   bg: 'rgba(168,85,247,.18)' },
+      extract:   { ico: FB_BLOCK_SVG.extract,   label: 'Extract',       bg: 'rgba(16,185,129,.18)' },
+      login:     { ico: FB_BLOCK_SVG.login,     label: 'Login',         bg: 'rgba(251,146,60,.18)' },
+      self_heal: { ico: FB_BLOCK_SVG.self_heal, label: 'AI Self-Heal',  bg: 'rgba(244,114,182,.18)' },
+      transform: { ico: FB_BLOCK_SVG.transform, label: 'Transform',     bg: 'rgba(99,102,241,.18)' },
+      store:     { ico: FB_BLOCK_SVG.store,     label: 'Store',         bg: 'rgba(234,179,8,.18)'  },
     };
 
     function fbInit(tabId) {
@@ -11965,13 +11988,13 @@ ${fields}
           <div class="fb-main">
             <div class="fb-palette">
               <h3>Block Types <span style="font-weight:400;letter-spacing:0;text-transform:none;color:var(--text3);font-size:9.5px">drag to canvas</span></h3>
-              <div class="fb-pb fb-pb-fetch" draggable="true" ondragstart="fbPaletteDragStart(event,'fetch')" ondragend="fbPaletteDragEnd(event)" data-fb-type="fetch"><div class="fb-pb-ico">🌐</div><div><div class="fb-pb-label">Fetch URL</div><div class="fb-pb-sub">HTTP + render</div></div></div>
-              <div class="fb-pb fb-pb-login" draggable="true" ondragstart="fbPaletteDragStart(event,'login')" ondragend="fbPaletteDragEnd(event)" data-fb-type="login"><div class="fb-pb-ico">🔑</div><div><div class="fb-pb-label">Login</div><div class="fb-pb-sub">Form / OAuth</div></div></div>
-              <div class="fb-pb fb-pb-extract" draggable="true" ondragstart="fbPaletteDragStart(event,'extract')" ondragend="fbPaletteDragEnd(event)" data-fb-type="extract"><div class="fb-pb-ico">📋</div><div><div class="fb-pb-label">Extract</div><div class="fb-pb-sub">CSS fields</div></div></div>
-              <div class="fb-pb fb-pb-follow" draggable="true" ondragstart="fbPaletteDragStart(event,'follow')" ondragend="fbPaletteDragEnd(event)" data-fb-type="follow"><div class="fb-pb-ico">➡️</div><div><div class="fb-pb-label">Follow Next</div><div class="fb-pb-sub">Pagination</div></div></div>
-              <div class="fb-pb fb-pb-ai" draggable="true" ondragstart="fbPaletteDragStart(event,'self_heal')" ondragend="fbPaletteDragEnd(event)" data-fb-type="self_heal"><div class="fb-pb-ico">✨</div><div><div class="fb-pb-label">AI Self-Heal</div><div class="fb-pb-sub">Regen selectors</div></div></div>
-              <div class="fb-pb fb-pb-transform" draggable="true" ondragstart="fbPaletteDragStart(event,'transform')" ondragend="fbPaletteDragEnd(event)" data-fb-type="transform"><div class="fb-pb-ico">⚙️</div><div><div class="fb-pb-label">Transform</div><div class="fb-pb-sub">filter / dedupe</div></div></div>
-              <div class="fb-pb fb-pb-store" draggable="true" ondragstart="fbPaletteDragStart(event,'store')" ondragend="fbPaletteDragEnd(event)" data-fb-type="store"><div class="fb-pb-ico">🗄️</div><div><div class="fb-pb-label">Store</div><div class="fb-pb-sub">JSON / CSV</div></div></div>
+              <div class="fb-pb fb-pb-fetch" draggable="true" ondragstart="fbPaletteDragStart(event,'fetch')" ondragend="fbPaletteDragEnd(event)" data-fb-type="fetch"><div class="fb-pb-ico">${FB_BLOCK_SVG.fetch}</div><div><div class="fb-pb-label">Fetch URL</div><div class="fb-pb-sub">HTTP + render</div></div></div>
+              <div class="fb-pb fb-pb-login" draggable="true" ondragstart="fbPaletteDragStart(event,'login')" ondragend="fbPaletteDragEnd(event)" data-fb-type="login"><div class="fb-pb-ico">${FB_BLOCK_SVG.login}</div><div><div class="fb-pb-label">Login</div><div class="fb-pb-sub">Form / OAuth</div></div></div>
+              <div class="fb-pb fb-pb-extract" draggable="true" ondragstart="fbPaletteDragStart(event,'extract')" ondragend="fbPaletteDragEnd(event)" data-fb-type="extract"><div class="fb-pb-ico">${FB_BLOCK_SVG.extract}</div><div><div class="fb-pb-label">Extract</div><div class="fb-pb-sub">CSS fields</div></div></div>
+              <div class="fb-pb fb-pb-follow" draggable="true" ondragstart="fbPaletteDragStart(event,'follow')" ondragend="fbPaletteDragEnd(event)" data-fb-type="follow"><div class="fb-pb-ico">${FB_BLOCK_SVG.follow}</div><div><div class="fb-pb-label">Follow Next</div><div class="fb-pb-sub">Pagination</div></div></div>
+              <div class="fb-pb fb-pb-ai" draggable="true" ondragstart="fbPaletteDragStart(event,'self_heal')" ondragend="fbPaletteDragEnd(event)" data-fb-type="self_heal"><div class="fb-pb-ico">${FB_BLOCK_SVG.self_heal}</div><div><div class="fb-pb-label">AI Self-Heal</div><div class="fb-pb-sub">Regen selectors</div></div></div>
+              <div class="fb-pb fb-pb-transform" draggable="true" ondragstart="fbPaletteDragStart(event,'transform')" ondragend="fbPaletteDragEnd(event)" data-fb-type="transform"><div class="fb-pb-ico">${FB_BLOCK_SVG.transform}</div><div><div class="fb-pb-label">Transform</div><div class="fb-pb-sub">filter / dedupe</div></div></div>
+              <div class="fb-pb fb-pb-store" draggable="true" ondragstart="fbPaletteDragStart(event,'store')" ondragend="fbPaletteDragEnd(event)" data-fb-type="store"><div class="fb-pb-ico">${FB_BLOCK_SVG.store}</div><div><div class="fb-pb-label">Store</div><div class="fb-pb-sub">JSON / CSV</div></div></div>
               <h3 style="margin-top:18px">Recent Runs</h3>
               <div id="${tabId}-fb-recent" style="font-size:11.5px;color:var(--text3)">— select pipeline —</div>
             </div>
