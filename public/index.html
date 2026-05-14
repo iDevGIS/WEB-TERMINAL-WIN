@@ -6569,6 +6569,27 @@
       if (el) el.style.display = t.fb._dirty ? 'inline-flex' : 'none';
     }
 
+    function fbAutoArrange(tabId, ev) {
+      const t = tabs.get(tabId); if (!t || !t.fb || !t.fb.current) {
+        fbLog(tabId, 'warn', 'No pipeline loaded — create or load one first');
+        return;
+      }
+      const p = t.fb.current;
+      const blocks = p.blocks || [];
+      if (!blocks.length) { fbLog(tabId, 'warn', 'Pipeline has no blocks'); return; }
+      const auto = fbAutoLayout(blocks, p.startBlock || (blocks[0] && blocks[0].id));
+      let moved = 0;
+      for (const b of blocks) {
+        const np = auto[b.id]; if (!np) continue;
+        const op = b.position || { x: -9999, y: -9999 };
+        if (Math.abs((+op.x || 0) - np.x) > 1 || Math.abs((+op.y || 0) - np.y) > 1) moved++;
+        b.position = { x: np.x, y: np.y };
+      }
+      fbRender(tabId);
+      if (moved > 0) fbMarkDirty(tabId, true);
+      fbLog(tabId, moved ? 'ok' : 'info', '🪄 Auto-arranged ' + blocks.length + ' blocks' + (moved ? ' · ' + moved + ' repositioned (Ctrl+S to persist)' : ' · already tidy'));
+    }
+
     async function fbSave(tabId) {
       const t = tabs.get(tabId); if (!t || !t.fb || !t.fb.current) {
         fbLog(tabId, 'warn', 'Nothing to save — create or load a pipeline first');
@@ -10028,6 +10049,7 @@ ${fields}
             <button class="fb-btn" onclick="fbLoadList('${tabId}')" title="Refresh pipeline list">🔄</button>
             <button class="fb-btn" onclick="fbNewPipeline('${tabId}')" title="Create blank pipeline">＋ New</button>
             <button class="fb-btn" onclick="fbSave('${tabId}')" title="Save current pipeline (Ctrl+S)" id="${tabId}-fb-save">💾 Save</button>
+            <button class="fb-btn" onclick="fbAutoArrange('${tabId}')" title="Auto-arrange blocks left→right by flow (Shift = include orphan blocks)">🪄 Auto Layout</button>
             <span class="fb-spacer"></span>
             <span class="fb-meta" id="${tabId}-fb-meta"></span>
             <span class="fb-meta" id="${tabId}-fb-dirty" style="color:#fde68a;display:none">● unsaved</span>

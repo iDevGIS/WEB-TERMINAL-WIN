@@ -5,6 +5,14 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [4.1.3] — 2026-05-14 — Flow Builder: Auto Layout button
+
+### Added
+
+- **🪄 Auto Layout** button in Flow Builder toolbar (next to 💾 Save). Click to BFS-topologically arrange every block left→right by `next`/`healFallback` edges using the existing `fbAutoLayout()` routine (270×150 grid, padding 60). Overrides any saved `block.position` — marks the pipeline dirty so Ctrl+S persists. Orphan blocks (unreachable from start) land at level 99 (rightmost column). Log line reports "auto-arranged N blocks · K repositioned" or "already tidy" when positions are unchanged.
+
+---
+
 ## [4.1.2] — 2026-05-14 — Defensive: Pipeline output path resolution
 
 ### Fixed
