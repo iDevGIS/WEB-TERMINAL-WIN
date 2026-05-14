@@ -7162,6 +7162,902 @@
       fbLog(tabId, 'info', '🗑 Removed ' + blk.type + ' block (' + sid.slice(0, 6) + ')');
     }
 
+    // ---- v4.6.0 — Export pipeline as runnable Node.js / Python script ----
+    const FB_SCRIPT_LIBS = {
+      node: [
+        { id: 'axios-cheerio', label: 'axios + cheerio (static HTTP)' },
+        { id: 'playwright', label: 'playwright (headless browser)' },
+      ],
+      python: [
+        { id: 'requests-bs4', label: 'requests + BeautifulSoup (static)' },
+        { id: 'playwright-async', label: 'playwright (async, headless browser)' },
+      ],
+    };
+    function fbExportScriptOpen(tabId) {
+      const t = tabs.get(tabId);
+      if (!t || !t.fb || !t.fb.current) { fbLog(tabId, 'err', 'No pipeline loaded'); return; }
+      const p = t.fb.current;
+      if (!(p.blocks || []).length) { fbLog(tabId, 'err', 'Pipeline is empty — add some blocks first'); return; }
+      const bd = document.getElementById(tabId + '-fb-script-bd');
+      if (!bd) return;
+      bd.classList.add('open');
+      const langSel = document.getElementById(tabId + '-fb-sx-lang');
+      const libSel = document.getElementById(tabId + '-fb-sx-lib');
+      const cached = t.fb._scriptExport || {};
+      // Auto-detect browser mode pipelines
+      const hasBrowserFetch = (p.blocks || []).some(b => b.type === 'fetch' && (b.config || {}).mode === 'browser');
+      langSel.value = cached.lang || 'node';
+      fbExportScriptPopulateLibs(tabId);
+      if (cached.lib) {
+        libSel.value = cached.lib;
+      } else if (hasBrowserFetch) {
+        libSel.value = langSel.value === 'python' ? 'playwright-async' : 'playwright';
+      }
+      const cEl = document.getElementById(tabId + '-fb-sx-comments');
+      const sEl = document.getElementById(tabId + '-fb-sx-schedule');
+      cEl.checked = cached.comments != null ? cached.comments : true;
+      const hasSchedule = !!(p.schedule && p.schedule.enabled);
+      sEl.checked = cached.schedule != null ? cached.schedule : hasSchedule;
+      sEl.disabled = !hasSchedule;
+      fbExportScriptUpdate(tabId);
+    }
+    function fbExportScriptClose(tabId) {
+      const bd = document.getElementById(tabId + '-fb-script-bd');
+      if (bd) bd.classList.remove('open');
+    }
+    function fbExportScriptPopulateLibs(tabId) {
+      const lang = document.getElementById(tabId + '-fb-sx-lang').value;
+      const libSel = document.getElementById(tabId + '-fb-sx-lib');
+      libSel.innerHTML = (FB_SCRIPT_LIBS[lang] || []).map(l => '<option value="' + l.id + '">' + l.label + '</option>').join('');
+    }
+    function fbExportScriptUpdate(tabId) {
+      const t = tabs.get(tabId);
+      if (!t || !t.fb || !t.fb.current) return;
+      const p = t.fb.current;
+      const lang = document.getElementById(tabId + '-fb-sx-lang').value;
+      const libSel = document.getElementById(tabId + '-fb-sx-lib');
+      const valid = (FB_SCRIPT_LIBS[lang] || []).map(l => l.id);
+      if (!valid.includes(libSel.value)) { fbExportScriptPopulateLibs(tabId); }
+      const lib = libSel.value;
+      const opts = {
+        comments: !!document.getElementById(tabId + '-fb-sx-comments').checked,
+        schedule: !!document.getElementById(tabId + '-fb-sx-schedule').checked,
+      };
+      const built = fbBuildPipelineScript(p, lang, lib, opts);
+      const code = built.code;
+      const warnings = built.warnings || [];
+      const codeEl = document.getElementById(tabId + '-fb-sx-preview');
+      const gutterEl = document.getElementById(tabId + '-fb-sx-gutter');
+      const preEl = document.getElementById(tabId + '-fb-sx-pre');
+      const hlLang = lang === 'python' ? 'python' : 'javascript';
+      if (codeEl) {
+        codeEl.dataset.raw = code;
+        codeEl.className = 'hljs language-' + hlLang;
+        try {
+          codeEl.innerHTML = (window.hljs && hljs.getLanguage(hlLang))
+            ? hljs.highlight(code, { language: hlLang, ignoreIllegals: true }).value
+            : code.replace(/[&<>]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;' }[c]));
+        } catch (e) { codeEl.textContent = code; }
+      }
+      if (gutterEl) {
+        const nLines = code.split('\n').length;
+        gutterEl.textContent = Array.from({ length: nLines }, (_, i) => i + 1).join('\n');
+      }
+      if (preEl && gutterEl && !preEl.dataset.scrollBound) {
+        preEl.dataset.scrollBound = '1';
+        preEl.addEventListener('scroll', () => {
+          gutterEl.style.transform = 'translateY(' + (-preEl.scrollTop) + 'px)';
+        });
+      }
+      t.fb._scriptExport = { lang, lib, comments: opts.comments, schedule: opts.schedule };
+      const ext = lang === 'python' ? 'py' : 'mjs';
+      const fname = (p.name || p.id || 'pipeline').replace(/[^a-z0-9_-]+/gi, '_') + '.' + ext;
+      const st = document.getElementById(tabId + '-fb-sx-status');
+      if (st) st.textContent = code.split('\n').length + ' lines · saves as ' + fname + (warnings.length ? ' · ' + warnings.length + ' warning(s)' : '');
+      const hint = document.getElementById(tabId + '-fb-sx-hint');
+      if (hint) {
+        if (warnings.length) {
+          const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]));
+          hint.innerHTML = '⚠️ ' + warnings.map(esc).join(' · ');
+        } else {
+          hint.textContent = 'Generates a standalone runnable script from the current pipeline DAG — fetch · login · extract · follow · store. No CYBERFRAME runtime needed.';
+        }
+      }
+    }
+    function fbExportScriptCopy(tabId) {
+      const codeEl = document.getElementById(tabId + '-fb-sx-preview');
+      if (!codeEl) return;
+      const raw = codeEl.dataset.raw || codeEl.textContent || '';
+      try {
+        navigator.clipboard.writeText(raw);
+        const st = document.getElementById(tabId + '-fb-sx-status');
+        if (st) st.textContent = 'copied ✓';
+      } catch (e) {
+        const st = document.getElementById(tabId + '-fb-sx-status');
+        if (st) st.textContent = 'copy failed: ' + (e.message || e);
+      }
+    }
+    function fbExportScriptDownload(tabId) {
+      const t = tabs.get(tabId);
+      if (!t || !t.fb || !t.fb.current) return;
+      const codeEl = document.getElementById(tabId + '-fb-sx-preview');
+      if (!codeEl) return;
+      const raw = codeEl.dataset.raw || codeEl.textContent || '';
+      const lang = document.getElementById(tabId + '-fb-sx-lang').value;
+      const ext = lang === 'python' ? 'py' : 'mjs';
+      const fname = (t.fb.current.name || t.fb.current.id || 'pipeline').replace(/[^a-z0-9_-]+/gi, '_') + '.' + ext;
+      const blob = new Blob([raw], { type: 'text/plain;charset=utf-8' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = fname;
+      document.body.appendChild(a); a.click();
+      setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+    }
+
+    // Walk the pipeline DAG linearly along block.next[0], collecting block info
+    function _fbWalkPipeline(p) {
+      const blocks = p.blocks || [];
+      const byId = new Map(blocks.map(b => [b.id, b]));
+      const startId = p.startBlock || (blocks[0] && blocks[0].id);
+      const order = [];
+      const visited = new Set();
+      let cur = startId ? byId.get(startId) : null;
+      while (cur && !visited.has(cur.id)) {
+        visited.add(cur.id);
+        order.push(cur);
+        const nextId = cur.next && cur.next[0];
+        cur = nextId ? byId.get(nextId) : null;
+      }
+      // Pick up unreachable blocks too (append in declaration order)
+      const reachableIds = new Set(order.map(b => b.id));
+      for (const b of blocks) if (!reachableIds.has(b.id)) order.push(b);
+      return { order, byId, startId, unreachable: blocks.length - reachableIds.size };
+    }
+
+    function _fbCollectPipelineMeta(p) {
+      const walk = _fbWalkPipeline(p);
+      const meta = {
+        name: p.name || p.id || 'pipeline',
+        startUrl: '',
+        authCookie: '',
+        loginConfig: null,
+        extract: null,        // { rootSelector, fields: { name: { selector, attr } } }
+        follow: null,         // { nextSelector, maxPages, delayMs }
+        store: null,          // { target, formats[] }
+        fetchMode: 'static',
+        waitFor: '',
+        waitMs: 0,
+        scroll: false,
+        hasSelfHeal: false,
+        hasTransform: false,
+        transformOps: [],
+        warnings: [],
+        order: walk.order,
+      };
+      for (const b of walk.order) {
+        const c = b.config || {};
+        if (b.type === 'fetch') {
+          if (!meta.startUrl) meta.startUrl = String(c.url || '').trim();
+          if (c.mode === 'browser') meta.fetchMode = 'browser';
+          if (c.waitFor) meta.waitFor = String(c.waitFor);
+          if (c.waitMs) meta.waitMs = parseInt(c.waitMs) || 0;
+          if (c.scroll) meta.scroll = true;
+          if (c.auth && c.auth.cookie && !meta.authCookie) meta.authCookie = String(c.auth.cookie);
+        } else if (b.type === 'login') {
+          meta.loginConfig = Object.assign({}, c);
+          if (c.mode === 'cookie' && c.cookie) meta.authCookie = String(c.cookie);
+        } else if (b.type === 'extract') {
+          meta.extract = {
+            rootSelector: String(c.rootSelector || ''),
+            selectors: c.selectors || {},
+          };
+        } else if (b.type === 'follow') {
+          meta.follow = {
+            nextSelector: String(c.nextSelector || ''),
+            maxPages: Math.max(1, parseInt(c.maxPages) || 10),
+            delayMs: Math.max(0, parseInt(c.delayMs) || 0),
+          };
+        } else if (b.type === 'store') {
+          const formats = [];
+          const pushFmt = f => {
+            const v = String(f || '').toLowerCase().trim();
+            if (v && !formats.includes(v)) formats.push(v);
+          };
+          pushFmt(c.format);
+          if (Array.isArray(c.formats)) c.formats.forEach(pushFmt);
+          else if (typeof c.formats === 'string') c.formats.split(/[,\s]+/).forEach(pushFmt);
+          if (!formats.length) {
+            const target = String(c.target || c.path || 'rows.json');
+            const ext = (target.match(/\.([a-z0-9]+)$/i) || ['','json'])[1].toLowerCase();
+            pushFmt(['csv','jsonl','ndjson','md','markdown'].includes(ext) ? ext : 'json');
+          }
+          meta.store = {
+            target: String(c.target || c.path || 'rows.json'),
+            formats,
+            sqliteTable: c.sqliteTable || 'items',
+            sqliteMode: c.sqliteMode || 'replace',
+            sqliteUpsertKey: c.sqliteUpsertKey || '',
+          };
+        } else if (b.type === 'self_heal') {
+          meta.hasSelfHeal = true;
+        } else if (b.type === 'transform') {
+          meta.hasTransform = true;
+          if (Array.isArray(c.ops)) meta.transformOps = c.ops.slice();
+        }
+      }
+      if (meta.hasSelfHeal) meta.warnings.push('AI Self-Heal block was skipped (exported script uses static selectors only)');
+      if (meta.loginConfig && meta.loginConfig.mode && meta.loginConfig.mode !== 'cookie') meta.warnings.push('Login mode "' + meta.loginConfig.mode + '" exported as cookie placeholder — set AUTH_COOKIE manually');
+      if (!meta.startUrl) meta.warnings.push('No Fetch URL found — set START_URL in the script');
+      if (!meta.extract) meta.warnings.push('No Extract block — script will only download HTML');
+      if (!meta.store) meta.warnings.push('No Store block — rows will only print to stdout');
+      if (meta.hasTransform) meta.warnings.push('Transform block exported as inline post-processing (basic ops only)');
+      return meta;
+    }
+
+    function _fbJsStr(s) { return JSON.stringify(String(s == null ? '' : s)); }
+    function _fbPyStr(s) {
+      const t = String(s == null ? '' : s);
+      return '"' + t.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n').replace(/\r/g, '\\r') + '"';
+    }
+    function _fbPyBool(b) { return b ? 'True' : 'False'; }
+
+    function fbBuildPipelineScript(pipeline, lang, lib, opts) {
+      const meta = _fbCollectPipelineMeta(pipeline);
+      let code = '';
+      if (lang === 'node' && lib === 'axios-cheerio') code = _fbBuildNodeAxios(pipeline, meta, opts);
+      else if (lang === 'node' && lib === 'playwright') code = _fbBuildNodePlaywright(pipeline, meta, opts);
+      else if (lang === 'python' && lib === 'requests-bs4') code = _fbBuildPyRequests(pipeline, meta, opts);
+      else if (lang === 'python' && lib === 'playwright-async') code = _fbBuildPyPlaywright(pipeline, meta, opts);
+      else code = '// unsupported combo: ' + lang + '/' + lib;
+      return { code, warnings: meta.warnings };
+    }
+
+    function _fbBuildNodeAxios(pipeline, meta, opts) {
+      const sel = meta.extract ? meta.extract.selectors : {};
+      const fieldsJs = Object.keys(sel).map(k => {
+        const d = sel[k] || {};
+        return '  ' + JSON.stringify(k) + ': { selector: ' + _fbJsStr(d.selector || '') + ', attr: ' + _fbJsStr(d.attr || 'text') + ' }';
+      }).join(',\n');
+      const formatsArr = meta.store ? meta.store.formats : [];
+      const includeSqlite = formatsArr.includes('sqlite');
+      const lines = [];
+      lines.push('// Pipeline: ' + meta.name);
+      lines.push('// Generated by CYBERFRAME Flow Builder · v4.6.0');
+      lines.push('// Run: npm i axios cheerio' + (includeSqlite ? ' better-sqlite3' : '') + ' && node ' + meta.name.replace(/[^a-z0-9_-]+/gi,'_') + '.mjs');
+      if (opts.schedule && pipeline.schedule && pipeline.schedule.enabled) {
+        lines.push('// Schedule (from pipeline): every ' + (pipeline.schedule.intervalMin || 60) + ' minutes — wrap main() in setInterval if you want recurring runs');
+      }
+      lines.push('');
+      lines.push("import axios from 'axios';");
+      lines.push("import * as cheerio from 'cheerio';");
+      lines.push("import fs from 'fs';");
+      lines.push("import path from 'path';");
+      if (includeSqlite) lines.push("import Database from 'better-sqlite3';");
+      lines.push('');
+      lines.push('const START_URL = ' + _fbJsStr(meta.startUrl) + ';');
+      lines.push('const AUTH_COOKIE = ' + _fbJsStr(meta.authCookie) + ';');
+      lines.push('const ROOT_SELECTOR = ' + _fbJsStr(meta.extract ? meta.extract.rootSelector : '') + ';');
+      lines.push('const FIELDS = {');
+      lines.push(fieldsJs || '');
+      lines.push('};');
+      if (meta.follow) {
+        lines.push('const NEXT_SELECTOR = ' + _fbJsStr(meta.follow.nextSelector) + ';');
+        lines.push('const MAX_PAGES = ' + meta.follow.maxPages + ';');
+        lines.push('const FOLLOW_DELAY_MS = ' + meta.follow.delayMs + ';');
+      } else {
+        lines.push('const NEXT_SELECTOR = "";');
+        lines.push('const MAX_PAGES = 1;');
+        lines.push('const FOLLOW_DELAY_MS = 0;');
+      }
+      lines.push('const OUTPUT_TARGET = ' + _fbJsStr(meta.store ? meta.store.target : 'rows.json') + ';');
+      lines.push('const OUTPUT_FORMATS = ' + JSON.stringify(formatsArr.length ? formatsArr : ['json']) + ';');
+      lines.push('const OUT_DIR = "pipelines-out";');
+      lines.push('');
+      lines.push('function absolutize(v, attr, base) {');
+      lines.push('  const a = (attr || "").toLowerCase();');
+      lines.push('  if ((a === "href" || a === "src" || a === "data-src") && /^(\\/|\\.|[a-z]+:?\\/\\/)/i.test(v)) {');
+      lines.push('    try { return new URL(v, base).toString(); } catch { return v; }');
+      lines.push('  }');
+      lines.push('  return v;');
+      lines.push('}');
+      lines.push('function extractValue($, node, attr) {');
+      lines.push('  const a = (attr || "text").toLowerCase();');
+      lines.push('  if (a === "text") return node.text().trim();');
+      lines.push('  if (a === "html") return node.html() || "";');
+      lines.push('  return (node.attr(a) || "").trim();');
+      lines.push('}');
+      lines.push('');
+      lines.push('async function fetchHtml(url) {');
+      lines.push('  const headers = { "User-Agent": "Mozilla/5.0 (compatible; CYBERFRAME-FlowBuilder/1.0)" };');
+      lines.push('  if (AUTH_COOKIE) headers["Cookie"] = AUTH_COOKIE;');
+      lines.push('  const r = await axios.get(url, { headers, maxRedirects: 5, validateStatus: s => s < 400 });');
+      lines.push('  return { html: r.data, finalUrl: r.request?.res?.responseUrl || url };');
+      lines.push('}');
+      lines.push('');
+      lines.push('function extractRows(html, finalUrl) {');
+      lines.push('  const $ = cheerio.load(html);');
+      lines.push('  const out = [];');
+      lines.push('  const fnames = Object.keys(FIELDS);');
+      lines.push('  if (ROOT_SELECTOR) {');
+      lines.push('    $(ROOT_SELECTOR).each((_, el) => {');
+      lines.push('      const row = {};');
+      lines.push('      for (const f of fnames) {');
+      lines.push('        const def = FIELDS[f];');
+      lines.push('        const node = def.selector ? $(el).find(def.selector).first() : $(el);');
+      lines.push('        row[f] = absolutize(extractValue($, node, def.attr), def.attr, finalUrl);');
+      lines.push('      }');
+      lines.push('      out.push(row);');
+      lines.push('    });');
+      lines.push('  } else {');
+      lines.push('    const row = {};');
+      lines.push('    for (const f of fnames) {');
+      lines.push('      const def = FIELDS[f];');
+      lines.push('      const node = def.selector ? $(def.selector).first() : $.root();');
+      lines.push('      row[f] = absolutize(extractValue($, node, def.attr), def.attr, finalUrl);');
+      lines.push('    }');
+      lines.push('    out.push(row);');
+      lines.push('  }');
+      lines.push('  return out;');
+      lines.push('}');
+      lines.push('');
+      lines.push('function findNextUrl(html, finalUrl) {');
+      lines.push('  if (!NEXT_SELECTOR) return null;');
+      lines.push('  const $ = cheerio.load(html);');
+      lines.push('  const a = $(NEXT_SELECTOR).first();');
+      lines.push('  const href = (a.attr("href") || "").trim();');
+      lines.push('  if (!href || /^javascript:/i.test(href)) return null;');
+      lines.push('  try { return new URL(href, finalUrl).toString(); } catch { return null; }');
+      lines.push('}');
+      lines.push('');
+      lines.push('function writeOutputs(rows) {');
+      lines.push('  fs.mkdirSync(OUT_DIR, { recursive: true });');
+      lines.push('  const safeBase = OUTPUT_TARGET.replace(/[^a-zA-Z0-9_.-]+/g, "_");');
+      lines.push('  const stem = safeBase.replace(/\\.[^.]+$/, "") || "rows";');
+      lines.push('  const extOf = f => f === "jsonl" ? "ndjson" : f === "markdown" ? "md" : f;');
+      lines.push('  const written = [];');
+      lines.push('  for (const fmt of OUTPUT_FORMATS) {');
+      if (includeSqlite) {
+        lines.push('    if (fmt === "sqlite") {');
+        lines.push('      const fpath = path.join(OUT_DIR, stem + ".sqlite");');
+        lines.push('      const db = new Database(fpath);');
+        lines.push('      db.pragma("journal_mode = WAL");');
+        lines.push('      const cols = rows.length ? Object.keys(rows[0]) : ["_"];');
+        lines.push('      const colsSql = cols.map(c => "[" + c + "] TEXT").join(", ");');
+        lines.push('      db.exec("DROP TABLE IF EXISTS [' + (meta.store ? meta.store.sqliteTable : 'items') + '];");');
+        lines.push('      db.exec("CREATE TABLE [' + (meta.store ? meta.store.sqliteTable : 'items') + '] (" + colsSql + ");");');
+        lines.push('      const ph = cols.map(() => "?").join(", ");');
+        lines.push('      const stmt = db.prepare("INSERT INTO [' + (meta.store ? meta.store.sqliteTable : 'items') + '] (" + cols.map(c => "[" + c + "]").join(", ") + ") VALUES (" + ph + ")");');
+        lines.push('      const tx = db.transaction(rs => { for (const r of rs) stmt.run(cols.map(c => r[c] == null ? null : String(r[c]))); });');
+        lines.push('      tx(rows);');
+        lines.push('      db.close();');
+        lines.push('      written.push(fpath);');
+        lines.push('      continue;');
+        lines.push('    }');
+      } else {
+        lines.push('    if (fmt === "sqlite") { console.warn("sqlite format requires better-sqlite3 — skipped"); continue; }');
+      }
+      lines.push('    const fpath = path.join(OUT_DIR, stem + "." + extOf(fmt));');
+      lines.push('    let content = "";');
+      lines.push('    if (fmt === "csv") {');
+      lines.push('      const cols = rows.length ? Object.keys(rows[0]) : [];');
+      lines.push('      const esc = v => { const s = String(v == null ? "" : v); return /[",\\n]/.test(s) ? "\\"" + s.replace(/"/g, "\\"\\"") + "\\"" : s; };');
+      lines.push('      content = [cols.join(",")].concat(rows.map(r => cols.map(c => esc(r[c])).join(","))).join("\\n");');
+      lines.push('    } else if (fmt === "jsonl" || fmt === "ndjson") {');
+      lines.push('      content = rows.map(r => JSON.stringify(r)).join("\\n");');
+      lines.push('    } else if (fmt === "md" || fmt === "markdown") {');
+      lines.push('      const cols = rows.length ? Object.keys(rows[0]) : [];');
+      lines.push('      const esc = v => String(v == null ? "" : v).replace(/\\|/g, "\\\\|").replace(/\\n/g, " ");');
+      lines.push('      content = ["| " + cols.join(" | ") + " |", "| " + cols.map(() => "---").join(" | ") + " |", ...rows.map(r => "| " + cols.map(c => esc(r[c])).join(" | ") + " |")].join("\\n");');
+      lines.push('    } else {');
+      lines.push('      content = JSON.stringify(rows, null, 2);');
+      lines.push('    }');
+      lines.push('    fs.writeFileSync(fpath, content);');
+      lines.push('    written.push(fpath);');
+      lines.push('  }');
+      lines.push('  return written;');
+      lines.push('}');
+      lines.push('');
+      lines.push('async function main() {');
+      lines.push('  let url = START_URL;');
+      lines.push('  const allRows = [];');
+      lines.push('  let page = 0;');
+      lines.push('  while (url && page < MAX_PAGES) {');
+      lines.push('    page++;');
+      lines.push('    console.log("[" + page + "/" + MAX_PAGES + "] fetch " + url);');
+      lines.push('    const { html, finalUrl } = await fetchHtml(url);');
+      lines.push('    const rows = extractRows(html, finalUrl);');
+      lines.push('    console.log("  extracted " + rows.length + " rows");');
+      lines.push('    allRows.push(...rows);');
+      lines.push('    const nextUrl = NEXT_SELECTOR ? findNextUrl(html, finalUrl) : null;');
+      lines.push('    if (!nextUrl || nextUrl === url) break;');
+      lines.push('    if (FOLLOW_DELAY_MS > 0) await new Promise(r => setTimeout(r, FOLLOW_DELAY_MS));');
+      lines.push('    url = nextUrl;');
+      lines.push('  }');
+      lines.push('  console.log("Total rows: " + allRows.length);');
+      lines.push('  const written = writeOutputs(allRows);');
+      lines.push('  for (const f of written) console.log("  wrote " + f);');
+      lines.push('}');
+      lines.push('');
+      lines.push('main().catch(e => { console.error(e); process.exit(1); });');
+      return lines.join('\n');
+    }
+
+    function _fbBuildNodePlaywright(pipeline, meta, opts) {
+      const sel = meta.extract ? meta.extract.selectors : {};
+      const fieldsJs = Object.keys(sel).map(k => {
+        const d = sel[k] || {};
+        return '  ' + JSON.stringify(k) + ': { selector: ' + _fbJsStr(d.selector || '') + ', attr: ' + _fbJsStr(d.attr || 'text') + ' }';
+      }).join(',\n');
+      const formatsArr = meta.store ? meta.store.formats : [];
+      const includeSqlite = formatsArr.includes('sqlite');
+      const lines = [];
+      lines.push('// Pipeline: ' + meta.name + ' (Playwright)');
+      lines.push('// Generated by CYBERFRAME Flow Builder · v4.6.0');
+      lines.push('// Run: npm i playwright cheerio' + (includeSqlite ? ' better-sqlite3' : '') + ' && npx playwright install chromium && node ' + meta.name.replace(/[^a-z0-9_-]+/gi,'_') + '.mjs');
+      lines.push('');
+      lines.push("import { chromium } from 'playwright';");
+      lines.push("import * as cheerio from 'cheerio';");
+      lines.push("import fs from 'fs';");
+      lines.push("import path from 'path';");
+      if (includeSqlite) lines.push("import Database from 'better-sqlite3';");
+      lines.push('');
+      lines.push('const START_URL = ' + _fbJsStr(meta.startUrl) + ';');
+      lines.push('const AUTH_COOKIE = ' + _fbJsStr(meta.authCookie) + ';');
+      lines.push('const ROOT_SELECTOR = ' + _fbJsStr(meta.extract ? meta.extract.rootSelector : '') + ';');
+      lines.push('const FIELDS = {');
+      lines.push(fieldsJs || '');
+      lines.push('};');
+      lines.push('const WAIT_FOR = ' + _fbJsStr(meta.waitFor) + ';');
+      lines.push('const WAIT_MS = ' + (meta.waitMs || 0) + ';');
+      lines.push('const SCROLL = ' + (meta.scroll ? 'true' : 'false') + ';');
+      if (meta.follow) {
+        lines.push('const NEXT_SELECTOR = ' + _fbJsStr(meta.follow.nextSelector) + ';');
+        lines.push('const MAX_PAGES = ' + meta.follow.maxPages + ';');
+        lines.push('const FOLLOW_DELAY_MS = ' + meta.follow.delayMs + ';');
+      } else {
+        lines.push('const NEXT_SELECTOR = "";');
+        lines.push('const MAX_PAGES = 1;');
+        lines.push('const FOLLOW_DELAY_MS = 0;');
+      }
+      lines.push('const OUTPUT_TARGET = ' + _fbJsStr(meta.store ? meta.store.target : 'rows.json') + ';');
+      lines.push('const OUTPUT_FORMATS = ' + JSON.stringify(formatsArr.length ? formatsArr : ['json']) + ';');
+      lines.push('const OUT_DIR = "pipelines-out";');
+      lines.push('');
+      lines.push('function absolutize(v, attr, base) {');
+      lines.push('  const a = (attr || "").toLowerCase();');
+      lines.push('  if ((a === "href" || a === "src" || a === "data-src") && /^(\\/|\\.|[a-z]+:?\\/\\/)/i.test(v)) {');
+      lines.push('    try { return new URL(v, base).toString(); } catch { return v; }');
+      lines.push('  }');
+      lines.push('  return v;');
+      lines.push('}');
+      lines.push('function extractValue($, node, attr) {');
+      lines.push('  const a = (attr || "text").toLowerCase();');
+      lines.push('  if (a === "text") return node.text().trim();');
+      lines.push('  if (a === "html") return node.html() || "";');
+      lines.push('  return (node.attr(a) || "").trim();');
+      lines.push('}');
+      lines.push('function extractRows(html, finalUrl) {');
+      lines.push('  const $ = cheerio.load(html);');
+      lines.push('  const out = [];');
+      lines.push('  const fnames = Object.keys(FIELDS);');
+      lines.push('  if (ROOT_SELECTOR) {');
+      lines.push('    $(ROOT_SELECTOR).each((_, el) => {');
+      lines.push('      const row = {};');
+      lines.push('      for (const f of fnames) {');
+      lines.push('        const def = FIELDS[f];');
+      lines.push('        const node = def.selector ? $(el).find(def.selector).first() : $(el);');
+      lines.push('        row[f] = absolutize(extractValue($, node, def.attr), def.attr, finalUrl);');
+      lines.push('      }');
+      lines.push('      out.push(row);');
+      lines.push('    });');
+      lines.push('  } else {');
+      lines.push('    const row = {};');
+      lines.push('    for (const f of fnames) {');
+      lines.push('      const def = FIELDS[f];');
+      lines.push('      const node = def.selector ? $(def.selector).first() : $.root();');
+      lines.push('      row[f] = absolutize(extractValue($, node, def.attr), def.attr, finalUrl);');
+      lines.push('    }');
+      lines.push('    out.push(row);');
+      lines.push('  }');
+      lines.push('  return out;');
+      lines.push('}');
+      lines.push('function findNextUrl(html, finalUrl) {');
+      lines.push('  if (!NEXT_SELECTOR) return null;');
+      lines.push('  const $ = cheerio.load(html);');
+      lines.push('  const href = ($(NEXT_SELECTOR).first().attr("href") || "").trim();');
+      lines.push('  if (!href || /^javascript:/i.test(href)) return null;');
+      lines.push('  try { return new URL(href, finalUrl).toString(); } catch { return null; }');
+      lines.push('}');
+      lines.push('');
+      lines.push('async function main() {');
+      lines.push('  const browser = await chromium.launch({ headless: true });');
+      lines.push('  const context = await browser.newContext({ userAgent: "Mozilla/5.0" });');
+      lines.push('  if (AUTH_COOKIE) {');
+      lines.push('    const url = new URL(START_URL);');
+      lines.push('    const cookies = AUTH_COOKIE.split(";").map(s => s.trim()).filter(Boolean).map(p => {');
+      lines.push('      const [name, ...rest] = p.split("="); return { name: name.trim(), value: rest.join("=").trim(), domain: url.hostname, path: "/" };');
+      lines.push('    });');
+      lines.push('    await context.addCookies(cookies);');
+      lines.push('  }');
+      lines.push('  const page = await context.newPage();');
+      lines.push('  let url = START_URL;');
+      lines.push('  const allRows = [];');
+      lines.push('  let p = 0;');
+      lines.push('  while (url && p < MAX_PAGES) {');
+      lines.push('    p++;');
+      lines.push('    console.log("[" + p + "/" + MAX_PAGES + "] fetch " + url);');
+      lines.push('    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 });');
+      lines.push('    if (WAIT_FOR) { try { await page.waitForSelector(WAIT_FOR, { timeout: 15000 }); } catch {} }');
+      lines.push('    if (WAIT_MS) await page.waitForTimeout(WAIT_MS);');
+      lines.push('    if (SCROLL) await page.evaluate(async () => { await new Promise(res => { const t0=Date.now(); let last=0; const t=setInterval(()=>{ window.scrollBy(0,900); if (document.body.scrollHeight===last || Date.now()-t0>8000){clearInterval(t);res();} last=document.body.scrollHeight; }, 250); }); });');
+      lines.push('    const html = await page.content();');
+      lines.push('    const finalUrl = page.url();');
+      lines.push('    const rows = extractRows(html, finalUrl);');
+      lines.push('    console.log("  extracted " + rows.length + " rows");');
+      lines.push('    allRows.push(...rows);');
+      lines.push('    const nextUrl = NEXT_SELECTOR ? findNextUrl(html, finalUrl) : null;');
+      lines.push('    if (!nextUrl || nextUrl === url) break;');
+      lines.push('    if (FOLLOW_DELAY_MS > 0) await page.waitForTimeout(FOLLOW_DELAY_MS);');
+      lines.push('    url = nextUrl;');
+      lines.push('  }');
+      lines.push('  await browser.close();');
+      lines.push('  console.log("Total rows: " + allRows.length);');
+      lines.push('  // Write outputs (same format helpers as axios variant)');
+      lines.push('  fs.mkdirSync(OUT_DIR, { recursive: true });');
+      lines.push('  const safeBase = OUTPUT_TARGET.replace(/[^a-zA-Z0-9_.-]+/g, "_");');
+      lines.push('  const stem = safeBase.replace(/\\.[^.]+$/, "") || "rows";');
+      lines.push('  const extOf = f => f === "jsonl" ? "ndjson" : f === "markdown" ? "md" : f;');
+      lines.push('  for (const fmt of OUTPUT_FORMATS) {');
+      lines.push('    if (fmt === "sqlite") { console.warn("sqlite format not implemented in Playwright export — use axios variant or add better-sqlite3 manually"); continue; }');
+      lines.push('    const fpath = path.join(OUT_DIR, stem + "." + extOf(fmt));');
+      lines.push('    let content = "";');
+      lines.push('    if (fmt === "csv") {');
+      lines.push('      const cols = allRows.length ? Object.keys(allRows[0]) : [];');
+      lines.push('      const esc = v => { const s = String(v == null ? "" : v); return /[",\\n]/.test(s) ? "\\"" + s.replace(/"/g, "\\"\\"") + "\\"" : s; };');
+      lines.push('      content = [cols.join(",")].concat(allRows.map(r => cols.map(c => esc(r[c])).join(","))).join("\\n");');
+      lines.push('    } else if (fmt === "jsonl" || fmt === "ndjson") {');
+      lines.push('      content = allRows.map(r => JSON.stringify(r)).join("\\n");');
+      lines.push('    } else if (fmt === "md" || fmt === "markdown") {');
+      lines.push('      const cols = allRows.length ? Object.keys(allRows[0]) : [];');
+      lines.push('      const esc = v => String(v == null ? "" : v).replace(/\\|/g, "\\\\|").replace(/\\n/g, " ");');
+      lines.push('      content = ["| " + cols.join(" | ") + " |", "| " + cols.map(() => "---").join(" | ") + " |", ...allRows.map(r => "| " + cols.map(c => esc(r[c])).join(" | ") + " |")].join("\\n");');
+      lines.push('    } else {');
+      lines.push('      content = JSON.stringify(allRows, null, 2);');
+      lines.push('    }');
+      lines.push('    fs.writeFileSync(fpath, content);');
+      lines.push('    console.log("  wrote " + fpath);');
+      lines.push('  }');
+      lines.push('}');
+      lines.push('');
+      lines.push('main().catch(e => { console.error(e); process.exit(1); });');
+      return lines.join('\n');
+    }
+
+    function _fbBuildPyRequests(pipeline, meta, opts) {
+      const sel = meta.extract ? meta.extract.selectors : {};
+      const fieldsPy = Object.keys(sel).map(k => {
+        const d = sel[k] || {};
+        return '    ' + _fbPyStr(k) + ': {"selector": ' + _fbPyStr(d.selector || '') + ', "attr": ' + _fbPyStr(d.attr || 'text') + '},';
+      }).join('\n');
+      const formatsArr = meta.store ? meta.store.formats : [];
+      const lines = [];
+      lines.push('# Pipeline: ' + meta.name);
+      lines.push('# Generated by CYBERFRAME Flow Builder · v4.6.0');
+      lines.push('# Run: pip install requests beautifulsoup4 && python ' + meta.name.replace(/[^a-z0-9_-]+/gi,'_') + '.py');
+      lines.push('');
+      lines.push('import json, csv, os, re, sys');
+      lines.push('from urllib.parse import urljoin');
+      lines.push('import requests');
+      lines.push('from bs4 import BeautifulSoup');
+      lines.push('');
+      lines.push('START_URL = ' + _fbPyStr(meta.startUrl));
+      lines.push('AUTH_COOKIE = ' + _fbPyStr(meta.authCookie));
+      lines.push('ROOT_SELECTOR = ' + _fbPyStr(meta.extract ? meta.extract.rootSelector : ''));
+      lines.push('FIELDS = {');
+      lines.push(fieldsPy || '');
+      lines.push('}');
+      if (meta.follow) {
+        lines.push('NEXT_SELECTOR = ' + _fbPyStr(meta.follow.nextSelector));
+        lines.push('MAX_PAGES = ' + meta.follow.maxPages);
+        lines.push('FOLLOW_DELAY_MS = ' + meta.follow.delayMs);
+      } else {
+        lines.push('NEXT_SELECTOR = ""');
+        lines.push('MAX_PAGES = 1');
+        lines.push('FOLLOW_DELAY_MS = 0');
+      }
+      lines.push('OUTPUT_TARGET = ' + _fbPyStr(meta.store ? meta.store.target : 'rows.json'));
+      lines.push('OUTPUT_FORMATS = ' + JSON.stringify(formatsArr.length ? formatsArr : ['json']));
+      lines.push('OUT_DIR = "pipelines-out"');
+      lines.push('');
+      lines.push('def absolutize(v, attr, base):');
+      lines.push('    a = (attr or "").lower()');
+      lines.push('    if a in ("href", "src", "data-src") and re.match(r"^(/|\\.|[a-z]+:?//)", v, re.I):');
+      lines.push('        try:');
+      lines.push('            return urljoin(base, v)');
+      lines.push('        except Exception:');
+      lines.push('            return v');
+      lines.push('    return v');
+      lines.push('');
+      lines.push('def extract_value(node, attr):');
+      lines.push('    a = (attr or "text").lower()');
+      lines.push('    if a == "text":');
+      lines.push('        return node.get_text(strip=True) if node else ""');
+      lines.push('    if a == "html":');
+      lines.push('        return str(node) if node else ""');
+      lines.push('    return (node.get(a) or "").strip() if node else ""');
+      lines.push('');
+      lines.push('def fetch_html(url):');
+      lines.push('    headers = {"User-Agent": "Mozilla/5.0 (compatible; CYBERFRAME-FlowBuilder/1.0)"}');
+      lines.push('    if AUTH_COOKIE:');
+      lines.push('        headers["Cookie"] = AUTH_COOKIE');
+      lines.push('    r = requests.get(url, headers=headers, allow_redirects=True, timeout=30)');
+      lines.push('    r.raise_for_status()');
+      lines.push('    return r.text, r.url');
+      lines.push('');
+      lines.push('def extract_rows(html, final_url):');
+      lines.push('    soup = BeautifulSoup(html, "html.parser")');
+      lines.push('    out = []');
+      lines.push('    fnames = list(FIELDS.keys())');
+      lines.push('    if ROOT_SELECTOR:');
+      lines.push('        for el in soup.select(ROOT_SELECTOR):');
+      lines.push('            row = {}');
+      lines.push('            for f in fnames:');
+      lines.push('                d = FIELDS[f]');
+      lines.push('                node = el.select_one(d["selector"]) if d["selector"] else el');
+      lines.push('                row[f] = absolutize(extract_value(node, d["attr"]), d["attr"], final_url)');
+      lines.push('            out.append(row)');
+      lines.push('    else:');
+      lines.push('        row = {}');
+      lines.push('        for f in fnames:');
+      lines.push('            d = FIELDS[f]');
+      lines.push('            node = soup.select_one(d["selector"]) if d["selector"] else soup');
+      lines.push('            row[f] = absolutize(extract_value(node, d["attr"]), d["attr"], final_url)');
+      lines.push('        out.append(row)');
+      lines.push('    return out');
+      lines.push('');
+      lines.push('def find_next_url(html, final_url):');
+      lines.push('    if not NEXT_SELECTOR:');
+      lines.push('        return None');
+      lines.push('    soup = BeautifulSoup(html, "html.parser")');
+      lines.push('    a = soup.select_one(NEXT_SELECTOR)');
+      lines.push('    if not a:');
+      lines.push('        return None');
+      lines.push('    href = (a.get("href") or "").strip()');
+      lines.push('    if not href or href.lower().startswith("javascript:"):');
+      lines.push('        return None');
+      lines.push('    try:');
+      lines.push('        return urljoin(final_url, href)');
+      lines.push('    except Exception:');
+      lines.push('        return None');
+      lines.push('');
+      lines.push('def write_outputs(rows):');
+      lines.push('    os.makedirs(OUT_DIR, exist_ok=True)');
+      lines.push('    safe_base = re.sub(r"[^a-zA-Z0-9_.-]+", "_", OUTPUT_TARGET)');
+      lines.push('    stem = re.sub(r"\\.[^.]+$", "", safe_base) or "rows"');
+      lines.push('    def ext_of(f): return "ndjson" if f == "jsonl" else "md" if f == "markdown" else f');
+      lines.push('    written = []');
+      lines.push('    for fmt in OUTPUT_FORMATS:');
+      lines.push('        if fmt == "sqlite":');
+      lines.push('            print("sqlite format not exported — use SQLite Python module or add it manually", file=sys.stderr)');
+      lines.push('            continue');
+      lines.push('        fpath = os.path.join(OUT_DIR, stem + "." + ext_of(fmt))');
+      lines.push('        if fmt == "csv":');
+      lines.push('            cols = list(rows[0].keys()) if rows else []');
+      lines.push('            with open(fpath, "w", newline="", encoding="utf-8") as fh:');
+      lines.push('                w = csv.DictWriter(fh, fieldnames=cols)');
+      lines.push('                w.writeheader()');
+      lines.push('                for r in rows: w.writerow(r)');
+      lines.push('        elif fmt in ("jsonl", "ndjson"):');
+      lines.push('            with open(fpath, "w", encoding="utf-8") as fh:');
+      lines.push('                for r in rows: fh.write(json.dumps(r, ensure_ascii=False) + "\\n")');
+      lines.push('        elif fmt in ("md", "markdown"):');
+      lines.push('            cols = list(rows[0].keys()) if rows else []');
+      lines.push('            def esc(v): return str(v if v is not None else "").replace("|", "\\\\|").replace("\\n", " ")');
+      lines.push('            with open(fpath, "w", encoding="utf-8") as fh:');
+      lines.push('                fh.write("| " + " | ".join(cols) + " |\\n")');
+      lines.push('                fh.write("| " + " | ".join(["---"] * len(cols)) + " |\\n")');
+      lines.push('                for r in rows: fh.write("| " + " | ".join(esc(r.get(c, "")) for c in cols) + " |\\n")');
+      lines.push('        else:');
+      lines.push('            with open(fpath, "w", encoding="utf-8") as fh:');
+      lines.push('                json.dump(rows, fh, ensure_ascii=False, indent=2)');
+      lines.push('        written.append(fpath)');
+      lines.push('    return written');
+      lines.push('');
+      lines.push('def main():');
+      lines.push('    url = START_URL');
+      lines.push('    all_rows = []');
+      lines.push('    page = 0');
+      lines.push('    while url and page < MAX_PAGES:');
+      lines.push('        page += 1');
+      lines.push('        print(f"[{page}/{MAX_PAGES}] fetch {url}")');
+      lines.push('        html, final_url = fetch_html(url)');
+      lines.push('        rows = extract_rows(html, final_url)');
+      lines.push('        print(f"  extracted {len(rows)} rows")');
+      lines.push('        all_rows.extend(rows)');
+      lines.push('        next_url = find_next_url(html, final_url) if NEXT_SELECTOR else None');
+      lines.push('        if not next_url or next_url == url:');
+      lines.push('            break');
+      lines.push('        if FOLLOW_DELAY_MS > 0:');
+      lines.push('            import time; time.sleep(FOLLOW_DELAY_MS / 1000)');
+      lines.push('        url = next_url');
+      lines.push('    print(f"Total rows: {len(all_rows)}")');
+      lines.push('    for f in write_outputs(all_rows): print(f"  wrote {f}")');
+      lines.push('');
+      lines.push('if __name__ == "__main__":');
+      lines.push('    main()');
+      return lines.join('\n');
+    }
+
+    function _fbBuildPyPlaywright(pipeline, meta, opts) {
+      // Mirror requests-bs4 but use Playwright async for fetch
+      const sel = meta.extract ? meta.extract.selectors : {};
+      const fieldsPy = Object.keys(sel).map(k => {
+        const d = sel[k] || {};
+        return '    ' + _fbPyStr(k) + ': {"selector": ' + _fbPyStr(d.selector || '') + ', "attr": ' + _fbPyStr(d.attr || 'text') + '},';
+      }).join('\n');
+      const formatsArr = meta.store ? meta.store.formats : [];
+      const lines = [];
+      lines.push('# Pipeline: ' + meta.name + ' (Playwright async)');
+      lines.push('# Generated by CYBERFRAME Flow Builder · v4.6.0');
+      lines.push('# Run: pip install playwright beautifulsoup4 && playwright install chromium && python ' + meta.name.replace(/[^a-z0-9_-]+/gi,'_') + '.py');
+      lines.push('');
+      lines.push('import asyncio, json, csv, os, re, sys');
+      lines.push('from urllib.parse import urljoin, urlparse');
+      lines.push('from playwright.async_api import async_playwright');
+      lines.push('from bs4 import BeautifulSoup');
+      lines.push('');
+      lines.push('START_URL = ' + _fbPyStr(meta.startUrl));
+      lines.push('AUTH_COOKIE = ' + _fbPyStr(meta.authCookie));
+      lines.push('ROOT_SELECTOR = ' + _fbPyStr(meta.extract ? meta.extract.rootSelector : ''));
+      lines.push('FIELDS = {');
+      lines.push(fieldsPy || '');
+      lines.push('}');
+      lines.push('WAIT_FOR = ' + _fbPyStr(meta.waitFor));
+      lines.push('WAIT_MS = ' + (meta.waitMs || 0));
+      lines.push('SCROLL = ' + _fbPyBool(meta.scroll));
+      if (meta.follow) {
+        lines.push('NEXT_SELECTOR = ' + _fbPyStr(meta.follow.nextSelector));
+        lines.push('MAX_PAGES = ' + meta.follow.maxPages);
+        lines.push('FOLLOW_DELAY_MS = ' + meta.follow.delayMs);
+      } else {
+        lines.push('NEXT_SELECTOR = ""');
+        lines.push('MAX_PAGES = 1');
+        lines.push('FOLLOW_DELAY_MS = 0');
+      }
+      lines.push('OUTPUT_TARGET = ' + _fbPyStr(meta.store ? meta.store.target : 'rows.json'));
+      lines.push('OUTPUT_FORMATS = ' + JSON.stringify(formatsArr.length ? formatsArr : ['json']));
+      lines.push('OUT_DIR = "pipelines-out"');
+      lines.push('');
+      lines.push('def absolutize(v, attr, base):');
+      lines.push('    a = (attr or "").lower()');
+      lines.push('    if a in ("href", "src", "data-src") and re.match(r"^(/|\\.|[a-z]+:?//)", v, re.I):');
+      lines.push('        try:');
+      lines.push('            return urljoin(base, v)');
+      lines.push('        except Exception:');
+      lines.push('            return v');
+      lines.push('    return v');
+      lines.push('');
+      lines.push('def extract_value(node, attr):');
+      lines.push('    a = (attr or "text").lower()');
+      lines.push('    if a == "text":');
+      lines.push('        return node.get_text(strip=True) if node else ""');
+      lines.push('    if a == "html":');
+      lines.push('        return str(node) if node else ""');
+      lines.push('    return (node.get(a) or "").strip() if node else ""');
+      lines.push('');
+      lines.push('def extract_rows(html, final_url):');
+      lines.push('    soup = BeautifulSoup(html, "html.parser")');
+      lines.push('    out = []');
+      lines.push('    fnames = list(FIELDS.keys())');
+      lines.push('    if ROOT_SELECTOR:');
+      lines.push('        for el in soup.select(ROOT_SELECTOR):');
+      lines.push('            row = {}');
+      lines.push('            for f in fnames:');
+      lines.push('                d = FIELDS[f]');
+      lines.push('                node = el.select_one(d["selector"]) if d["selector"] else el');
+      lines.push('                row[f] = absolutize(extract_value(node, d["attr"]), d["attr"], final_url)');
+      lines.push('            out.append(row)');
+      lines.push('    else:');
+      lines.push('        row = {}');
+      lines.push('        for f in fnames:');
+      lines.push('            d = FIELDS[f]');
+      lines.push('            node = soup.select_one(d["selector"]) if d["selector"] else soup');
+      lines.push('            row[f] = absolutize(extract_value(node, d["attr"]), d["attr"], final_url)');
+      lines.push('        out.append(row)');
+      lines.push('    return out');
+      lines.push('');
+      lines.push('def find_next_url(html, final_url):');
+      lines.push('    if not NEXT_SELECTOR:');
+      lines.push('        return None');
+      lines.push('    soup = BeautifulSoup(html, "html.parser")');
+      lines.push('    a = soup.select_one(NEXT_SELECTOR)');
+      lines.push('    if not a:');
+      lines.push('        return None');
+      lines.push('    href = (a.get("href") or "").strip()');
+      lines.push('    if not href or href.lower().startswith("javascript:"):');
+      lines.push('        return None');
+      lines.push('    try:');
+      lines.push('        return urljoin(final_url, href)');
+      lines.push('    except Exception:');
+      lines.push('        return None');
+      lines.push('');
+      lines.push('def write_outputs(rows):');
+      lines.push('    os.makedirs(OUT_DIR, exist_ok=True)');
+      lines.push('    safe_base = re.sub(r"[^a-zA-Z0-9_.-]+", "_", OUTPUT_TARGET)');
+      lines.push('    stem = re.sub(r"\\.[^.]+$", "", safe_base) or "rows"');
+      lines.push('    def ext_of(f): return "ndjson" if f == "jsonl" else "md" if f == "markdown" else f');
+      lines.push('    written = []');
+      lines.push('    for fmt in OUTPUT_FORMATS:');
+      lines.push('        if fmt == "sqlite":');
+      lines.push('            print("sqlite format not exported — add sqlite3 module manually", file=sys.stderr)');
+      lines.push('            continue');
+      lines.push('        fpath = os.path.join(OUT_DIR, stem + "." + ext_of(fmt))');
+      lines.push('        if fmt == "csv":');
+      lines.push('            cols = list(rows[0].keys()) if rows else []');
+      lines.push('            with open(fpath, "w", newline="", encoding="utf-8") as fh:');
+      lines.push('                w = csv.DictWriter(fh, fieldnames=cols)');
+      lines.push('                w.writeheader()');
+      lines.push('                for r in rows: w.writerow(r)');
+      lines.push('        elif fmt in ("jsonl", "ndjson"):');
+      lines.push('            with open(fpath, "w", encoding="utf-8") as fh:');
+      lines.push('                for r in rows: fh.write(json.dumps(r, ensure_ascii=False) + "\\n")');
+      lines.push('        elif fmt in ("md", "markdown"):');
+      lines.push('            cols = list(rows[0].keys()) if rows else []');
+      lines.push('            def esc(v): return str(v if v is not None else "").replace("|", "\\\\|").replace("\\n", " ")');
+      lines.push('            with open(fpath, "w", encoding="utf-8") as fh:');
+      lines.push('                fh.write("| " + " | ".join(cols) + " |\\n")');
+      lines.push('                fh.write("| " + " | ".join(["---"] * len(cols)) + " |\\n")');
+      lines.push('                for r in rows: fh.write("| " + " | ".join(esc(r.get(c, "")) for c in cols) + " |\\n")');
+      lines.push('        else:');
+      lines.push('            with open(fpath, "w", encoding="utf-8") as fh:');
+      lines.push('                json.dump(rows, fh, ensure_ascii=False, indent=2)');
+      lines.push('        written.append(fpath)');
+      lines.push('    return written');
+      lines.push('');
+      lines.push('async def main():');
+      lines.push('    async with async_playwright() as p:');
+      lines.push('        browser = await p.chromium.launch(headless=True)');
+      lines.push('        context = await browser.new_context(user_agent="Mozilla/5.0")');
+      lines.push('        if AUTH_COOKIE:');
+      lines.push('            host = urlparse(START_URL).hostname');
+      lines.push('            cookies = []');
+      lines.push('            for part in AUTH_COOKIE.split(";"):');
+      lines.push('                kv = part.strip().split("=", 1)');
+      lines.push('                if len(kv) == 2:');
+      lines.push('                    cookies.append({"name": kv[0].strip(), "value": kv[1].strip(), "domain": host, "path": "/"})');
+      lines.push('            await context.add_cookies(cookies)');
+      lines.push('        page = await context.new_page()');
+      lines.push('        url = START_URL');
+      lines.push('        all_rows = []');
+      lines.push('        pn = 0');
+      lines.push('        while url and pn < MAX_PAGES:');
+      lines.push('            pn += 1');
+      lines.push('            print(f"[{pn}/{MAX_PAGES}] fetch {url}")');
+      lines.push('            await page.goto(url, wait_until="domcontentloaded", timeout=30000)');
+      lines.push('            if WAIT_FOR:');
+      lines.push('                try: await page.wait_for_selector(WAIT_FOR, timeout=15000)');
+      lines.push('                except Exception: pass');
+      lines.push('            if WAIT_MS: await page.wait_for_timeout(WAIT_MS)');
+      lines.push('            html = await page.content()');
+      lines.push('            final_url = page.url');
+      lines.push('            rows = extract_rows(html, final_url)');
+      lines.push('            print(f"  extracted {len(rows)} rows")');
+      lines.push('            all_rows.extend(rows)');
+      lines.push('            next_url = find_next_url(html, final_url) if NEXT_SELECTOR else None');
+      lines.push('            if not next_url or next_url == url:');
+      lines.push('                break');
+      lines.push('            if FOLLOW_DELAY_MS > 0:');
+      lines.push('                await page.wait_for_timeout(FOLLOW_DELAY_MS)');
+      lines.push('            url = next_url');
+      lines.push('        await browser.close()');
+      lines.push('        print(f"Total rows: {len(all_rows)}")');
+      lines.push('        for f in write_outputs(all_rows): print(f"  wrote {f}")');
+      lines.push('');
+      lines.push('if __name__ == "__main__":');
+      lines.push('    asyncio.run(main())');
+      return lines.join('\n');
+    }
+
     // Mousedown drag-reposition for canvas blocks (called from within fbRender)
     function _fbAttachBlockDrag(tabId, blockEl, blockId) {
       let startX = 0, startY = 0, origLeft = 0, origTop = 0, moving = false, raf = null;
@@ -10566,6 +11462,7 @@ ${fields}
             <button class="fb-btn" onclick="fbShowTemplates('${tabId}')" title="Browse starter templates (Quotes, HN, RSS, JSON API, e-commerce, sitemap)">📂 Templates</button>
             <button class="fb-btn" onclick="fbSave('${tabId}')" title="Save current pipeline (Ctrl+S)" id="${tabId}-fb-save">💾 Save</button>
             <button class="fb-btn" onclick="fbAutoArrange('${tabId}')" title="Auto-arrange blocks to fit the visible canvas (centers small pipelines, wraps long ones, packs tall layers, orphans in a tray)">🪄 Auto Layout</button>
+            <button class="fb-btn" onclick="fbExportScriptOpen('${tabId}')" title="Export pipeline as runnable Node.js / Python script">📜 Script</button>
             <span class="fb-spacer"></span>
             <span class="fb-meta" id="${tabId}-fb-meta"></span>
             <span class="fb-meta" id="${tabId}-fb-dirty" style="color:#fde68a;display:none">● unsaved</span>
@@ -10604,6 +11501,41 @@ ${fields}
             </div>
           </div>
           <div class="fb-console" id="${tabId}-fb-console"></div>
+          <div class="scrap-batch-backdrop" id="${tabId}-fb-script-bd" onclick="if(event.target.id==='${tabId}-fb-script-bd')fbExportScriptClose('${tabId}')">
+            <div class="scrap-batch-modal scrap-script-modal">
+              <h3>&lt;/&gt; Export Pipeline as Script <button class="x" onclick="fbExportScriptClose('${tabId}')">✕</button></h3>
+              <div class="row" style="grid-template-columns:1fr 1fr;gap:10px">
+                <div>
+                  <label>Language</label>
+                  <select id="${tabId}-fb-sx-lang" onchange="fbExportScriptUpdate('${tabId}')" style="width:100%;background:rgba(0,0,0,.32);border:1px solid rgba(255,255,255,.08);color:var(--text);border-radius:6px;padding:7px 10px;font:12.5px inherit;outline:none">
+                    <option value="node">Node.js</option>
+                    <option value="python">Python</option>
+                  </select>
+                </div>
+                <div>
+                  <label>Library</label>
+                  <select id="${tabId}-fb-sx-lib" onchange="fbExportScriptUpdate('${tabId}')" style="width:100%;background:rgba(0,0,0,.32);border:1px solid rgba(255,255,255,.08);color:var(--text);border-radius:6px;padding:7px 10px;font:12.5px inherit;outline:none"></select>
+                </div>
+              </div>
+              <label style="display:flex;align-items:center;gap:6px;margin-top:10px;text-transform:none;letter-spacing:normal;color:var(--text2);font-size:12px">
+                <input type="checkbox" id="${tabId}-fb-sx-comments" checked onchange="fbExportScriptUpdate('${tabId}')"> Include block comments
+              </label>
+              <label style="display:flex;align-items:center;gap:6px;margin-top:4px;text-transform:none;letter-spacing:normal;color:var(--text2);font-size:12px">
+                <input type="checkbox" id="${tabId}-fb-sx-schedule" onchange="fbExportScriptUpdate('${tabId}')"> Include schedule note (if pipeline has schedule)
+              </label>
+              <div class="hint" id="${tabId}-fb-sx-hint" style="margin-top:8px">Generates a standalone runnable script from the current pipeline DAG — fetch · login · extract · follow · store. No CYBERFRAME runtime needed.</div>
+              <label style="margin-top:10px">Code preview</label>
+              <div class="scrap-script-editor">
+                <div class="scrap-script-gutter"><div class="scrap-script-gutter-inner" id="${tabId}-fb-sx-gutter">1</div></div>
+                <pre class="scrap-script-pre" id="${tabId}-fb-sx-pre"><code id="${tabId}-fb-sx-preview" class="hljs"></code></pre>
+              </div>
+              <div class="actions">
+                <span style="flex:1;font-size:11px;color:var(--text3)" id="${tabId}-fb-sx-status">—</span>
+                <button class="scrap-btn" onclick="fbExportScriptCopy('${tabId}')">📋 Copy</button>
+                <button class="scrap-btn primary" onclick="fbExportScriptDownload('${tabId}')">⤓ Download</button>
+              </div>
+            </div>
+          </div>
         </div>`;
         container.appendChild(paneEl);
         setTimeout(() => fbInit(tabId), 30);

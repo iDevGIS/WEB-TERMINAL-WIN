@@ -5,6 +5,26 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [4.6.0] — 2026-05-14 — Flow Builder: Export pipeline as runnable script
+
+### Added
+
+- **📜 Script button** in Flow Builder toolbar — opens "Export Pipeline as Script" modal next to 🪄 Auto Layout. Mirrors the Scrap tool's "</>" Script feature so the same one-click workflow now exists for full pipelines (DAG of fetch/login/extract/follow/store blocks), not just single-page scrapers.
+- **4 standalone runtimes**: `node + axios-cheerio` (static), `node + playwright` (headless browser), `python + requests-bs4` (static), `python + playwright-async` (browser). Library picker auto-defaults to a Playwright variant when the pipeline has any Fetch block with `mode: "browser"`.
+- **DAG walker** (`_fbWalkPipeline`) — traverses `block.next[0]` edges from `startBlock`, collects fetch/login/extract/follow/store config into a single `meta` object, surfaces warnings for skipped features (Self-Heal, non-cookie Login modes, missing Fetch/Extract/Store, Transform).
+- **Multi-format Store carryover** — exported scripts honor the pipeline's `formats[]` array (json/csv/jsonl/md). SQLite emitted as real code in the axios variant (uses `better-sqlite3`), placeholder warning in the other three (manual sqlite3 module suggested).
+- **Follow loop** — when a Follow block is present, generated `main()` wraps fetch+extract in `while (url && page < MAX_PAGES)`, finds the next URL via the Follow block's `nextSelector`, and honors `delayMs` between pages. Without a Follow block, MAX_PAGES=1 (single-shot).
+- **Auth cookie injection** — Login (cookie mode) cookies and Fetch-level `config.auth.cookie` are merged into a single `AUTH_COOKIE` constant. Playwright variants split it into Playwright-style cookie objects pinned to the START_URL hostname.
+- **Standard preview UX** — language/library dropdowns, comments + schedule note checkboxes, line-numbered hljs preview pane, status bar showing line count + filename + warning count, 📋 Copy / ⤓ Download buttons. Filename pattern: `<pipeline-name>.<mjs|py>`.
+
+### Notes
+
+- Client-only patch — no server restart required, just hard-refresh.
+- Smoke: extracted JS block (~870 lines, ~52KB) parses cleanly via `new Function()` — no SyntaxError regressions (v4.5.1 lesson applied).
+- Reuses existing `scrap-batch-backdrop` / `scrap-script-modal` / `scrap-script-editor` CSS — zero new styles.
+
+---
+
 ## [4.5.2] — 2026-05-14 — Hotfix: auto-save Flow Builder pipelines before run
 
 ### Fixed
