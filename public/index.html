@@ -1682,6 +1682,61 @@
     .scrap-batch-modal input:focus, .scrap-batch-modal textarea:focus { border-color: rgba(167,139,250,.45); background: rgba(0,0,0,.4); }
     .scrap-batch-modal textarea { resize: vertical; min-height: 90px; font-family: ui-monospace, 'JetBrains Mono', monospace; }
     .scrap-script-modal { width: min(820px, 96%); max-height: 92%; }
+    /* v4.7.0 Pipeline Diff Viewer */
+    .fb-diff-modal { width: min(1180px, 97%); max-height: 92%; }
+    .fb-diff-body { display: grid; grid-template-columns: 200px 360px 1fr; gap: 8px; height: min(560px, 70vh); margin-top: 10px; }
+    .fb-diff-panel { background: rgba(0,0,0,.32); border: 1px solid rgba(255,255,255,.07); border-radius: 8px; overflow: auto; font-size: 12.5px; }
+    .fb-diff-versions { padding: 6px; }
+    .fb-diff-vrow { padding: 8px 10px; border-radius: 6px; cursor: pointer; margin-bottom: 3px; border: 1px solid transparent; }
+    .fb-diff-vrow:hover { background: rgba(167,139,250,.08); border-color: rgba(167,139,250,.18); }
+    .fb-diff-vrow.sel { background: rgba(167,139,250,.18); border-color: rgba(167,139,250,.48); }
+    .fb-diff-vrow-label { font-family: ui-monospace, 'JetBrains Mono', monospace; font-size: 11.5px; color: var(--text); }
+    .fb-diff-vrow-meta { font-size: 10px; color: var(--text3); margin-top: 1px; }
+    .fb-diff-hdr { padding: 10px 12px 8px; border-bottom: 1px solid rgba(255,255,255,.06); font-size: 11.5px; color: var(--text2); }
+    .fb-diff-vs { display: inline-block; font-size: 9px; font-weight: 700; letter-spacing: 0.06em; padding: 1px 5px; border-radius: 3px; background: rgba(192,132,252,.12); color: #c084fc; margin-right: 6px; }
+    .fb-diff-counts { display: flex; flex-wrap: wrap; gap: 4px; padding: 8px 12px; border-bottom: 1px solid rgba(255,255,255,.06); }
+    .fb-diff-c { font-size: 10.5px; padding: 2px 7px; border-radius: 11px; font-weight: 600; }
+    .fb-diff-c-add { background: rgba(74,222,128,.16); color: #4ade80; }
+    .fb-diff-c-rem { background: rgba(248,113,113,.16); color: #f87171; }
+    .fb-diff-c-mod { background: rgba(253,224,71,.16); color: #fde047; }
+    .fb-diff-c-mov { background: rgba(96,165,250,.16); color: #60a5fa; }
+    .fb-diff-c-eq { background: rgba(255,255,255,.05); color: var(--text3); }
+    .fb-diff-rows { padding: 4px; }
+    .fb-diff-row { display: grid; grid-template-columns: 18px 1fr auto; column-gap: 6px; row-gap: 0; align-items: baseline; padding: 6px 8px; border-radius: 6px; margin-bottom: 2px; cursor: default; font-size: 12px; }
+    .fb-diff-row[onclick] { cursor: pointer; }
+    .fb-diff-row[onclick]:hover { background: rgba(167,139,250,.07); }
+    .fb-diff-row.sel { background: rgba(167,139,250,.16); }
+    .fb-diff-ico { font-weight: 700; text-align: center; opacity: .8; font-family: ui-monospace, monospace; }
+    .fb-diff-row-added .fb-diff-ico { color: #4ade80; }
+    .fb-diff-row-removed .fb-diff-ico { color: #f87171; }
+    .fb-diff-row-modified .fb-diff-ico { color: #fde047; }
+    .fb-diff-row-moved .fb-diff-ico { color: #60a5fa; }
+    .fb-diff-row-unchanged .fb-diff-ico { color: var(--text3); }
+    .fb-diff-nm { color: var(--text); }
+    .fb-diff-typ { font-size: 10px; font-family: ui-monospace, monospace; color: var(--text3); margin-left: 4px; text-transform: uppercase; letter-spacing: 0.04em; }
+    .fb-diff-fs { grid-column: 2 / 4; font-size: 10.5px; color: var(--text3); padding-top: 2px; }
+    .fb-diff-detail { padding: 12px; }
+    .fb-diff-detail-hdr { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+    .fb-diff-detail-status { font-size: 9px; font-weight: 700; letter-spacing: 0.08em; padding: 2px 6px; border-radius: 3px; }
+    .fb-diff-detail-status.fb-diff-row-added { background: rgba(74,222,128,.16); color: #4ade80; }
+    .fb-diff-detail-status.fb-diff-row-removed { background: rgba(248,113,113,.16); color: #f87171; }
+    .fb-diff-detail-status.fb-diff-row-modified { background: rgba(253,224,71,.16); color: #fde047; }
+    .fb-diff-detail-status.fb-diff-row-moved { background: rgba(96,165,250,.16); color: #60a5fa; }
+    .fb-diff-detail-status.fb-diff-row-unchanged { background: rgba(255,255,255,.05); color: var(--text3); }
+    .fb-diff-detail-name { font-weight: 600; font-size: 13px; }
+    .fb-diff-detail-typ { font-size: 10px; font-family: ui-monospace, monospace; color: var(--text3); text-transform: uppercase; letter-spacing: 0.04em; }
+    .fb-diff-jump-btn { margin-left: auto; background: rgba(167,139,250,.16); border: 1px solid rgba(167,139,250,.32); color: #c4b5fd; border-radius: 6px; padding: 3px 9px; cursor: pointer; font-size: 11px; font-family: inherit; }
+    .fb-diff-jump-btn:hover { background: rgba(167,139,250,.28); }
+    .fb-diff-note { padding: 8px 10px; border-radius: 6px; background: rgba(255,255,255,.04); font-size: 11.5px; color: var(--text2); margin-bottom: 8px; }
+    .fb-diff-pre { font-family: ui-monospace, 'JetBrains Mono', monospace; font-size: 11px; line-height: 1.5; padding: 8px 10px; background: rgba(0,0,0,.34); border-radius: 6px; max-height: 180px; overflow: auto; margin: 4px 0 0; white-space: pre-wrap; word-break: break-word; }
+    .fb-diff-field { margin-bottom: 10px; padding: 8px; background: rgba(0,0,0,.18); border-radius: 7px; border: 1px solid rgba(255,255,255,.04); }
+    .fb-diff-field-name { font-family: ui-monospace, monospace; font-size: 11px; font-weight: 700; color: #fde047; margin-bottom: 6px; }
+    .fb-diff-field-sub { margin-bottom: 4px; }
+    .fb-diff-side { font-size: 9.5px; font-weight: 700; letter-spacing: 0.06em; }
+    .fb-diff-field-base .fb-diff-side { color: #f87171; }
+    .fb-diff-field-head .fb-diff-side { color: #4ade80; }
+    .fb-diff-field-base .fb-diff-pre { background: rgba(248,113,113,.06); border-left: 2px solid rgba(248,113,113,.4); }
+    .fb-diff-field-head .fb-diff-pre { background: rgba(74,222,128,.06); border-left: 2px solid rgba(74,222,128,.4); }
     .scrap-script-editor {
       display: flex; background: #0b0b1d; border: 1px solid rgba(167,139,250,.22);
       border-radius: 8px; max-height: 48vh; overflow: hidden;
@@ -7294,6 +7349,239 @@
       setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
     }
 
+    // ===== v4.7.0 Pipeline Diff Viewer (Phase E 🅳) =====
+    function _fbDiffEsc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+    function _fbDiffStr(v) {
+      if (v == null) return '∅';
+      if (typeof v === 'string') return v;
+      try { return JSON.stringify(v); } catch { return String(v); }
+    }
+    function _fbDiffFmtTs(ts) {
+      // 2026-05-14T16-55-23-456Z → 2026-05-14 16:55:23
+      try {
+        const m = String(ts).match(/^(\d{4}-\d{2}-\d{2})T(\d{2})-(\d{2})-(\d{2})/);
+        if (m) return m[1] + ' ' + m[2] + ':' + m[3] + ':' + m[4];
+      } catch {}
+      return String(ts);
+    }
+    function _fbDiffRelTime(iso) {
+      try {
+        const d = new Date(iso);
+        const secs = Math.max(0, (Date.now() - d.getTime()) / 1000);
+        if (secs < 60) return Math.floor(secs) + 's ago';
+        if (secs < 3600) return Math.floor(secs / 60) + 'm ago';
+        if (secs < 86400) return Math.floor(secs / 3600) + 'h ago';
+        return Math.floor(secs / 86400) + 'd ago';
+      } catch { return ''; }
+    }
+    // Deep-equal helper for primitive/object/array — order-sensitive for arrays
+    function _fbDeepEq(a, b) {
+      if (a === b) return true;
+      if (a == null || b == null) return a == null && b == null;
+      if (typeof a !== typeof b) return false;
+      if (typeof a !== 'object') return false;
+      if (Array.isArray(a) !== Array.isArray(b)) return false;
+      if (Array.isArray(a)) {
+        if (a.length !== b.length) return false;
+        for (let i = 0; i < a.length; i++) if (!_fbDeepEq(a[i], b[i])) return false;
+        return true;
+      }
+      const ka = Object.keys(a), kb = Object.keys(b);
+      if (ka.length !== kb.length) return false;
+      for (const k of ka) if (!_fbDeepEq(a[k], b[k])) return false;
+      return true;
+    }
+    // Compare two block lists by id; return summary + per-block detail
+    function fbDiffCompute(baseBlocks, headBlocks) {
+      const baseMap = new Map((baseBlocks || []).map(b => [b.id, b]));
+      const headMap = new Map((headBlocks || []).map(b => [b.id, b]));
+      const allIds = new Set([...baseMap.keys(), ...headMap.keys()]);
+      const items = [];
+      const COMPARE_FIELDS = ['type', 'name', 'config', 'next', 'loopback', 'healFallback'];
+      for (const id of allIds) {
+        const a = baseMap.get(id), b = headMap.get(id);
+        if (a && !b) {
+          items.push({ id, status: 'removed', block: a, fields: [] });
+        } else if (!a && b) {
+          items.push({ id, status: 'added', block: b, fields: [] });
+        } else {
+          const fields = [];
+          for (const k of COMPARE_FIELDS) {
+            if (!_fbDeepEq(a[k], b[k])) fields.push({ key: k, base: a[k], head: b[k] });
+          }
+          // Position diff is informational only (don't flag as modified if only x/y differ)
+          const positionMoved = a.position && b.position && (a.position.x !== b.position.x || a.position.y !== b.position.y);
+          if (fields.length) items.push({ id, status: 'modified', block: b, fields, positionMoved });
+          else if (positionMoved) items.push({ id, status: 'moved', block: b, fields: [], positionMoved: true });
+          else items.push({ id, status: 'unchanged', block: b, fields: [] });
+        }
+      }
+      // Sort: status priority (modified > added > removed > moved > unchanged), then by block name/id
+      const order = { modified: 0, added: 1, removed: 2, moved: 3, unchanged: 4 };
+      items.sort((x, y) => (order[x.status] - order[y.status]) || String(x.block.name || x.id).localeCompare(String(y.block.name || y.id)));
+      const counts = { added: 0, removed: 0, modified: 0, moved: 0, unchanged: 0 };
+      for (const it of items) counts[it.status]++;
+      return { items, counts };
+    }
+    async function fbDiffOpen(tabId) {
+      const t = tabs.get(tabId);
+      if (!t || !t.fb || !t.fb.current) {
+        fbLog(tabId, 'warn', '⚠ Diff Viewer: select a pipeline first');
+        return;
+      }
+      const bd = document.getElementById(tabId + '-fb-diff-bd');
+      if (!bd) return;
+      bd.style.display = 'flex';
+      const versList = document.getElementById(tabId + '-fb-diff-versions');
+      const summary = document.getElementById(tabId + '-fb-diff-summary');
+      const detail = document.getElementById(tabId + '-fb-diff-detail');
+      versList.innerHTML = '<div style="padding:14px;color:var(--text3);font-size:12px">Loading snapshots…</div>';
+      summary.innerHTML = '<div style="padding:14px;color:var(--text3);font-size:12px">Select a snapshot on the left to compare.</div>';
+      detail.innerHTML = '<div style="padding:14px;color:var(--text3);font-size:12px">Click a modified block to inspect field-level changes.</div>';
+      try {
+        const r = await fetch('/api/scrap/pipelines/' + encodeURIComponent(t.fb.current.id) + '/snapshots');
+        if (!r.ok) { versList.innerHTML = '<div style="padding:14px;color:#f87171;font-size:12px">Failed to load snapshots: HTTP ' + r.status + '</div>'; return; }
+        const d = await r.json();
+        const snaps = d.snapshots || [];
+        if (!snaps.length) {
+          versList.innerHTML = '<div style="padding:14px;color:var(--text3);font-size:12px">No history yet. Snapshots are captured automatically before every save — make a change + Ctrl+S to create the first one.</div>';
+          return;
+        }
+        t.fb.diffSnapshots = snaps;
+        const rows = snaps.map((s, i) => {
+          const label = _fbDiffEsc(_fbDiffFmtTs(s.ts));
+          const rel = _fbDiffEsc(_fbDiffRelTime(s.mtime || ''));
+          return '<div class="fb-diff-vrow" data-ts="' + _fbDiffEsc(s.ts) + '" onclick="fbDiffLoad(\'' + tabId + '\', \'' + _fbDiffEsc(s.ts) + '\')">'
+            + '<div class="fb-diff-vrow-label">' + label + '</div>'
+            + '<div class="fb-diff-vrow-meta">' + rel + ' · ' + Math.round((s.size || 0) / 1024) + 'KB</div>'
+            + '</div>';
+        }).join('');
+        versList.innerHTML = rows;
+        // Auto-load most recent
+        if (snaps[0]) fbDiffLoad(tabId, snaps[0].ts);
+      } catch (e) {
+        versList.innerHTML = '<div style="padding:14px;color:#f87171;font-size:12px">Error: ' + _fbDiffEsc(String(e && e.message || e)) + '</div>';
+      }
+    }
+    function fbDiffClose(tabId) {
+      const bd = document.getElementById(tabId + '-fb-diff-bd');
+      if (bd) bd.style.display = 'none';
+    }
+    async function fbDiffLoad(tabId, ts) {
+      const t = tabs.get(tabId);
+      if (!t || !t.fb || !t.fb.current) return;
+      // Highlight selected row
+      const versList = document.getElementById(tabId + '-fb-diff-versions');
+      if (versList) {
+        versList.querySelectorAll('.fb-diff-vrow').forEach(el => el.classList.toggle('sel', el.dataset.ts === ts));
+      }
+      const summary = document.getElementById(tabId + '-fb-diff-summary');
+      const detail = document.getElementById(tabId + '-fb-diff-detail');
+      summary.innerHTML = '<div style="padding:14px;color:var(--text3);font-size:12px">Loading snapshot…</div>';
+      detail.innerHTML = '';
+      try {
+        const r = await fetch('/api/scrap/pipelines/' + encodeURIComponent(t.fb.current.id) + '/snapshots/' + encodeURIComponent(ts));
+        if (!r.ok) { summary.innerHTML = '<div style="padding:14px;color:#f87171;font-size:12px">Snapshot load failed: HTTP ' + r.status + '</div>'; return; }
+        const d = await r.json();
+        const base = d.pipeline || {};
+        const head = t.fb.current;
+        const diff = fbDiffCompute(base.blocks || [], head.blocks || []);
+        t.fb.diffBase = base;
+        t.fb.diffData = diff;
+        fbDiffRenderSummary(tabId, diff, base, head);
+      } catch (e) {
+        summary.innerHTML = '<div style="padding:14px;color:#f87171;font-size:12px">Error: ' + _fbDiffEsc(String(e && e.message || e)) + '</div>';
+      }
+    }
+    function fbDiffRenderSummary(tabId, diff, base, head) {
+      const summary = document.getElementById(tabId + '-fb-diff-summary');
+      const t = tabs.get(tabId);
+      const isDirty = !!(t && t.fb && t.fb._dirty);
+      const c = diff.counts;
+      const hdr = '<div class="fb-diff-hdr">'
+        + '<div><span class="fb-diff-vs">SNAPSHOT</span> ' + _fbDiffEsc(_fbDiffFmtTs(base.lastSavedAt || '')) + ' · ' + (base.blocks || []).length + ' blocks</div>'
+        + '<div style="margin-top:3px"><span class="fb-diff-vs">CURRENT</span> ' + ((head.blocks || []).length) + ' blocks' + (isDirty ? ' · <span style="color:#fde68a">● unsaved</span>' : '') + '</div>'
+        + '</div>'
+        + '<div class="fb-diff-counts">'
+        + '<span class="fb-diff-c fb-diff-c-add">+ ' + c.added + ' added</span>'
+        + '<span class="fb-diff-c fb-diff-c-rem">− ' + c.removed + ' removed</span>'
+        + '<span class="fb-diff-c fb-diff-c-mod">~ ' + c.modified + ' modified</span>'
+        + '<span class="fb-diff-c fb-diff-c-mov">↔ ' + c.moved + ' moved</span>'
+        + '<span class="fb-diff-c fb-diff-c-eq">= ' + c.unchanged + ' unchanged</span>'
+        + '</div>';
+      const rows = diff.items.map(it => {
+        const icon = { added: '+', removed: '−', modified: '~', moved: '↔', unchanged: '=' }[it.status];
+        const typ = _fbDiffEsc(it.block.type || '?');
+        const nm = _fbDiffEsc(it.block.name || it.id);
+        const fieldsLine = it.fields.length ? ' · ' + it.fields.map(f => f.key).join(', ') : (it.positionMoved && it.status === 'moved' ? ' · position' : '');
+        const click = (it.fields.length || (it.status === 'added' || it.status === 'removed'))
+          ? ' onclick="fbDiffShowBlockDetail(\'' + tabId + '\', \'' + _fbDiffEsc(it.id) + '\')"'
+          : '';
+        return '<div class="fb-diff-row fb-diff-row-' + it.status + '"' + click + '>'
+          + '<span class="fb-diff-ico">' + icon + '</span>'
+          + '<span class="fb-diff-nm">' + nm + '</span>'
+          + '<span class="fb-diff-typ">' + typ + '</span>'
+          + '<span class="fb-diff-fs">' + _fbDiffEsc(fieldsLine) + '</span>'
+          + '</div>';
+      }).join('');
+      summary.innerHTML = hdr + '<div class="fb-diff-rows">' + rows + '</div>';
+      // Auto-select first non-unchanged item (if any) so right pane has content immediately
+      const firstChanged = diff.items.find(it => it.status !== 'unchanged' && it.status !== 'moved');
+      if (firstChanged) fbDiffShowBlockDetail(tabId, firstChanged.id);
+      else {
+        const detail = document.getElementById(tabId + '-fb-diff-detail');
+        detail.innerHTML = '<div style="padding:14px;color:var(--text3);font-size:12px">No structural changes between this snapshot and current. (Position-only moves are listed as ↔.)</div>';
+      }
+    }
+    function fbDiffShowBlockDetail(tabId, blockId) {
+      const t = tabs.get(tabId);
+      if (!t || !t.fb || !t.fb.diffData) return;
+      const it = t.fb.diffData.items.find(x => x.id === blockId);
+      if (!it) return;
+      const detail = document.getElementById(tabId + '-fb-diff-detail');
+      // Highlight selected row in middle pane
+      const summary = document.getElementById(tabId + '-fb-diff-summary');
+      if (summary) summary.querySelectorAll('.fb-diff-row').forEach(el => el.classList.toggle('sel', el.querySelector('.fb-diff-nm') && el.querySelector('.fb-diff-nm').textContent === (it.block.name || it.id)));
+      const baseBlock = (t.fb.diffBase && t.fb.diffBase.blocks || []).find(b => b.id === blockId);
+      const headBlock = (t.fb.current && t.fb.current.blocks || []).find(b => b.id === blockId);
+      let html = '<div class="fb-diff-detail-hdr">'
+        + '<span class="fb-diff-detail-status fb-diff-row-' + it.status + '">' + it.status.toUpperCase() + '</span>'
+        + '<span class="fb-diff-detail-name">' + _fbDiffEsc(it.block.name || it.id) + '</span>'
+        + '<span class="fb-diff-detail-typ">' + _fbDiffEsc(it.block.type || '?') + '</span>';
+      if (headBlock) html += '<button class="fb-diff-jump-btn" onclick="fbDiffJump(\'' + tabId + '\', \'' + _fbDiffEsc(blockId) + '\')">➜ Jump to block</button>';
+      html += '</div>';
+      if (it.status === 'added') {
+        html += '<div class="fb-diff-note fb-diff-c-add">This block exists in the current pipeline but not in the snapshot.</div>';
+        html += '<pre class="fb-diff-pre">' + _fbDiffEsc(JSON.stringify(headBlock || {}, null, 2)) + '</pre>';
+      } else if (it.status === 'removed') {
+        html += '<div class="fb-diff-note fb-diff-c-rem">This block existed in the snapshot but has been removed from the current pipeline.</div>';
+        html += '<pre class="fb-diff-pre">' + _fbDiffEsc(JSON.stringify(baseBlock || {}, null, 2)) + '</pre>';
+      } else if (it.fields.length) {
+        for (const f of it.fields) {
+          const baseStr = _fbDiffStr(f.base);
+          const headStr = _fbDiffStr(f.head);
+          html += '<div class="fb-diff-field">'
+            + '<div class="fb-diff-field-name">' + _fbDiffEsc(f.key) + '</div>'
+            + '<div class="fb-diff-field-sub fb-diff-field-base"><span class="fb-diff-side">− snapshot</span><pre class="fb-diff-pre">' + _fbDiffEsc(baseStr) + '</pre></div>'
+            + '<div class="fb-diff-field-sub fb-diff-field-head"><span class="fb-diff-side">+ current</span><pre class="fb-diff-pre">' + _fbDiffEsc(headStr) + '</pre></div>'
+            + '</div>';
+        }
+      } else if (it.status === 'moved') {
+        html += '<div class="fb-diff-note">Position changed only · base=(' + (baseBlock && baseBlock.position && baseBlock.position.x) + ',' + (baseBlock && baseBlock.position && baseBlock.position.y) + ') · head=(' + (headBlock && headBlock.position && headBlock.position.x) + ',' + (headBlock && headBlock.position && headBlock.position.y) + ')</div>';
+      } else {
+        html += '<div class="fb-diff-note">No changes in this block.</div>';
+      }
+      detail.innerHTML = html;
+    }
+    function fbDiffJump(tabId, blockId) {
+      fbDiffClose(tabId);
+      try {
+        if (typeof fbScrollToBlock === 'function') {
+          setTimeout(() => fbScrollToBlock(tabId, blockId), 60);
+        }
+      } catch {}
+    }
+
     // Walk the pipeline DAG linearly along block.next[0], collecting block info
     function _fbWalkPipeline(p) {
       const blocks = p.blocks || [];
@@ -11463,6 +11751,7 @@ ${fields}
             <button class="fb-btn" onclick="fbSave('${tabId}')" title="Save current pipeline (Ctrl+S)" id="${tabId}-fb-save">💾 Save</button>
             <button class="fb-btn" onclick="fbAutoArrange('${tabId}')" title="Auto-arrange blocks to fit the visible canvas (centers small pipelines, wraps long ones, packs tall layers, orphans in a tray)">🪄 Auto Layout</button>
             <button class="fb-btn" onclick="fbExportScriptOpen('${tabId}')" title="Export pipeline as runnable Node.js / Python script">📜 Script</button>
+            <button class="fb-btn" onclick="fbDiffOpen('${tabId}')" title="Compare current pipeline with a saved snapshot (auto-captured before every save, last 20 kept)">🔀 Diff</button>
             <span class="fb-spacer"></span>
             <span class="fb-meta" id="${tabId}-fb-meta"></span>
             <span class="fb-meta" id="${tabId}-fb-dirty" style="color:#fde68a;display:none">● unsaved</span>
@@ -11534,6 +11823,17 @@ ${fields}
                 <button class="scrap-btn" onclick="fbExportScriptCopy('${tabId}')">📋 Copy</button>
                 <button class="scrap-btn primary" onclick="fbExportScriptDownload('${tabId}')">⤓ Download</button>
               </div>
+            </div>
+          </div>
+          <div class="scrap-batch-backdrop" id="${tabId}-fb-diff-bd" onclick="if(event.target.id==='${tabId}-fb-diff-bd')fbDiffClose('${tabId}')">
+            <div class="scrap-batch-modal fb-diff-modal">
+              <h3>🔀 Pipeline Diff Viewer <button class="x" onclick="fbDiffClose('${tabId}')">✕</button></h3>
+              <div class="fb-diff-body">
+                <div class="fb-diff-panel fb-diff-versions" id="${tabId}-fb-diff-versions"><div style="padding:14px;color:var(--text3);font-size:12px">Loading snapshots…</div></div>
+                <div class="fb-diff-panel fb-diff-summary" id="${tabId}-fb-diff-summary"><div style="padding:14px;color:var(--text3);font-size:12px">Select a snapshot on the left to compare.</div></div>
+                <div class="fb-diff-panel fb-diff-detail" id="${tabId}-fb-diff-detail"><div style="padding:14px;color:var(--text3);font-size:12px">Click a modified block to inspect field-level changes.</div></div>
+              </div>
+              <div class="actions" style="margin-top:8px"><span style="flex:1;font-size:11px;color:var(--text3)">Snapshots auto-captured before every save · ring buffer keeps last 20 per pipeline</span><button class="scrap-btn primary" onclick="fbDiffClose('${tabId}')">Done</button></div>
             </div>
           </div>
         </div>`;
@@ -14969,6 +15269,27 @@ ${fields}
           if (!r.ok) return { error: d.error || ('HTTP ' + r.status) };
           return { ok: true, id, schedule: d.pipeline && d.pipeline.schedule, consecutiveFailures: d.pipeline && d.pipeline.consecutiveFailures };
         } catch (e) { return { error: 'pipeline_resume failed: ' + (e && e.message || e) }; }
+      },
+      async pipeline_list_snapshots(args) {
+        const id = args && args.id;
+        if (!id) return { error: 'id is required' };
+        try {
+          const r = await fetch('/api/scrap/pipelines/' + encodeURIComponent(id) + '/snapshots');
+          const d = await r.json().catch(() => ({}));
+          if (!r.ok) return { error: d.error || ('HTTP ' + r.status) };
+          return { id, count: (d.snapshots || []).length, snapshots: d.snapshots || [] };
+        } catch (e) { return { error: 'pipeline_list_snapshots failed: ' + (e && e.message || e) }; }
+      },
+      async pipeline_get_snapshot(args) {
+        const id = args && args.id;
+        const ts = args && args.ts;
+        if (!id || !ts) return { error: 'id and ts are required' };
+        try {
+          const r = await fetch('/api/scrap/pipelines/' + encodeURIComponent(id) + '/snapshots/' + encodeURIComponent(ts));
+          const d = await r.json().catch(() => ({}));
+          if (!r.ok) return { error: d.error || ('HTTP ' + r.status) };
+          return { id, ts, pipeline: d.pipeline || null };
+        } catch (e) { return { error: 'pipeline_get_snapshot failed: ' + (e && e.message || e) }; }
       },
       async pipeline_set_schedule(args) {
         const id = args && args.id;

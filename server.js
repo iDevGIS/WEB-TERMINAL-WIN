@@ -2557,6 +2557,35 @@ const CROSS_TAB_TOOLS = [
       },
     },
   },
+  {
+    type: 'function',
+    function: {
+      name: 'pipeline_list_snapshots',
+      description: 'List historical snapshots for a Scrap pipeline (auto-captured before every save, ring buffer of 20). Returns timestamps sorted most-recent first.',
+      parameters: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'Pipeline id.' },
+        },
+        required: ['id'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'pipeline_get_snapshot',
+      description: 'Read a specific historical snapshot of a Scrap pipeline. Returns full block graph + metadata at that point in time. Use pipeline_list_snapshots to find valid timestamps.',
+      parameters: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'Pipeline id.' },
+          ts: { type: 'string', description: 'Snapshot timestamp (filesystem-safe ISO, e.g. 2026-05-14T16-55-23-456Z).' },
+        },
+        required: ['id', 'ts'],
+      },
+    },
+  },
   // Workspaces
   {
     type: 'function',
@@ -7845,12 +7874,60 @@ app.get("/api/scrap/heal-events", requireAuth, (req, res) => {
 // Executor walks the graph, threading state (html, rows, url) between blocks.
 
 const SCRAP_PIPELINES_FILE = path.join(SCRAP_DIR, "pipelines.json");
+// v4.7.0 — auto-snapshot history (ring buffer, max 20 per pipeline)
+const SCRAP_PIPELINES_HISTORY_DIR = path.join(SCRAP_DIR, "pipelines-history");
+const SCRAP_PIPELINES_HISTORY_MAX = 20;
 
 function loadPipelines() {
   try { return JSON.parse(fs.readFileSync(SCRAP_PIPELINES_FILE, "utf8")); } catch { return []; }
 }
 function savePipelines(list) {
   fs.writeFileSync(SCRAP_PIPELINES_FILE, JSON.stringify(list, null, 2));
+}
+
+// v4.7.0 — write a snapshot of the pre-update pipeline state. Prunes oldest beyond ring-buffer cap.
+function _pipelineSnapshotWrite(pipelineId, pipelineObj) {
+  try {
+    if (!pipelineId || !pipelineObj) return null;
+    const dir = path.join(SCRAP_PIPELINES_HISTORY_DIR, String(pipelineId));
+    try { fs.mkdirSync(dir, { recursive: true }); } catch {}
+    const ts = new Date().toISOString().replace(/[:.]/g, "-"); // filesystem-safe ISO
+    const file = path.join(dir, ts + ".json");
+    fs.writeFileSync(file, JSON.stringify(pipelineObj, null, 2));
+    // ring-buffer prune (sorted desc, drop oldest beyond cap)
+    try {
+      const all = fs.readdirSync(dir).filter(f => f.endsWith(".json")).sort().reverse();
+      if (all.length > SCRAP_PIPELINES_HISTORY_MAX) {
+        all.slice(SCRAP_PIPELINES_HISTORY_MAX).forEach(f => { try { fs.unlinkSync(path.join(dir, f)); } catch {} });
+      }
+    } catch {}
+    return ts;
+  } catch (e) { return null; }
+}
+
+function _pipelineSnapshotList(pipelineId) {
+  try {
+    const dir = path.join(SCRAP_PIPELINES_HISTORY_DIR, String(pipelineId));
+    if (!fs.existsSync(dir)) return [];
+    return fs.readdirSync(dir)
+      .filter(f => f.endsWith(".json"))
+      .map(f => {
+        const full = path.join(dir, f);
+        let st = null; try { st = fs.statSync(full); } catch {}
+        const ts = f.replace(/\.json$/, "");
+        return { ts, mtime: st ? st.mtime.toISOString() : null, size: st ? st.size : 0 };
+      })
+      .sort((a, b) => b.ts.localeCompare(a.ts));
+  } catch { return []; }
+}
+
+function _pipelineSnapshotRead(pipelineId, ts) {
+  try {
+    const dir = path.join(SCRAP_PIPELINES_HISTORY_DIR, String(pipelineId));
+    const file = path.join(dir, ts + ".json");
+    if (!fs.existsSync(file)) return null;
+    return JSON.parse(fs.readFileSync(file, "utf8"));
+  } catch { return null; }
 }
 
 function _normalizeBlock(b) {
@@ -8486,6 +8563,8 @@ app.post("/api/scrap/pipelines", requireAuth, express.json({ limit: "2mb" }), (r
   const existing = body.id ? list.find(p => p.id === body.id) : null;
   const p = _normalizePipeline(body, existing);
   if (existing) {
+    // v4.7.0 — snapshot the prior state before overwrite (history ring buffer)
+    _pipelineSnapshotWrite(existing.id, existing);
     const idx = list.findIndex(x => x.id === existing.id);
     list[idx] = p;
   } else {
@@ -8493,6 +8572,20 @@ app.post("/api/scrap/pipelines", requireAuth, express.json({ limit: "2mb" }), (r
   }
   savePipelines(list);
   res.json({ ok: true, pipeline: p });
+});
+
+// v4.7.0 — list snapshots for a pipeline (most recent first, ring buffer 20)
+app.get("/api/scrap/pipelines/:id/snapshots", requireAuth, (req, res) => {
+  const list = loadPipelines();
+  if (!list.find(x => x.id === req.params.id)) return res.status(404).json({ error: "pipeline not found" });
+  res.json({ ok: true, snapshots: _pipelineSnapshotList(req.params.id) });
+});
+
+// v4.7.0 — read a specific snapshot
+app.get("/api/scrap/pipelines/:id/snapshots/:ts", requireAuth, (req, res) => {
+  const snap = _pipelineSnapshotRead(req.params.id, req.params.ts);
+  if (!snap) return res.status(404).json({ error: "snapshot not found" });
+  res.json({ ok: true, ts: req.params.ts, pipeline: snap });
 });
 
 app.get("/api/scrap/pipelines/:id", requireAuth, (req, res) => {

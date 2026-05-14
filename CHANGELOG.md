@@ -5,6 +5,30 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [4.7.0] — 2026-05-15 — Flow Builder: Pipeline Diff Viewer + auto-snapshot history
+
+### Added
+
+- **🔀 Diff button** in Flow Builder toolbar — opens a 3-pane modal (versions · block diff summary · per-block field detail) that compares the current canvas state with any historical snapshot of the same pipeline. Completes Phase E.
+- **Auto-snapshot ring buffer** — every `POST /api/scrap/pipelines` that updates an existing pipeline writes the *prior* state to `scraps/pipelines-history/<id>/<isoTimestamp>.json` before overwrite. Ring buffer prunes to the last 20 per pipeline. New pipelines start with zero history; the first snapshot appears on the first save-after-edit.
+- **2 new API endpoints**:
+  - `GET /api/scrap/pipelines/:id/snapshots` — list `[{ts, mtime, size}]` sorted most-recent first.
+  - `GET /api/scrap/pipelines/:id/snapshots/:ts` — read a specific snapshot's full pipeline state.
+- **2 new Sidekick tools** (80 → **82** total): `pipeline_list_snapshots(id)` and `pipeline_get_snapshot(id, ts)` — enables chat-driven audit and "what changed?" workflows.
+- **`fbDiffCompute(baseBlocks, headBlocks)`** — block-level diff that matches by `id` (stable), categorizes each block as `added` / `removed` / `modified` / `moved` (position-only) / `unchanged`, and surfaces per-field deltas for `type`, `name`, `config`, `next`, `loopback`, `healFallback`. Position-only changes get their own subtle category so a re-layout doesn't pollute the "modified" count.
+- **Visual diff UI** — color-coded counts (green/red/yellow/blue/gray), per-row icons (`+ − ~ ↔ =`), field-level side-by-side compare (snapshot vs current) with red/green left-border accents on the `<pre>` blocks, and a `➜ Jump to block` button on each detail header that closes the modal and centers + flashes the block in canvas (reuses `fbScrollToBlock` from v4.5.0 Better Error UI).
+- **Auto-select sensible defaults** — opening the modal auto-loads the most recent snapshot; rendering the summary auto-selects the first *changed* block (added/removed/modified) so the right pane is populated immediately without an extra click.
+
+### Notes
+
+- Server change: requires restart (added 2 new endpoints + snapshot helper in `server.js`).
+- Empty history is friendly: opens with an explainer ("No history yet — make a change + Ctrl+S to create the first one") rather than an error.
+- Diff algorithm is purely client-side after the two fetches — no server CPU spent on diff computation, snapshots stay small (10–40KB each typical).
+- Disk footprint: max 20 snapshots × ~20KB × N pipelines = bounded. For 50 pipelines that's <20MB total worst-case.
+- Cross-product: same `{ts, mtime, size}` listing pattern works for AUTH-MONITOR alert-rule history, Keycloak realm-config snapshots, TerraSight survey-form versions — the snapshot+diff primitive generalizes.
+
+---
+
 ## [4.6.0] — 2026-05-14 — Flow Builder: Export pipeline as runnable script
 
 ### Added
