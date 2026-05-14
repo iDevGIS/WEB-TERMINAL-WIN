@@ -5,6 +5,26 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [4.9.2] — 2026-05-15 — Flow Builder: drag-pan minimap (replaces click-jump)
+
+### Changed
+
+- **Minimap action is now drag-based.** Mousedown anywhere on the minimap seeks the canvas to that point, and continuing to drag pans the canvas continuously until release. A pure click (mousedown→mouseup without move) still works as a single seek, so the prior one-shot behavior is preserved as a subset.
+- Cursor: `grab` at rest, `grabbing` while dragging; viewport rect (`fb-mini-vp`) thickens + fills more during the drag for clearer feedback.
+- The `×` hide-toggle stops both `mousedown` and `click` propagation so clicking it never triggers a pan-drag.
+- Internals: `fbMinimapClick` replaced by `fbMinimapDragStart` + helper `_fbMinimapPanTo`. Drag uses `window` mousemove/mouseup with `requestAnimationFrame` throttling; releases on `mouseup` or window `blur` (safety against stuck-drag if focus is lost).
+
+### Why
+
+User asked for drag interaction instead of click — click-jump required repeated clicks to traverse a large canvas. A held drag matches the mental model of "moving the viewport rect by hand" and is consistent with how Figma/Miro/IDE minimaps behave.
+
+### Notes
+
+- Client-only — no server restart needed. Hard-refresh the Flow Builder tab to pick up.
+- Touch devices: `touch-action: none` + `user-select: none` on `.fb-minimap` keeps the gesture from being hijacked by browser scroll/select. (Touch handlers not added in this ship; mouse-only for now.)
+
+---
+
 ## [4.9.1] — 2026-05-15 — Flow Builder: drop canvas empty-state placeholder
 
 ### Changed

@@ -1617,7 +1617,9 @@
     .fb-block.fb-err     { border-color: rgba(248,113,113,.7) !important; box-shadow: 0 0 0 2px rgba(248,113,113,.3), 0 6px 22px rgba(248,113,113,.25) !important; }
 
     /* v4.9.0 — Minimap docked at bottom of right sidebar (Properties panel) */
-    .fb-minimap { position: relative; width: 100%; height: 160px; background: rgba(8,10,22,.55); border: 1px solid rgba(168,85,247,.32); border-radius: 8px; overflow: hidden; cursor: pointer; flex-shrink: 0; }
+    .fb-minimap { position: relative; width: 100%; height: 160px; background: rgba(8,10,22,.55); border: 1px solid rgba(168,85,247,.32); border-radius: 8px; overflow: hidden; cursor: grab; flex-shrink: 0; touch-action: none; user-select: none; }
+    .fb-minimap.fb-mini-dragging { cursor: grabbing; }
+    .fb-minimap.fb-mini-dragging .fb-mini-vp { stroke-width: 2; fill: rgba(168,85,247,.32); }
     .fb-minimap.fb-mini-hidden { display: none; }
     .fb-minimap svg { display: block; width: 100%; height: 100%; }
     .fb-minimap .fb-mini-vp { fill: rgba(168,85,247,.18); stroke: #a855f7; stroke-width: 1.5; }
@@ -6698,17 +6700,44 @@
       vp.setAttribute('width', Math.min(FB_MINI.W, wrap.clientWidth * sx));
       vp.setAttribute('height', Math.min(FB_MINI.H, wrap.clientHeight * sy));
     }
-    function fbMinimapClick(ev, tabId) {
+    // v4.9.2 — drag-pan minimap (replaces click-jump). Mousedown anywhere seeks +
+    // continued drag keeps panning until release. Click-without-drag still seeks.
+    function _fbMinimapPanTo(tabId, clientX, clientY) {
       const mini = document.getElementById(tabId + '-fb-minimap');
       const wrap = document.getElementById(tabId + '-fb-canvas-wrap');
       if (!mini || !wrap) return;
       const r = mini.getBoundingClientRect();
-      const px = (ev.clientX - r.left) / r.width;
-      const py = (ev.clientY - r.top) / r.height;
+      const px = Math.max(0, Math.min(1, (clientX - r.left) / r.width));
+      const py = Math.max(0, Math.min(1, (clientY - r.top) / r.height));
       const tx = px * FB_MINI.CANVAS_W - wrap.clientWidth / 2;
       const ty = py * FB_MINI.CANVAS_H - wrap.clientHeight / 2;
       wrap.scrollLeft = Math.max(0, tx);
       wrap.scrollTop  = Math.max(0, ty);
+    }
+    function fbMinimapDragStart(ev, tabId) {
+      // Ignore if origin is the toggle (×) — its handler already stops propagation
+      if (ev.target && ev.target.classList && ev.target.classList.contains('fb-mini-toggle')) return;
+      ev.preventDefault();
+      const mini = document.getElementById(tabId + '-fb-minimap');
+      if (!mini) return;
+      mini.classList.add('fb-mini-dragging');
+      let raf = 0;
+      let lastX = ev.clientX, lastY = ev.clientY;
+      _fbMinimapPanTo(tabId, lastX, lastY);
+      const onMove = (e) => {
+        lastX = e.clientX; lastY = e.clientY;
+        if (raf) return;
+        raf = requestAnimationFrame(() => { raf = 0; _fbMinimapPanTo(tabId, lastX, lastY); });
+      };
+      const onUp = () => {
+        mini.classList.remove('fb-mini-dragging');
+        window.removeEventListener('mousemove', onMove);
+        window.removeEventListener('mouseup', onUp);
+        window.removeEventListener('blur', onUp);
+      };
+      window.addEventListener('mousemove', onMove);
+      window.addEventListener('mouseup', onUp);
+      window.addEventListener('blur', onUp);
     }
     function _fbAttachMinimapHooks(tabId) {
       const wrap = document.getElementById(tabId + '-fb-canvas-wrap');
@@ -11958,8 +11987,8 @@ ${fields}
               </div>
               <div class="fb-props-foot">
                 <h4>🗺 Minimap</h4>
-                <div class="fb-minimap" id="${tabId}-fb-minimap" title="Click to pan · drag viewport rect" onclick="fbMinimapClick(event, '${tabId}')">
-                  <div class="fb-mini-toggle" onclick="event.stopPropagation(); fbMinimapToggle('${tabId}', false)" title="Hide minimap">×</div>
+                <div class="fb-minimap" id="${tabId}-fb-minimap" title="Drag to pan canvas" onmousedown="fbMinimapDragStart(event, '${tabId}')">
+                  <div class="fb-mini-toggle" onmousedown="event.stopPropagation()" onclick="event.stopPropagation(); fbMinimapToggle('${tabId}', false)" title="Hide minimap">×</div>
                   <svg id="${tabId}-fb-minimap-svg" viewBox="0 0 200 140" preserveAspectRatio="xMidYMid meet"></svg>
                 </div>
                 <div class="fb-mini-show-btn" id="${tabId}-fb-mini-show" onclick="fbMinimapToggle('${tabId}', true)">🗺 Show Minimap</div>
