@@ -5,6 +5,25 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [4.9.3] — 2026-05-15 — Flow Builder: modern stroke-SVG toolbar icons
+
+### Changed
+
+- **Toolbar icons swapped from emoji glyphs to inline lucide-style stroke SVGs.** All 13 toolbar action buttons (Refresh, New, Templates, Save, Auto Layout, Script, Diff, panel toggles ×3, Reset, Delete, Run) now use 14×14 viewBox SVGs with `stroke="currentColor"` and `stroke-width="2"`. Run keeps a solid filled triangle for affordance; the rest are line-icons.
+- New CSS helper `.fb-ico` (size + stroke defaults) and `.fb-ico.solid` (fill currentColor, no stroke) for one-line reuse anywhere else in the Flow Builder shell.
+- Toolbar `.fb-btn` gap nudged from 5px → 6px to balance new icon + label spacing.
+- Toggle buttons get a slightly larger 15×15 icon size for clearer single-glyph readability.
+
+### Why
+
+User feedback: emoji glyphs looked AI-generated and inconsistent across OS/browser font sets. Stroke SVGs render identical everywhere, inherit text color (purple "on" pill states stay coherent), and scale cleanly at higher zoom. Pure cosmetic / no behavior change.
+
+### Files
+
+- `public/index.html` — added `.fb-ico` CSS class (~3 lines) + replaced 13 button bodies inline. ~36 LOC added, ~16 LOC removed.
+
+---
+
 ## [4.9.2] — 2026-05-15 — Flow Builder: drag-pan minimap (replaces click-jump)
 
 ### Changed

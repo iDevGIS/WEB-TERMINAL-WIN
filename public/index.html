@@ -1514,9 +1514,12 @@
     .fb-toolbar { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid rgba(255,255,255,.06); background: rgba(8,10,22,.6); backdrop-filter: blur(20px); flex-shrink: 0; }
     .fb-toolbar select, .fb-toolbar input { background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.1); border-radius: 6px; padding: 5px 10px; color: var(--text); font: inherit; font-size: 12px; outline: none; }
     .fb-toolbar select:focus, .fb-toolbar input:focus { border-color: rgba(167,139,250,.5); }
-    .fb-toolbar .fb-btn { padding: 5px 12px; border-radius: 6px; font-size: 12px; border: 1px solid rgba(255,255,255,.12); background: rgba(255,255,255,.04); color: var(--text); cursor: pointer; display: inline-flex; align-items: center; gap: 5px; }
+    .fb-toolbar .fb-btn { padding: 5px 12px; border-radius: 6px; font-size: 12px; border: 1px solid rgba(255,255,255,.12); background: rgba(255,255,255,.04); color: var(--text); cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
     .fb-toolbar .fb-btn:hover { background: rgba(167,139,250,.12); border-color: rgba(167,139,250,.32); }
     .fb-toolbar .fb-btn.primary { background: linear-gradient(135deg, #a855f7, #6366f1); border-color: rgba(168,85,247,.5); color: #fff; font-weight: 600; }
+    .fb-ico { width: 14px; height: 14px; flex-shrink: 0; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; vertical-align: middle; }
+    .fb-ico.solid { fill: currentColor; stroke: none; }
+    .fb-toolbar .fb-btn.fb-tgl .fb-ico { width: 15px; height: 15px; }
     .fb-toolbar .fb-btn.primary:hover { box-shadow: 0 0 20px rgba(168,85,247,.45); }
     .fb-toolbar .fb-spacer { flex: 1; }
     .fb-toolbar .fb-meta { font-size: 11.5px; color: var(--text3); display: flex; align-items: center; gap: 8px; }
@@ -11941,23 +11944,23 @@ ${fields}
         paneEl.innerHTML = `<div class="fb-tab-wrap" id="${tabId}-fb">
           <div class="fb-toolbar">
             <select id="${tabId}-fb-sel" onchange="fbLoad('${tabId}', this.value)" style="min-width:220px"><option value="">— Loading pipelines… —</option></select>
-            <button class="fb-btn" onclick="fbLoadList('${tabId}')" title="Refresh pipeline list">🔄</button>
-            <button class="fb-btn" onclick="fbNewPipeline('${tabId}')" title="Create blank pipeline">＋ New</button>
-            <button class="fb-btn" onclick="fbShowTemplates('${tabId}')" title="Browse starter templates (Quotes, HN, RSS, JSON API, e-commerce, sitemap)">📂 Templates</button>
-            <button class="fb-btn" onclick="fbSave('${tabId}')" title="Save current pipeline (Ctrl+S)" id="${tabId}-fb-save">💾 Save</button>
-            <button class="fb-btn" onclick="fbAutoArrange('${tabId}')" title="Auto-arrange blocks to fit the visible canvas (centers small pipelines, wraps long ones, packs tall layers, orphans in a tray)">🪄 Auto Layout</button>
-            <button class="fb-btn" onclick="fbExportScriptOpen('${tabId}')" title="Export pipeline as runnable Node.js / Python script">📜 Script</button>
-            <button class="fb-btn" onclick="fbDiffOpen('${tabId}')" title="Compare current pipeline with a saved snapshot (auto-captured before every save, last 20 kept)">🔀 Diff</button>
+            <button class="fb-btn" onclick="fbLoadList('${tabId}')" title="Refresh pipeline list"><svg class="fb-ico" viewBox="0 0 24 24"><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><polyline points="21 3 21 8 16 8"/><polyline points="3 21 3 16 8 16"/></svg></button>
+            <button class="fb-btn" onclick="fbNewPipeline('${tabId}')" title="Create blank pipeline"><svg class="fb-ico" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> New</button>
+            <button class="fb-btn" onclick="fbShowTemplates('${tabId}')" title="Browse starter templates (Quotes, HN, RSS, JSON API, e-commerce, sitemap)"><svg class="fb-ico" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg> Templates</button>
+            <button class="fb-btn" onclick="fbSave('${tabId}')" title="Save current pipeline (Ctrl+S)" id="${tabId}-fb-save"><svg class="fb-ico" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> Save</button>
+            <button class="fb-btn" onclick="fbAutoArrange('${tabId}')" title="Auto-arrange blocks to fit the visible canvas (centers small pipelines, wraps long ones, packs tall layers, orphans in a tray)"><svg class="fb-ico" viewBox="0 0 24 24"><path d="m21.64 3.64-1.28-1.28a1.21 1.21 0 0 0-1.72 0L2.36 18.64a1.21 1.21 0 0 0 0 1.72l1.28 1.28a1.2 1.2 0 0 0 1.72 0L21.64 5.36a1.2 1.2 0 0 0 0-1.72Z"/><path d="m14 7 3 3"/><path d="M5 6v4"/><path d="M19 14v4"/><path d="M10 2v2"/><path d="M7 8H3"/><path d="M21 16h-4"/><path d="M11 3H9"/></svg> Auto Layout</button>
+            <button class="fb-btn" onclick="fbExportScriptOpen('${tabId}')" title="Export pipeline as runnable Node.js / Python script"><svg class="fb-ico" viewBox="0 0 24 24"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg> Script</button>
+            <button class="fb-btn" onclick="fbDiffOpen('${tabId}')" title="Compare current pipeline with a saved snapshot (auto-captured before every save, last 20 kept)"><svg class="fb-ico" viewBox="0 0 24 24"><circle cx="5" cy="6" r="2.5"/><circle cx="19" cy="18" r="2.5"/><path d="M13 6h3a2 2 0 0 1 2 2v7.5"/><path d="M11 18H8a2 2 0 0 1-2-2V8.5"/><polyline points="9 16 11 18 9 20"/><polyline points="15 8 13 6 15 4"/></svg> Diff</button>
             <span style="width:1px;height:18px;background:rgba(255,255,255,.08);margin:0 4px"></span>
-            <button class="fb-btn fb-tgl fb-on" id="${tabId}-fb-tgl-left"   onclick="fbPanelToggle('${tabId}','left')"   title="Toggle left palette panel">◧</button>
-            <button class="fb-btn fb-tgl fb-on" id="${tabId}-fb-tgl-bottom" onclick="fbPanelToggle('${tabId}','bottom')" title="Toggle bottom console panel">▭</button>
-            <button class="fb-btn fb-tgl fb-on" id="${tabId}-fb-tgl-right"  onclick="fbPanelToggle('${tabId}','right')"  title="Toggle right properties panel">◨</button>
-            <button class="fb-btn fb-tgl"       id="${tabId}-fb-tgl-reset"  onclick="fbPanelReset('${tabId}')" title="Reset panel sizes + show all">⟲</button>
+            <button class="fb-btn fb-tgl fb-on" id="${tabId}-fb-tgl-left"   onclick="fbPanelToggle('${tabId}','left')"   title="Toggle left palette panel"><svg class="fb-ico" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/></svg></button>
+            <button class="fb-btn fb-tgl fb-on" id="${tabId}-fb-tgl-bottom" onclick="fbPanelToggle('${tabId}','bottom')" title="Toggle bottom console panel"><svg class="fb-ico" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="15" x2="21" y2="15"/></svg></button>
+            <button class="fb-btn fb-tgl fb-on" id="${tabId}-fb-tgl-right"  onclick="fbPanelToggle('${tabId}','right')"  title="Toggle right properties panel"><svg class="fb-ico" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="15" y1="3" x2="15" y2="21"/></svg></button>
+            <button class="fb-btn fb-tgl"       id="${tabId}-fb-tgl-reset"  onclick="fbPanelReset('${tabId}')" title="Reset panel sizes + show all"><svg class="fb-ico" viewBox="0 0 24 24"><polyline points="3 7 3 12 8 12"/><path d="M3.5 12a8.5 8.5 0 1 1 2.4 5.9"/></svg></button>
             <span class="fb-spacer"></span>
             <span class="fb-meta" id="${tabId}-fb-meta"></span>
             <span class="fb-meta" id="${tabId}-fb-dirty" style="color:#fde68a;display:none">● unsaved</span>
-            <button class="fb-btn" onclick="fbDelete('${tabId}')" title="Delete pipeline">🗑</button>
-            <button class="fb-btn primary" onclick="fbRun('${tabId}')" title="Run pipeline">▶ Run</button>
+            <button class="fb-btn" onclick="fbDelete('${tabId}')" title="Delete pipeline"><svg class="fb-ico" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg></button>
+            <button class="fb-btn primary" onclick="fbRun('${tabId}')" title="Run pipeline"><svg class="fb-ico solid" viewBox="0 0 24 24"><polygon points="6 4 20 12 6 20 6 4"/></svg> Run</button>
           </div>
           <div class="fb-main">
             <div class="fb-palette">
