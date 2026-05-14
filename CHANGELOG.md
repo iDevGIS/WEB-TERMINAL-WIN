@@ -5,6 +5,33 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [4.5.2] — 2026-05-14 — Hotfix: auto-save Flow Builder pipelines before run
+
+### Fixed
+
+- **`▶ Run` on unsaved pipelines returned `404` from `/api/scrap/pipelines/:id/run/stream`** — `_fbBlankPipeline()` assigns a local-only ID (`p_xxxxxxxx`) to fresh canvases, but the SSE endpoint only knows about pipelines persisted to `scraps/pipelines.json`. Clicking Run on a dirty canvas tried to stream against a non-existent ID, surfacing a confusing 404 in DevTools.
+- **`fbRun()` now auto-saves dirty pipelines** before opening the SSE stream — when `t.fb._dirty === true`, it routes through `fbSave()` first, then proceeds only after the save round-trip succeeds and the canonical pipeline ID is registered. Empty canvases (no blocks) short-circuit with a warning instead of saving an empty pipeline.
+
+### Notes
+
+- Client-only patch — no server restart required, just hard-refresh.
+
+---
+
+## [4.5.1] — 2026-05-14 — Hotfix: SyntaxError cascade in Inspector close button
+
+### Fixed
+
+- **`SyntaxError: missing ) after argument list` at line 6340:105** caused by `\\'` (double-escaped single quote inside a single-quoted JS string literal) in the v4.5.0 Error Inspector close button. JS parses `\\'` as `\` + closing quote, aborting the script and leaving downstream functions (including `openFileModal` at line 22334) unregistered. This cascaded into `ReferenceError: openFileModal is not defined` on the welcome card "Open File Manager" click.
+- **Fix**: switched the inline `onclick` to `\'` (proper escaped single quote). Smoke-tested with `new Function(snippet)` — both the close-button HTML and `fbShowErrorInspector` body now parse cleanly. No other `\\'` occurrences in client JS.
+
+### Notes
+
+- Same-night hotfix on v4.5.0 — user reported "broken site" via Console screenshot 9 min after ship.
+- Lesson logged: any `innerHTML += '<elem onclick="...">'` pattern is a quote-layering risk — prefer template literals or `createElement` + `addEventListener` in future patches.
+
+---
+
 ## [4.5.0] — 2026-05-14 — Phase E 🅲 Better Error UI: classifier + hints + inspector
 
 ### Added

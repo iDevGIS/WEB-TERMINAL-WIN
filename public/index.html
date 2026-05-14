@@ -6577,6 +6577,20 @@
         fbLog(tabId, 'warn', 'No pipeline loaded — select one first');
         return;
       }
+      // v4.5.2 — auto-save dirty/unregistered pipelines first
+      // (server needs the ID in pipelines.json; otherwise SSE returns 404)
+      if (t.fb._dirty) {
+        if (!(t.fb.current.blocks || []).length) {
+          fbLog(tabId, 'warn', 'Pipeline is empty — add at least one block before running');
+          return;
+        }
+        fbLog(tabId, 'info', '💾 Auto-saving before run...');
+        await fbSave(tabId);
+        if (t.fb._dirty) {
+          fbLog(tabId, 'err', '✘ Auto-save failed — cannot run unsaved pipeline');
+          return;
+        }
+      }
       const pid = t.fb.current.id;
       const name = t.fb.current.name || pid;
       fbLog(tabId, 'info', '▶ Running "' + name + '"...');
