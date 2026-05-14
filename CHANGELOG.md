@@ -5,6 +5,21 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [4.3.0] — 2026-05-14 — Sidekick NL pipeline builder + v3.x recipe interop
+
+### Added
+
+- **`pipeline_build_from_description(description, name?, save?, run?)` Sidekick tool** — converts a plain-language goal into a draft Scrap pipeline. Heuristic parser pulls URL(s), output formats (`csv` / `json` / `jsonl` / `md` / `sqlite` — first becomes `format`, rest go into `formats`), schedule (`every N min/hour/day` → `schedule.intervalMin`), pagination (`follow next` / `paginate` / `all pages` → `follow` block with loopback to fetch), JS render hint (`render` / `js` / `spa` → `mode: browser`), cookie auth (`cookie: ...` → `login` block), and field hints (`fields: a, b, c` or `extract a, b` → `extract.selectors` skeleton). Default = preview only; `save:true` persists via `pipeline_save`; `save:true + run:true` also runs once. Returns `summary` (urls, fetchMode, formats, followNext, scheduledMin, loginCookie, fields) so chat can read back what was understood.
+- **`pipeline_export_recipe(id, name?, save?)` Sidekick tool** — converts a pipeline DAG into a v3.x legacy recipe (`{ url, mode, rootSelector, selectors, waitFor, waitMs, scroll, auth, schedule }`). Walks BFS from `startBlock`, picks first reachable `fetch` + first reachable `extract`, copies cookie auth from any reachable `login` block, and inherits `pipeline.schedule`. Default = preview only; `save:true` POSTs to `/api/scrap/recipes`. Always returns a `warnings[]` array describing lossy mappings (multi-extract dropped, follow/transform/self_heal dropped, sqlite store dropped, multi-format store collapsed, non-cookie login modes dropped) so the user sees exactly what the legacy schema can't represent.
+
+### Notes
+
+- Both new tools are **client-side handlers** (`public/index.html`) — no server logic added; they reuse existing `/api/scrap/pipelines`, `/api/scrap/pipelines/:id/run`, and `/api/scrap/recipes` endpoints. Server only gets the OpenAI-tool definitions so the model can call them.
+- Sidekick tool count: **80** (was 78). Catalog covers full Flow Builder + Scrap recipe lifecycle now.
+- Phase D backlog (🅱 NL builder + 🅳 v3.x interop) is now done; Flow Builder is feature-complete for the v4.x line.
+
+---
+
 ## [4.2.2] — 2026-05-14 — Pipeline scheduler tuning: transient retry + backoff + auto-pause
 
 ### Added

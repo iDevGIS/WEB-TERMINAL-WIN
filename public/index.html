@@ -13688,6 +13688,220 @@ ${fields}
           return { count: (d.events || []).length, events: d.events || [], latestAt: d.latestAt };
         } catch (e) { return { error: 'scrap_heal_events failed: ' + (e && e.message || e) }; }
       },
+      async pipeline_build_from_description(args) {
+        const desc = (args && args.description ? String(args.description) : '').trim();
+        if (!desc) return { error: 'description is required' };
+        // --- Parse: URLs, formats, schedule, pagination, auth, fields ---
+        const urls = (desc.match(/https?:\/\/[^\s)>"',]+/gi) || []).map(u => u.replace(/[.,;]+$/, ''));
+        if (!urls.length) return { error: 'no URL found in description (need at least one https?:// link)' };
+        const lower = desc.toLowerCase();
+        const fmtSet = new Set();
+        if (/\bjson\b/.test(lower)) fmtSet.add('json');
+        if (/\bcsv\b/.test(lower)) fmtSet.add('csv');
+        if (/\b(jsonl|ndjson)\b/.test(lower)) fmtSet.add('jsonl');
+        if (/\b(md|markdown)\b/.test(lower)) fmtSet.add('md');
+        if (/\bsqlite\b/.test(lower)) fmtSet.add('sqlite');
+        const formats = Array.from(fmtSet);
+        const baseFmt = formats[0] || 'json';
+        const extras = formats.slice(1);
+        let intervalMin = 0;
+        const schedM = lower.match(/every\s+(\d+)\s*(min|minute|minutes|hr|hour|hours|day|days)/);
+        if (schedM) {
+          const n = parseInt(schedM[1]) || 0;
+          const unit = schedM[2];
+          intervalMin = /day/.test(unit) ? n * 1440 : (/h/.test(unit) ? n * 60 : n);
+        }
+        const wantsFollow = /\b(follow\s*next|paginate|all\s*pages|every\s*page|next\s*page)\b/.test(lower);
+        const wantsBrowser = /\b(render|js|javascript|spa|playwright|browser)\b/.test(lower);
+        const cookieM = desc.match(/cookie[:\s]+([^\n;]+(?:;[^\n;]+)*)/i);
+        const cookie = cookieM ? cookieM[1].trim() : '';
+        const fieldsM = desc.match(/(?:fields?|extract)[:\s]+([A-Za-z0-9_,\s]+)/i);
+        const fieldNames = fieldsM
+          ? fieldsM[1].split(/[\s,]+/).map(s => s.trim()).filter(Boolean).slice(0, 12)
+          : [];
+        const selectors = {};
+        for (const f of fieldNames) selectors[f] = '';
+        // --- Build blocks ---
+        const blocks = [];
+        const newId = (prefix) => prefix + '_' + Math.random().toString(36).slice(2, 7);
+        let prevId = null;
+        let fetchId = null;
+        let firstUrl = urls[0];
+        let host = '';
+        try { host = new URL(firstUrl).hostname.replace(/^www\./, ''); } catch {}
+        if (cookie) {
+          const lid = newId('login');
+          blocks.push({ id: lid, type: 'login', name: 'Login (cookie)', config: { mode: 'cookie', cookie }, next: [] });
+          prevId = lid;
+        }
+        fetchId = newId('fetch');
+        blocks.push({
+          id: fetchId,
+          type: 'fetch',
+          name: 'Fetch ' + (host || firstUrl),
+          config: { url: firstUrl, mode: wantsBrowser ? 'browser' : 'static' },
+          next: [],
+        });
+        if (prevId) blocks.find(b => b.id === prevId).next = [fetchId];
+        prevId = fetchId;
+        const extractId = newId('extract');
+        blocks.push({
+          id: extractId,
+          type: 'extract',
+          name: 'Extract' + (fieldNames.length ? ' (' + fieldNames.length + ' fields)' : ''),
+          config: { rootSelector: '', selectors },
+          next: [],
+        });
+        blocks.find(b => b.id === prevId).next = [extractId];
+        prevId = extractId;
+        let followId = null;
+        if (wantsFollow) {
+          followId = newId('follow');
+          blocks.push({
+            id: followId,
+            type: 'follow',
+            name: 'Follow next page',
+            config: { selector: 'a.next, .pagination a.next, a[rel="next"]', maxPages: 10 },
+            next: [],
+            loopback: fetchId,
+          });
+          blocks.find(b => b.id === prevId).next = [followId];
+          prevId = followId;
+        }
+        const pname = (args && args.name) ? String(args.name) : (host ? (host + ' scraper') : 'NL pipeline');
+        const stem = (host || 'pipeline').replace(/[^a-z0-9_-]+/gi, '_').toLowerCase();
+        const storeId = newId('store');
+        blocks.push({
+          id: storeId,
+          type: 'store',
+          name: 'Store ' + baseFmt + (extras.length ? ' (+' + extras.length + ')' : ''),
+          config: {
+            format: baseFmt,
+            formats: extras,
+            path: 'scraps/pipelines-out/' + stem + '.' + baseFmt,
+            ...(formats.includes('sqlite') ? { sqlite: { table: stem, mode: 'replace' } } : {}),
+          },
+          next: [],
+        });
+        blocks.find(b => b.id === prevId).next = [storeId];
+        const draft = {
+          name: pname,
+          description: 'Generated from: ' + desc.slice(0, 200),
+          blocks,
+          startBlock: blocks[0].id,
+        };
+        if (intervalMin > 0) draft.schedule = { enabled: true, intervalMin };
+        const summary = {
+          urls: urls.length,
+          fetchMode: wantsBrowser ? 'browser' : 'static',
+          formats: formats.length ? formats : [baseFmt],
+          followNext: !!followId,
+          scheduledMin: intervalMin || null,
+          loginCookie: !!cookie,
+          fields: fieldNames,
+        };
+        if (!args || !args.save) {
+          return { ok: true, preview: true, draft, summary, hint: 'Pass save:true to persist via pipeline_save.' };
+        }
+        try {
+          const r = await fetch('/api/scrap/pipelines', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(draft),
+          });
+          const d = await r.json().catch(() => ({}));
+          if (!r.ok) return { error: d.error || ('pipeline_save HTTP ' + r.status), draft };
+          const saved = d.pipeline || d;
+          if (!args.run) return { ok: true, saved: true, id: saved.id, name: saved.name, summary };
+          const rr = await fetch('/api/scrap/pipelines/' + encodeURIComponent(saved.id) + '/run', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
+          });
+          const rd = await rr.json().catch(() => ({}));
+          if (!rr.ok) return { ok: true, saved: true, id: saved.id, runError: rd.error || ('HTTP ' + rr.status), summary };
+          return { ok: true, saved: true, ran: true, id: saved.id, rowCount: rd.rowCount, outputFile: rd.outputFile, outputFiles: rd.outputFiles, summary };
+        } catch (e) {
+          return { error: 'pipeline_build_from_description save/run failed: ' + (e && e.message || e), draft };
+        }
+      },
+      async pipeline_export_recipe(args) {
+        const id = args && args.id;
+        if (!id) return { error: 'id is required' };
+        let pipeline = null;
+        try {
+          const r = await fetch('/api/scrap/pipelines/' + encodeURIComponent(id));
+          const d = await r.json().catch(() => ({}));
+          if (!r.ok) return { error: d.error || ('pipeline_get HTTP ' + r.status) };
+          pipeline = d.pipeline || d;
+        } catch (e) { return { error: 'pipeline_export_recipe load failed: ' + (e && e.message || e) }; }
+        if (!pipeline || !Array.isArray(pipeline.blocks) || !pipeline.blocks.length) {
+          return { error: 'pipeline has no blocks' };
+        }
+        const blocksById = new Map(pipeline.blocks.map(b => [b.id, b]));
+        const order = [];
+        const seen = new Set();
+        const startId = pipeline.startBlock || pipeline.blocks[0].id;
+        const stack = [startId];
+        while (stack.length) {
+          const cur = stack.shift();
+          if (!cur || seen.has(cur)) continue;
+          const b = blocksById.get(cur);
+          if (!b) continue;
+          seen.add(cur); order.push(b);
+          for (const n of (b.next || [])) stack.push(n);
+        }
+        const warnings = [];
+        const fetchBlock = order.find(b => b.type === 'fetch');
+        if (!fetchBlock) return { error: 'no fetch block reachable from start — cannot map to recipe' };
+        const extractBlocks = order.filter(b => b.type === 'extract');
+        if (!extractBlocks.length) return { error: 'no extract block reachable — cannot map to recipe' };
+        if (extractBlocks.length > 1) warnings.push('multi-extract: only first extract block was kept');
+        const extractBlock = extractBlocks[0];
+        const loginBlock = order.find(b => b.type === 'login');
+        const storeBlock = order.find(b => b.type === 'store');
+        if (order.some(b => b.type === 'follow')) warnings.push('follow/pagination not represented in legacy recipe schema');
+        if (order.some(b => b.type === 'transform')) warnings.push('transform block dropped — apply manually after extract');
+        if (order.some(b => b.type === 'self_heal')) warnings.push('self_heal node dropped — recipes have built-in selfHeal flag');
+        if (storeBlock) {
+          const fmt = String(storeBlock.config?.format || '').toLowerCase();
+          if (fmt === 'sqlite') warnings.push('sqlite store dropped — recipes do not write sqlite');
+          if (Array.isArray(storeBlock.config?.formats) && storeBlock.config.formats.length) {
+            warnings.push('multi-format store dropped — recipes write a single output');
+          }
+        }
+        const auth = loginBlock && loginBlock.config?.mode === 'cookie' && loginBlock.config?.cookie
+          ? { cookie: String(loginBlock.config.cookie), headers: {} }
+          : { cookie: '', headers: {} };
+        if (loginBlock && loginBlock.config?.mode && loginBlock.config.mode !== 'cookie') {
+          warnings.push('login mode "' + loginBlock.config.mode + '" not supported in recipe (only cookie auth)');
+        }
+        const recipe = {
+          name: (args && args.name) ? String(args.name) : ((pipeline.name || 'Untitled') + ' (legacy)'),
+          url: String(fetchBlock.config?.url || ''),
+          mode: ['static', 'browser', 'ai'].includes(fetchBlock.config?.mode) ? fetchBlock.config.mode : 'static',
+          rootSelector: String(extractBlock.config?.rootSelector || ''),
+          selectors: (extractBlock.config?.selectors && typeof extractBlock.config.selectors === 'object') ? extractBlock.config.selectors : {},
+          waitFor: String(fetchBlock.config?.waitFor || ''),
+          waitMs: parseInt(fetchBlock.config?.waitMs) || 0,
+          scroll: !!fetchBlock.config?.scroll,
+          auth,
+          schedule: pipeline.schedule
+            ? { enabled: !!pipeline.schedule.enabled, intervalMin: parseInt(pipeline.schedule.intervalMin) || 60, alwaysSnapshot: false }
+            : { enabled: false, intervalMin: 60, alwaysSnapshot: false },
+        };
+        if (!args || !args.save) {
+          return { ok: true, preview: true, recipe, warnings, sourcePipelineId: id };
+        }
+        try {
+          const r = await fetch('/api/scrap/recipes', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(recipe),
+          });
+          const d = await r.json().catch(() => ({}));
+          if (!r.ok) return { error: d.error || ('recipe save HTTP ' + r.status), recipe, warnings };
+          const saved = d.recipe || d;
+          return { ok: true, saved: true, recipeId: saved.id || null, recipe: saved, warnings, sourcePipelineId: id };
+        } catch (e) {
+          return { error: 'pipeline_export_recipe save failed: ' + (e && e.message || e), recipe, warnings };
+        }
+      },
       async list_workspaces() {
         try {
           const r = await fetch('/api/workspaces');

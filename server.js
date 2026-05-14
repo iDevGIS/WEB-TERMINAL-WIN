@@ -2499,6 +2499,39 @@ const CROSS_TAB_TOOLS = [
       },
     },
   },
+  {
+    type: 'function',
+    function: {
+      name: 'pipeline_build_from_description',
+      description: 'Generate a draft Scrap pipeline (blocks + edges) from a natural-language description. Parses URLs, output formats (csv/json/jsonl/md/sqlite), schedule (every N min/hour/day), pagination ("follow next"), and auth ("cookie ...") into a fetch → [follow] → extract → store DAG. Returns the draft. If save=true persists it. If run=true runs it after save.',
+      parameters: {
+        type: 'object',
+        properties: {
+          description: { type: 'string', description: 'Plain-language goal, e.g. "scrape https://quotes.toscrape.com follow next, store csv and sqlite, every 30 min".' },
+          name: { type: 'string', description: 'Optional pipeline name (defaults to first hostname).' },
+          save: { type: 'boolean', description: 'Persist the draft via pipeline_save (default false — preview only).' },
+          run: { type: 'boolean', description: 'After saving, run the pipeline once (default false). Ignored if save is false.' },
+        },
+        required: ['description'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'pipeline_export_recipe',
+      description: 'Export a Scrap pipeline as a v3.x legacy recipe (single fetch + extract + auth + schedule). Returns the recipe shape and warnings about lossy mappings (multi-extract, transform, sqlite store). If save=true posts to /api/scrap/recipes.',
+      parameters: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'Pipeline id to export.' },
+          name: { type: 'string', description: 'Optional recipe display name (defaults to "<pipeline name> (legacy)").' },
+          save: { type: 'boolean', description: 'Persist the recipe (default false — preview only).' },
+        },
+        required: ['id'],
+      },
+    },
+  },
   // Workspaces
   {
     type: 'function',
