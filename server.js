@@ -7619,6 +7619,7 @@ function _normalizeBlock(b) {
   return {
     id: String(b.id || ("b_" + Math.random().toString(36).slice(2, 8))),
     type: String(b.type || "fetch"),
+    name: b.name != null ? String(b.name).slice(0, 80) : "",
     config: (b.config && typeof b.config === "object") ? b.config : {},
     next: Array.isArray(b.next) ? b.next.map(String) : [],
     // Optional loopback edge for follow blocks

@@ -1525,8 +1525,14 @@
 
     .fb-palette { background: rgba(8,10,22,.5); border-right: 1px solid rgba(255,255,255,.05); padding: 14px; overflow-y: auto; }
     .fb-palette h3 { font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: #7a7f95; margin: 4px 0 10px; }
-    .fb-pb { background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08); border-radius: 10px; padding: 9px 11px; margin-bottom: 7px; display: flex; align-items: center; gap: 10px; font-size: 12.5px; cursor: grab; transition: all .15s; }
+    .fb-pb { background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08); border-radius: 10px; padding: 9px 11px; margin-bottom: 7px; display: flex; align-items: center; gap: 10px; font-size: 12.5px; cursor: grab; transition: all .15s; user-select: none; }
     .fb-pb:hover { border-color: rgba(168,85,247,.4); background: rgba(168,85,247,.08); transform: translateX(2px); }
+    .fb-pb:active { cursor: grabbing; }
+    .fb-pb.fb-dragging { opacity: .35; transform: scale(.96); }
+    .fb-canvas-wrap.fb-drop-active { outline: 2px dashed rgba(168,85,247,.55); outline-offset: -8px; background-color: rgba(168,85,247,.05); }
+    .fb-canvas-wrap.fb-drop-active::after { content: '＋ drop to add block'; position: absolute; top: 16px; right: 16px; background: rgba(168,85,247,.85); color: #fff; padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 600; pointer-events: none; z-index: 10; }
+    .fb-block.fb-moving { cursor: grabbing !important; opacity: .82; box-shadow: 0 8px 28px rgba(168,85,247,.45) !important; z-index: 5; }
+    .fb-block .fb-bh { cursor: move; }
     .fb-pb-ico { width: 26px; height: 26px; border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; }
     .fb-pb-fetch    .fb-pb-ico { background: rgba(6,182,212,.18);  color: #67e8f9; }
     .fb-pb-follow   .fb-pb-ico { background: rgba(168,85,247,.18); color: #c084fc; }
@@ -1583,6 +1589,9 @@
     .fb-props .row label { display: block; font-size: 10.5px; text-transform: uppercase; letter-spacing: .03em; color: var(--text3); margin-bottom: 4px; }
     .fb-props .row .val { font-size: 12px; color: var(--text); word-break: break-all; padding: 6px 8px; background: rgba(255,255,255,.03); border-radius: 5px; border: 1px solid rgba(255,255,255,.06); }
     .fb-props pre.val { font-family: ui-monospace,monospace; font-size: 11px; white-space: pre-wrap; max-height: 220px; overflow: auto; }
+    .fb-props input.val, .fb-props textarea.val, .fb-props select.val { font: inherit; font-size: 12px; color: var(--text); background: rgba(0,0,0,.32); border: 1px solid rgba(255,255,255,.08); border-radius: 5px; padding: 6px 8px; outline: none; transition: border-color .12s; }
+    .fb-props input.val:focus, .fb-props textarea.val:focus, .fb-props select.val:focus { border-color: rgba(168,85,247,.55); background: rgba(0,0,0,.4); }
+    .fb-props textarea.val { line-height: 1.45; }
 
     .fb-console { flex-shrink: 0; max-height: 130px; min-height: 28px; overflow-y: auto; background: rgba(0,0,0,.45); border-top: 1px solid rgba(255,255,255,.05); padding: 6px 14px; font-family: ui-monospace,monospace; font-size: 11px; color: var(--text2); line-height: 1.55; }
     .fb-console .line { display: flex; align-items: baseline; gap: 8px; }
@@ -5674,8 +5683,9 @@
 
     function fbInit(tabId) {
       const t = tabs.get(tabId); if (!t) return;
-      t.fb = { pipelines: [], current: null, selectedBlockId: null };
-      fbLog(tabId, 'info', 'Flow Builder ready · v4.0.0-alpha.2 (Phase A — view + run)');
+      t.fb = { pipelines: [], current: null, selectedBlockId: null, _dirty: false };
+      fbLog(tabId, 'info', 'Flow Builder ready · v4.0.0-beta (Phase B — drag-drop + edit + save)');
+      fbLog(tabId, 'info', 'Tip: drag block from left palette · click ＋ New for blank pipeline · Del removes selected block · Ctrl+S to save');
       fbLoadList(tabId);
     }
 
@@ -5701,7 +5711,12 @@
 
     async function fbLoad(tabId, pid) {
       const t = tabs.get(tabId); if (!t || !t.fb) return;
-      if (!pid) { t.fb.current = null; t.fb.selectedBlockId = null; fbClearCanvas(tabId); fbUpdateMeta(tabId); return; }
+      if (t.fb._dirty && t.fb.current && !confirm('Discard unsaved changes to "' + (t.fb.current.name || t.fb.current.id) + '"?')) {
+        const sel = document.getElementById(tabId + '-fb-sel');
+        if (sel) sel.value = t.fb.current.id || '';
+        return;
+      }
+      if (!pid) { t.fb.current = null; t.fb.selectedBlockId = null; fbMarkDirty(tabId, false); fbClearCanvas(tabId); fbUpdateMeta(tabId); return; }
       try {
         const r = await fetch('/api/scrap/pipelines/' + encodeURIComponent(pid));
         if (!r.ok) throw new Error('HTTP ' + r.status);
@@ -5709,6 +5724,7 @@
         if (!d.ok) throw new Error(d.error || 'load failed');
         t.fb.current = d.pipeline;
         t.fb.selectedBlockId = null;
+        fbMarkDirty(tabId, false);
         fbRender(tabId);
         fbUpdateMeta(tabId);
         fbShowProps(tabId, null);
@@ -5851,7 +5867,8 @@
           + '</div>'
           + '<div class="fb-bbody">' + escHtml(bodyText) + '</div>'
           + '<div class="fb-bft"><span class="dot ' + status + '"></span>' + escHtml(statusText) + '</div>';
-        div.addEventListener('click', (e) => { e.stopPropagation(); fbSelectBlock(tabId, b.id); });
+        // Phase B: mousedown drag-reposition (also handles click→select if no movement)
+        _fbAttachBlockDrag(tabId, div, b.id);
         canvas.appendChild(div);
       }
     }
@@ -5876,19 +5893,135 @@
     function fbShowProps(tabId, block) {
       const host = document.getElementById(tabId + '-fb-props');
       if (!host) return;
-      if (!block) { host.innerHTML = '<div class="empty">Click a block to inspect properties</div>'; return; }
+      if (!block) { host.innerHTML = '<div class="empty">Click a block to inspect properties · drag to move · Del to remove</div>'; return; }
       const meta = FB_TYPE_META[block.type] || { ico: '⬛', label: block.type };
-      let cfgJson = '';
-      try { cfgJson = JSON.stringify(block.config || {}, null, 2); } catch (e) { cfgJson = String(block.config); }
-      host.innerHTML = '<h3>' + meta.ico + ' ' + escHtml(block.name || meta.label || block.type) + '</h3>'
-        + '<div class="row"><label>ID</label><div class="val" style="font-family:ui-monospace,monospace;font-size:11px">' + escHtml(block.id) + '</div></div>'
-        + '<div class="row"><label>Type</label><div class="val">' + escHtml(block.type) + '</div></div>'
-        + '<div class="row"><label>Next</label><div class="val">' + ((block.next || []).map(escHtml).join(', ') || '<em style="color:var(--text3)">none</em>') + '</div></div>'
-        + (block.healFallback ? '<div class="row"><label>Heal Fallback</label><div class="val" style="color:#f9a8d4">' + escHtml(block.healFallback) + '</div></div>' : '')
-        + (block.loopback ? '<div class="row"><label>Loop Back</label><div class="val" style="color:#c084fc">' + escHtml(block.loopback) + '</div></div>' : '')
-        + '<div class="row"><label>Config</label><pre class="val">' + escHtml(cfgJson) + '</pre></div>'
-        + (block.lastError ? '<div class="row"><label>Last Error</label><div class="val" style="color:#fca5a5">' + escHtml(block.lastError) + '</div></div>' : '')
-        + (block.lastStatusText ? '<div class="row"><label>Last Status</label><div class="val">' + escHtml(block.lastStatusText) + '</div></div>' : '');
+      const t = tabs.get(tabId);
+      const allBlocks = (t && t.fb && t.fb.current && t.fb.current.blocks) || [];
+      const otherBlocks = allBlocks.filter(b => b.id !== block.id);
+      const _opt = (cur) => '<option value="">— none —</option>' + otherBlocks.map(b =>
+        '<option value="' + escAttr(b.id) + '"' + (cur === b.id ? ' selected' : '') + '>'
+        + escHtml((b.name || b.type) + ' · ' + b.id.slice(0,6)) + '</option>'
+      ).join('');
+      const cfg = block.config || {};
+      const cfgInputs = [];
+      const _row = (label, html) => `<div class="row"><label>${escHtml(label)}</label>${html}</div>`;
+      const _txt = (key, val, ph) => `<input type="text" class="val" style="width:100%;box-sizing:border-box" value="${escAttr(val == null ? '' : val)}" placeholder="${escAttr(ph || '')}" oninput="fbEditBlockCfg('${tabId}','${block.id}','${key}', this.value)">`;
+      const _num = (key, val, ph) => `<input type="number" class="val" style="width:100%;box-sizing:border-box" value="${escAttr(val == null ? '' : val)}" placeholder="${escAttr(ph || '')}" oninput="fbEditBlockCfg('${tabId}','${block.id}','${key}', parseInt(this.value)||0)">`;
+      const _sel = (key, val, opts) => `<select class="val" style="width:100%;box-sizing:border-box" onchange="fbEditBlockCfg('${tabId}','${block.id}','${key}', this.value)">` + opts.map(o => `<option value="${escAttr(o)}"${o===val?' selected':''}>${escHtml(o)}</option>`).join('') + '</select>';
+
+      if (block.type === 'fetch') {
+        cfgInputs.push(_row('Mode', _sel('mode', cfg.mode || 'static', ['static', 'render'])));
+        cfgInputs.push(_row('URL', _txt('url', cfg.url, 'https://example.com/page')));
+      } else if (block.type === 'login') {
+        cfgInputs.push(_row('Mode', _sel('mode', cfg.mode || 'form', ['form', 'api', 'oauth'])));
+        cfgInputs.push(_row('Login URL', _txt('url', cfg.url, 'https://example.com/login')));
+        cfgInputs.push(_row('Username field', _txt('userField', cfg.userField, 'input[name=email]')));
+        cfgInputs.push(_row('Password field', _txt('passField', cfg.passField, 'input[name=password]')));
+        cfgInputs.push(_row('Username', _txt('user', cfg.user, '')));
+        cfgInputs.push(_row('Password', _txt('pass', cfg.pass, '')));
+      } else if (block.type === 'extract') {
+        cfgInputs.push(_row('Root selector', _txt('root', cfg.root, '.product')));
+        cfgInputs.push(_row('Fields (JSON)', `<textarea class="val" style="width:100%;box-sizing:border-box;font-family:ui-monospace,monospace;font-size:11px;min-height:80px;resize:vertical" oninput="fbEditBlockCfgJson('${tabId}','${block.id}','fields', this.value, this)">${escHtml(JSON.stringify(cfg.fields || {}, null, 2))}</textarea>`));
+      } else if (block.type === 'follow') {
+        cfgInputs.push(_row('Next selector', _txt('nextSelector', cfg.nextSelector, 'a.next')));
+        cfgInputs.push(_row('Max pages', _num('maxPages', cfg.maxPages, '5')));
+      } else if (block.type === 'self_heal') {
+        cfgInputs.push(_row('Goal (instruction for AI)', `<textarea class="val" style="width:100%;box-sizing:border-box;min-height:60px;resize:vertical" oninput="fbEditBlockCfg('${tabId}','${block.id}','goal', this.value)" placeholder="e.g., Extract product name + price from each card">${escHtml(cfg.goal || '')}</textarea>`));
+        cfgInputs.push(_row('Threshold (rowCount drop)', _num('threshold', cfg.threshold == null ? 0.9 : cfg.threshold, '0.9 = trigger at 90% drop')));
+      } else if (block.type === 'transform') {
+        cfgInputs.push(_row('Ops (JSON array)', `<textarea class="val" style="width:100%;box-sizing:border-box;font-family:ui-monospace,monospace;font-size:11px;min-height:90px;resize:vertical" oninput="fbEditBlockCfgJson('${tabId}','${block.id}','ops', this.value, this)">${escHtml(JSON.stringify(cfg.ops || [], null, 2))}</textarea>`));
+      } else if (block.type === 'store') {
+        cfgInputs.push(_row('Format', _sel('format', cfg.format || 'json', ['json', 'csv', 'sqlite', 'jsonl'])));
+        cfgInputs.push(_row('Output path', _txt('path', cfg.path, 'scraps/pipelines-out/results.json')));
+      }
+
+      const isStart = (t && t.fb && t.fb.current && t.fb.current.startBlock === block.id);
+
+      host.innerHTML = `
+        <h3>${meta.ico} <input type="text" value="${escAttr(block.name || meta.label || block.type)}" placeholder="Block name" oninput="fbEditBlockName('${tabId}','${block.id}', this.value)" style="background:transparent;border:none;color:#d8c8ff;font-size:13px;font-weight:600;flex:1;outline:none;border-bottom:1px dashed rgba(168,85,247,.3);padding:2px 4px"></h3>
+        <div class="row"><label>ID · Type</label><div class="val" style="font-family:ui-monospace,monospace;font-size:11px;display:flex;gap:8px;align-items:center;justify-content:space-between"><span>${escHtml(block.id)}</span><span style="color:var(--text3)">${escHtml(block.type)}</span></div></div>
+        <div class="row"><label>Start Block</label><div class="val" style="display:flex;align-items:center;gap:8px"><label style="text-transform:none;letter-spacing:0;font-size:12px;display:flex;align-items:center;gap:6px;color:var(--text);margin:0"><input type="checkbox" ${isStart?'checked':''} onchange="fbSetStart('${tabId}','${block.id}', this.checked)"> mark as pipeline entry</label></div></div>
+        <div class="row"><label>Next block</label>${`<select class="val" style="width:100%;box-sizing:border-box" onchange="fbEditBlockNext('${tabId}','${block.id}', this.value)">${_opt((block.next || [])[0] || '')}</select>`}</div>
+        <div class="row"><label>Heal fallback (on failure)</label>${`<select class="val" style="width:100%;box-sizing:border-box" onchange="fbEditBlockHeal('${tabId}','${block.id}', this.value)">${_opt(block.healFallback || '')}</select>`}</div>
+        <div class="row"><label>Loop back to</label>${`<select class="val" style="width:100%;box-sizing:border-box" onchange="fbEditBlockLoop('${tabId}','${block.id}', this.value)">${_opt(block.loopback || '')}</select>`}</div>
+        ${cfgInputs.join('')}
+        ${block.lastError ? `<div class="row"><label>Last error</label><div class="val" style="color:#fca5a5;font-size:11px">${escHtml(block.lastError)}</div></div>` : ''}
+        ${block.lastStatusText ? `<div class="row"><label>Last status</label><div class="val">${escHtml(block.lastStatusText)}</div></div>` : ''}
+        <div class="row" style="margin-top:14px"><button class="fb-btn" onclick="fbDeleteSelectedBlock('${tabId}')" style="width:100%;background:rgba(239,68,68,.12);border-color:rgba(239,68,68,.4);color:#fca5a5;padding:7px;border-radius:6px;cursor:pointer;font-size:12px">🗑 Delete this block (Del)</button></div>
+      `;
+    }
+
+    function _fbBlock(tabId, blockId) {
+      const t = tabs.get(tabId); if (!t || !t.fb || !t.fb.current) return null;
+      return (t.fb.current.blocks || []).find(b => b.id === blockId) || null;
+    }
+    function fbEditBlockCfg(tabId, blockId, key, value) {
+      const b = _fbBlock(tabId, blockId); if (!b) return;
+      b.config = b.config || {};
+      b.config[key] = value;
+      fbMarkDirty(tabId, true);
+      // re-render only the canvas to reflect new body text without losing inputs
+      _fbUpdateBlockBody(tabId, blockId);
+    }
+    function fbEditBlockCfgJson(tabId, blockId, key, raw, el) {
+      const b = _fbBlock(tabId, blockId); if (!b) return;
+      try {
+        const parsed = JSON.parse(raw);
+        b.config = b.config || {};
+        b.config[key] = parsed;
+        if (el) el.style.borderColor = 'rgba(110,231,183,.4)';
+        fbMarkDirty(tabId, true);
+        _fbUpdateBlockBody(tabId, blockId);
+      } catch (e) {
+        if (el) el.style.borderColor = 'rgba(252,165,165,.55)';
+      }
+    }
+    function fbEditBlockName(tabId, blockId, value) {
+      const b = _fbBlock(tabId, blockId); if (!b) return;
+      b.name = value;
+      fbMarkDirty(tabId, true);
+      const el = document.querySelector('#' + tabId + '-fb-canvas .fb-block[data-block-id="' + blockId + '"] .fb-bh-title');
+      if (el) el.textContent = value || (FB_TYPE_META[b.type]?.label || b.type);
+    }
+    function fbEditBlockNext(tabId, blockId, nextId) {
+      const b = _fbBlock(tabId, blockId); if (!b) return;
+      b.next = nextId ? [nextId] : [];
+      fbMarkDirty(tabId, true);
+      _fbRedrawEdges(tabId);
+    }
+    function fbEditBlockHeal(tabId, blockId, healId) {
+      const b = _fbBlock(tabId, blockId); if (!b) return;
+      if (healId) b.healFallback = healId; else delete b.healFallback;
+      fbMarkDirty(tabId, true);
+      _fbRedrawEdges(tabId);
+    }
+    function fbEditBlockLoop(tabId, blockId, loopId) {
+      const b = _fbBlock(tabId, blockId); if (!b) return;
+      if (loopId) b.loopback = loopId; else delete b.loopback;
+      fbMarkDirty(tabId, true);
+      _fbRedrawEdges(tabId);
+    }
+    function fbSetStart(tabId, blockId, isStart) {
+      const t = tabs.get(tabId); if (!t || !t.fb || !t.fb.current) return;
+      t.fb.current.startBlock = isStart ? blockId : null;
+      fbMarkDirty(tabId, true);
+      // re-render to update t-start outline
+      fbRender(tabId);
+      fbSelectBlock(tabId, blockId);
+    }
+    function _fbUpdateBlockBody(tabId, blockId) {
+      const b = _fbBlock(tabId, blockId); if (!b) return;
+      const cfg = b.config || {};
+      let bodyText = '';
+      if (b.type === 'fetch') bodyText = (cfg.mode || 'static') + (cfg.url ? ' · ' + _fbTrunc(cfg.url, 26) : ' · (no url)');
+      else if (b.type === 'extract') bodyText = cfg.root || '(no root selector)';
+      else if (b.type === 'follow') bodyText = cfg.nextSelector || '(no next selector)';
+      else if (b.type === 'transform') bodyText = (cfg.ops || []).map(o => o.op || o.type).filter(Boolean).join(' → ') || '(no ops)';
+      else if (b.type === 'store') bodyText = (cfg.format || 'json') + ' · ' + _fbTrunc(cfg.path || '(no path)', 24);
+      else if (b.type === 'self_heal') bodyText = cfg.goal ? _fbTrunc(cfg.goal, 38) : 'AI regen selectors';
+      else if (b.type === 'login') bodyText = cfg.mode || 'form';
+      const el = document.querySelector('#' + tabId + '-fb-canvas .fb-block[data-block-id="' + blockId + '"] .fb-bbody');
+      if (el) el.textContent = bodyText;
     }
 
     function fbClearCanvas(tabId) {
@@ -5956,6 +6089,300 @@
         fbLog(tabId, 'err', 'Delete failed: ' + (e.message || e));
       }
     }
+    // === Flow Builder Phase B (v4.0.0-beta) — drag-drop + edit + save ==========
+    let _fbDragType = null;
+    let _fbDragSourceTab = null;
+
+    function fbPaletteDragStart(ev, blockType) {
+      _fbDragType = blockType;
+      try {
+        ev.dataTransfer.effectAllowed = 'copy';
+        ev.dataTransfer.setData('text/cf-fb-block', blockType);
+        ev.dataTransfer.setData('text/plain', 'fb:' + blockType);
+      } catch (e) {}
+      ev.currentTarget && ev.currentTarget.classList.add('fb-dragging');
+    }
+    function fbPaletteDragEnd(ev) {
+      _fbDragType = null;
+      ev.currentTarget && ev.currentTarget.classList.remove('fb-dragging');
+      document.querySelectorAll('.fb-canvas-wrap.fb-drop-active').forEach(el => el.classList.remove('fb-drop-active'));
+    }
+    function fbCanvasDragOver(ev, tabId) {
+      if (!_fbDragType && !(ev.dataTransfer && Array.from(ev.dataTransfer.types || []).includes('text/cf-fb-block'))) return;
+      ev.preventDefault();
+      try { ev.dataTransfer.dropEffect = 'copy'; } catch (e) {}
+      const wrap = document.getElementById(tabId + '-fb-canvas-wrap');
+      if (wrap) wrap.classList.add('fb-drop-active');
+    }
+    function fbCanvasDragLeave(ev, tabId) {
+      const wrap = document.getElementById(tabId + '-fb-canvas-wrap');
+      if (!wrap) return;
+      // only clear if leaving the wrap itself (not crossing into a child)
+      const r = wrap.getBoundingClientRect();
+      if (ev.clientX < r.left || ev.clientX > r.right || ev.clientY < r.top || ev.clientY > r.bottom) {
+        wrap.classList.remove('fb-drop-active');
+      }
+    }
+    function fbCanvasDrop(ev, tabId) {
+      ev.preventDefault();
+      const wrap = document.getElementById(tabId + '-fb-canvas-wrap');
+      if (wrap) wrap.classList.remove('fb-drop-active');
+      const t = tabs.get(tabId); if (!t) return;
+      const blockType = (ev.dataTransfer && ev.dataTransfer.getData('text/cf-fb-block')) || _fbDragType;
+      if (!blockType) return;
+      _fbDragType = null;
+      // ensure pipeline exists
+      if (!t.fb || !t.fb.current) {
+        if (!t.fb) t.fb = { pipelines: [], current: null, selectedBlockId: null };
+        if (!t.fb.current) {
+          t.fb.current = _fbBlankPipeline();
+          fbLog(tabId, 'info', '＋ New pipeline started — drop to add first block');
+          fbUpdateMeta(tabId);
+        }
+      }
+      const canvas = document.getElementById(tabId + '-fb-canvas');
+      const cRect = canvas.getBoundingClientRect();
+      const x = Math.max(10, Math.round((ev.clientX - cRect.left) - 100));
+      const y = Math.max(10, Math.round((ev.clientY - cRect.top) - 30));
+      const newBlock = _fbDefaultBlock(blockType, { x, y });
+      // auto-link previous block's `next` to this one if any
+      const blocks = t.fb.current.blocks || [];
+      if (blocks.length === 0) {
+        t.fb.current.startBlock = newBlock.id;
+      } else {
+        const last = blocks[blocks.length - 1];
+        if (!last.next || !last.next.length) last.next = [newBlock.id];
+      }
+      blocks.push(newBlock);
+      t.fb.current.blocks = blocks;
+      fbMarkDirty(tabId, true);
+      fbRender(tabId);
+      fbSelectBlock(tabId, newBlock.id);
+      fbLog(tabId, 'info', '＋ Added ' + blockType + ' block (' + newBlock.id.slice(0, 6) + ')');
+    }
+
+    function _fbBlankPipeline() {
+      return {
+        id: 'p_' + Math.random().toString(36).slice(2, 10),
+        name: 'Untitled Pipeline ' + new Date().toLocaleTimeString(),
+        blocks: [],
+        startBlock: null,
+        schedule: { enabled: false, intervalMin: 60 },
+        createdAt: new Date().toISOString(),
+      };
+    }
+
+    function _fbDefaultBlock(type, position) {
+      const id = 'b_' + Math.random().toString(36).slice(2, 8);
+      const base = { id, type, name: '', config: {}, next: [], position };
+      if (type === 'fetch')      base.config = { mode: 'static', url: '' };
+      else if (type === 'login') base.config = { mode: 'form', url: '', userField: '', passField: '', user: '', pass: '' };
+      else if (type === 'extract') base.config = { root: '', fields: {} };
+      else if (type === 'follow')  base.config = { nextSelector: '', maxPages: 5 };
+      else if (type === 'self_heal') base.config = { goal: '', threshold: 0.9 };
+      else if (type === 'transform') base.config = { ops: [] };
+      else if (type === 'store')   base.config = { format: 'json', path: '' };
+      return base;
+    }
+
+    function fbNewPipeline(tabId) {
+      const t = tabs.get(tabId); if (!t) return;
+      if (!t.fb) t.fb = { pipelines: [], current: null, selectedBlockId: null };
+      if (t.fb && t.fb.current && t.fb._dirty) {
+        if (!confirm('Discard unsaved changes to "' + (t.fb.current.name || t.fb.current.id) + '"?')) return;
+      }
+      t.fb.current = _fbBlankPipeline();
+      t.fb.selectedBlockId = null;
+      fbMarkDirty(tabId, true);
+      fbRender(tabId);
+      fbUpdateMeta(tabId);
+      fbShowProps(tabId, null);
+      const sel = document.getElementById(tabId + '-fb-sel');
+      if (sel) sel.value = '';
+      fbLog(tabId, 'info', '＋ New blank pipeline ready — drag blocks from the left palette');
+    }
+
+    function fbMarkDirty(tabId, dirty) {
+      const t = tabs.get(tabId); if (!t || !t.fb) return;
+      t.fb._dirty = !!dirty;
+      const el = document.getElementById(tabId + '-fb-dirty');
+      if (el) el.style.display = t.fb._dirty ? 'inline-flex' : 'none';
+    }
+
+    async function fbSave(tabId) {
+      const t = tabs.get(tabId); if (!t || !t.fb || !t.fb.current) {
+        fbLog(tabId, 'warn', 'Nothing to save — create or load a pipeline first');
+        return;
+      }
+      const p = t.fb.current;
+      // sync block positions from DOM (in case of unfinished drag)
+      const canvas = document.getElementById(tabId + '-fb-canvas');
+      if (canvas) {
+        const blockEls = canvas.querySelectorAll('.fb-block[data-block-id]');
+        const posByDom = {};
+        blockEls.forEach(el => {
+          posByDom[el.dataset.blockId] = { x: parseFloat(el.style.left) || 0, y: parseFloat(el.style.top) || 0 };
+        });
+        for (const b of (p.blocks || [])) if (posByDom[b.id]) b.position = posByDom[b.id];
+      }
+      try {
+        const r = await fetch('/api/scrap/pipelines', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(p),
+        });
+        const d = await r.json();
+        if (!r.ok || !d.ok) throw new Error(d.error || ('HTTP ' + r.status));
+        t.fb.current = d.pipeline;
+        fbMarkDirty(tabId, false);
+        fbLog(tabId, 'ok', '💾 Saved "' + (d.pipeline.name || d.pipeline.id) + '" (' + (d.pipeline.blocks || []).length + ' blocks)');
+        await fbLoadList(tabId);
+        const sel = document.getElementById(tabId + '-fb-sel');
+        if (sel) sel.value = d.pipeline.id;
+        fbUpdateMeta(tabId);
+      } catch (e) {
+        fbLog(tabId, 'err', 'Save failed: ' + (e.message || e));
+      }
+    }
+
+    function fbDeleteSelectedBlock(tabId) {
+      const t = tabs.get(tabId); if (!t || !t.fb || !t.fb.current) return;
+      const sid = t.fb.selectedBlockId; if (!sid) return;
+      const p = t.fb.current;
+      const blocks = p.blocks || [];
+      const blk = blocks.find(b => b.id === sid); if (!blk) return;
+      p.blocks = blocks.filter(b => b.id !== sid);
+      // also strip references from other blocks
+      for (const b of p.blocks) {
+        if (Array.isArray(b.next)) b.next = b.next.filter(nid => nid !== sid);
+        if (b.healFallback === sid) delete b.healFallback;
+        if (b.loopback === sid) delete b.loopback;
+      }
+      if (p.startBlock === sid) p.startBlock = (p.blocks[0] && p.blocks[0].id) || null;
+      t.fb.selectedBlockId = null;
+      fbMarkDirty(tabId, true);
+      fbRender(tabId);
+      fbShowProps(tabId, null);
+      fbLog(tabId, 'info', '🗑 Removed ' + blk.type + ' block (' + sid.slice(0, 6) + ')');
+    }
+
+    // Mousedown drag-reposition for canvas blocks (called from within fbRender)
+    function _fbAttachBlockDrag(tabId, blockEl, blockId) {
+      let startX = 0, startY = 0, origLeft = 0, origTop = 0, moving = false, raf = null;
+      blockEl.addEventListener('mousedown', (ev) => {
+        if (ev.button !== 0) return;
+        // ignore clicks on inputs / textareas inside the block
+        if (ev.target.closest('input, textarea, button, select, a')) return;
+        ev.preventDefault();
+        startX = ev.clientX; startY = ev.clientY;
+        origLeft = parseFloat(blockEl.style.left) || 0;
+        origTop  = parseFloat(blockEl.style.top)  || 0;
+        moving = false;
+        const onMove = (e2) => {
+          const dx = e2.clientX - startX, dy = e2.clientY - startY;
+          if (!moving && Math.abs(dx) + Math.abs(dy) < 4) return;
+          if (!moving) { moving = true; blockEl.classList.add('fb-moving'); }
+          if (raf) return;
+          raf = requestAnimationFrame(() => {
+            raf = null;
+            blockEl.style.left = Math.max(0, origLeft + dx) + 'px';
+            blockEl.style.top  = Math.max(0, origTop  + dy) + 'px';
+            // re-draw edges in real-time
+            const t = tabs.get(tabId);
+            if (t && t.fb && t.fb.current) {
+              const blk = (t.fb.current.blocks || []).find(b => b.id === blockId);
+              if (blk) blk.position = { x: parseFloat(blockEl.style.left) || 0, y: parseFloat(blockEl.style.top) || 0 };
+              _fbRedrawEdges(tabId);
+            }
+          });
+        };
+        const onUp = () => {
+          document.removeEventListener('mousemove', onMove);
+          document.removeEventListener('mouseup', onUp);
+          if (moving) {
+            blockEl.classList.remove('fb-moving');
+            fbMarkDirty(tabId, true);
+          } else {
+            // treat as click → select
+            fbSelectBlock(tabId, blockId);
+          }
+        };
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
+      });
+    }
+
+    function _fbRedrawEdges(tabId) {
+      const t = tabs.get(tabId); if (!t || !t.fb || !t.fb.current) return;
+      const canvas = document.getElementById(tabId + '-fb-canvas'); if (!canvas) return;
+      const old = canvas.querySelector('svg.fb-svg'); if (old) old.remove();
+      const blocks = t.fb.current.blocks || [];
+      const positions = {};
+      for (const b of blocks) {
+        const el = canvas.querySelector('[data-block-id="' + b.id + '"]');
+        if (el) positions[b.id] = { x: parseFloat(el.style.left) || 0, y: parseFloat(el.style.top) || 0 };
+        else if (b.position) positions[b.id] = { x: +b.position.x, y: +b.position.y };
+      }
+      const SVG = 'http://www.w3.org/2000/svg';
+      const svg = document.createElementNS(SVG, 'svg');
+      svg.setAttribute('class', 'fb-svg');
+      svg.innerHTML = '<defs><marker id="fb-arrow-' + tabId + '" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="fb-edge-arrow"/></marker><marker id="fb-arrow-heal-' + tabId + '" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#f472b6"/></marker><marker id="fb-arrow-loop-' + tabId + '" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#c084fc"/></marker></defs>';
+      const BW = 200, BH = 84;
+      function _e(p1, p2, cls, mk) {
+        const mid = (p1.x + p2.x) / 2;
+        const path = document.createElementNS(SVG, 'path');
+        path.setAttribute('d', 'M' + p1.x + ',' + p1.y + ' C' + mid + ',' + p1.y + ' ' + mid + ',' + p2.y + ' ' + p2.x + ',' + p2.y);
+        path.setAttribute('class', cls);
+        path.setAttribute('marker-end', 'url(#' + mk + ')');
+        return path;
+      }
+      for (const b of blocks) {
+        const from = positions[b.id]; if (!from) continue;
+        for (const nid of (b.next || [])) {
+          const to = positions[nid]; if (!to) continue;
+          svg.appendChild(_e({ x: from.x + BW, y: from.y + BH/2 }, { x: to.x, y: to.y + BH/2 }, 'fb-edge', 'fb-arrow-' + tabId));
+        }
+        if (b.healFallback && positions[b.healFallback]) {
+          const to = positions[b.healFallback];
+          svg.appendChild(_e({ x: from.x + BW/2, y: from.y + BH }, { x: to.x + BW/2, y: to.y }, 'fb-edge heal', 'fb-arrow-heal-' + tabId));
+        }
+        if (b.loopback && positions[b.loopback]) {
+          const to = positions[b.loopback];
+          const path = document.createElementNS(SVG, 'path');
+          const p1 = { x: from.x, y: from.y + BH/2 };
+          const p2 = { x: to.x + BW, y: to.y + BH/2 };
+          const dropY = Math.max(p1.y, p2.y) + 60;
+          path.setAttribute('d', 'M' + p1.x + ',' + p1.y + ' C' + (p1.x-50) + ',' + dropY + ' ' + (p2.x+50) + ',' + dropY + ' ' + p2.x + ',' + p2.y);
+          path.setAttribute('class', 'fb-edge loop');
+          path.setAttribute('marker-end', 'url(#fb-arrow-loop-' + tabId + ')');
+          svg.appendChild(path);
+        }
+      }
+      canvas.insertBefore(svg, canvas.firstChild);
+    }
+
+    // Keyboard shortcuts: Del = remove block, Ctrl/Cmd+S = save (only when Flow Builder is active)
+    document.addEventListener('keydown', (ev) => {
+      const activeTab = (typeof activeTabId !== 'undefined' && activeTabId) || window.activeTabId;
+      if (!activeTab) return;
+      const t = tabs.get(activeTab); if (!t || !t.fb) return;
+      // Only fire when the Flow Builder tab is the active type
+      if (t.type !== 'flow-builder') return;
+      const tag = (ev.target && ev.target.tagName) || '';
+      const inField = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (ev.target && ev.target.isContentEditable);
+      // Ctrl+S / Cmd+S → save
+      if ((ev.ctrlKey || ev.metaKey) && !ev.shiftKey && !ev.altKey && (ev.key === 's' || ev.key === 'S')) {
+        ev.preventDefault();
+        fbSave(activeTab);
+        return;
+      }
+      // Delete / Backspace → remove selected block (only when not typing)
+      if ((ev.key === 'Delete' || ev.key === 'Backspace') && !inField && t.fb.selectedBlockId) {
+        ev.preventDefault();
+        fbDeleteSelectedBlock(activeTab);
+      }
+    });
+
     // === end Flow Builder helpers =============================================
 
     function scrapSwitchTab(tabId, paneName, el) {
@@ -9237,27 +9664,34 @@ ${fields}
           <div class="fb-toolbar">
             <select id="${tabId}-fb-sel" onchange="fbLoad('${tabId}', this.value)" style="min-width:220px"><option value="">— Loading pipelines… —</option></select>
             <button class="fb-btn" onclick="fbLoadList('${tabId}')" title="Refresh pipeline list">🔄</button>
+            <button class="fb-btn" onclick="fbNewPipeline('${tabId}')" title="Create blank pipeline">＋ New</button>
+            <button class="fb-btn" onclick="fbSave('${tabId}')" title="Save current pipeline (Ctrl+S)" id="${tabId}-fb-save">💾 Save</button>
             <span class="fb-spacer"></span>
             <span class="fb-meta" id="${tabId}-fb-meta"></span>
+            <span class="fb-meta" id="${tabId}-fb-dirty" style="color:#fde68a;display:none">● unsaved</span>
             <button class="fb-btn" onclick="fbDelete('${tabId}')" title="Delete pipeline">🗑</button>
             <button class="fb-btn primary" onclick="fbRun('${tabId}')" title="Run pipeline">▶ Run</button>
           </div>
           <div class="fb-main">
             <div class="fb-palette">
-              <h3>Block Types</h3>
-              <div class="fb-pb fb-pb-fetch" data-fb-type="fetch"><div class="fb-pb-ico">🌐</div><div><div class="fb-pb-label">Fetch URL</div><div class="fb-pb-sub">HTTP + render</div></div></div>
-              <div class="fb-pb fb-pb-login" data-fb-type="login"><div class="fb-pb-ico">🔑</div><div><div class="fb-pb-label">Login</div><div class="fb-pb-sub">Form / OAuth</div></div></div>
-              <div class="fb-pb fb-pb-extract" data-fb-type="extract"><div class="fb-pb-ico">📋</div><div><div class="fb-pb-label">Extract</div><div class="fb-pb-sub">CSS fields</div></div></div>
-              <div class="fb-pb fb-pb-follow" data-fb-type="follow"><div class="fb-pb-ico">➡️</div><div><div class="fb-pb-label">Follow Next</div><div class="fb-pb-sub">Pagination</div></div></div>
-              <div class="fb-pb fb-pb-ai" data-fb-type="self_heal"><div class="fb-pb-ico">✨</div><div><div class="fb-pb-label">AI Self-Heal</div><div class="fb-pb-sub">Regen selectors</div></div></div>
-              <div class="fb-pb fb-pb-transform" data-fb-type="transform"><div class="fb-pb-ico">⚙️</div><div><div class="fb-pb-label">Transform</div><div class="fb-pb-sub">filter / dedupe</div></div></div>
-              <div class="fb-pb fb-pb-store" data-fb-type="store"><div class="fb-pb-ico">🗄️</div><div><div class="fb-pb-label">Store</div><div class="fb-pb-sub">JSON / CSV</div></div></div>
+              <h3>Block Types <span style="font-weight:400;letter-spacing:0;text-transform:none;color:var(--text3);font-size:9.5px">drag to canvas</span></h3>
+              <div class="fb-pb fb-pb-fetch" draggable="true" ondragstart="fbPaletteDragStart(event,'fetch')" ondragend="fbPaletteDragEnd(event)" data-fb-type="fetch"><div class="fb-pb-ico">🌐</div><div><div class="fb-pb-label">Fetch URL</div><div class="fb-pb-sub">HTTP + render</div></div></div>
+              <div class="fb-pb fb-pb-login" draggable="true" ondragstart="fbPaletteDragStart(event,'login')" ondragend="fbPaletteDragEnd(event)" data-fb-type="login"><div class="fb-pb-ico">🔑</div><div><div class="fb-pb-label">Login</div><div class="fb-pb-sub">Form / OAuth</div></div></div>
+              <div class="fb-pb fb-pb-extract" draggable="true" ondragstart="fbPaletteDragStart(event,'extract')" ondragend="fbPaletteDragEnd(event)" data-fb-type="extract"><div class="fb-pb-ico">📋</div><div><div class="fb-pb-label">Extract</div><div class="fb-pb-sub">CSS fields</div></div></div>
+              <div class="fb-pb fb-pb-follow" draggable="true" ondragstart="fbPaletteDragStart(event,'follow')" ondragend="fbPaletteDragEnd(event)" data-fb-type="follow"><div class="fb-pb-ico">➡️</div><div><div class="fb-pb-label">Follow Next</div><div class="fb-pb-sub">Pagination</div></div></div>
+              <div class="fb-pb fb-pb-ai" draggable="true" ondragstart="fbPaletteDragStart(event,'self_heal')" ondragend="fbPaletteDragEnd(event)" data-fb-type="self_heal"><div class="fb-pb-ico">✨</div><div><div class="fb-pb-label">AI Self-Heal</div><div class="fb-pb-sub">Regen selectors</div></div></div>
+              <div class="fb-pb fb-pb-transform" draggable="true" ondragstart="fbPaletteDragStart(event,'transform')" ondragend="fbPaletteDragEnd(event)" data-fb-type="transform"><div class="fb-pb-ico">⚙️</div><div><div class="fb-pb-label">Transform</div><div class="fb-pb-sub">filter / dedupe</div></div></div>
+              <div class="fb-pb fb-pb-store" draggable="true" ondragstart="fbPaletteDragStart(event,'store')" ondragend="fbPaletteDragEnd(event)" data-fb-type="store"><div class="fb-pb-ico">🗄️</div><div><div class="fb-pb-label">Store</div><div class="fb-pb-sub">JSON / CSV</div></div></div>
               <h3 style="margin-top:18px">Recent Runs</h3>
               <div id="${tabId}-fb-recent" style="font-size:11.5px;color:var(--text3)">— select pipeline —</div>
             </div>
-            <div class="fb-canvas-wrap" onclick="if(event.target===this||event.target.classList.contains('fb-canvas')){fbSelectBlock('${tabId}', null);}">
+            <div class="fb-canvas-wrap" id="${tabId}-fb-canvas-wrap"
+                 ondragover="fbCanvasDragOver(event,'${tabId}')"
+                 ondragleave="fbCanvasDragLeave(event,'${tabId}')"
+                 ondrop="fbCanvasDrop(event,'${tabId}')"
+                 onclick="if(event.target===this||event.target.classList.contains('fb-canvas')){fbSelectBlock('${tabId}', null);}">
               <div class="fb-canvas" id="${tabId}-fb-canvas">
-                <div class="fb-canvas-empty"><span class="big">🎨</span><div>Select a pipeline above to view its flow</div></div>
+                <div class="fb-canvas-empty"><span class="big">🎨</span><div>Select a pipeline above — or click <b>＋ New</b> + drag blocks here</div></div>
               </div>
             </div>
             <div class="fb-props" id="${tabId}-fb-props">

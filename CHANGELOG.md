@@ -5,6 +5,88 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [4.0.0-beta] — 2026-05-14 — Visual Flow Builder · Phase B (drag-drop + edit + save)
+
+Phase A landed view-only earlier today. Phase B is the authoring half — users can now build a pipeline by dragging blocks from the palette onto the canvas, repositioning them, editing config inline, and saving back to `/api/scrap/pipelines`. The same canonical mockup (`mockups/v4.0.0-scrap-visual-builder.html`) drove both phases.
+
+### Why
+
+Without authoring, the Flow Builder was a dashboard for pipelines built elsewhere (curl / hand-edited JSON / `_fbBlankPipeline()` in code). User feedback: "มันยัง drag ไม่ได้นะ". Phase B closes that loop so the visual canvas is the primary editor — no JSON-by-hand.
+
+### Added — Drag & drop authoring
+
+- **Palette items** are HTML5-draggable (`draggable="true"` + `dragstart` setting `text/cf-fb-block` mime). Visual feedback: `.fb-pb.fb-dragging` (40 % opacity, scale-down) on the source.
+- **Canvas dropzone** — `.fb-canvas-wrap` accepts dragover/drop, lights up with a dashed purple outline + "＋ drop to add block" badge while a drag is hovering.
+- **Drop creates a block** at the cursor position, inserts it into `pipeline.blocks`, auto-links the previous block's `next[]` to the new one (so chains form naturally), marks the pipeline dirty, and selects it.
+- **First drop on an empty tab** auto-creates a blank pipeline (`_fbBlankPipeline()`), so the user does not have to click "＋ New" first.
+- Each block type gets a sensible default config (fetch → `{mode:'static', url:''}`, store → `{format:'json'}`, etc.) so dropped blocks are immediately editable.
+
+### Added — Block reposition & edges
+
+- **Mousedown drag** on any canvas block (with rAF throttling) updates `block.position` live and redraws the SVG edge layer so arrows follow the move in real time. Click without movement falls through to select.
+- `_fbRedrawEdges(tabId)` extracts the edge-drawing half of `fbRender` so partial updates (drag, edge change) skip a full re-render.
+- Block has new `.fb-moving` class while dragging — purple glow + grabbing cursor + raised z-index.
+
+### Added — Toolbar & save
+
+- **＋ New** button creates a blank pipeline; if the current pipeline has unsaved changes, a confirm prompts before discarding.
+- **💾 Save** button POSTs the current pipeline to `/api/scrap/pipelines` (creates if id is new, updates if existing). Before sending, syncs DOM block positions back into the model in case a drag was unfinished. After save: refreshes the pipeline list, re-selects the saved pipeline, clears the dirty flag.
+- **● unsaved** indicator (yellow pill) appears in the toolbar whenever `t.fb._dirty` is true.
+- **Ctrl+S / Cmd+S** triggers `fbSave` when the active tab is a Flow Builder (and focus is anywhere — including inside an input).
+
+### Added — Inline property editing
+
+- Properties panel is now a live form, not read-only JSON. Type-specific inputs:
+  - **fetch** → mode select (`static`/`render`), URL text input
+  - **login** → mode (`form`/`api`/`oauth`), URL, user/pass field selectors, credentials
+  - **extract** → root selector + Fields (JSON textarea, validates on input — green border = parsed OK, red = parse error)
+  - **follow** → next selector + max pages
+  - **self_heal** → goal (multi-line) + threshold
+  - **transform** → ops (JSON array)
+  - **store** → format (`json`/`csv`/`sqlite`/`jsonl`) + output path
+- **Block name** is editable inline in the panel header (dotted underline input). Updates the block card title in real time.
+- **Next / Heal fallback / Loop back** are now `<select>` dropdowns listing all other blocks in the pipeline. Changes redraw edges immediately.
+- **Start block** checkbox marks the pipeline entry point (cyan outline on the block card).
+- **🗑 Delete this block** button at the bottom of the properties panel — same effect as the Del key.
+- All edits mark the pipeline dirty and update the block body text on the canvas card.
+
+### Added — Keyboard
+
+- **Delete / Backspace** removes the selected block (only when not focused inside an input/textarea/select). Strips references from other blocks' `next` / `healFallback` / `loopback` lists; promotes the next block to start if the deleted one was the entry.
+- **Ctrl/Cmd+S** saves (covered above).
+- Both shortcuts are scoped to the active tab being type `flow-builder`, so they don't fire in editor / terminal / chat tabs.
+
+### Added — Backend
+
+- `_normalizeBlock` (server.js:7618) now persists a `name` field per block (max 80 chars), in addition to `position` (already supported). Required so user-given block names round-trip through save / load.
+
+### Changed
+
+- `fbInit` now seeds `t.fb._dirty = false` and logs a Phase B tip line on first open.
+- `fbLoad` clears the dirty flag, prompts before discarding unsaved changes, and reverts the dropdown to the previous selection if the user cancels.
+- The empty-canvas hint now mentions `＋ New` and drag-from-palette.
+
+### File changes
+
+- `public/index.html` — palette items get `draggable + dragstart`; toolbar gains `＋ New / 💾 Save / unsaved` indicator; canvas-wrap gets `dragover/leave/drop`; `_fbAttachBlockDrag`, `_fbRedrawEdges`, `fbCanvasDrop`, `fbNewPipeline`, `fbSave`, `fbDeleteSelectedBlock`, `fbEditBlock*`, `fbSetStart`, `_fbUpdateBlockBody` helpers added; `fbShowProps` rewritten as form. CSS adds `.fb-dragging`, `.fb-drop-active`, `.fb-moving`, and form input styles for `.fb-props`.
+- `server.js` — `_normalizeBlock` adds `name`.
+- `package.json` — version bump to `4.0.0-beta`.
+
+### Smoke test
+
+1. Hard-refresh CYBERFRAME, open the Flow Builder card.
+2. Click **＋ New** → blank canvas.
+3. Drag **🌐 Fetch URL** from the palette onto the canvas → block appears at the drop point, labelled "Untitled Pipeline …".
+4. In the right panel, set URL to `https://quotes.toscrape.com/`.
+5. Drag **📋 Extract** onto the canvas — auto-linked from Fetch.
+6. Set root selector to `.quote`, fields to `{"text":".text","author":".author"}`.
+7. Drag **🗄️ Store** — auto-linked. Set path to `scraps/pipelines-out/quotes.json`.
+8. Click **💾 Save** → toolbar `unsaved` clears, dropdown selects the new pipeline.
+9. Click **▶ Run** → console shows row count + duration.
+10. Refresh — pipeline + positions persist.
+
+---
+
 ## [4.0.0-alpha.2] — 2026-05-14 — Visual Flow Builder · Phase A (view + run)
 
 First user-facing surface for the v4.0.0-alpha.1 pipeline backend. Adds a new tab type — **Flow Builder** — with a 3-column layout (palette / canvas / properties) that loads pipelines from `/api/scrap/pipelines`, renders blocks + arrows on a grid canvas, lets the user inspect any block, and runs the pipeline against the live backend.
