@@ -7660,7 +7660,9 @@ async function _pipeExecFetch(state, config, ctx) {
   const url = String(config.url || state.url || "").trim();
   if (!/^https?:\/\//i.test(url)) throw new Error("fetch: invalid url");
   const mode = ["static", "browser"].includes(config.mode) ? config.mode : "static";
-  const auth = config.auth || {};
+  // v4.0.2 — inherit cookies from prior login block if not explicitly overridden
+  const auth = Object.assign({}, config.auth || {});
+  if (!auth.cookie && ctx && ctx.authCookie) auth.cookie = ctx.authCookie;
   if (mode === "browser") {
     const browser = await _getScrapBrowser();
     const context = await browser.newContext({ userAgent: SCRAP_UA, viewport: { width: 1366, height: 900 } });
@@ -7845,6 +7847,109 @@ async function _pipeExecStore(state, config, ctx) {
   return state;
 }
 
+// v4.0.2 — Login block: 3 modes (cookie / api / form). Populates ctx.authCookie for downstream fetch.
+async function _pipeExecLogin(state, config, ctx) {
+  const mode = String(config.mode || "form").toLowerCase();
+  if (mode === "cookie") {
+    const cookieStr = String(config.cookie || "").trim();
+    if (!cookieStr) throw new Error("login: cookie mode requires config.cookie");
+    ctx.authCookie = cookieStr;
+    state.log.push(`login ok (cookie mode, ${cookieStr.length} chars)`);
+    return state;
+  }
+  const url = String(config.url || "").trim();
+  if (!/^https?:\/\//i.test(url)) throw new Error("login: invalid url");
+  if (mode === "api") {
+    const body = config.body || {};
+    const headers = { "Content-Type": "application/json", "User-Agent": SCRAP_UA, ..._scrapAuthHeaders(config.auth || {}) };
+    const r = await fetch(url, { method: "POST", headers, body: JSON.stringify(body), redirect: "follow" });
+    const rawSet = typeof r.headers.getSetCookie === "function" ? r.headers.getSetCookie() : (r.headers.get("set-cookie") ? [r.headers.get("set-cookie")] : []);
+    const parts = [];
+    for (const c of rawSet) {
+      const m = String(c).match(/^([^=;]+)=([^;]*)/);
+      if (m) parts.push(`${m[1].trim()}=${m[2].trim()}`);
+    }
+    if (parts.length) ctx.authCookie = parts.join("; ");
+    state.log.push(`login ok (api mode, status ${r.status}, ${parts.length} cookies)`);
+    if (!r.ok) state.log.push(`login warning: HTTP ${r.status}`);
+    return state;
+  }
+  // form mode — headless browser
+  const browser = await _getScrapBrowser();
+  const browserCtx = await browser.newContext({ userAgent: SCRAP_UA, viewport: { width: 1366, height: 900 } });
+  try {
+    const page = await browserCtx.newPage();
+    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 });
+    const fields = config.fields || {};
+    const userSel = String(fields.username || 'input[name="username"], input[type="email"], input[name="email"]');
+    const passSel = String(fields.password || 'input[name="password"], input[type="password"]');
+    const submitSel = String(fields.submit || 'button[type="submit"], input[type="submit"]');
+    const username = String(config.username || "");
+    const password = String(config.password || "");
+    if (!username || !password) throw new Error("login: form mode requires username + password");
+    await page.fill(userSel, username);
+    await page.fill(passSel, password);
+    await Promise.all([
+      page.waitForLoadState("networkidle", { timeout: 15000 }).catch(() => {}),
+      page.click(submitSel),
+    ]);
+    if (config.successSelector) {
+      try { await page.waitForSelector(String(config.successSelector), { timeout: 10000 }); }
+      catch { throw new Error("login: success selector not found: " + config.successSelector); }
+    }
+    const cookies = await browserCtx.cookies();
+    ctx.authCookie = cookies.map(c => `${c.name}=${c.value}`).join("; ");
+    state.log.push(`login ok (form mode, ${cookies.length} cookies)`);
+  } finally { try { await browserCtx.close(); } catch {} }
+  return state;
+}
+
+// v4.0.2 — Follow block: pagination loopback. Sets state.shouldLoop + new state.url, clears state.html.
+async function _pipeExecFollow(state, config, ctx) {
+  if (!state.html) {
+    state.shouldLoop = false;
+    state.log.push("follow: no html in state, exiting loop");
+    return state;
+  }
+  const cheerio = require("cheerio");
+  const $ = cheerio.load(state.html);
+  const nextSel = String(config.nextSelector || "").trim();
+  if (!nextSel) {
+    state.shouldLoop = false;
+    state.log.push("follow: no nextSelector configured, exiting loop");
+    return state;
+  }
+  const linkEl = $(nextSel).first();
+  if (!linkEl.length) {
+    state.shouldLoop = false;
+    state.log.push("follow: no next link matched, exiting loop");
+    return state;
+  }
+  const nextHref = (linkEl.attr("href") || "").trim();
+  if (!nextHref || /^javascript:/i.test(nextHref)) {
+    state.shouldLoop = false;
+    state.log.push("follow: next link has no usable href, exiting loop");
+    return state;
+  }
+  const maxPages = Math.max(1, parseInt(config.maxPages) || 10);
+  ctx.followPages = (ctx.followPages || 0) + 1;
+  if (ctx.followPages >= maxPages) {
+    state.shouldLoop = false;
+    state.log.push(`follow: max pages (${maxPages}) reached, exiting loop`);
+    return state;
+  }
+  let nextUrl;
+  try { nextUrl = new URL(nextHref, state.finalUrl || state.url).toString(); }
+  catch { state.shouldLoop = false; state.log.push("follow: invalid next URL"); return state; }
+  state.url = nextUrl;
+  state.html = "";
+  state.shouldLoop = true;
+  const ms = Math.min(10000, Math.max(0, parseInt(config.delayMs) || 0));
+  if (ms > 0) await new Promise(r => setTimeout(r, ms));
+  state.log.push(`follow: page ${ctx.followPages}/${maxPages} → ${nextUrl}`);
+  return state;
+}
+
 // Execute pipeline linearly along block.next[0] edges, with optional loopback for follow blocks
 // and healFallback rerouting after a successful self_heal.
 async function _executePipeline(pipeline, opts = {}) {
@@ -7873,6 +7978,8 @@ async function _executePipeline(pipeline, opts = {}) {
     self_heal: _pipeExecSelfHeal,
     transform: _pipeExecTransform,
     store: _pipeExecStore,
+    login: _pipeExecLogin,
+    follow: _pipeExecFollow,
   };
   const startedAt = Date.now();
   const maxMs = Math.max(5000, opts.maxMs || 120_000);
@@ -7906,10 +8013,13 @@ async function _executePipeline(pipeline, opts = {}) {
       }
       break;
     }
-    // Loopback (follow): if block has loopback edge and a "shouldLoop" condition is met, route back.
-    // For now, simple rule: if block.type === 'follow' and config.continueWhile is met, follow loopback.
-    // Otherwise move to next[0].
-    currentId = block.next[0] || null;
+    // v4.0.2 — Loopback: follow block sets state.shouldLoop=true → route back via block.loopback.
+    if (block.type === "follow" && state.shouldLoop && block.loopback && blockMap.has(block.loopback)) {
+      state.shouldLoop = false; // reset for next pass
+      currentId = block.loopback;
+      continue;
+    }
+    currentId = (block.next && block.next[0]) || null;
   }
   return {
     ok: state.errors.length === 0,
