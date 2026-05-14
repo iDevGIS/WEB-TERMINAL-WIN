@@ -7925,6 +7925,77 @@ async function _pipeExecTransform(state, config, ctx) {
   return state;
 }
 
+// v4.2.1 — SQLite output for Store block. Lazy-require better-sqlite3 so missing native build
+// downgrades to a logged skip instead of a hard failure. Modes: replace (default), append, upsert (needs upsertKey).
+let _sqliteMod = null;
+function _loadSqlite() {
+  if (_sqliteMod === null) {
+    try { _sqliteMod = require("better-sqlite3"); } catch (e) { _sqliteMod = false; }
+  }
+  if (!_sqliteMod) throw new Error("better-sqlite3 not installed; run `npm install better-sqlite3`");
+  return _sqliteMod;
+}
+function _sqliteIdent(name) {
+  const safe = String(name || "").replace(/[^a-zA-Z0-9_]/g, "_").replace(/^[0-9]/, "_$&");
+  return safe || "rows";
+}
+function _sqliteFlatten(v) {
+  if (v == null) return null;
+  const t = typeof v;
+  if (t === "string") return v;
+  if (t === "number") return Number.isFinite(v) ? String(v) : null;
+  if (t === "bigint") return String(v);
+  if (t === "boolean") return v ? "1" : "0";
+  if (v instanceof Date) return v.toISOString();
+  return JSON.stringify(v);
+}
+function _storeWriteSqlite(rows, fpath, config, state) {
+  const Database = _loadSqlite();
+  const tableRaw = String(config.sqliteTable || "").trim();
+  const table = _sqliteIdent(tableRaw || (path.basename(fpath, path.extname(fpath))) || "rows");
+  const mode = String(config.sqliteMode || "replace").toLowerCase();
+  const upsertKey = String(config.sqliteUpsertKey || "").trim();
+
+  const cols = rows.length ? Object.keys(rows[0]) : [];
+  const safeCols = cols.map(_sqliteIdent);
+  const colDefs = safeCols.map((c) => (upsertKey && c === _sqliteIdent(upsertKey) ? `${c} TEXT PRIMARY KEY` : `${c} TEXT`));
+
+  const db = new Database(fpath);
+  try {
+    db.pragma("journal_mode = WAL");
+    if (mode === "replace") db.exec(`DROP TABLE IF EXISTS ${table}`);
+    if (cols.length === 0) {
+      db.exec(`CREATE TABLE IF NOT EXISTS ${table} (_empty TEXT)`);
+      return { rowsWritten: 0, table, mode };
+    }
+    db.exec(`CREATE TABLE IF NOT EXISTS ${table} (${colDefs.join(", ")})`);
+
+    if (mode !== "upsert") {
+      const existing = db.prepare(`PRAGMA table_info(${table})`).all().map((c) => c.name);
+      for (const c of safeCols) {
+        if (!existing.includes(c)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${c} TEXT`);
+      }
+    }
+
+    const placeholders = safeCols.map(() => "?").join(", ");
+    let sql;
+    if (mode === "upsert") {
+      if (!upsertKey) throw new Error("sqliteMode=upsert requires sqliteUpsertKey");
+      sql = `INSERT OR REPLACE INTO ${table} (${safeCols.join(", ")}) VALUES (${placeholders})`;
+    } else {
+      sql = `INSERT INTO ${table} (${safeCols.join(", ")}) VALUES (${placeholders})`;
+    }
+    const stmt = db.prepare(sql);
+    const insertMany = db.transaction((items) => {
+      for (const row of items) stmt.run(cols.map((c) => _sqliteFlatten(row[c])));
+    });
+    insertMany(rows);
+    return { rowsWritten: rows.length, table, mode };
+  } finally {
+    try { db.close(); } catch {}
+  }
+}
+
 // v4.2.0 — Multi-format store. Supports `format` (legacy single) + `formats` (new array/CSV string).
 // Writes one file per requested format, using shared filename stem.
 async function _pipeExecStore(state, config, ctx) {
@@ -7957,7 +8028,15 @@ async function _pipeExecStore(state, config, ctx) {
 
   for (const fmt of formats) {
     if (fmt === "sqlite") {
-      state.log.push("store: sqlite format not enabled in this build (skipped); use jsonl + sqlite3 CLI for now");
+      try {
+        const fname = `${stem}.sqlite`;
+        const fpath = path.join(outDir, fname);
+        const r = _storeWriteSqlite(rows, fpath, config, state);
+        outputFiles.push(path.resolve(fpath));
+        state.log.push(`store: sqlite ok (${r.rowsWritten} rows → table '${r.table}', mode=${r.mode})`);
+      } catch (err) {
+        state.log.push(`store: sqlite skipped (${err.message})`);
+      }
       continue;
     }
     const fname = `${stem}.${formatExt(fmt)}`;

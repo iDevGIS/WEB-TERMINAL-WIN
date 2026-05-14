@@ -5,6 +5,34 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [4.2.1] — 2026-05-14 — Flow Builder: SQLite Store executor (real)
+
+### Added
+
+- **`better-sqlite3` dependency** (sync, fast, no native daemon). Lazy-required inside `_storeWriteSqlite` so a missing native build downgrades to a logged skip instead of a hard server failure.
+- **Real SQLite output for `Store` block** — `_pipeExecStore` now writes a real `.sqlite` file when `format` or `formats` includes `sqlite`. Replaces the v4.2.0 opt-out skip.
+- **Three modes** via `config.sqliteMode`:
+  - `replace` (default) — `DROP TABLE IF EXISTS` then re-create + bulk-insert. Idempotent: re-running gives the same row set.
+  - `append` — `CREATE TABLE IF NOT EXISTS` then insert. Adds new rows without touching old. Auto-`ALTER TABLE ADD COLUMN` for new fields encountered.
+  - `upsert` — requires `config.sqliteUpsertKey`. Creates the keyed column as `PRIMARY KEY` and uses `INSERT OR REPLACE`. Same key = update; new key = insert.
+- **Schema inference from first row.** All columns typed `TEXT` (SQLite type affinity is non-strict; values stored faithfully). Identifier sanitizer enforces `[A-Za-z0-9_]`, prefixes leading digits, falls back to `rows`.
+- **Value flattener `_sqliteFlatten`** — strings stored verbatim, finite numbers as `String(v)` (no `1.0` artifact), booleans as `"1"`/`"0"`, `Date` as ISO string, objects/arrays as `JSON.stringify()`. `null`/`undefined` stored as SQL `NULL`. `NaN`/`Infinity` → `NULL`.
+- **WAL journal mode** enabled per-file (`PRAGMA journal_mode = WAL`) for concurrent read safety while a pipeline writes.
+- **Bulk insert via `db.transaction`** — single transaction for all rows = orders-of-magnitude faster than per-row commits.
+- **Output file path** resolved with `path.resolve()` and pushed to `state.outputFiles[]` (same convention as the JSON/CSV/JSONL/MD writers). The existing `/api/files/preview` fallback search (v4.1.1) handles `📂 Open` from old runs that recorded a basename.
+- **Run log line** — `store: sqlite ok (N rows → table 'X', mode=replace)` on success, `store: sqlite skipped (<reason>)` on lazy-load failure or missing upsert key.
+- **Flow Builder Store config UI** — new "SQLite options" section with three inputs (`Table name`, `Mode` dropdown, `Upsert key`). Always rendered for Store blocks (subtitled "Used only when format/extra includes sqlite") so the section never disappears mid-edit.
+- **Extra formats placeholder** updated to `e.g., csv,md,jsonl,sqlite` (was `csv,md,jsonl`).
+
+### Notes
+
+- `.sqlite` extension is used regardless of stem (no `.db`/`.sqlite3` variant). One file per Store block.
+- Empty rowset writes a single-column placeholder table `(_empty TEXT)` so the file is always valid SQLite — easier to inspect with the sqlite3 CLI.
+- `replace` is destructive of prior data; `append` mode never drops; `upsert` updates in place. Choose carefully when scheduling.
+- Cross-product reuse: same lazy-require + 3-mode pattern lands cleanly in TerraSight survey ingest, AUTH-MONITOR alert sink, Keycloak audit replay.
+
+---
+
 ## [4.2.0] — 2026-05-14 — Flow Builder: Multi-format Store block
 
 ### Added

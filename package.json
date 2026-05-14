@@ -1,6 +1,6 @@
 {
   "name": "web-terminal",
-  "version": "4.2.0",
+  "version": "4.2.1",
   "description": "Web-based terminal with xterm.js + node-pty",
   "main": "server.js",
   "scripts": {
@@ -15,6 +15,7 @@
     "@anthropic-ai/claude-code": "^2.1.112",
     "@anthropic-ai/sdk": "^0.39.0",
     "@lydell/node-pty": "^1.2.0-beta.3",
+    "better-sqlite3": "^12.10.0",
     "cheerio": "^1.2.0",
     "cookie": "^1.1.1",
     "csv-stringify": "^6.7.0",

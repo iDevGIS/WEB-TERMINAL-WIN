@@ -6064,8 +6064,12 @@
         cfgInputs.push(_row('Ops (JSON array)', `<textarea class="val" style="width:100%;box-sizing:border-box;font-family:ui-monospace,monospace;font-size:11px;min-height:90px;resize:vertical" oninput="fbEditBlockCfgJson('${tabId}','${block.id}','ops', this.value, this)">${escHtml(JSON.stringify(cfg.ops || [], null, 2))}</textarea>`));
       } else if (block.type === 'store') {
         cfgInputs.push(_row('Format', _sel('format', cfg.format || 'json', ['json', 'csv', 'jsonl', 'md', 'sqlite'])));
-        cfgInputs.push(_row('Extra formats <span style="opacity:.55;font-weight:400">(comma-sep)</span>', _txt('formats', cfg.formats || '', 'e.g., csv,md,jsonl')));
+        cfgInputs.push(_row('Extra formats <span style="opacity:.55;font-weight:400">(comma-sep)</span>', _txt('formats', cfg.formats || '', 'e.g., csv,md,jsonl,sqlite')));
         cfgInputs.push(_row('Output path', _txt('path', cfg.path, 'scraps/pipelines-out/results.json')));
+        cfgInputs.push(`<div class="row" style="margin-top:6px;padding-top:8px;border-top:1px dashed rgba(234,179,8,.25)"><label style="color:#fde68a">SQLite options</label><div class="val" style="font-size:10px;color:var(--text3)">Used only when format/extra includes "sqlite"</div></div>`);
+        cfgInputs.push(_row('Table name', _txt('sqliteTable', cfg.sqliteTable, 'rows (default: filename stem)')));
+        cfgInputs.push(_row('Mode', _sel('sqliteMode', cfg.sqliteMode || 'replace', ['replace', 'append', 'upsert'])));
+        cfgInputs.push(_row('Upsert key <span style="opacity:.55;font-weight:400">(only for upsert)</span>', _txt('sqliteUpsertKey', cfg.sqliteUpsertKey, 'id')));
       }
 
       const isStart = (t && t.fb && t.fb.current && t.fb.current.startBlock === block.id);
