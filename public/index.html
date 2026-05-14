@@ -1582,6 +1582,26 @@
     .fb-block.t-store    { border-left: 3px solid #eab308; }
     .fb-block.t-start    { border-left: 3px solid #67e8f9; outline: 2px solid rgba(103,232,249,.35); outline-offset: 1px; }
 
+    /* v4.0.3 — Phase C: live SSE progress dot states */
+    .fb-block .fb-bft .dot.running { background: #fde047; box-shadow: 0 0 8px rgba(253,224,71,.85); animation: fb-pulse 1s ease-in-out infinite; }
+    .fb-block .fb-bft .dot.done    { background: #34d399; box-shadow: 0 0 8px rgba(52,211,153,.7); }
+    @keyframes fb-pulse { 0%,100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.45); opacity: .55; } }
+    .fb-block.fb-running { border-color: rgba(253,224,71,.7) !important; box-shadow: 0 0 0 2px rgba(253,224,71,.35), 0 8px 24px rgba(253,224,71,.25) !important; }
+    .fb-block.fb-done    { border-color: rgba(52,211,153,.6) !important; }
+    .fb-block.fb-err     { border-color: rgba(248,113,113,.7) !important; box-shadow: 0 0 0 2px rgba(248,113,113,.3), 0 6px 22px rgba(248,113,113,.25) !important; }
+
+    /* v4.0.3 — Phase C: Minimap (bottom-right of canvas-wrap) */
+    .fb-minimap { position: absolute; bottom: 12px; right: 12px; width: 200px; height: 140px; background: rgba(8,10,22,.85); border: 1px solid rgba(168,85,247,.35); border-radius: 8px; backdrop-filter: blur(8px); box-shadow: 0 6px 22px rgba(0,0,0,.5); z-index: 8; overflow: hidden; cursor: pointer; }
+    .fb-minimap.fb-mini-hidden { display: none; }
+    .fb-minimap svg { display: block; width: 100%; height: 100%; }
+    .fb-minimap .fb-mini-vp { fill: rgba(168,85,247,.18); stroke: #a855f7; stroke-width: 1.5; }
+    .fb-minimap .fb-mini-blk { stroke-width: .8; }
+    .fb-minimap .fb-mini-edge { stroke: rgba(167,139,250,.45); stroke-width: 1; fill: none; }
+    .fb-minimap .fb-mini-toggle { position: absolute; top: 4px; right: 4px; width: 16px; height: 16px; border-radius: 3px; background: rgba(0,0,0,.5); color: #a78bfa; font-size: 10px; line-height: 16px; text-align: center; cursor: pointer; user-select: none; }
+    .fb-minimap .fb-mini-toggle:hover { background: rgba(168,85,247,.3); color: #fff; }
+    .fb-mini-show-btn { position: absolute; bottom: 12px; right: 12px; padding: 4px 9px; border-radius: 6px; background: rgba(168,85,247,.85); color: #fff; font-size: 10.5px; font-weight: 600; cursor: pointer; user-select: none; z-index: 8; box-shadow: 0 4px 14px rgba(0,0,0,.45); display: none; }
+    .fb-mini-show-btn:hover { background: #a855f7; }
+
     .fb-props { background: rgba(8,10,22,.6); border-left: 1px solid rgba(255,255,255,.05); padding: 16px; overflow-y: auto; }
     .fb-props h3 { font-size: 13px; color: #d8c8ff; margin: 0 0 12px; display: flex; align-items: center; gap: 8px; }
     .fb-props .empty { color: var(--text3); font-size: 12px; padding: 20px 6px; text-align: center; }
@@ -5687,9 +5707,10 @@
     function fbInit(tabId) {
       const t = tabs.get(tabId); if (!t) return;
       t.fb = { pipelines: [], current: null, selectedBlockId: null, _dirty: false };
-      fbLog(tabId, 'info', 'Flow Builder ready · v4.0.0-beta (Phase B — drag-drop + edit + save)');
-      fbLog(tabId, 'info', 'Tip: drag block from left palette · click ＋ New for blank pipeline · Del removes selected block · Ctrl+S to save');
+      fbLog(tabId, 'info', 'Flow Builder ready · v4.0.3 (Phase C — live SSE progress + minimap)');
+      fbLog(tabId, 'info', 'Tip: drag block from left palette · click ＋ New for blank pipeline · Del removes selected block · Ctrl+S to save · ▶ Run streams live status to dots');
       fbLoadList(tabId);
+      _fbAttachMinimapHooks(tabId);
     }
 
     async function fbLoadList(tabId) {
@@ -5874,6 +5895,8 @@
         _fbAttachBlockDrag(tabId, div, b.id);
         canvas.appendChild(div);
       }
+      // v4.0.3 — refresh minimap whenever canvas is re-rendered
+      try { fbMinimapRender(tabId); } catch (e) {}
     }
 
     function _fbTrunc(s, n) { s = String(s == null ? '' : s); return s.length > n ? s.slice(0, n - 1) + '…' : s; }
@@ -6067,6 +6090,177 @@
       host.scrollTop = host.scrollHeight;
     }
 
+    // v4.0.3 — Phase C: Minimap (mini map of canvas + viewport indicator)
+    const FB_MINI = { W: 200, H: 140, CANVAS_W: 2400, CANVAS_H: 1600 };
+    const FB_MINI_TYPE_COLOR = {
+      fetch:'#06b6d4', login:'#fb923c', extract:'#10b981', follow:'#a855f7',
+      self_heal:'#f472b6', transform:'#6366f1', store:'#eab308',
+    };
+    function fbMinimapToggle(tabId, show) {
+      const mini = document.getElementById(tabId + '-fb-minimap');
+      const showBtn = document.getElementById(tabId + '-fb-mini-show');
+      if (!mini) return;
+      if (show) {
+        mini.classList.remove('fb-mini-hidden');
+        if (showBtn) showBtn.style.display = 'none';
+        fbMinimapRender(tabId);
+      } else {
+        mini.classList.add('fb-mini-hidden');
+        if (showBtn) showBtn.style.display = 'block';
+      }
+      try { localStorage.setItem('cf:fb-mini-hidden', show ? '0' : '1'); } catch {}
+    }
+    function fbMinimapRender(tabId) {
+      const svg = document.getElementById(tabId + '-fb-minimap-svg');
+      if (!svg) return;
+      const t = tabs.get(tabId);
+      const blocks = (t && t.fb && t.fb.current && t.fb.current.blocks) || [];
+      const sx = FB_MINI.W / FB_MINI.CANVAS_W;
+      const sy = FB_MINI.H / FB_MINI.CANVAS_H;
+      const SVGNS = 'http://www.w3.org/2000/svg';
+      while (svg.firstChild) svg.removeChild(svg.firstChild);
+      // background grid
+      const bg = document.createElementNS(SVGNS, 'rect');
+      bg.setAttribute('x', 0); bg.setAttribute('y', 0);
+      bg.setAttribute('width', FB_MINI.W); bg.setAttribute('height', FB_MINI.H);
+      bg.setAttribute('fill', 'rgba(20,16,40,.7)');
+      svg.appendChild(bg);
+      // build position map (use stored or auto-layout)
+      const positions = {};
+      for (const b of blocks) {
+        if (b.position && Number.isFinite(+b.position.x) && Number.isFinite(+b.position.y)) {
+          positions[b.id] = { x: +b.position.x, y: +b.position.y };
+        }
+      }
+      if (Object.keys(positions).length < blocks.length) {
+        const auto = fbAutoLayout(blocks, (t && t.fb && t.fb.current && t.fb.current.startBlock) || (blocks[0] && blocks[0].id));
+        for (const id in auto) if (!positions[id]) positions[id] = auto[id];
+      }
+      const BW_S = 200 * sx, BH_S = 84 * sy;
+      // edges
+      for (const b of blocks) {
+        const from = positions[b.id]; if (!from) continue;
+        for (const nid of (b.next || [])) {
+          const to = positions[nid]; if (!to) continue;
+          const ln = document.createElementNS(SVGNS, 'line');
+          ln.setAttribute('x1', (from.x + 200) * sx);
+          ln.setAttribute('y1', (from.y + 42) * sy);
+          ln.setAttribute('x2', to.x * sx);
+          ln.setAttribute('y2', (to.y + 42) * sy);
+          ln.setAttribute('class', 'fb-mini-edge');
+          svg.appendChild(ln);
+        }
+      }
+      // block rects
+      for (const b of blocks) {
+        const p = positions[b.id]; if (!p) continue;
+        const r = document.createElementNS(SVGNS, 'rect');
+        r.setAttribute('x', p.x * sx);
+        r.setAttribute('y', p.y * sy);
+        r.setAttribute('width', BW_S);
+        r.setAttribute('height', BH_S);
+        r.setAttribute('rx', 2);
+        const fill = FB_MINI_TYPE_COLOR[b.type] || '#a855f7';
+        r.setAttribute('fill', fill);
+        r.setAttribute('fill-opacity', '0.65');
+        r.setAttribute('stroke', fill);
+        r.setAttribute('class', 'fb-mini-blk');
+        svg.appendChild(r);
+      }
+      // viewport rectangle
+      const wrap = document.getElementById(tabId + '-fb-canvas-wrap');
+      if (wrap) {
+        const vp = document.createElementNS(SVGNS, 'rect');
+        vp.setAttribute('id', tabId + '-fb-mini-vp');
+        vp.setAttribute('class', 'fb-mini-vp');
+        const x = wrap.scrollLeft * sx;
+        const y = wrap.scrollTop * sy;
+        const w = Math.min(FB_MINI.W, wrap.clientWidth * sx);
+        const h = Math.min(FB_MINI.H, wrap.clientHeight * sy);
+        vp.setAttribute('x', x); vp.setAttribute('y', y);
+        vp.setAttribute('width', w); vp.setAttribute('height', h);
+        svg.appendChild(vp);
+      }
+    }
+    function _fbMinimapSyncVp(tabId) {
+      const wrap = document.getElementById(tabId + '-fb-canvas-wrap');
+      const vp = document.getElementById(tabId + '-fb-mini-vp');
+      if (!wrap || !vp) return;
+      const sx = FB_MINI.W / FB_MINI.CANVAS_W;
+      const sy = FB_MINI.H / FB_MINI.CANVAS_H;
+      vp.setAttribute('x', wrap.scrollLeft * sx);
+      vp.setAttribute('y', wrap.scrollTop * sy);
+      vp.setAttribute('width', Math.min(FB_MINI.W, wrap.clientWidth * sx));
+      vp.setAttribute('height', Math.min(FB_MINI.H, wrap.clientHeight * sy));
+    }
+    function fbMinimapClick(ev, tabId) {
+      const mini = document.getElementById(tabId + '-fb-minimap');
+      const wrap = document.getElementById(tabId + '-fb-canvas-wrap');
+      if (!mini || !wrap) return;
+      const r = mini.getBoundingClientRect();
+      const px = (ev.clientX - r.left) / r.width;
+      const py = (ev.clientY - r.top) / r.height;
+      const tx = px * FB_MINI.CANVAS_W - wrap.clientWidth / 2;
+      const ty = py * FB_MINI.CANVAS_H - wrap.clientHeight / 2;
+      wrap.scrollLeft = Math.max(0, tx);
+      wrap.scrollTop  = Math.max(0, ty);
+    }
+    function _fbAttachMinimapHooks(tabId) {
+      const wrap = document.getElementById(tabId + '-fb-canvas-wrap');
+      if (!wrap || wrap.dataset.fbMinimapHook === '1') return;
+      wrap.dataset.fbMinimapHook = '1';
+      let raf = 0;
+      wrap.addEventListener('scroll', () => {
+        if (raf) return;
+        raf = requestAnimationFrame(() => { raf = 0; _fbMinimapSyncVp(tabId); });
+      });
+      // Apply saved visibility (default visible)
+      let hidden = false;
+      try { hidden = localStorage.getItem('cf:fb-mini-hidden') === '1'; } catch {}
+      fbMinimapToggle(tabId, !hidden);
+    }
+
+    // v4.0.3 — Phase C: live block status helper
+    function _fbSetBlockStatus(tabId, blockId, status, footerText) {
+      const canvas = document.getElementById(tabId + '-fb-canvas');
+      if (!canvas) return;
+      const el = canvas.querySelector('.fb-block[data-block-id="' + (window.CSS && CSS.escape ? CSS.escape(blockId) : blockId) + '"]');
+      if (!el) return;
+      el.classList.remove('fb-running', 'fb-done', 'fb-err');
+      if (status === 'running') el.classList.add('fb-running');
+      else if (status === 'done') el.classList.add('fb-done');
+      else if (status === 'err') el.classList.add('fb-err');
+      const dot = el.querySelector('.fb-bft .dot');
+      if (dot) {
+        dot.classList.remove('idle','ok','warn','err','running','done');
+        if (status === 'running') dot.classList.add('running');
+        else if (status === 'done') dot.classList.add('done');
+        else if (status === 'err') dot.classList.add('err');
+        else dot.classList.add('idle');
+      }
+      if (footerText) {
+        const ft = el.querySelector('.fb-bft');
+        if (ft) {
+          const txt = ft.childNodes.length > 1 ? ft.lastChild : null;
+          if (txt && txt.nodeType === Node.TEXT_NODE) txt.nodeValue = footerText;
+          else ft.appendChild(document.createTextNode(footerText));
+        }
+      }
+    }
+
+    function _fbResetBlockStates(tabId) {
+      const canvas = document.getElementById(tabId + '-fb-canvas');
+      if (!canvas) return;
+      canvas.querySelectorAll('.fb-block').forEach(el => {
+        el.classList.remove('fb-running', 'fb-done', 'fb-err');
+        const dot = el.querySelector('.fb-bft .dot');
+        if (dot) {
+          dot.classList.remove('ok','warn','err','running','done');
+          dot.classList.add('idle');
+        }
+      });
+    }
+
     async function fbRun(tabId) {
       const t = tabs.get(tabId); if (!t || !t.fb || !t.fb.current) {
         fbLog(tabId, 'warn', 'No pipeline loaded — select one first');
@@ -6075,6 +6269,19 @@
       const pid = t.fb.current.id;
       const name = t.fb.current.name || pid;
       fbLog(tabId, 'info', '▶ Running "' + name + '"...');
+      _fbResetBlockStates(tabId);
+
+      // v4.0.3 — prefer SSE streaming when available (live progress dots)
+      if (typeof EventSource !== 'undefined') {
+        try {
+          await _fbRunStream(tabId, pid, name);
+          return;
+        } catch (e) {
+          fbLog(tabId, 'warn', 'Stream failed — falling back to POST: ' + (e.message || e));
+        }
+      }
+
+      // Fallback: original POST flow (no live progress)
       try {
         const r = await fetch('/api/scrap/pipelines/' + encodeURIComponent(pid) + '/run', {
           method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
@@ -6095,6 +6302,102 @@
       } catch (e) {
         fbLog(tabId, 'err', 'Run failed: ' + (e.message || e));
       }
+    }
+
+    function _fbRunStream(tabId, pid, name) {
+      return new Promise((resolve, reject) => {
+        const url = '/api/scrap/pipelines/' + encodeURIComponent(pid) + '/run/stream';
+        const es = new EventSource(url, { withCredentials: true });
+        let finished = false;
+        const finish = (err, payload) => {
+          if (finished) return;
+          finished = true;
+          try { es.close(); } catch {}
+          err ? reject(err) : resolve(payload);
+        };
+        const t0 = Date.now();
+        const blockMs = new Map();
+        es.addEventListener('hello', (m) => {
+          try { JSON.parse(m.data); } catch {}
+        });
+        es.addEventListener('start', (m) => {
+          try {
+            const d = JSON.parse(m.data);
+            fbLog(tabId, 'info', '  ↳ start · ' + d.blockCount + ' blocks · entry=' + String(d.startBlock).slice(0,6));
+          } catch {}
+        });
+        es.addEventListener('block-start', (m) => {
+          try {
+            const d = JSON.parse(m.data);
+            blockMs.set(d.blockId, Date.now());
+            _fbSetBlockStatus(tabId, d.blockId, 'running', '⏳ ' + d.type + (d.visit > 1 ? ' · pass #' + d.visit : ''));
+          } catch {}
+        });
+        es.addEventListener('block-done', (m) => {
+          try {
+            const d = JSON.parse(m.data);
+            const dur = d.durationMs || (Date.now() - (blockMs.get(d.blockId) || Date.now()));
+            const rowBit = (d.blockRows ? ' · ' + d.blockRows + 'r' : '');
+            _fbSetBlockStatus(tabId, d.blockId, 'done', '✔ ' + d.type + ' · ' + dur + 'ms' + rowBit);
+            fbLog(tabId, 'ok', '  ✔ ' + d.type + '@' + String(d.blockId).slice(0,6) + ' · ' + dur + 'ms · rows=' + d.rows);
+          } catch {}
+        });
+        es.addEventListener('block-error', (m) => {
+          try {
+            const d = JSON.parse(m.data);
+            _fbSetBlockStatus(tabId, d.blockId, 'err', '✘ ' + d.type + ' · ' + (d.error || 'error').slice(0,40));
+            fbLog(tabId, 'err', '  ✘ ' + d.type + '@' + String(d.blockId).slice(0,6) + ' · ' + (d.error || 'error'));
+          } catch {}
+        });
+        es.addEventListener('loop', (m) => {
+          try {
+            const d = JSON.parse(m.data);
+            fbLog(tabId, 'info', '  ↻ loop ' + String(d.from).slice(0,6) + ' → ' + String(d.to).slice(0,6));
+          } catch {}
+        });
+        es.addEventListener('timeout', (m) => {
+          try { const d = JSON.parse(m.data); fbLog(tabId, 'err', '  ⏱ timeout after ' + d.durationMs + 'ms'); } catch {}
+        });
+        es.addEventListener('done', () => { /* result event will follow */ });
+        es.addEventListener('result', (m) => {
+          try {
+            const d = JSON.parse(m.data);
+            if (d.ok) {
+              const msg = '✔ Done · ' + (d.rowCount || 0) + ' rows · ' + (d.durationMs || 0) + 'ms' + (d.outputFile ? ' · ' + d.outputFile : '');
+              if (d.outputFile && typeof openEditor === 'function') {
+                const outName = String(d.outputFile).split(/[\\/]/).pop() || d.outputFile;
+                fbLogWithAction(tabId, 'ok', msg, '📂 Show output', () => openEditor(d.outputFile, outName));
+              } else {
+                fbLog(tabId, 'ok', msg);
+              }
+            } else {
+              fbLog(tabId, 'err', '✘ Failed: ' + ((d.errors && d.errors.join('; ')) || 'errors'));
+            }
+            const t = tabs.get(tabId);
+            if (d.pipeline && t && t.fb) {
+              // Preserve current block-status DOM (don't re-render) — just update meta
+              t.fb.current = d.pipeline;
+              fbUpdateMeta(tabId);
+            }
+            finish(null, d);
+          } catch (e) { finish(e); }
+        });
+        es.addEventListener('fatal', (m) => {
+          try {
+            const d = JSON.parse(m.data);
+            fbLog(tabId, 'err', '✘ Fatal: ' + (d.error || 'unknown'));
+          } catch {}
+          finish(new Error('fatal'));
+        });
+        es.onerror = (e) => {
+          if (finished) return;
+          // EventSource auto-retries — abort after a short grace if no result yet
+          if (Date.now() - t0 < 1500) return;
+          finish(new Error('SSE connection lost'));
+        };
+        // Safety timeout (10 min) — well above _executePipeline maxMs
+        setTimeout(() => finish(new Error('client timeout')), 10 * 60 * 1000);
+      });
     }
 
     async function fbDelete(tabId) {
@@ -6388,6 +6691,8 @@
         }
       }
       canvas.insertBefore(svg, canvas.firstChild);
+      // v4.0.3 — keep minimap in sync after edge/position changes
+      try { fbMinimapRender(tabId); } catch (e) {}
     }
 
     // Keyboard shortcuts: Del = remove block, Ctrl/Cmd+S = save (only when Flow Builder is active)
@@ -9722,6 +10027,11 @@ ${fields}
               <div class="fb-canvas" id="${tabId}-fb-canvas">
                 <div class="fb-canvas-empty"><span class="big">🎨</span><div>Select a pipeline above — or click <b>＋ New</b> + drag blocks here</div></div>
               </div>
+              <div class="fb-minimap" id="${tabId}-fb-minimap" title="Click to pan · drag viewport rect" onclick="fbMinimapClick(event, '${tabId}')">
+                <div class="fb-mini-toggle" onclick="event.stopPropagation(); fbMinimapToggle('${tabId}', false)">×</div>
+                <svg id="${tabId}-fb-minimap-svg" viewBox="0 0 200 140" preserveAspectRatio="xMidYMid meet"></svg>
+              </div>
+              <div class="fb-mini-show-btn" id="${tabId}-fb-mini-show" onclick="fbMinimapToggle('${tabId}', true)">🗺 Minimap</div>
             </div>
             <div class="fb-props" id="${tabId}-fb-props">
               <div class="empty">Select a pipeline to begin</div>

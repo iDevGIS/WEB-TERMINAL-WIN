@@ -7981,11 +7981,14 @@ async function _executePipeline(pipeline, opts = {}) {
     login: _pipeExecLogin,
     follow: _pipeExecFollow,
   };
+  const onProgress = typeof opts.onProgress === "function" ? opts.onProgress : () => {};
   const startedAt = Date.now();
   const maxMs = Math.max(5000, opts.maxMs || 120_000);
+  try { onProgress({ kind: "start", pipelineId: pipeline.id, blockCount: pipeline.blocks.length, startBlock: startId }); } catch {}
   while (currentId) {
     if (Date.now() - startedAt > maxMs) {
       state.errors.push("pipeline timed out after " + maxMs + "ms");
+      try { onProgress({ kind: "timeout", durationMs: Date.now() - startedAt }); } catch {}
       break;
     }
     const block = blockMap.get(currentId);
@@ -7996,16 +7999,22 @@ async function _executePipeline(pipeline, opts = {}) {
     const exec = executors[block.type];
     if (!exec) {
       state.errors.push(`unknown block type "${block.type}" at ${currentId}`);
+      try { onProgress({ kind: "block-error", blockId: currentId, type: block.type, error: "unknown block type" }); } catch {}
       currentId = block.next[0] || null;
       continue;
     }
     if (block.type === "extract") ctx.lastExtractConfig = block.config;
+    const blockStartMs = Date.now();
+    try { onProgress({ kind: "block-start", blockId: currentId, type: block.type, visit: visits }); } catch {}
     try {
       await exec(state, block.config || {}, ctx);
+      const dur = Date.now() - blockStartMs;
+      try { onProgress({ kind: "block-done", blockId: currentId, type: block.type, durationMs: dur, rows: state.rows.length, blockRows: state.lastBlockRowCount }); } catch {}
     } catch (e) {
       const errMsg = `${block.type}@${currentId}: ${e.message || String(e)}`;
       state.errors.push(errMsg);
       state.log.push("ERROR " + errMsg);
+      try { onProgress({ kind: "block-error", blockId: currentId, type: block.type, error: e.message || String(e), durationMs: Date.now() - blockStartMs }); } catch {}
       // If a heal fallback is configured, jump there
       if (block.healFallback && blockMap.has(block.healFallback)) {
         currentId = block.healFallback;
@@ -8016,12 +8025,13 @@ async function _executePipeline(pipeline, opts = {}) {
     // v4.0.2 — Loopback: follow block sets state.shouldLoop=true → route back via block.loopback.
     if (block.type === "follow" && state.shouldLoop && block.loopback && blockMap.has(block.loopback)) {
       state.shouldLoop = false; // reset for next pass
+      try { onProgress({ kind: "loop", from: currentId, to: block.loopback }); } catch {}
       currentId = block.loopback;
       continue;
     }
     currentId = (block.next && block.next[0]) || null;
   }
-  return {
+  const result = {
     ok: state.errors.length === 0,
     rows: state.rows,
     rowCount: state.rows.length,
@@ -8031,6 +8041,8 @@ async function _executePipeline(pipeline, opts = {}) {
     outputFile: state.outputFile || null,
     durationMs: Date.now() - startedAt,
   };
+  try { onProgress({ kind: "done", ok: result.ok, rowCount: result.rowCount, durationMs: result.durationMs, outputFile: result.outputFile, errors: result.errors }); } catch {}
+  return result;
 }
 
 // === Pipeline endpoints =======================================================
@@ -8080,6 +8092,45 @@ app.post("/api/scrap/pipelines/:id/run", requireAuth, express.json({ limit: "128
   } catch (e) {
     p.lastError = String(e.message || e); p.lastRunAt = new Date().toISOString(); savePipelines(list);
     res.status(500).json({ error: p.lastError });
+  }
+});
+
+// v4.0.3 — SSE streaming run endpoint (live progress dots in Flow Builder canvas)
+app.get("/api/scrap/pipelines/:id/run/stream", requireAuth, async (req, res) => {
+  const list = loadPipelines();
+  const idx = list.findIndex(x => x.id === req.params.id);
+  if (idx < 0) { res.status(404).json({ error: "pipeline not found" }); return; }
+  const p = list[idx];
+  res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
+  res.setHeader("Cache-Control", "no-cache, no-transform");
+  res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no");
+  if (res.flushHeaders) res.flushHeaders();
+  const send = (ev, data) => {
+    try { res.write(`event: ${ev}\ndata: ${JSON.stringify(data)}\n\n`); } catch {}
+  };
+  // initial heartbeat so EventSource opens immediately
+  send("hello", { pipelineId: p.id, name: p.name || p.id, blockCount: (p.blocks || []).length });
+  // Heartbeat every 15s to keep proxies alive on long runs
+  const hb = setInterval(() => { try { res.write(`: ping\n\n`); } catch {} }, 15000);
+  let aborted = false;
+  req.on("close", () => { aborted = true; clearInterval(hb); });
+  try {
+    const result = await _executePipeline(p, {
+      url: String(req.query.url || ""),
+      onProgress: (e) => { if (!aborted) send(e.kind, e); },
+    });
+    p.lastRunAt = new Date().toISOString();
+    p.lastRowCount = result.rowCount;
+    p.lastError = result.ok ? null : (result.errors.join("; ") || "errors");
+    savePipelines(list);
+    send("result", { ok: result.ok, rowCount: result.rowCount, durationMs: result.durationMs, outputFile: result.outputFile, errors: result.errors, pipeline: p });
+  } catch (e) {
+    p.lastError = String(e.message || e); p.lastRunAt = new Date().toISOString(); savePipelines(list);
+    send("fatal", { error: p.lastError });
+  } finally {
+    clearInterval(hb);
+    try { res.end(); } catch {}
   }
 });
 
