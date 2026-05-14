@@ -5778,31 +5778,130 @@
       }
     }
 
-    function fbAutoLayout(blocks, startBlock) {
+    function fbAutoLayout(blocks, startBlock, opts) {
+      opts = opts || {};
+      if (!blocks || !blocks.length) return {};
       const map = new Map(blocks.map(b => [b.id, b]));
-      const levelOf = {};
-      const seen = new Set();
-      const queue = [];
-      if (startBlock && map.has(startBlock)) queue.push({ id: startBlock, lvl: 0 });
-      else if (blocks[0]) queue.push({ id: blocks[0].id, lvl: 0 });
-      while (queue.length) {
-        const { id, lvl } = queue.shift();
-        if (seen.has(id)) { if (lvl < levelOf[id]) levelOf[id] = lvl; continue; }
-        seen.add(id);
-        levelOf[id] = lvl;
-        const blk = map.get(id); if (!blk) continue;
-        const nexts = [].concat(blk.next || [], blk.healFallback ? [blk.healFallback] : []);
-        for (const nid of nexts) if (!seen.has(nid)) queue.push({ id: nid, lvl: lvl + 1 });
+      // parents map (for barycenter ordering + multi-root detection)
+      const parents = new Map();
+      blocks.forEach(b => parents.set(b.id, new Set()));
+      for (const b of blocks) {
+        const ed = [].concat(b.next || [], b.healFallback ? [b.healFallback] : []);
+        for (const nid of ed) if (parents.has(nid)) parents.get(nid).add(b.id);
       }
+      // seed order: explicit startBlock first, then any other root (no parents)
+      const rootIds = blocks.filter(b => parents.get(b.id).size === 0).map(b => b.id);
+      const seedOrder = [];
+      if (startBlock && map.has(startBlock)) seedOrder.push(startBlock);
+      for (const r of rootIds) if (seedOrder.indexOf(r) === -1) seedOrder.push(r);
+      if (!seedOrder.length && blocks[0]) seedOrder.push(blocks[0].id);
+      // BFS with max-depth (downstream of joins pushed further right)
+      const levelOf = {};
+      const seedOf = {};
+      const queue = seedOrder.map((id, i) => ({ id, lvl: 0, seedIdx: i }));
+      let safety = blocks.length * blocks.length + 50;
+      while (queue.length && safety-- > 0) {
+        const { id, lvl, seedIdx } = queue.shift();
+        if (levelOf[id] == null || lvl > levelOf[id]) {
+          levelOf[id] = lvl;
+          if (seedOf[id] == null) seedOf[id] = seedIdx;
+          const blk = map.get(id); if (!blk) continue;
+          const ed = [].concat(blk.next || [], blk.healFallback ? [blk.healFallback] : []);
+          for (const nid of ed) queue.push({ id: nid, lvl: lvl + 1, seedIdx });
+        }
+      }
+      // orphans = unreachable from any seed
+      const orphans = blocks.filter(b => levelOf[b.id] == null).map(b => b.id);
+      // group by level
       const byLevel = {};
       for (const b of blocks) {
-        const l = levelOf[b.id] != null ? levelOf[b.id] : 99;
+        if (levelOf[b.id] == null) continue;
+        const l = levelOf[b.id];
         (byLevel[l] = byLevel[l] || []).push(b.id);
       }
+      const levels = Object.keys(byLevel).map(Number).sort((a,b) => a - b);
+      // within-layer barycenter ordering (reduce edge crossings)
+      const orderInLayer = {};
+      if (levels.length) {
+        byLevel[levels[0]].sort((a, b) => (seedOf[a] || 0) - (seedOf[b] || 0) || a.localeCompare(b));
+        byLevel[levels[0]].forEach((id, i) => orderInLayer[id] = i);
+        for (let li = 1; li < levels.length; li++) {
+          const ids = byLevel[levels[li]];
+          ids.sort((a, b) => {
+            const score = id => {
+              const pp = Array.from(parents.get(id) || []).filter(p => orderInLayer[p] != null);
+              return pp.length ? pp.reduce((s, p) => s + orderInLayer[p], 0) / pp.length : 1e9;
+            };
+            const sa = score(a), sb = score(b);
+            if (sa !== sb) return sa - sb;
+            return (seedOf[a] || 0) - (seedOf[b] || 0);
+          });
+          ids.forEach((id, i) => orderInLayer[id] = i);
+        }
+      }
+      // adaptive spacing from viewport
+      const BW = opts.BW || 200, BH = opts.BH || 84;
+      const MIN_DX = BW + 50, MAX_DX = 340;
+      const MIN_DY = BH + 30, MAX_DY = 170;
+      const padX = 40, padY = 40, rowGap = 60;
+      const viewW = Math.max(600, opts.viewportWidth || 2400);
+      const viewH = Math.max(400, opts.viewportHeight || 1600);
+      // pack tall layers into sub-columns so they don't overflow vertically
+      const maxColHeight = levels.length ? Math.max.apply(null, levels.map(l => byLevel[l].length)) : 1;
+      const slotsPerSubCol = Math.max(1, Math.floor((viewH - 2 * padY - BH) / MIN_DY) + 1);
+      const subCols = Math.max(1, Math.ceil(maxColHeight / slotsPerSubCol));
+      const totalCols = levels.length * subCols;
+      const usableW = viewW - 2 * padX;
+      // decide: single row stretched, or multi-row wrap
+      const minTotalW = totalCols > 1 ? (totalCols - 1) * MIN_DX + BW : BW;
+      let dx, dy = Math.min(MAX_DY, MIN_DY + 6);
+      let layersPerRow, useRowWrap;
+      if (minTotalW <= usableW || totalCols <= 1) {
+        layersPerRow = levels.length;
+        useRowWrap = false;
+        dx = totalCols > 1 ? Math.max(MIN_DX, Math.min(MAX_DX, (usableW - BW) / (totalCols - 1))) : MIN_DX;
+      } else {
+        dx = MIN_DX;
+        const colsPerRow = Math.max(1, Math.floor((usableW - BW) / MIN_DX) + 1);
+        layersPerRow = Math.max(1, Math.floor(colsPerRow / subCols));
+        useRowWrap = layersPerRow < levels.length;
+      }
+      const rowSlots = Math.min(slotsPerSubCol, maxColHeight);
+      const rowHeight = rowSlots * dy + rowGap;
+      // place blocks
       const positions = {};
-      const dx = 270, dy = 150, padX = 60, padY = 60;
-      for (const lvl of Object.keys(byLevel).map(Number).sort((a,b)=>a-b)) {
-        byLevel[lvl].forEach((id, i) => { positions[id] = { x: padX + lvl * dx, y: padY + i * dy }; });
+      for (let li = 0; li < levels.length; li++) {
+        const lvl = levels[li];
+        const row = useRowWrap ? Math.floor(li / layersPerRow) : 0;
+        const layerIdxInRow = useRowWrap ? (li % layersPerRow) : li;
+        const ids = byLevel[lvl];
+        ids.forEach((id, idx) => {
+          const subCol = Math.floor(idx / slotsPerSubCol);
+          const slot = idx % slotsPerSubCol;
+          const col = layerIdxInRow * subCols + subCol;
+          positions[id] = { x: Math.round(padX + col * dx), y: Math.round(padY + row * rowHeight + slot * dy) };
+        });
+      }
+      // center horizontally when layout < viewport (single row case)
+      if (!useRowWrap && Object.keys(positions).length) {
+        const xs = Object.values(positions).map(p => p.x);
+        const minX = Math.min.apply(null, xs), maxX = Math.max.apply(null, xs);
+        const layoutW = (maxX - minX) + BW;
+        if (layoutW < usableW) {
+          const shift = Math.max(0, Math.floor((viewW - layoutW) / 2 - minX));
+          if (shift > 4) for (const id in positions) positions[id].x += shift;
+        }
+      }
+      // orphan tray: separate row below the main flow
+      if (orphans.length) {
+        const allY = Object.values(positions).map(p => p.y);
+        const baseY = (allY.length ? Math.max.apply(null, allY) : 0) + dy + rowGap;
+        const perRow = Math.max(1, Math.floor((usableW - BW) / MIN_DX) + 1);
+        orphans.forEach((id, i) => {
+          const r = Math.floor(i / perRow);
+          const c = i % perRow;
+          positions[id] = { x: padX + c * MIN_DX, y: baseY + r * MIN_DY };
+        });
       }
       return positions;
     }
@@ -5820,7 +5919,10 @@
         }
       }
       if (Object.keys(positions).length < blocks.length) {
-        const auto = fbAutoLayout(blocks, p.startBlock || (blocks[0] && blocks[0].id));
+        const wrap = document.getElementById(tabId + '-fb-canvas-wrap');
+        const vw = wrap ? wrap.clientWidth : 2400;
+        const vh = wrap ? wrap.clientHeight : 1600;
+        const auto = fbAutoLayout(blocks, p.startBlock || (blocks[0] && blocks[0].id), { viewportWidth: vw, viewportHeight: vh });
         for (const id in auto) if (!positions[id]) positions[id] = auto[id];
       }
       canvas.innerHTML = '';
@@ -6577,7 +6679,10 @@
       const p = t.fb.current;
       const blocks = p.blocks || [];
       if (!blocks.length) { fbLog(tabId, 'warn', 'Pipeline has no blocks'); return; }
-      const auto = fbAutoLayout(blocks, p.startBlock || (blocks[0] && blocks[0].id));
+      const wrap = document.getElementById(tabId + '-fb-canvas-wrap');
+      const vw = wrap ? wrap.clientWidth : 2400;
+      const vh = wrap ? wrap.clientHeight : 1600;
+      const auto = fbAutoLayout(blocks, p.startBlock || (blocks[0] && blocks[0].id), { viewportWidth: vw, viewportHeight: vh });
       let moved = 0;
       for (const b of blocks) {
         const np = auto[b.id]; if (!np) continue;
@@ -6587,7 +6692,8 @@
       }
       fbRender(tabId);
       if (moved > 0) fbMarkDirty(tabId, true);
-      fbLog(tabId, moved ? 'ok' : 'info', '🪄 Auto-arranged ' + blocks.length + ' blocks' + (moved ? ' · ' + moved + ' repositioned (Ctrl+S to persist)' : ' · already tidy'));
+      if (wrap) { wrap.scrollLeft = 0; wrap.scrollTop = 0; }
+      fbLog(tabId, moved ? 'ok' : 'info', '🪄 Auto-arranged ' + blocks.length + ' blocks · viewport ' + vw + '×' + vh + (moved ? ' · ' + moved + ' repositioned (Ctrl+S to persist)' : ' · already tidy'));
     }
 
     async function fbSave(tabId) {
@@ -10049,7 +10155,7 @@ ${fields}
             <button class="fb-btn" onclick="fbLoadList('${tabId}')" title="Refresh pipeline list">🔄</button>
             <button class="fb-btn" onclick="fbNewPipeline('${tabId}')" title="Create blank pipeline">＋ New</button>
             <button class="fb-btn" onclick="fbSave('${tabId}')" title="Save current pipeline (Ctrl+S)" id="${tabId}-fb-save">💾 Save</button>
-            <button class="fb-btn" onclick="fbAutoArrange('${tabId}')" title="Auto-arrange blocks left→right by flow (Shift = include orphan blocks)">🪄 Auto Layout</button>
+            <button class="fb-btn" onclick="fbAutoArrange('${tabId}')" title="Auto-arrange blocks to fit the visible canvas (centers small pipelines, wraps long ones, packs tall layers, orphans in a tray)">🪄 Auto Layout</button>
             <span class="fb-spacer"></span>
             <span class="fb-meta" id="${tabId}-fb-meta"></span>
             <span class="fb-meta" id="${tabId}-fb-dirty" style="color:#fde68a;display:none">● unsaved</span>

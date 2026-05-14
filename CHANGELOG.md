@@ -5,6 +5,29 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [4.1.4] — 2026-05-14 — Flow Builder: Smart Auto Layout (viewport-aware)
+
+### Improved
+
+- **`fbAutoLayout()` now adapts to the visible canvas viewport** instead of using fixed 270×150 grid + padding 60. Three big wins:
+  - **Adaptive spacing.** Measures `.fb-canvas-wrap` `clientWidth`/`clientHeight` and computes `dx` to spread layers across the available width when the pipeline is small (max 340px), and clamps to 250px (block + gap) when it's wider than the viewport.
+  - **Multi-row wrapping for long pipelines.** When the natural one-row layout would overflow the viewport horizontally, the algorithm packs layers into multiple rows (`layersPerRow` × `subCols`). Each row is `slotsPerSubCol × MIN_DY + 60` tall. Eliminates the "blocks disappear off the right edge" complaint.
+  - **Sub-column packing for tall layers.** When a single layer has more blocks than the viewport can stack vertically (`slotsPerSubCol = floor((viewH - 80 - 84) / 114) + 1`), the layer overflows into a second sub-column instead of bleeding past the bottom edge.
+- **Barycenter ordering within layers.** Each layer's blocks are sorted by the average `orderInLayer` of their parents (Sugiyama-style heuristic), which dramatically reduces edge crossings on join-heavy graphs (e.g. multiple Extract blocks fanning into one Store). First layer (roots) is ordered by seed index — explicit `startBlock` always sits at the top of column 0.
+- **Multi-root + max-depth BFS.** Walks every node with no parents as a layer-0 seed (not just `startBlock`), and re-propagates levels downstream whenever a join discovers a longer path. Prevents downstream-of-join blocks from sitting in the same column as the join's parents.
+- **Orphan tray.** Unreachable blocks (no path from any seed) used to land at level 99 (column ~26000px to the right). They now form a separate "tray" row beneath the main flow, packed `floor((viewW - 80 - 200) / 250) + 1` per row at minimum spacing — visible without horizontal scrolling.
+- **Centered when narrow.** If the computed single-row layout is narrower than the viewport, it gets shifted right by `(viewW - layoutW) / 2 - minX` so the start block sits in the middle of the canvas instead of the top-left corner.
+- **Scroll-reset after auto-arrange.** `.fb-canvas-wrap.scrollLeft = scrollTop = 0` so the user sees the freshly-arranged start block at (40, 40), not wherever they were scrolled before.
+- **Tooltip rewritten.** "Auto-arrange blocks to fit the visible canvas (centers small pipelines, wraps long ones, packs tall layers, orphans in a tray)" — accurate to actual behavior.
+
+### Notes
+
+- Backward-compatible: `fbAutoLayout(blocks, startBlock)` still works with no `opts` arg (falls back to 2400×1600 viewport). Both call sites (`fbAutoArrange`, `fbRender`'s missing-position branch) now pass real viewport dims.
+- Block dimensions remain `BW=200`, `BH=84`. Override via `opts.BW`/`opts.BH` if the block CSS is ever tuned.
+- Log line now reports viewport: `🪄 Auto-arranged N blocks · viewport WxH · K repositioned`.
+
+---
+
 ## [4.1.3] — 2026-05-14 — Flow Builder: Auto Layout button
 
 ### Added
