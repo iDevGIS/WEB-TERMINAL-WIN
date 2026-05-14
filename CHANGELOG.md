@@ -5,6 +5,15 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [4.1.2] — 2026-05-14 — Defensive: Pipeline output path resolution
+
+### Fixed
+
+- **`/api/files/preview` fallback resolution.** When `path.resolve()` cannot locate the file at the literal incoming path, the handler now tries common output locations (`scraps/pipelines-out/<basename>`, `scraps/<basename>`, `<repo>/<basename>`) before returning `ENOENT`. This rescues stale `📂 Show output` clicks captured before v4.1.1 reached the running process — e.g., a Flow Builder tab still holding `outputFile: "quotes-sample.json"` from a pre-restart run.
+- **Store block: `state.outputFile = path.resolve(file)`.** Belt-and-suspenders to guarantee the value is absolute regardless of how `SCRAP_DIR` was constructed.
+
+---
+
 ## [4.1.1] — 2026-05-14 — Fix: Pipeline "Show output" ENOENT
 
 ### Fixed

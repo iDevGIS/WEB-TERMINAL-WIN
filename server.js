@@ -1256,7 +1256,20 @@ app.get("/api/files/preview", requireAuth, (req, res) => {
   const filePath = req.query.path;
   if (!filePath) return res.status(400).json({ error: "No path" });
   try {
-    const resolved = path.resolve(filePath);
+    let resolved = path.resolve(filePath);
+    // v4.1.1 — fallback resolution: if literal path missing, try common output dirs
+    if (!fs.existsSync(resolved)) {
+      const scrapRoot = path.join(__dirname, "scraps");
+      const base = path.basename(String(filePath));
+      const candidates = [
+        path.join(scrapRoot, "pipelines-out", base),
+        path.join(scrapRoot, base),
+        path.join(__dirname, base),
+      ];
+      for (const c of candidates) {
+        try { if (fs.existsSync(c) && fs.statSync(c).isFile()) { resolved = c; break; } } catch {}
+      }
+    }
     const st = fs.statSync(resolved);
     if (st.isDirectory()) return res.status(400).json({ error: "Is a directory" });
     if (st.size > 5 * 1024 * 1024) return res.status(413).json({ error: "File too large (max 5MB)" });
@@ -7932,7 +7945,7 @@ async function _pipeExecStore(state, config, ctx) {
     fs.writeFileSync(file, JSON.stringify(state.rows || [], null, 2));
   }
   state.log.push(`store ok (${(state.rows || []).length} rows → ${safeName})`);
-  state.outputFile = file;
+  state.outputFile = path.resolve(file);
   return state;
 }
 
