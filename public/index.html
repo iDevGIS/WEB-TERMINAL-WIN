@@ -6337,7 +6337,7 @@
       overlay.onclick = (ev) => { if (ev.target === overlay) document.body.removeChild(overlay); };
       const panel = document.createElement('div');
       panel.className = 'fb-modal';
-      const closeBtn = '<button type="button" class="fb-modal-close" onclick="this.closest(\\'.fb-modal-overlay\\').remove()">✕</button>';
+      const closeBtn = '<button type="button" class="fb-modal-close" onclick="this.closest(\'.fb-modal-overlay\').remove()">✕</button>';
       const header = '<div class="fb-modal-header">🔍 Error Inspector <span class="fb-modal-count">' + details.length + ' error' + (details.length === 1 ? '' : 's') + '</span>' + closeBtn + '</div>';
       panel.innerHTML = header + '<div class="fb-modal-body"></div>';
       const body = panel.querySelector('.fb-modal-body');
