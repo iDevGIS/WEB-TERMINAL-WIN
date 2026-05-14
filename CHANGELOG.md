@@ -5,6 +5,29 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [4.8.0] — 2026-05-15 — Flow Builder: collapsible + resizable panels
+
+### Added
+
+- **3 panel-toggle buttons** in the Flow Builder toolbar (`◧` left palette · `▭` bottom console · `◨` right inspector) — each toggles its panel's visibility independently. Active panels render with a purple "on" pill so the current layout is glanceable.
+- **`⟲` reset button** — restores all three panels to visible + default widths/height (240px / 320px / 130px).
+- **Three live-drag resize dividers** — between left palette and canvas, between canvas and right inspector, and between canvas-wrap and bottom console. Each handle is a 6px-wide hit-target with a centered grab indicator that brightens on hover/drag. Drag respects clamps: left 140–480px, right 200–600px, bottom 60–480px.
+- **Double-click handle = reset that one side** to its default — quick recovery without touching the global ⟲ reset.
+- **Persistence** — visibility flags and pixel dimensions persist to `localStorage['cf:fb-panel-v1']`. State survives reload and tab re-creation; new Flow Builder tabs adopt the stored sizes immediately on init.
+- **Minimap auto-rerender** on canvas resize so the viewport rect stays accurate after resizing the inspector / palette / console.
+
+### Changed
+
+- `.fb-main` now uses CSS variables (`--fb-leftW`, `--fb-rightW`, `--fb-bottomH`) on the tab wrapper instead of hard-coded `240px 1fr 320px` columns — enables both per-pixel resize and instant collapse-via-class. Transitions are kept at 180ms ease for collapse only; live drags update the variable directly for zero-lag feedback.
+- `.fb-console` no longer caps at `max-height: 130px` — it now follows `var(--fb-bottomH)` so users can grow the run-log to half the viewport for noisy pipelines, or shrink to ~60px when canvas real estate matters more.
+- Flow Builder init banner version bumped to `v4.8.0` and now mentions the new panel controls.
+
+### Why
+
+Long pipelines + dense block configs were squeezing the canvas. Users wanted the palette out of the way while editing a deep flow, the inspector wider for long selectors, and a taller console for streaming run logs — all without sacrificing either real estate when they came back. Toggleable + draggable + persisted panels solve all three at once with one localStorage key.
+
+---
+
 ## [4.7.0] — 2026-05-15 — Flow Builder: Pipeline Diff Viewer + auto-snapshot history
 
 ### Added

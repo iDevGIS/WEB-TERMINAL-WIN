@@ -1521,7 +1521,33 @@
     .fb-toolbar .fb-spacer { flex: 1; }
     .fb-toolbar .fb-meta { font-size: 11.5px; color: var(--text3); display: flex; align-items: center; gap: 8px; }
 
-    .fb-main { flex: 1; display: grid; grid-template-columns: 240px 1fr 320px; min-height: 0; overflow: hidden; }
+    /* v4.8.0 — collapsible + resizable panels */
+    .fb-tab-wrap { --fb-leftW: 240px; --fb-rightW: 320px; --fb-bottomH: 130px; }
+    .fb-main { flex: 1; display: grid; grid-template-columns: var(--fb-leftW) 6px 1fr 6px var(--fb-rightW); min-height: 0; overflow: hidden; transition: grid-template-columns .18s ease; }
+    .fb-tab-wrap.fb-hide-left  .fb-main { grid-template-columns: 0px 0px 1fr 6px var(--fb-rightW); }
+    .fb-tab-wrap.fb-hide-right .fb-main { grid-template-columns: var(--fb-leftW) 6px 1fr 0px 0px; }
+    .fb-tab-wrap.fb-hide-left.fb-hide-right .fb-main { grid-template-columns: 0px 0px 1fr 0px 0px; }
+    .fb-tab-wrap.fb-hide-left  .fb-palette,
+    .fb-tab-wrap.fb-hide-right .fb-props,
+    .fb-tab-wrap.fb-hide-left  .fb-vresize-l,
+    .fb-tab-wrap.fb-hide-right .fb-vresize-r { display: none; }
+    .fb-tab-wrap.fb-hide-bottom .fb-console,
+    .fb-tab-wrap.fb-hide-bottom .fb-hresize { display: none; }
+    .fb-console { max-height: var(--fb-bottomH); }
+
+    .fb-vresize, .fb-hresize { background: transparent; position: relative; user-select: none; transition: background .12s; }
+    .fb-vresize { cursor: col-resize; }
+    .fb-vresize::after { content: ''; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); width: 2px; height: 32px; background: rgba(168,85,247,.18); border-radius: 1px; transition: background .12s, height .12s; }
+    .fb-vresize:hover::after, .fb-vresize.fb-dragging::after { background: rgba(168,85,247,.9); height: 56px; }
+    .fb-hresize { height: 6px; cursor: row-resize; flex-shrink: 0; }
+    .fb-hresize::after { content: ''; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); height: 2px; width: 32px; background: rgba(168,85,247,.18); border-radius: 1px; transition: background .12s, width .12s; }
+    .fb-hresize:hover::after, .fb-hresize.fb-dragging::after { background: rgba(168,85,247,.9); width: 56px; }
+    body.fb-resizing-col { cursor: col-resize !important; }
+    body.fb-resizing-row { cursor: row-resize !important; }
+    body.fb-resizing-col *, body.fb-resizing-row * { user-select: none !important; }
+
+    .fb-toolbar .fb-btn.fb-tgl { padding: 5px 8px; min-width: 28px; }
+    .fb-toolbar .fb-btn.fb-tgl.fb-on { background: rgba(168,85,247,.2); border-color: rgba(168,85,247,.5); color: #ede9fe; }
 
     .fb-palette { background: rgba(8,10,22,.5); border-right: 1px solid rgba(255,255,255,.05); padding: 14px; overflow-y: auto; }
     .fb-palette h3 { font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: #7a7f95; margin: 4px 0 10px; }
@@ -1613,7 +1639,7 @@
     .fb-props input.val:focus, .fb-props textarea.val:focus, .fb-props select.val:focus { border-color: rgba(168,85,247,.55); background: rgba(0,0,0,.4); }
     .fb-props textarea.val { line-height: 1.45; }
 
-    .fb-console { flex-shrink: 0; max-height: 130px; min-height: 28px; overflow-y: auto; background: rgba(0,0,0,.45); border-top: 1px solid rgba(255,255,255,.05); padding: 6px 14px; font-family: ui-monospace,monospace; font-size: 11px; color: var(--text2); line-height: 1.55; }
+    .fb-console { flex-shrink: 0; min-height: 28px; overflow-y: auto; background: rgba(0,0,0,.45); border-top: 1px solid rgba(255,255,255,.05); padding: 6px 14px; font-family: ui-monospace,monospace; font-size: 11px; color: var(--text2); line-height: 1.55; }
     .fb-console .line { display: flex; align-items: baseline; gap: 8px; }
     .fb-console .ts { color: var(--text3); flex-shrink: 0; font-size: 10px; }
     .fb-console .lvl-ok   { color: #6ee7b7; }
@@ -5809,8 +5835,9 @@
     function fbInit(tabId) {
       const t = tabs.get(tabId); if (!t) return;
       t.fb = { pipelines: [], current: null, selectedBlockId: null, _dirty: false };
-      fbLog(tabId, 'info', 'Flow Builder ready · v4.5.0 (Phase E 🅲 — Better Error UI: hints + jump + inspector)');
+      fbLog(tabId, 'info', 'Flow Builder ready · v4.8.0 (Panels: toggle ◧▭◨ · drag dividers · ⟲ reset)');
       fbLog(tabId, 'info', 'Tip: drag block from left palette · click ＋ New for blank pipeline · Del removes selected block · Ctrl+S to save · ▶ Run streams live status to dots');
+      try { fbPanelApply(tabId); } catch {}
       fbLoadList(tabId);
       _fbAttachMinimapHooks(tabId);
     }
@@ -6434,6 +6461,143 @@
       fetch:'#06b6d4', login:'#fb923c', extract:'#10b981', follow:'#a855f7',
       self_heal:'#f472b6', transform:'#6366f1', store:'#eab308',
     };
+    // v4.8.0 — Panel toggle + resize + persist
+    const FB_PANEL = {
+      DEFAULTS: { leftW: 240, rightW: 320, bottomH: 130 },
+      LIMITS:   { leftMin: 140, leftMax: 480, rightMin: 200, rightMax: 600, bottomMin: 60, bottomMax: 480 },
+      STORE_K:  'cf:fb-panel-v1',
+    };
+    function fbPanelLoad() {
+      try {
+        const raw = localStorage.getItem(FB_PANEL.STORE_K);
+        if (!raw) return null;
+        const o = JSON.parse(raw);
+        if (!o || typeof o !== 'object') return null;
+        return o;
+      } catch { return null; }
+    }
+    function fbPanelSave(state) {
+      try { localStorage.setItem(FB_PANEL.STORE_K, JSON.stringify(state)); } catch {}
+    }
+    function fbPanelGetState() {
+      const s = fbPanelLoad() || {};
+      return {
+        leftW:   typeof s.leftW   === 'number' ? s.leftW   : FB_PANEL.DEFAULTS.leftW,
+        rightW:  typeof s.rightW  === 'number' ? s.rightW  : FB_PANEL.DEFAULTS.rightW,
+        bottomH: typeof s.bottomH === 'number' ? s.bottomH : FB_PANEL.DEFAULTS.bottomH,
+        left:    s.left   !== false,  // default visible
+        right:   s.right  !== false,
+        bottom:  s.bottom !== false,
+      };
+    }
+    function fbPanelWrap(tabId) {
+      return document.getElementById(tabId + '-fb');
+    }
+    function fbPanelApply(tabId) {
+      const wrap = fbPanelWrap(tabId); if (!wrap) return;
+      const s = fbPanelGetState();
+      wrap.style.setProperty('--fb-leftW',   s.leftW   + 'px');
+      wrap.style.setProperty('--fb-rightW',  s.rightW  + 'px');
+      wrap.style.setProperty('--fb-bottomH', s.bottomH + 'px');
+      wrap.classList.toggle('fb-hide-left',   !s.left);
+      wrap.classList.toggle('fb-hide-right',  !s.right);
+      wrap.classList.toggle('fb-hide-bottom', !s.bottom);
+      const bL = document.getElementById(tabId + '-fb-tgl-left');
+      const bR = document.getElementById(tabId + '-fb-tgl-right');
+      const bB = document.getElementById(tabId + '-fb-tgl-bottom');
+      if (bL) bL.classList.toggle('fb-on', s.left);
+      if (bR) bR.classList.toggle('fb-on', s.right);
+      if (bB) bB.classList.toggle('fb-on', s.bottom);
+    }
+    function fbPanelToggle(tabId, side) {
+      const s = fbPanelGetState();
+      s[side] = !s[side];
+      fbPanelSave(s);
+      fbPanelApply(tabId);
+      // re-render minimap if canvas-wrap resized
+      try { setTimeout(() => fbMinimapRender(tabId), 200); } catch {}
+    }
+    function fbPanelReset(tabId) {
+      fbPanelSave({ ...FB_PANEL.DEFAULTS, left: true, right: true, bottom: true });
+      fbPanelApply(tabId);
+      try { setTimeout(() => fbMinimapRender(tabId), 200); } catch {}
+    }
+    function fbClamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+    function fbStartVResize(ev, tabId, side) {
+      ev.preventDefault();
+      const handle = ev.currentTarget;
+      const wrap = fbPanelWrap(tabId); if (!wrap) return;
+      const startX = ev.clientX;
+      const s = fbPanelGetState();
+      const startW = side === 'left' ? s.leftW : s.rightW;
+      const lim = side === 'left'
+        ? { min: FB_PANEL.LIMITS.leftMin,  max: FB_PANEL.LIMITS.leftMax }
+        : { min: FB_PANEL.LIMITS.rightMin, max: FB_PANEL.LIMITS.rightMax };
+      handle.classList.add('fb-dragging');
+      document.body.classList.add('fb-resizing-col');
+      let lastVal = startW;
+      function onMove(e) {
+        const dx = e.clientX - startX;
+        const next = side === 'left' ? startW + dx : startW - dx;
+        lastVal = fbClamp(Math.round(next), lim.min, lim.max);
+        wrap.style.setProperty(side === 'left' ? '--fb-leftW' : '--fb-rightW', lastVal + 'px');
+      }
+      function onUp() {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+        handle.classList.remove('fb-dragging');
+        document.body.classList.remove('fb-resizing-col');
+        const cur = fbPanelGetState();
+        if (side === 'left') cur.leftW = lastVal; else cur.rightW = lastVal;
+        fbPanelSave(cur);
+        try { fbMinimapRender(tabId); } catch {}
+      }
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+      // double-click on handle → reset that side
+      handle.ondblclick = () => {
+        const c = fbPanelGetState();
+        if (side === 'left') c.leftW = FB_PANEL.DEFAULTS.leftW;
+        else c.rightW = FB_PANEL.DEFAULTS.rightW;
+        fbPanelSave(c); fbPanelApply(tabId);
+        try { fbMinimapRender(tabId); } catch {}
+      };
+    }
+    function fbStartHResize(ev, tabId) {
+      ev.preventDefault();
+      const handle = ev.currentTarget;
+      const wrap = fbPanelWrap(tabId); if (!wrap) return;
+      const startY = ev.clientY;
+      const s = fbPanelGetState();
+      const startH = s.bottomH;
+      const lim = { min: FB_PANEL.LIMITS.bottomMin, max: FB_PANEL.LIMITS.bottomMax };
+      handle.classList.add('fb-dragging');
+      document.body.classList.add('fb-resizing-row');
+      let lastVal = startH;
+      function onMove(e) {
+        const dy = e.clientY - startY;
+        const next = startH - dy;
+        lastVal = fbClamp(Math.round(next), lim.min, lim.max);
+        wrap.style.setProperty('--fb-bottomH', lastVal + 'px');
+      }
+      function onUp() {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+        handle.classList.remove('fb-dragging');
+        document.body.classList.remove('fb-resizing-row');
+        const cur = fbPanelGetState();
+        cur.bottomH = lastVal;
+        fbPanelSave(cur);
+      }
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+      handle.ondblclick = () => {
+        const c = fbPanelGetState();
+        c.bottomH = FB_PANEL.DEFAULTS.bottomH;
+        fbPanelSave(c); fbPanelApply(tabId);
+      };
+    }
+
     function fbMinimapToggle(tabId, show) {
       const mini = document.getElementById(tabId + '-fb-minimap');
       const showBtn = document.getElementById(tabId + '-fb-mini-show');
@@ -11752,6 +11916,11 @@ ${fields}
             <button class="fb-btn" onclick="fbAutoArrange('${tabId}')" title="Auto-arrange blocks to fit the visible canvas (centers small pipelines, wraps long ones, packs tall layers, orphans in a tray)">🪄 Auto Layout</button>
             <button class="fb-btn" onclick="fbExportScriptOpen('${tabId}')" title="Export pipeline as runnable Node.js / Python script">📜 Script</button>
             <button class="fb-btn" onclick="fbDiffOpen('${tabId}')" title="Compare current pipeline with a saved snapshot (auto-captured before every save, last 20 kept)">🔀 Diff</button>
+            <span style="width:1px;height:18px;background:rgba(255,255,255,.08);margin:0 4px"></span>
+            <button class="fb-btn fb-tgl fb-on" id="${tabId}-fb-tgl-left"   onclick="fbPanelToggle('${tabId}','left')"   title="Toggle left palette panel">◧</button>
+            <button class="fb-btn fb-tgl fb-on" id="${tabId}-fb-tgl-bottom" onclick="fbPanelToggle('${tabId}','bottom')" title="Toggle bottom console panel">▭</button>
+            <button class="fb-btn fb-tgl fb-on" id="${tabId}-fb-tgl-right"  onclick="fbPanelToggle('${tabId}','right')"  title="Toggle right properties panel">◨</button>
+            <button class="fb-btn fb-tgl"       id="${tabId}-fb-tgl-reset"  onclick="fbPanelReset('${tabId}')" title="Reset panel sizes + show all">⟲</button>
             <span class="fb-spacer"></span>
             <span class="fb-meta" id="${tabId}-fb-meta"></span>
             <span class="fb-meta" id="${tabId}-fb-dirty" style="color:#fde68a;display:none">● unsaved</span>
@@ -11771,6 +11940,7 @@ ${fields}
               <h3 style="margin-top:18px">Recent Runs</h3>
               <div id="${tabId}-fb-recent" style="font-size:11.5px;color:var(--text3)">— select pipeline —</div>
             </div>
+            <div class="fb-vresize fb-vresize-l" onmousedown="fbStartVResize(event,'${tabId}','left')" title="Drag to resize · double-click to reset"></div>
             <div class="fb-canvas-wrap" id="${tabId}-fb-canvas-wrap"
                  ondragover="fbCanvasDragOver(event,'${tabId}')"
                  ondragleave="fbCanvasDragLeave(event,'${tabId}')"
@@ -11785,10 +11955,12 @@ ${fields}
               </div>
               <div class="fb-mini-show-btn" id="${tabId}-fb-mini-show" onclick="fbMinimapToggle('${tabId}', true)">🗺 Minimap</div>
             </div>
+            <div class="fb-vresize fb-vresize-r" onmousedown="fbStartVResize(event,'${tabId}','right')" title="Drag to resize · double-click to reset"></div>
             <div class="fb-props" id="${tabId}-fb-props">
               <div class="empty">Select a pipeline to begin</div>
             </div>
           </div>
+          <div class="fb-hresize" onmousedown="fbStartHResize(event,'${tabId}')" title="Drag to resize · double-click to reset"></div>
           <div class="fb-console" id="${tabId}-fb-console"></div>
           <div class="scrap-batch-backdrop" id="${tabId}-fb-script-bd" onclick="if(event.target.id==='${tabId}-fb-script-bd')fbExportScriptClose('${tabId}')">
             <div class="scrap-batch-modal scrap-script-modal">
