@@ -5,6 +5,83 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [4.1.0] — 2026-05-14 — Pipeline Scheduler + Sidekick Pipeline Tools + Minimap Status
+
+The Flow Builder gets unattended execution and chat-driven management. Pipelines with `schedule.enabled` now run automatically on their `intervalMin` cadence (60s tick, 30s startup grace). Sidekick gains three pipeline tools so the whole lifecycle — create / delete / schedule — works from chat without touching the canvas. The minimap now syncs block status colors during runs.
+
+### Added — Pipeline scheduler
+
+- 60s tick interval matching the recipe scheduler pattern. Pipelines with `schedule.enabled === true` and `intervalMin` set run when `now - lastRunAt >= intervalMin * 60_000`.
+- Persists `lastRunAt` / `lastRowCount` / `lastError` / `lastDurationMs` per pipeline so the next tick has authoritative state without scanning logs.
+- 30s startup kick to let the server warm before the first sweep.
+
+### Added — Sidekick tools (+3, total 74)
+
+- `pipeline_save(name, blocks, ...)` — create or update a pipeline from chat. Reuses the same `/api/scrap/pipelines` endpoint the Builder writes to.
+- `pipeline_delete(id)` ⚠️ — irreversible. Marked destructive in TOOLS-SET.md.
+- `pipeline_set_schedule(id, enabled, intervalMin?)` — toggle and reconfigure the cadence without opening the canvas.
+
+### Added — Minimap status sync
+
+- During a run, mini blocks in the bottom-right canvas overlay tint by lifecycle: **yellow** = running, **green** = done, **red** = error. Reset to block-type colors on the next run.
+
+### Updated
+
+- TOOLS-SET.md catalog → 74 tools / 14 categories. Pipeline + schedule tools added under 🔍 Scrap.
+- README + USER-MANUAL: scheduler note in the Flow Builder section.
+
+---
+
+## [4.0.3] — 2026-05-14 — Flow Builder Phase C: live SSE progress dots + minimap
+
+Visual feedback during pipeline runs. Block cards highlight in real time as the executor advances, and a minimap in the canvas corner gives spatial overview for long pipelines.
+
+### Added
+
+- **SSE progress stream** — pipeline runner emits `block-start` / `block-done` / `block-error` events. Client subscribes and toggles `.fb-running` / `.fb-done` / `.fb-err` classes on the matching canvas block.
+- **Minimap** — bottom-right overlay (160×120) scales the full canvas, draws each block as a tinted rect. Click-to-pan disabled in Phase C (Phase D candidate).
+
+### Fixed
+
+- Run console now shows per-block timing as events arrive instead of one flush at the end.
+
+---
+
+## [4.0.2] — 2026-05-14 — Flow Builder login + follow executors + cookie propagation
+
+Two of the seven block types were stubs after Phase B. v4.0.2 fills them in so login-walled and paginated sites work end-to-end without dropping back to recipe-mode.
+
+### Added — `login` block executor
+
+- Three modes: `form` (POST credentials, capture Set-Cookie), `api` (POST JSON, capture cookie or bearer token from response), `cookie` (use a pre-supplied cookie string verbatim).
+- Captured cookie is stored on the pipeline run-context and auto-merged into every subsequent fetch in the same run.
+
+### Added — `follow` block executor
+
+- Walks pagination by resolving `nextSelector` against the last fetched page. Loops back to its `loopFrom` block (defaults to the closest preceding fetch) up to `maxPages`.
+- Stops cleanly on missing selector / exhausted pages / hard `maxPages` cap.
+
+### Added — Cookie propagation
+
+- `fetch` block now reads `runContext.cookie` if set (by a prior login block) and merges into request headers. No-op if no login ran.
+
+---
+
+## [4.0.1] — 2026-05-14 — Flow Builder: "Show output" button opens result in editor tab
+
+Tiny but high-leverage UX win after Phase B. Previously the run-console printed the output path as plain text — users had to copy-paste into the file tree to inspect. Now the path is a clickable indigo pill that opens the output file in a Monaco editor tab.
+
+### Added
+
+- `fbLogWithAction(line, label, handler)` — DOM-based log helper, XSS-safe, builds the row + action button without string concatenation.
+- After a successful run with a Store block, the final log line ends with **📂 Show output** → calls `openEditor(path)`.
+
+### Why
+
+The full path is often deep (`scraps/pipelines-out/<id>/<run-ts>.json`). Click-to-inspect closes the verify loop right after a run.
+
+---
+
 ## [4.0.0-beta] — 2026-05-14 — Visual Flow Builder · Phase B (drag-drop + edit + save)
 
 Phase A landed view-only earlier today. Phase B is the authoring half — users can now build a pipeline by dragging blocks from the palette onto the canvas, repositioning them, editing config inline, and saving back to `/api/scrap/pipelines`. The same canonical mockup (`mockups/v4.0.0-scrap-visual-builder.html`) drove both phases.
