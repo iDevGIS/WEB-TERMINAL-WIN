@@ -1509,6 +1509,89 @@
     .scrap-result-table tr:hover td { background: rgba(255,255,255,.02); }
     .scrap-empty { padding: 14px; color: var(--text3); text-align: center; font-size: 12px; }
 
+    /* === Flow Builder tab (v4.0.0-alpha.2) ===================================== */
+    .fb-tab-wrap { display: flex; flex-direction: column; width: 100%; height: 100%; overflow: hidden; background: radial-gradient(ellipse at 20% 10%, #1a1130 0%, #060818 60%); color: var(--text); }
+    .fb-toolbar { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid rgba(255,255,255,.06); background: rgba(8,10,22,.6); backdrop-filter: blur(20px); flex-shrink: 0; }
+    .fb-toolbar select, .fb-toolbar input { background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.1); border-radius: 6px; padding: 5px 10px; color: var(--text); font: inherit; font-size: 12px; outline: none; }
+    .fb-toolbar select:focus, .fb-toolbar input:focus { border-color: rgba(167,139,250,.5); }
+    .fb-toolbar .fb-btn { padding: 5px 12px; border-radius: 6px; font-size: 12px; border: 1px solid rgba(255,255,255,.12); background: rgba(255,255,255,.04); color: var(--text); cursor: pointer; display: inline-flex; align-items: center; gap: 5px; }
+    .fb-toolbar .fb-btn:hover { background: rgba(167,139,250,.12); border-color: rgba(167,139,250,.32); }
+    .fb-toolbar .fb-btn.primary { background: linear-gradient(135deg, #a855f7, #6366f1); border-color: rgba(168,85,247,.5); color: #fff; font-weight: 600; }
+    .fb-toolbar .fb-btn.primary:hover { box-shadow: 0 0 20px rgba(168,85,247,.45); }
+    .fb-toolbar .fb-spacer { flex: 1; }
+    .fb-toolbar .fb-meta { font-size: 11.5px; color: var(--text3); display: flex; align-items: center; gap: 8px; }
+
+    .fb-main { flex: 1; display: grid; grid-template-columns: 240px 1fr 320px; min-height: 0; overflow: hidden; }
+
+    .fb-palette { background: rgba(8,10,22,.5); border-right: 1px solid rgba(255,255,255,.05); padding: 14px; overflow-y: auto; }
+    .fb-palette h3 { font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: #7a7f95; margin: 4px 0 10px; }
+    .fb-pb { background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08); border-radius: 10px; padding: 9px 11px; margin-bottom: 7px; display: flex; align-items: center; gap: 10px; font-size: 12.5px; cursor: grab; transition: all .15s; }
+    .fb-pb:hover { border-color: rgba(168,85,247,.4); background: rgba(168,85,247,.08); transform: translateX(2px); }
+    .fb-pb-ico { width: 26px; height: 26px; border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; }
+    .fb-pb-fetch    .fb-pb-ico { background: rgba(6,182,212,.18);  color: #67e8f9; }
+    .fb-pb-follow   .fb-pb-ico { background: rgba(168,85,247,.18); color: #c084fc; }
+    .fb-pb-extract  .fb-pb-ico { background: rgba(16,185,129,.18); color: #6ee7b7; }
+    .fb-pb-login    .fb-pb-ico { background: rgba(251,146,60,.18); color: #fdba74; }
+    .fb-pb-ai       .fb-pb-ico { background: rgba(244,114,182,.18); color: #f9a8d4; }
+    .fb-pb-transform .fb-pb-ico { background: rgba(99,102,241,.18); color: #a5b4fc; }
+    .fb-pb-store    .fb-pb-ico { background: rgba(234,179,8,.18);  color: #fde68a; }
+    .fb-pb-label { font-weight: 600; font-size: 12px; }
+    .fb-pb-sub { font-size: 10.5px; color: var(--text3); }
+
+    .fb-canvas-wrap { position: relative; overflow: auto; background:
+      linear-gradient(rgba(167,139,250,.04) 1px, transparent 1px) 0 0 / 24px 24px,
+      linear-gradient(90deg, rgba(167,139,250,.04) 1px, transparent 1px) 0 0 / 24px 24px,
+      radial-gradient(ellipse at center, rgba(40,30,70,.4) 0%, transparent 70%);
+    }
+    .fb-canvas { position: relative; width: 2400px; height: 1600px; }
+    .fb-canvas-empty { position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--text3); font-size: 13px; gap: 8px; pointer-events: none; }
+    .fb-canvas-empty .big { font-size: 38px; opacity: .55; }
+
+    .fb-svg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+    .fb-edge { stroke: rgba(167,139,250,.55); stroke-width: 2; fill: none; }
+    .fb-edge.heal { stroke: #f472b6; stroke-dasharray: 6 4; }
+    .fb-edge.loop { stroke: #c084fc; stroke-dasharray: 8 4; }
+    .fb-edge-arrow { fill: rgba(167,139,250,.85); }
+
+    .fb-block { position: absolute; width: 200px; background: rgba(15,15,35,.92); border: 1px solid rgba(255,255,255,.1); border-radius: 12px; padding: 10px 12px; cursor: pointer; transition: border-color .15s, box-shadow .15s; backdrop-filter: blur(8px); font-size: 12px; }
+    .fb-block:hover { border-color: rgba(168,85,247,.5); box-shadow: 0 4px 18px rgba(168,85,247,.18); }
+    .fb-block.selected { border-color: #a855f7; box-shadow: 0 0 0 3px rgba(168,85,247,.3), 0 6px 22px rgba(168,85,247,.25); }
+    .fb-block .fb-bh { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+    .fb-block .fb-bh-ico { width: 24px; height: 24px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 13px; flex-shrink: 0; }
+    .fb-block .fb-bh-title { font-weight: 600; font-size: 12.5px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .fb-block .fb-bh-id { font-size: 9.5px; color: var(--text3); font-family: ui-monospace,monospace; }
+    .fb-block .fb-bbody { font-size: 11px; color: var(--text2); margin-bottom: 6px; word-break: break-all; line-height: 1.4; max-height: 36px; overflow: hidden; }
+    .fb-block .fb-bft { display: flex; align-items: center; gap: 6px; font-size: 10.5px; color: var(--text3); }
+    .fb-block .fb-bft .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+    .fb-block .fb-bft .dot.ok    { background: #10b981; box-shadow: 0 0 6px rgba(16,185,129,.6); }
+    .fb-block .fb-bft .dot.warn  { background: #f59e0b; box-shadow: 0 0 6px rgba(245,158,11,.6); }
+    .fb-block .fb-bft .dot.err   { background: #ef4444; box-shadow: 0 0 6px rgba(239,68,68,.6); }
+    .fb-block .fb-bft .dot.idle  { background: #475569; }
+    .fb-block.t-fetch    { border-left: 3px solid #06b6d4; }
+    .fb-block.t-follow   { border-left: 3px solid #a855f7; }
+    .fb-block.t-extract  { border-left: 3px solid #10b981; }
+    .fb-block.t-login    { border-left: 3px solid #fb923c; }
+    .fb-block.t-self_heal { border-left: 3px solid #f472b6; }
+    .fb-block.t-transform { border-left: 3px solid #6366f1; }
+    .fb-block.t-store    { border-left: 3px solid #eab308; }
+    .fb-block.t-start    { border-left: 3px solid #67e8f9; outline: 2px solid rgba(103,232,249,.35); outline-offset: 1px; }
+
+    .fb-props { background: rgba(8,10,22,.6); border-left: 1px solid rgba(255,255,255,.05); padding: 16px; overflow-y: auto; }
+    .fb-props h3 { font-size: 13px; color: #d8c8ff; margin: 0 0 12px; display: flex; align-items: center; gap: 8px; }
+    .fb-props .empty { color: var(--text3); font-size: 12px; padding: 20px 6px; text-align: center; }
+    .fb-props .row { margin-bottom: 10px; }
+    .fb-props .row label { display: block; font-size: 10.5px; text-transform: uppercase; letter-spacing: .03em; color: var(--text3); margin-bottom: 4px; }
+    .fb-props .row .val { font-size: 12px; color: var(--text); word-break: break-all; padding: 6px 8px; background: rgba(255,255,255,.03); border-radius: 5px; border: 1px solid rgba(255,255,255,.06); }
+    .fb-props pre.val { font-family: ui-monospace,monospace; font-size: 11px; white-space: pre-wrap; max-height: 220px; overflow: auto; }
+
+    .fb-console { flex-shrink: 0; max-height: 130px; min-height: 28px; overflow-y: auto; background: rgba(0,0,0,.45); border-top: 1px solid rgba(255,255,255,.05); padding: 6px 14px; font-family: ui-monospace,monospace; font-size: 11px; color: var(--text2); line-height: 1.55; }
+    .fb-console .line { display: flex; align-items: baseline; gap: 8px; }
+    .fb-console .ts { color: var(--text3); flex-shrink: 0; font-size: 10px; }
+    .fb-console .lvl-ok   { color: #6ee7b7; }
+    .fb-console .lvl-err  { color: #fca5a5; }
+    .fb-console .lvl-info { color: #93c5fd; }
+    .fb-console .lvl-warn { color: #fde68a; }
+
     /* Batch modal */
     .scrap-batch-backdrop { position: absolute; inset: 0; background: rgba(8,8,20,.62); backdrop-filter: blur(4px); z-index: 50; display: none; align-items: center; justify-content: center; }
     .scrap-batch-backdrop.open { display: flex; }
@@ -5299,6 +5382,11 @@
               <span class="feat-label">Scrap</span>
               <span class="feat-sub">Web scraper</span>
             </div>
+            <div class="feature" onclick="openFlowBuilderTab()" title="Flow Builder — Visual pipeline editor">
+              <span class="fi"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#a855f7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="6" height="6" rx="1"/><rect x="15" y="3" width="6" height="6" rx="1"/><rect x="9" y="15" width="6" height="6" rx="1"/><path d="M6 9v3a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2V9"/></svg></span>
+              <span class="feat-label">Flow Builder</span>
+              <span class="feat-sub">Visual pipeline</span>
+            </div>
             <div class="feature" onclick="openClaudeCodeTab()" title="Claude Code — AI Coding Agent">
               <span class="fi"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#f97316" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg></span>
               <span class="feat-label">Claude Code</span>
@@ -5568,6 +5656,307 @@
     function openScrapTab(url) {
       createTab('scrap', { name: 'Scrap', icon: '🪝', url });
     }
+
+    function openFlowBuilderTab(opts) {
+      createTab('flow-builder', { name: 'Flow Builder', icon: '🎨', ...(opts||{}) });
+    }
+
+    // === Flow Builder helpers (v4.0.0-alpha.2 — Phase A: view-only) ============
+    const FB_TYPE_META = {
+      fetch:     { ico: '🌐', label: 'Fetch URL',     bg: 'rgba(6,182,212,.18)'  },
+      follow:    { ico: '➡️', label: 'Follow Next',   bg: 'rgba(168,85,247,.18)' },
+      extract:   { ico: '📋', label: 'Extract',       bg: 'rgba(16,185,129,.18)' },
+      login:     { ico: '🔑', label: 'Login',         bg: 'rgba(251,146,60,.18)' },
+      self_heal: { ico: '✨', label: 'AI Self-Heal',  bg: 'rgba(244,114,182,.18)' },
+      transform: { ico: '⚙️', label: 'Transform',     bg: 'rgba(99,102,241,.18)' },
+      store:     { ico: '🗄️', label: 'Store',         bg: 'rgba(234,179,8,.18)'  },
+    };
+
+    function fbInit(tabId) {
+      const t = tabs.get(tabId); if (!t) return;
+      t.fb = { pipelines: [], current: null, selectedBlockId: null };
+      fbLog(tabId, 'info', 'Flow Builder ready · v4.0.0-alpha.2 (Phase A — view + run)');
+      fbLoadList(tabId);
+    }
+
+    async function fbLoadList(tabId) {
+      const t = tabs.get(tabId); if (!t) return;
+      try {
+        const r = await fetch('/api/scrap/pipelines');
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        const d = await r.json();
+        if (!t.fb) t.fb = { pipelines: [], current: null, selectedBlockId: null };
+        t.fb.pipelines = d.pipelines || [];
+        const sel = document.getElementById(tabId + '-fb-sel');
+        if (sel) {
+          const currentVal = t.fb.current ? t.fb.current.id : '';
+          sel.innerHTML = '<option value="">— Select pipeline (' + t.fb.pipelines.length + ' available) —</option>'
+            + t.fb.pipelines.map(p => '<option value="' + escAttr(p.id) + '"' + (p.id === currentVal ? ' selected' : '') + '>' + escHtml(p.name || p.id) + '</option>').join('');
+        }
+        fbLog(tabId, 'info', 'Loaded ' + t.fb.pipelines.length + ' pipeline(s)');
+      } catch (e) {
+        fbLog(tabId, 'err', 'List failed: ' + (e.message || e));
+      }
+    }
+
+    async function fbLoad(tabId, pid) {
+      const t = tabs.get(tabId); if (!t || !t.fb) return;
+      if (!pid) { t.fb.current = null; t.fb.selectedBlockId = null; fbClearCanvas(tabId); fbUpdateMeta(tabId); return; }
+      try {
+        const r = await fetch('/api/scrap/pipelines/' + encodeURIComponent(pid));
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        const d = await r.json();
+        if (!d.ok) throw new Error(d.error || 'load failed');
+        t.fb.current = d.pipeline;
+        t.fb.selectedBlockId = null;
+        fbRender(tabId);
+        fbUpdateMeta(tabId);
+        fbShowProps(tabId, null);
+        fbLog(tabId, 'info', 'Loaded "' + (d.pipeline.name || pid) + '" · ' + (d.pipeline.blocks || []).length + ' blocks');
+      } catch (e) {
+        fbLog(tabId, 'err', 'Load failed: ' + (e.message || e));
+      }
+    }
+
+    function fbUpdateMeta(tabId) {
+      const t = tabs.get(tabId);
+      const meta = document.getElementById(tabId + '-fb-meta');
+      const recent = document.getElementById(tabId + '-fb-recent');
+      if (!meta) return;
+      if (!t || !t.fb || !t.fb.current) { meta.textContent = ''; if (recent) recent.textContent = '— select pipeline —'; return; }
+      const p = t.fb.current;
+      const bits = [];
+      bits.push((p.blocks || []).length + ' blocks');
+      if (p.schedule?.enabled) bits.push('🕒 ' + (p.schedule.intervalMin || 60) + 'm');
+      if (p.lastRowCount != null) bits.push(p.lastRowCount + ' rows');
+      meta.textContent = bits.join(' · ');
+      if (recent) {
+        const when = p.lastRunAt ? new Date(p.lastRunAt).toLocaleString() : 'never';
+        recent.innerHTML = 'Last run: <b>' + escHtml(when) + '</b>'
+          + (p.lastError ? '<br><span style="color:#fca5a5">Err: ' + escHtml(String(p.lastError).slice(0,80)) + '</span>' : '')
+          + (p.lastRowCount != null && !p.lastError ? '<br><span style="color:#6ee7b7">✔ ' + p.lastRowCount + ' rows</span>' : '');
+      }
+    }
+
+    function fbAutoLayout(blocks, startBlock) {
+      const map = new Map(blocks.map(b => [b.id, b]));
+      const levelOf = {};
+      const seen = new Set();
+      const queue = [];
+      if (startBlock && map.has(startBlock)) queue.push({ id: startBlock, lvl: 0 });
+      else if (blocks[0]) queue.push({ id: blocks[0].id, lvl: 0 });
+      while (queue.length) {
+        const { id, lvl } = queue.shift();
+        if (seen.has(id)) { if (lvl < levelOf[id]) levelOf[id] = lvl; continue; }
+        seen.add(id);
+        levelOf[id] = lvl;
+        const blk = map.get(id); if (!blk) continue;
+        const nexts = [].concat(blk.next || [], blk.healFallback ? [blk.healFallback] : []);
+        for (const nid of nexts) if (!seen.has(nid)) queue.push({ id: nid, lvl: lvl + 1 });
+      }
+      const byLevel = {};
+      for (const b of blocks) {
+        const l = levelOf[b.id] != null ? levelOf[b.id] : 99;
+        (byLevel[l] = byLevel[l] || []).push(b.id);
+      }
+      const positions = {};
+      const dx = 270, dy = 150, padX = 60, padY = 60;
+      for (const lvl of Object.keys(byLevel).map(Number).sort((a,b)=>a-b)) {
+        byLevel[lvl].forEach((id, i) => { positions[id] = { x: padX + lvl * dx, y: padY + i * dy }; });
+      }
+      return positions;
+    }
+
+    function fbRender(tabId) {
+      const t = tabs.get(tabId); if (!t || !t.fb || !t.fb.current) return;
+      const p = t.fb.current;
+      const canvas = document.getElementById(tabId + '-fb-canvas');
+      if (!canvas) return;
+      const blocks = p.blocks || [];
+      const positions = {};
+      for (const b of blocks) {
+        if (b.position && Number.isFinite(+b.position.x) && Number.isFinite(+b.position.y)) {
+          positions[b.id] = { x: +b.position.x, y: +b.position.y };
+        }
+      }
+      if (Object.keys(positions).length < blocks.length) {
+        const auto = fbAutoLayout(blocks, p.startBlock || (blocks[0] && blocks[0].id));
+        for (const id in auto) if (!positions[id]) positions[id] = auto[id];
+      }
+      canvas.innerHTML = '';
+      if (!blocks.length) {
+        canvas.innerHTML = '<div class="fb-canvas-empty"><span class="big">🪹</span><div>This pipeline has no blocks</div></div>';
+        return;
+      }
+      const SVG = 'http://www.w3.org/2000/svg';
+      const svg = document.createElementNS(SVG, 'svg');
+      svg.setAttribute('class', 'fb-svg');
+      svg.innerHTML = '<defs><marker id="fb-arrow-' + tabId + '" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="fb-edge-arrow"/></marker><marker id="fb-arrow-heal-' + tabId + '" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#f472b6"/></marker><marker id="fb-arrow-loop-' + tabId + '" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#c084fc"/></marker></defs>';
+      const BW = 200, BH = 84;
+      function _edge(p1, p2, cls, markerId) {
+        const mid = (p1.x + p2.x) / 2;
+        const path = document.createElementNS(SVG, 'path');
+        path.setAttribute('d', 'M' + p1.x + ',' + p1.y + ' C' + mid + ',' + p1.y + ' ' + mid + ',' + p2.y + ' ' + p2.x + ',' + p2.y);
+        path.setAttribute('class', cls);
+        path.setAttribute('marker-end', 'url(#' + markerId + ')');
+        return path;
+      }
+      for (const b of blocks) {
+        const from = positions[b.id]; if (!from) continue;
+        for (const nid of (b.next || [])) {
+          const to = positions[nid]; if (!to) continue;
+          svg.appendChild(_edge({ x: from.x + BW, y: from.y + BH/2 }, { x: to.x, y: to.y + BH/2 }, 'fb-edge', 'fb-arrow-' + tabId));
+        }
+        if (b.healFallback && positions[b.healFallback]) {
+          const to = positions[b.healFallback];
+          svg.appendChild(_edge({ x: from.x + BW/2, y: from.y + BH }, { x: to.x + BW/2, y: to.y }, 'fb-edge heal', 'fb-arrow-heal-' + tabId));
+        }
+        if (b.loopback && positions[b.loopback]) {
+          const to = positions[b.loopback];
+          const path = document.createElementNS(SVG, 'path');
+          const p1 = { x: from.x, y: from.y + BH/2 };
+          const p2 = { x: to.x + BW, y: to.y + BH/2 };
+          const dropY = Math.max(p1.y, p2.y) + 60;
+          path.setAttribute('d', 'M' + p1.x + ',' + p1.y + ' C' + (p1.x-50) + ',' + dropY + ' ' + (p2.x+50) + ',' + dropY + ' ' + p2.x + ',' + p2.y);
+          path.setAttribute('class', 'fb-edge loop');
+          path.setAttribute('marker-end', 'url(#fb-arrow-loop-' + tabId + ')');
+          svg.appendChild(path);
+        }
+      }
+      canvas.appendChild(svg);
+
+      for (const b of blocks) {
+        const pos = positions[b.id]; if (!pos) continue;
+        const meta = FB_TYPE_META[b.type] || { ico: '⬛', bg: 'rgba(255,255,255,.08)' };
+        const div = document.createElement('div');
+        div.className = 'fb-block t-' + b.type + (b.id === p.startBlock ? ' t-start' : '') + (b.id === t.fb.selectedBlockId ? ' selected' : '');
+        div.style.left = pos.x + 'px';
+        div.style.top = pos.y + 'px';
+        div.dataset.blockId = b.id;
+        const cfg = b.config || {};
+        let bodyText = '';
+        if (b.type === 'fetch') bodyText = (cfg.mode || 'static') + (cfg.url ? ' · ' + _fbTrunc(cfg.url, 26) : ' · (no url)');
+        else if (b.type === 'extract') bodyText = cfg.root || '(no root selector)';
+        else if (b.type === 'follow') bodyText = cfg.nextSelector || '(no next selector)';
+        else if (b.type === 'transform') bodyText = (cfg.ops || []).map(o => o.op || o.type).filter(Boolean).join(' → ') || '(no ops)';
+        else if (b.type === 'store') bodyText = (cfg.format || 'json') + ' · ' + _fbTrunc(cfg.path || '(no path)', 24);
+        else if (b.type === 'self_heal') bodyText = cfg.goal ? _fbTrunc(cfg.goal, 38) : 'AI regen selectors';
+        else if (b.type === 'login') bodyText = cfg.mode || 'form';
+        const status = b.lastStatus || 'idle';
+        const statusText = b.lastStatusText || (b.id === p.startBlock ? '▶ start · ' + b.type : b.type);
+        div.innerHTML = '<div class="fb-bh">'
+          + '<div class="fb-bh-ico" style="background:' + meta.bg + '">' + meta.ico + '</div>'
+          + '<div class="fb-bh-title">' + escHtml(b.name || meta.label || b.type) + '</div>'
+          + '<div class="fb-bh-id">' + escHtml(String(b.id).slice(0, 6)) + '</div>'
+          + '</div>'
+          + '<div class="fb-bbody">' + escHtml(bodyText) + '</div>'
+          + '<div class="fb-bft"><span class="dot ' + status + '"></span>' + escHtml(statusText) + '</div>';
+        div.addEventListener('click', (e) => { e.stopPropagation(); fbSelectBlock(tabId, b.id); });
+        canvas.appendChild(div);
+      }
+    }
+
+    function _fbTrunc(s, n) { s = String(s == null ? '' : s); return s.length > n ? s.slice(0, n - 1) + '…' : s; }
+
+    function fbSelectBlock(tabId, blockId) {
+      const t = tabs.get(tabId); if (!t || !t.fb) return;
+      t.fb.selectedBlockId = blockId;
+      const canvas = document.getElementById(tabId + '-fb-canvas');
+      if (canvas) {
+        canvas.querySelectorAll('.fb-block.selected').forEach(el => el.classList.remove('selected'));
+        if (blockId) {
+          const sel = canvas.querySelector('[data-block-id="' + blockId + '"]');
+          if (sel) sel.classList.add('selected');
+        }
+      }
+      const block = blockId && t.fb.current ? (t.fb.current.blocks || []).find(b => b.id === blockId) : null;
+      fbShowProps(tabId, block);
+    }
+
+    function fbShowProps(tabId, block) {
+      const host = document.getElementById(tabId + '-fb-props');
+      if (!host) return;
+      if (!block) { host.innerHTML = '<div class="empty">Click a block to inspect properties</div>'; return; }
+      const meta = FB_TYPE_META[block.type] || { ico: '⬛', label: block.type };
+      let cfgJson = '';
+      try { cfgJson = JSON.stringify(block.config || {}, null, 2); } catch (e) { cfgJson = String(block.config); }
+      host.innerHTML = '<h3>' + meta.ico + ' ' + escHtml(block.name || meta.label || block.type) + '</h3>'
+        + '<div class="row"><label>ID</label><div class="val" style="font-family:ui-monospace,monospace;font-size:11px">' + escHtml(block.id) + '</div></div>'
+        + '<div class="row"><label>Type</label><div class="val">' + escHtml(block.type) + '</div></div>'
+        + '<div class="row"><label>Next</label><div class="val">' + ((block.next || []).map(escHtml).join(', ') || '<em style="color:var(--text3)">none</em>') + '</div></div>'
+        + (block.healFallback ? '<div class="row"><label>Heal Fallback</label><div class="val" style="color:#f9a8d4">' + escHtml(block.healFallback) + '</div></div>' : '')
+        + (block.loopback ? '<div class="row"><label>Loop Back</label><div class="val" style="color:#c084fc">' + escHtml(block.loopback) + '</div></div>' : '')
+        + '<div class="row"><label>Config</label><pre class="val">' + escHtml(cfgJson) + '</pre></div>'
+        + (block.lastError ? '<div class="row"><label>Last Error</label><div class="val" style="color:#fca5a5">' + escHtml(block.lastError) + '</div></div>' : '')
+        + (block.lastStatusText ? '<div class="row"><label>Last Status</label><div class="val">' + escHtml(block.lastStatusText) + '</div></div>' : '');
+    }
+
+    function fbClearCanvas(tabId) {
+      const canvas = document.getElementById(tabId + '-fb-canvas');
+      if (canvas) canvas.innerHTML = '<div class="fb-canvas-empty"><span class="big">🎨</span><div>Select a pipeline above to view its flow</div></div>';
+      const props = document.getElementById(tabId + '-fb-props');
+      if (props) props.innerHTML = '<div class="empty">Select a pipeline to begin</div>';
+    }
+
+    function fbLog(tabId, lvl, msg) {
+      const host = document.getElementById(tabId + '-fb-console');
+      if (!host) return;
+      const ts = new Date().toLocaleTimeString();
+      const div = document.createElement('div');
+      div.className = 'line';
+      div.innerHTML = '<span class="ts">' + ts + '</span><span class="lvl-' + (lvl || 'info') + '">' + escHtml(String(msg)) + '</span>';
+      host.appendChild(div);
+      // cap at 200 lines
+      while (host.children.length > 200) host.removeChild(host.firstChild);
+      host.scrollTop = host.scrollHeight;
+    }
+
+    async function fbRun(tabId) {
+      const t = tabs.get(tabId); if (!t || !t.fb || !t.fb.current) {
+        fbLog(tabId, 'warn', 'No pipeline loaded — select one first');
+        return;
+      }
+      const pid = t.fb.current.id;
+      const name = t.fb.current.name || pid;
+      fbLog(tabId, 'info', '▶ Running "' + name + '"...');
+      try {
+        const r = await fetch('/api/scrap/pipelines/' + encodeURIComponent(pid) + '/run', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
+        });
+        const d = await r.json();
+        if (r.ok && d.ok) {
+          fbLog(tabId, 'ok', '✔ Done · ' + (d.rowCount || 0) + ' rows · ' + (d.durationMs || 0) + 'ms' + (d.outputFile ? ' · ' + d.outputFile : ''));
+        } else {
+          fbLog(tabId, 'err', '✘ Failed: ' + ((d.errors && d.errors.join('; ')) || d.error || 'unknown'));
+        }
+        if (d.pipeline) { t.fb.current = d.pipeline; fbRender(tabId); fbUpdateMeta(tabId); }
+      } catch (e) {
+        fbLog(tabId, 'err', 'Run failed: ' + (e.message || e));
+      }
+    }
+
+    async function fbDelete(tabId) {
+      const t = tabs.get(tabId); if (!t || !t.fb || !t.fb.current) {
+        fbLog(tabId, 'warn', 'No pipeline loaded');
+        return;
+      }
+      const pid = t.fb.current.id;
+      const name = t.fb.current.name || pid;
+      if (!confirm('Delete pipeline "' + name + '" ?\n\nThis cannot be undone.')) return;
+      try {
+        const r = await fetch('/api/scrap/pipelines/' + encodeURIComponent(pid), { method: 'DELETE' });
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        fbLog(tabId, 'info', '🗑 Deleted "' + name + '"');
+        t.fb.current = null;
+        t.fb.selectedBlockId = null;
+        fbClearCanvas(tabId);
+        fbUpdateMeta(tabId);
+        fbLoadList(tabId);
+      } catch (e) {
+        fbLog(tabId, 'err', 'Delete failed: ' + (e.message || e));
+      }
+    }
+    // === end Flow Builder helpers =============================================
 
     function scrapSwitchTab(tabId, paneName, el) {
       document.querySelectorAll(`#${tabId}-sc-side [data-sc-pane]`).forEach(p => { p.style.display = 'none'; });
@@ -8284,8 +8673,8 @@ ${fields}
       const tabEl = document.createElement('div');
       tabEl.className = 'tab-item';
       tabEl.dataset.tabId = tabId;
-      const icon = opts.icon || (type === 'terminal' ? '⚡' : type === 'editor' ? '📝' : type === 'preview' ? '👁' : type === 'admin' ? '🛡️' : type === 'chat' ? '💬' : type === 'agent-monitor' ? '🤖' : type === 'vscode' ? '💻' : type === 'vnc' ? '🖥️' : type === 'docker' ? '🐳' : type === 'spy' ? '👁' : type === 'claude-code' ? '⚡' : type === 'browser' ? '🌐' : type === 'scrap' ? '🪝' : '📂');
-      const label = opts.name || (type === 'terminal' ? 'Shell' : type === 'editor' ? 'Editor' : type === 'preview' ? 'Preview' : type === 'admin' ? 'Admin' : type === 'chat' ? 'AI Chat' : type === 'agent-monitor' ? 'Agent Monitor' : type === 'vscode' ? 'VS Code' : type === 'vnc' ? 'Remote Desktop' : type === 'docker' ? 'Docker' : type === 'spy' ? 'Spy' : type === 'claude-code' ? 'Claude Code' : type === 'browser' ? 'Browser' : type === 'scrap' ? 'Scrap' : 'Files');
+      const icon = opts.icon || (type === 'terminal' ? '⚡' : type === 'editor' ? '📝' : type === 'preview' ? '👁' : type === 'admin' ? '🛡️' : type === 'chat' ? '💬' : type === 'agent-monitor' ? '🤖' : type === 'vscode' ? '💻' : type === 'vnc' ? '🖥️' : type === 'docker' ? '🐳' : type === 'spy' ? '👁' : type === 'claude-code' ? '⚡' : type === 'browser' ? '🌐' : type === 'scrap' ? '🪝' : type === 'flow-builder' ? '🎨' : '📂');
+      const label = opts.name || (type === 'terminal' ? 'Shell' : type === 'editor' ? 'Editor' : type === 'preview' ? 'Preview' : type === 'admin' ? 'Admin' : type === 'chat' ? 'AI Chat' : type === 'agent-monitor' ? 'Agent Monitor' : type === 'vscode' ? 'VS Code' : type === 'vnc' ? 'Remote Desktop' : type === 'docker' ? 'Docker' : type === 'spy' ? 'Spy' : type === 'claude-code' ? 'Claude Code' : type === 'browser' ? 'Browser' : type === 'scrap' ? 'Scrap' : type === 'flow-builder' ? 'Flow Builder' : 'Files');
       tabEl.innerHTML = `<span class="tab-icon">${icon}</span><span class="tab-label">${escHtml(label)}</span><span class="tab-close" onclick="event.stopPropagation();closeTab('${tabId}')">✕</span>`;
       if (type === 'claude-code') tabEl.style.color = '#f97316';
       tabEl.onclick = () => switchTab(tabId);
@@ -8842,6 +9231,43 @@ ${fields}
             if (ms) ms.value = opts.scrapMode;
           }
         }, 20);
+
+      } else if (type === 'flow-builder') {
+        paneEl.innerHTML = `<div class="fb-tab-wrap" id="${tabId}-fb">
+          <div class="fb-toolbar">
+            <select id="${tabId}-fb-sel" onchange="fbLoad('${tabId}', this.value)" style="min-width:220px"><option value="">— Loading pipelines… —</option></select>
+            <button class="fb-btn" onclick="fbLoadList('${tabId}')" title="Refresh pipeline list">🔄</button>
+            <span class="fb-spacer"></span>
+            <span class="fb-meta" id="${tabId}-fb-meta"></span>
+            <button class="fb-btn" onclick="fbDelete('${tabId}')" title="Delete pipeline">🗑</button>
+            <button class="fb-btn primary" onclick="fbRun('${tabId}')" title="Run pipeline">▶ Run</button>
+          </div>
+          <div class="fb-main">
+            <div class="fb-palette">
+              <h3>Block Types</h3>
+              <div class="fb-pb fb-pb-fetch" data-fb-type="fetch"><div class="fb-pb-ico">🌐</div><div><div class="fb-pb-label">Fetch URL</div><div class="fb-pb-sub">HTTP + render</div></div></div>
+              <div class="fb-pb fb-pb-login" data-fb-type="login"><div class="fb-pb-ico">🔑</div><div><div class="fb-pb-label">Login</div><div class="fb-pb-sub">Form / OAuth</div></div></div>
+              <div class="fb-pb fb-pb-extract" data-fb-type="extract"><div class="fb-pb-ico">📋</div><div><div class="fb-pb-label">Extract</div><div class="fb-pb-sub">CSS fields</div></div></div>
+              <div class="fb-pb fb-pb-follow" data-fb-type="follow"><div class="fb-pb-ico">➡️</div><div><div class="fb-pb-label">Follow Next</div><div class="fb-pb-sub">Pagination</div></div></div>
+              <div class="fb-pb fb-pb-ai" data-fb-type="self_heal"><div class="fb-pb-ico">✨</div><div><div class="fb-pb-label">AI Self-Heal</div><div class="fb-pb-sub">Regen selectors</div></div></div>
+              <div class="fb-pb fb-pb-transform" data-fb-type="transform"><div class="fb-pb-ico">⚙️</div><div><div class="fb-pb-label">Transform</div><div class="fb-pb-sub">filter / dedupe</div></div></div>
+              <div class="fb-pb fb-pb-store" data-fb-type="store"><div class="fb-pb-ico">🗄️</div><div><div class="fb-pb-label">Store</div><div class="fb-pb-sub">JSON / CSV</div></div></div>
+              <h3 style="margin-top:18px">Recent Runs</h3>
+              <div id="${tabId}-fb-recent" style="font-size:11.5px;color:var(--text3)">— select pipeline —</div>
+            </div>
+            <div class="fb-canvas-wrap" onclick="if(event.target===this||event.target.classList.contains('fb-canvas')){fbSelectBlock('${tabId}', null);}">
+              <div class="fb-canvas" id="${tabId}-fb-canvas">
+                <div class="fb-canvas-empty"><span class="big">🎨</span><div>Select a pipeline above to view its flow</div></div>
+              </div>
+            </div>
+            <div class="fb-props" id="${tabId}-fb-props">
+              <div class="empty">Select a pipeline to begin</div>
+            </div>
+          </div>
+          <div class="fb-console" id="${tabId}-fb-console"></div>
+        </div>`;
+        container.appendChild(paneEl);
+        setTimeout(() => fbInit(tabId), 30);
 
       } else if (type === 'browser') {
         const startUrl = opts.url || 'https://www.bing.com';

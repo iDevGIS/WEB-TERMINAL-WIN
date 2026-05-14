@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<title>CYBERFRAME — Scrap Visual Flow Builder v4.0.0 mockup</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    width: 1440px; height: 900px;
+    font-family: 'Segoe UI', 'Inter', system-ui, sans-serif;
+    background: radial-gradient(ellipse at 20% 10%, #1a1130 0%, #060818 60%);
+    color: #e6e8f0;
+    overflow: hidden;
+  }
+
+  /* Top bar */
+  .topbar {
+    height: 48px;
+    background: linear-gradient(90deg, rgba(168,85,247,.18), rgba(6,182,212,.18));
+    border-bottom: 1px solid rgba(255,255,255,.08);
+    display: flex; align-items: center; padding: 0 18px;
+    gap: 14px;
+    backdrop-filter: blur(20px);
+  }
+  .logo {
+    font-weight: 700;
+    background: linear-gradient(90deg,#a855f7,#06b6d4);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    font-size: 17px; letter-spacing: .5px;
+  }
+  .breadcrumb {
+    font-size: 13px; color: #c4c7d4; display: flex; align-items: center; gap: 8px;
+  }
+  .breadcrumb .sep { color: #4a4f63; }
+  .breadcrumb .now { color: #a8e8f7; font-weight: 600; }
+  .breadcrumb input.recipe-name {
+    background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.1);
+    border-radius: 6px; padding: 4px 10px; color: #fff; font-size: 13px;
+    width: 220px;
+  }
+  .topbar .spacer { flex: 1; }
+  .btn {
+    padding: 7px 14px; border-radius: 8px; font-size: 12.5px;
+    border: 1px solid rgba(255,255,255,.12); background: rgba(255,255,255,.04);
+    color: #e6e8f0; cursor: default; display: flex; align-items: center; gap: 6px;
+  }
+  .btn.primary {
+    background: linear-gradient(135deg, #a855f7, #6366f1);
+    border-color: rgba(168,85,247,.5); color: #fff; font-weight: 600;
+    box-shadow: 0 0 24px rgba(168,85,247,.3);
+  }
+  .btn.success {
+    background: linear-gradient(135deg, #10b981, #06b6d4);
+    border-color: rgba(16,185,129,.5); color: #fff; font-weight: 600;
+  }
+  .btn.icon { padding: 7px 9px; }
+
+  /* Main grid */
+  .main {
+    position: absolute; top: 48px; left: 0; right: 0; bottom: 0;
+    display: grid;
+    grid-template-columns: 240px 1fr 320px;
+  }
+
+  /* Block palette */
+  .palette {
+    background: rgba(8,10,22,.5);
+    border-right: 1px solid rgba(255,255,255,.05);
+    padding: 16px;
+    overflow-y: auto;
+  }
+  .palette h3 {
+    font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase;
+    color: #7a7f95; margin-bottom: 12px; margin-top: 4px;
+  }
+  .palette-block {
+    background: rgba(255,255,255,.04);
+    border: 1px solid rgba(255,255,255,.08);
+    border-radius: 10px; padding: 10px 12px;
+    margin-bottom: 8px;
+    display: flex; align-items: center; gap: 10px;
+    font-size: 12.5px;
+    cursor: grab;
+    transition: all .15s;
+  }
+  .palette-block:hover {
+    border-color: rgba(168,85,247,.4);
+    background: rgba(168,85,247,.08);
+    transform: translateX(2px);
+  }
+  .palette-block .pb-ico {
+    width: 26px; height: 26px; border-radius: 7px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px;
+  }
+  .pb-fetch  .pb-ico { background: rgba(6,182,212,.18);  color: #67e8f9; }
+  .pb-follow .pb-ico { background: rgba(168,85,247,.18); color: #c084fc; }
+  .pb-extract .pb-ico { background: rgba(16,185,129,.18); color: #6ee7b7; }
+  .pb-login  .pb-ico { background: rgba(251,146,60,.18); color: #fdba74; }
+  .pb-ai     .pb-ico { background: rgba(244,114,182,.18); color: #f9a8d4; }
+  .pb-store  .pb-ico { background: rgba(250,204,21,.18); color: #fde047; }
+  .pb-filter .pb-ico { background: rgba(99,102,241,.18); color: #a5b4fc; }
+  .palette-block .pb-name { color: #e6e8f0; font-weight: 500; }
+  .palette-block .pb-desc { color: #888c9d; font-size: 10.5px; margin-top: 2px; }
+  .palette-block .pb-text { flex: 1; }
+
+  /* Canvas */
+  .canvas-wrap {
+    position: relative;
+    background:
+      radial-gradient(circle, rgba(168,85,247,.04) 1px, transparent 1px) 0 0/24px 24px,
+      linear-gradient(180deg, #0a0d1f 0%, #060818 100%);
+    overflow: hidden;
+  }
+  .canvas-toolbar {
+    position: absolute; top: 12px; left: 12px;
+    display: flex; gap: 6px;
+    background: rgba(8,10,22,.85);
+    border: 1px solid rgba(255,255,255,.08);
+    border-radius: 8px; padding: 4px;
+    backdrop-filter: blur(8px);
+    z-index: 10;
+  }
+  .canvas-toolbar .btn {
+    padding: 4px 9px; font-size: 11px;
+    background: transparent; border: none;
+  }
+  .canvas-toolbar .btn.active {
+    background: rgba(168,85,247,.2); color: #d8b4fe;
+  }
+  .minimap {
+    position: absolute; bottom: 12px; right: 12px;
+    width: 130px; height: 84px;
+    background: rgba(8,10,22,.85);
+    border: 1px solid rgba(255,255,255,.1);
+    border-radius: 8px;
+    backdrop-filter: blur(8px);
+  }
+  .minimap-vp {
+    position: absolute; top: 16px; left: 18px;
+    width: 60px; height: 38px;
+    border: 1.5px solid rgba(168,85,247,.6);
+    border-radius: 3px;
+    background: rgba(168,85,247,.1);
+  }
+
+  /* SVG layer for connections */
+  .conn-layer {
+    position: absolute; inset: 0;
+    pointer-events: none;
+  }
+
+  /* Flow blocks (on canvas) */
+  .block {
+    position: absolute;
+    width: 220px;
+    background: rgba(15,18,38,.92);
+    border: 1.5px solid rgba(255,255,255,.1);
+    border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.4);
+    backdrop-filter: blur(12px);
+  }
+  .block.selected {
+    border-color: #a855f7;
+    box-shadow: 0 0 0 3px rgba(168,85,247,.18), 0 8px 24px rgba(168,85,247,.3);
+  }
+  .block-head {
+    padding: 10px 12px;
+    border-bottom: 1px solid rgba(255,255,255,.06);
+    display: flex; align-items: center; gap: 8px;
+    font-size: 12.5px; font-weight: 600;
+  }
+  .block-head .b-ico {
+    width: 22px; height: 22px; border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px;
+  }
+  .block-head .b-num {
+    margin-left: auto;
+    background: rgba(255,255,255,.06);
+    color: #888c9d; font-size: 10px;
+    padding: 2px 7px; border-radius: 10px;
+  }
+  .block-body {
+    padding: 10px 12px;
+    font-size: 11.5px; color: #c4c7d4;
+    line-height: 1.5;
+  }
+  .block-body .label { color: #7a7f95; font-size: 10px; text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 2px; }
+  .block-body .val {
+    background: rgba(255,255,255,.04);
+    padding: 4px 8px;
+    border-radius: 5px;
+    font-family: 'Cascadia Code', 'Consolas', monospace;
+    font-size: 10.5px;
+    color: #a8e8f7;
+    margin-bottom: 6px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .block-body .val.green { color: #6ee7b7; }
+  .block-body .val.pink  { color: #f9a8d4; }
+  .block-body .val.yellow{ color: #fde047; }
+  .block-foot {
+    padding: 6px 12px;
+    background: rgba(255,255,255,.02);
+    border-top: 1px solid rgba(255,255,255,.05);
+    border-radius: 0 0 12px 12px;
+    display: flex; align-items: center; gap: 6px;
+    font-size: 10.5px; color: #888c9d;
+  }
+  .block-foot .dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: #10b981;
+    box-shadow: 0 0 6px #10b981;
+  }
+  .block-foot .dot.warn { background: #fbbf24; box-shadow: 0 0 6px #fbbf24; }
+  .block-foot .dot.error { background: #ef4444; box-shadow: 0 0 6px #ef4444; }
+
+  /* Ports */
+  .port {
+    position: absolute;
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    background: rgba(168,85,247,.85);
+    border: 2px solid #1a1130;
+    box-shadow: 0 0 8px rgba(168,85,247,.5);
+  }
+  .port.in  { top: 50%; left: -7px; transform: translateY(-50%); }
+  .port.out { top: 50%; right: -7px; transform: translateY(-50%); }
+  .port.out.green { background: rgba(16,185,129,.85); box-shadow: 0 0 8px rgba(16,185,129,.5); }
+
+  /* Block colors */
+  .blk-fetch   .b-ico { background: rgba(6,182,212,.2);  color: #67e8f9; }
+  .blk-follow  .b-ico { background: rgba(168,85,247,.2); color: #c084fc; }
+  .blk-extract .b-ico { background: rgba(16,185,129,.2); color: #6ee7b7; }
+  .blk-login   .b-ico { background: rgba(251,146,60,.2); color: #fdba74; }
+  .blk-ai      .b-ico { background: rgba(244,114,182,.2); color: #f9a8d4; }
+  .blk-store   .b-ico { background: rgba(250,204,21,.2); color: #fde047; }
+  .blk-filter  .b-ico { background: rgba(99,102,241,.2); color: #a5b4fc; }
+
+  /* Properties panel */
+  .props {
+    background: rgba(8,10,22,.6);
+    border-left: 1px solid rgba(255,255,255,.05);
+    padding: 16px;
+    overflow-y: auto;
+  }
+  .props h3 {
+    font-size: 11px; letter-spacing: 1.2px; text-transform: uppercase;
+    color: #7a7f95; margin-bottom: 14px;
+  }
+  .props .selected-card {
+    background: rgba(168,85,247,.08);
+    border: 1px solid rgba(168,85,247,.25);
+    border-radius: 10px;
+    padding: 12px;
+    margin-bottom: 18px;
+  }
+  .props .selected-card .title {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 13px; font-weight: 600;
+    margin-bottom: 4px;
+  }
+  .props .selected-card .desc {
+    color: #888c9d; font-size: 11px;
+  }
+  .props .field {
+    margin-bottom: 12px;
+  }
+  .props .field label {
+    display: block;
+    font-size: 10.5px; color: #888c9d;
+    text-transform: uppercase; letter-spacing: 0.6px;
+    margin-bottom: 4px;
+  }
+  .props .field input,
+  .props .field select,
+  .props .field textarea {
+    width: 100%;
+    background: rgba(255,255,255,.04);
+    border: 1px solid rgba(255,255,255,.1);
+    border-radius: 6px;
+    padding: 7px 10px;
+    color: #e6e8f0;
+    font-size: 12px;
+    font-family: 'Cascadia Code', 'Consolas', monospace;
+  }
+  .props .field textarea {
+    min-height: 60px;
+    resize: vertical;
+  }
+  .props .row { display: flex; gap: 8px; }
+  .props .row .field { flex: 1; }
+  .props .help {
+    font-size: 10.5px;
+    color: #7a7f95;
+    margin-top: 4px;
+    font-style: italic;
+  }
+  .props .tab-strip {
+    display: flex; gap: 4px;
+    margin-bottom: 12px;
+    border-bottom: 1px solid rgba(255,255,255,.08);
+  }
+  .props .tab-strip .t {
+    padding: 6px 12px;
+    font-size: 11.5px;
+    color: #888c9d;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+  }
+  .props .tab-strip .t.active {
+    color: #d8b4fe;
+    border-bottom-color: #a855f7;
+  }
+
+  /* Run console at bottom */
+  .console-bar {
+    position: absolute; left: 240px; right: 320px; bottom: 0;
+    height: 32px;
+    background: rgba(8,10,22,.9);
+    border-top: 1px solid rgba(255,255,255,.08);
+    display: flex; align-items: center;
+    padding: 0 16px; gap: 14px;
+    font-size: 11.5px;
+    backdrop-filter: blur(8px);
+  }
+  .console-bar .dot { width: 8px; height: 8px; border-radius: 50%; background: #10b981; box-shadow: 0 0 6px #10b981; }
+  .console-bar .ok { color: #6ee7b7; }
+  .console-bar .warn { color: #fde047; }
+  .console-bar .info { color: #888c9d; }
+
+  /* Sidekick floater */
+  .launcher {
+    position: absolute; bottom: 60px; right: 28px;
+    width: 56px; height: 56px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #a855f7, #6366f1);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 24px;
+    box-shadow: 0 0 24px rgba(168,85,247,.5), 0 8px 24px rgba(0,0,0,.4);
+    border: 2px solid rgba(255,255,255,.15);
+  }
+  .launcher::after {
+    content: '';
+    position: absolute; bottom: 4px; right: 4px;
+    width: 10px; height: 10px; border-radius: 50%;
+    background: #10b981;
+    border: 2px solid #060818;
+    box-shadow: 0 0 6px #10b981;
+  }
+
+  /* Watermark */
+  .watermark {
+    position: absolute; top: 60px; right: 340px;
+    font-size: 9px; color: rgba(255,255,255,.18); letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+</style>
+</head>
+<body>
+
+<!-- Top bar -->
+<div class="topbar">
+  <div class="logo">⚡ CYBERFRAME</div>
+  <div class="breadcrumb">
+    <span>Scrap Tool</span>
+    <span class="sep">›</span>
+    <span class="now">Visual Builder</span>
+    <span class="sep">›</span>
+    <input class="recipe-name" value="Amazon product scraper" />
+  </div>
+  <div class="spacer"></div>
+  <div class="btn icon" title="Undo">↶</div>
+  <div class="btn icon" title="Redo">↷</div>
+  <div class="btn">📋 Templates</div>
+  <div class="btn">💾 Save</div>
+  <div class="btn success">▶ Run Flow</div>
+  <div class="btn primary">🚀 Deploy</div>
+</div>
+
+<div class="main">
+
+  <!-- Block palette -->
+  <div class="palette">
+    <h3>📦 Blocks</h3>
+    <div class="palette-block pb-fetch"><div class="pb-ico">🌐</div><div class="pb-text"><div class="pb-name">Fetch URL</div><div class="pb-desc">HTTP GET + render</div></div></div>
+    <div class="palette-block pb-login"><div class="pb-ico">🔑</div><div class="pb-text"><div class="pb-name">Login</div><div class="pb-desc">Auth flow + cookies</div></div></div>
+    <div class="palette-block pb-extract"><div class="pb-ico">📋</div><div class="pb-text"><div class="pb-name">Extract Fields</div><div class="pb-desc">CSS selectors → JSON</div></div></div>
+    <div class="palette-block pb-follow"><div class="pb-ico">➡️</div><div class="pb-text"><div class="pb-name">Follow Next</div><div class="pb-desc">Pagination loop</div></div></div>
+    <div class="palette-block pb-ai"><div class="pb-ico">✨</div><div class="pb-text"><div class="pb-name">AI Selectors</div><div class="pb-desc">Claude regenerate</div></div></div>
+    <div class="palette-block pb-filter"><div class="pb-ico">⚙️</div><div class="pb-text"><div class="pb-name">Transform</div><div class="pb-desc">Filter / map / dedupe</div></div></div>
+    <div class="palette-block pb-store"><div class="pb-ico">🗄️</div><div class="pb-text"><div class="pb-name">Store</div><div class="pb-desc">SQLite / CSV / JSON</div></div></div>
+
+    <h3 style="margin-top: 18px;">💾 Saved Recipes</h3>
+    <div class="palette-block" style="background:rgba(255,255,255,.02);">
+      <div class="pb-ico" style="background: rgba(99,102,241,.18); color: #a5b4fc;">📜</div>
+      <div class="pb-text"><div class="pb-name">Hackernews top 100</div><div class="pb-desc">last run 2h ago · 100 rows</div></div>
+    </div>
+    <div class="palette-block" style="background:rgba(255,255,255,.02);">
+      <div class="pb-ico" style="background: rgba(99,102,241,.18); color: #a5b4fc;">📜</div>
+      <div class="pb-text"><div class="pb-name">Lazada deals</div><div class="pb-desc">last run 30m ago · 24 rows</div></div>
+    </div>
+  </div>
+
+  <!-- Canvas -->
+  <div class="canvas-wrap">
+    <div class="canvas-toolbar">
+      <div class="btn active">🖱 Select</div>
+      <div class="btn">✋ Pan</div>
+      <div class="btn">⊕ Fit</div>
+      <div class="btn">100%</div>
+    </div>
+    <div class="watermark">v4.0.0 · self-healing enabled</div>
+
+    <!-- SVG connections -->
+    <svg class="conn-layer" viewBox="0 0 880 820">
+      <!-- Block 1 Fetch → Block 2 Login -->
+      <path d="M 286,150 C 360,150 360,260 434,260" stroke="rgba(168,85,247,.6)" stroke-width="2" fill="none" />
+      <!-- Block 2 Login → Block 3 Extract -->
+      <path d="M 654,260 C 720,260 720,150 766,150" stroke="rgba(168,85,247,.6)" stroke-width="2" fill="none" />
+      <!-- We will move extract back so it fits — actually let me redo coords to a clean tree -->
+    </svg>
+
+    <!-- We redraw connections via direct positioning instead. Cleaner approach: -->
+    <svg class="conn-layer" viewBox="0 0 880 820" style="z-index:2;">
+      <defs>
+        <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+          <path d="M0,0 L0,6 L9,3 z" fill="rgba(168,85,247,.7)"/>
+        </marker>
+        <marker id="arrowG" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+          <path d="M0,0 L0,6 L9,3 z" fill="rgba(16,185,129,.7)"/>
+        </marker>
+      </defs>
+      <!-- Fetch (50,80) → Login (320,80) -->
+      <path d="M 290,124 C 320,124 320,124 340,124" stroke="rgba(168,85,247,.65)" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+      <!-- Login (320,80) → Extract (590,80) -->
+      <path d="M 580,124 C 620,124 620,124 640,124" stroke="rgba(168,85,247,.65)" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+      <!-- Extract (590,80) → AI (590,300) (side branch — fallback) -->
+      <path d="M 700,200 C 700,240 700,260 700,290" stroke="rgba(244,114,182,.6)" stroke-width="2" stroke-dasharray="5,3" fill="none" marker-end="url(#arrow)"/>
+      <!-- Extract → Follow Next (320,300) main path -->
+      <path d="M 640,180 C 600,200 460,260 430,290" stroke="rgba(168,85,247,.65)" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+      <!-- Follow loop back to Fetch -->
+      <path d="M 320,332 C 240,360 90,360 90,170" stroke="rgba(168,85,247,.5)" stroke-width="2" stroke-dasharray="6,4" fill="none" marker-end="url(#arrow)"/>
+      <!-- Follow → Transform -->
+      <path d="M 430,344 C 460,380 530,420 580,440" stroke="rgba(168,85,247,.65)" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+      <!-- Transform → Store -->
+      <path d="M 800,464 C 830,464 850,464 870,464" stroke="rgba(16,185,129,.7)" stroke-width="2.5" fill="none" marker-end="url(#arrowG)"/>
+      <!-- AI → Extract (regen path — back) -->
+      <path d="M 590,332 C 540,310 530,250 540,200" stroke="rgba(244,114,182,.5)" stroke-width="1.5" stroke-dasharray="4,3" fill="none"/>
+    </svg>
+
+    <!-- Block 1: Fetch URL -->
+    <div class="block blk-fetch" style="left: 60px; top: 80px;">
+      <div class="port out"></div>
+      <div class="block-head">
+        <div class="b-ico">🌐</div>
+        <span>Fetch URL</span>
+        <span class="b-num">#1</span>
+      </div>
+      <div class="block-body">
+        <div class="label">URL</div>
+        <div class="val">https://amazon.com/s?k=...</div>
+        <div class="label">Render</div>
+        <div class="val">JavaScript (Playwright)</div>
+      </div>
+      <div class="block-foot">
+        <span class="dot"></span>
+        <span>last 142ms · 200 OK</span>
+      </div>
+    </div>
+
+    <!-- Block 2: Login (selected) -->
+    <div class="block blk-login selected" style="left: 340px; top: 80px;">
+      <div class="port in"></div>
+      <div class="port out"></div>
+      <div class="block-head">
+        <div class="b-ico">🔑</div>
+        <span>Login</span>
+        <span class="b-num">#2</span>
+      </div>
+      <div class="block-body">
+        <div class="label">Login URL</div>
+        <div class="val">/ap/signin</div>
+        <div class="row" style="display:flex; gap:6px;">
+          <div style="flex:1;">
+            <div class="label">User</div>
+            <div class="val pink">env.AMZ_USER</div>
+          </div>
+          <div style="flex:1;">
+            <div class="label">Pass</div>
+            <div class="val pink">env.AMZ_PASS</div>
+          </div>
+        </div>
+        <div class="label">Cookie store</div>
+        <div class="val green">.scrap/cookies/amazon.json</div>
+      </div>
+      <div class="block-foot">
+        <span class="dot"></span>
+        <span>session valid · 12h left</span>
+      </div>
+    </div>
+
+    <!-- Block 3: Extract Fields -->
+    <div class="block blk-extract" style="left: 640px; top: 60px;">
+      <div class="port in"></div>
+      <div class="port out"></div>
+      <div class="port out green" style="top:75%;"></div>
+      <div class="block-head">
+        <div class="b-ico">📋</div>
+        <span>Extract Fields</span>
+        <span class="b-num">#3</span>
+      </div>
+      <div class="block-body">
+        <div class="label">Root selector</div>
+        <div class="val">div[data-component-type="s-search-result"]</div>
+        <div class="label">Fields (4)</div>
+        <div class="val green">title · price · rating · image</div>
+      </div>
+      <div class="block-foot">
+        <span class="dot warn"></span>
+        <span>1 selector failed · AI auto-repair on</span>
+      </div>
+    </div>
+
+    <!-- Block 4: Follow Next -->
+    <div class="block blk-follow" style="left: 320px; top: 290px;">
+      <div class="port in"></div>
+      <div class="port out"></div>
+      <div class="block-head">
+        <div class="b-ico">➡️</div>
+        <span>Follow Next</span>
+        <span class="b-num">#4</span>
+      </div>
+      <div class="block-body">
+        <div class="label">Next-page selector</div>
+        <div class="val">a.s-pagination-next</div>
+        <div class="row" style="display:flex; gap:6px;">
+          <div style="flex:1;">
+            <div class="label">Max pages</div>
+            <div class="val yellow">10</div>
+          </div>
+          <div style="flex:1;">
+            <div class="label">Delay (ms)</div>
+            <div class="val yellow">800</div>
+          </div>
+        </div>
+      </div>
+      <div class="block-foot">
+        <span class="dot"></span>
+        <span>page 3/10 (looping back to Fetch)</span>
+      </div>
+    </div>
+
+    <!-- Block 5: AI Selectors (fallback branch) -->
+    <div class="block blk-ai" style="left: 590px; top: 290px;">
+      <div class="port in"></div>
+      <div class="port out"></div>
+      <div class="block-head">
+        <div class="b-ico">✨</div>
+        <span>AI Self-Heal</span>
+        <span class="b-num">#5</span>
+      </div>
+      <div class="block-body">
+        <div class="label">Trigger</div>
+        <div class="val pink">rowCount drop &gt; 90%</div>
+        <div class="label">Model</div>
+        <div class="val">claude-opus-4-7</div>
+        <div class="label">Confidence threshold</div>
+        <div class="val">0.85</div>
+      </div>
+      <div class="block-foot">
+        <span class="dot"></span>
+        <span>regen 2× this week · rolled back 0</span>
+      </div>
+    </div>
+
+    <!-- Block 6: Transform -->
+    <div class="block blk-filter" style="left: 580px; top: 420px;">
+      <div class="port in"></div>
+      <div class="port out green"></div>
+      <div class="block-head">
+        <div class="b-ico">⚙️</div>
+        <span>Transform</span>
+        <span class="b-num">#6</span>
+      </div>
+      <div class="block-body">
+        <div class="label">Pipeline</div>
+        <div class="val">filter(price &gt; 0) · dedupe(asin) · sortBy(rating)</div>
+        <div class="label">Output rows</div>
+        <div class="val green">142 unique products</div>
+      </div>
+      <div class="block-foot">
+        <span class="dot"></span>
+        <span>147ms · 142/180 passed</span>
+      </div>
+    </div>
+
+    <!-- Block 7: Store -->
+    <div class="block blk-store" style="left: 870px; top: 420px;">
+      <div class="port in"></div>
+      <div class="block-head">
+        <div class="b-ico">🗄️</div>
+        <span>Store</span>
+        <span class="b-num">#7</span>
+      </div>
+      <div class="block-body">
+        <div class="label">Target</div>
+        <div class="val yellow">SQLite (recipes.db)</div>
+        <div class="label">Table</div>
+        <div class="val">amazon_products</div>
+        <div class="label">On conflict</div>
+        <div class="val green">UPSERT by asin</div>
+      </div>
+      <div class="block-foot">
+        <span class="dot"></span>
+        <span>142 rows written · diff: +18 new, ~24 updated</span>
+      </div>
+    </div>
+
+    <!-- Minimap -->
+    <div class="minimap">
+      <div class="minimap-vp"></div>
+    </div>
+
+    <!-- Sidekick -->
+    <div class="launcher">🤖</div>
+
+    <!-- Run console -->
+    <div class="console-bar">
+      <span class="dot"></span>
+      <span class="ok">● Flow running</span>
+      <span class="info">|</span>
+      <span class="info">Page 3/10</span>
+      <span class="info">|</span>
+      <span class="info">142 rows extracted</span>
+      <span class="info">|</span>
+      <span class="warn">⚠ 1 AI self-heal applied</span>
+      <span class="info">|</span>
+      <span class="info">Elapsed: 4.2s</span>
+    </div>
+  </div>
+
+  <!-- Properties panel -->
+  <div class="props">
+    <h3>⚙️ Properties — Login #2</h3>
+
+    <div class="selected-card">
+      <div class="title">
+        <span style="font-size:16px;">🔑</span>
+        <span>Login Block</span>
+      </div>
+      <div class="desc">Authenticate before scraping protected pages. Stores session cookies for reuse.</div>
+    </div>
+
+    <div class="tab-strip">
+      <div class="t active">Config</div>
+      <div class="t">Schedule</div>
+      <div class="t">History</div>
+    </div>
+
+    <div class="field">
+      <label>Login URL</label>
+      <input value="/ap/signin" />
+    </div>
+
+    <div class="field">
+      <label>Method</label>
+      <select>
+        <option>Form submit</option>
+        <option>API POST</option>
+        <option>OAuth redirect</option>
+      </select>
+    </div>
+
+    <div class="row">
+      <div class="field">
+        <label>Username field</label>
+        <input value="#ap_email" />
+      </div>
+      <div class="field">
+        <label>Password field</label>
+        <input value="#ap_password" />
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Credentials</label>
+      <input value="env.AMZ_USER / env.AMZ_PASS" style="font-style:italic; color:#f9a8d4;" />
+      <div class="help">tip: prefix with <b>env.</b> to read from .env vault</div>
+    </div>
+
+    <div class="field">
+      <label>Success indicator</label>
+      <input value="div#nav-link-accountList" />
+      <div class="help">CSS selector that must appear after login</div>
+    </div>
+
+    <div class="field">
+      <label>Cookie persistence</label>
+      <select>
+        <option>Save to .scrap/cookies/</option>
+        <option>Session-only</option>
+        <option>None</option>
+      </select>
+    </div>
+
+    <div class="row" style="margin-top: 10px;">
+      <div class="btn" style="flex:1; justify-content: center;">🧪 Test</div>
+      <div class="btn primary" style="flex:1; justify-content: center;">✓ Apply</div>
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>

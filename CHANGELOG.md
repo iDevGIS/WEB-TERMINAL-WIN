@@ -5,6 +5,58 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [4.0.0-alpha.2] — 2026-05-14 — Visual Flow Builder · Phase A (view + run)
+
+First user-facing surface for the v4.0.0-alpha.1 pipeline backend. Adds a new tab type — **Flow Builder** — with a 3-column layout (palette / canvas / properties) that loads pipelines from `/api/scrap/pipelines`, renders blocks + arrows on a grid canvas, lets the user inspect any block, and runs the pipeline against the live backend.
+
+### Why
+
+Backend was shipped overnight (v4.0.0-alpha.1) but had no UI — pipelines could only be exercised via curl or Sidekick tools. Phase A is the minimum viable surface: load → view → run. Drag-drop authoring lands in Phase B.
+
+### Added — Flow Builder tab (public/index.html)
+
+- New welcome card "🎨 Flow Builder" next to Scrap, launches `openFlowBuilderTab()`.
+- `createTab('flow-builder', …)` branch renders the full layout: toolbar (pipeline selector + refresh + delete + Run), 240px palette (7 block-type cards + Recent Runs summary), scrollable 2400×1600 canvas with grid background, 320px properties panel, and a fixed-bottom run console.
+- Block types color-coded per the v4.0.0 mockup (`mockups/v4.0.0-scrap-visual-builder.html`): fetch (cyan), follow (purple), extract (green), login (orange), self_heal (pink), transform (indigo), store (yellow). Start block gets a cyan outline glow.
+- SVG edge layer: solid purple arrows for `next[]`, dashed pink for `healFallback`, dashed purple loop for `loopback` — matches the visual grammar locked in `memory/2026-05-14.md` (block-color taxonomy + arrow-style semantic channel).
+
+### Added — fb* JS helpers (public/index.html)
+
+- `fbInit(tabId)` — sets up per-tab `t.fb = { pipelines, current, selectedBlockId }`.
+- `fbLoadList(tabId)` — GET `/api/scrap/pipelines`, fills the selector dropdown.
+- `fbLoad(tabId, pid)` — GET one pipeline, render canvas + properties panel.
+- `fbAutoLayout(blocks, startBlock)` — BFS layered layout when blocks have no `position`: groups by depth-from-start, spreads horizontally (dx=270) within each level vertically (dy=150).
+- `fbRender(tabId)` — paints SVG edges first (`<defs>` per-tab arrow markers to avoid id collisions across tabs), then absolute-positioned block cards with type-coded left borders and status dot in the footer.
+- `fbSelectBlock(tabId, blockId)` — toggle selected ring + populate properties panel.
+- `fbShowProps(tabId, block)` — read-only inspect: ID / Type / Next / Heal Fallback / Loop Back / Config (JSON pretty-print) / Last Error / Last Status.
+- `fbRun(tabId)` — POST `/api/scrap/pipelines/:id/run` and stream result into the console (✔ row count + duration + outputFile, or ✘ errors). Re-renders the canvas with updated `lastStatus*` from the run response.
+- `fbDelete(tabId)` — DELETE with confirm; clears canvas, refreshes list.
+- `fbLog(tabId, lvl, msg)` — append to console with timestamp + level color (ok/err/info/warn); caps at 200 lines.
+
+### Added — Tab type metadata
+
+- Icon `🎨` + label `Flow Builder` registered in `createTab`'s icon/label fallback chain.
+
+### Added — Mockup synced into WEB-TERMINAL
+
+- `mockups/v4.0.0-scrap-visual-builder.html` + `.png` copied from the parent workspace so the design source lives beside the code that references it.
+
+### Tech notes
+
+- Canvas is **view-only** in Phase A — palette items aren't yet draggable onto the canvas, and edges aren't drawable from blocks. Both arrive in Phase B (drag-drop authoring).
+- Per-tab SVG marker ids (`fb-arrow-${tabId}`) prevent id collisions when multiple Flow Builder tabs are open.
+- Block position priority: explicit `block.position.{x,y}` wins; otherwise auto-layout fills missing positions.
+- No server changes — pipeline endpoints (`/api/scrap/pipelines*`) shipped in v4.0.0-alpha.1.
+
+### Pending
+
+- Phase B: drag-drop authoring (palette → canvas, output→input edge drawing, block-move, save).
+- Phase C: live SSE progress (per-block status dots updating in real time during `fbRun`).
+- `login` + `follow` block executors (scaffolded in schema since alpha.1).
+- Pipeline scheduler (tick loop similar to recipes).
+
+---
+
 ## [3.10.0] — 2026-05-13 — Phase 2: Tool Gaps + Proactive Sidekick
 
 Big Phase 2 ship covering three buckets in one cut: repo hygiene, the missing "create/modify" half of the Cross-Tab tool surface, and Sidekick's first proactive trigger (so the chat starts noticing problems on its own instead of waiting to be asked).
