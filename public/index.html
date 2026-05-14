@@ -13643,6 +13643,16 @@ ${fields}
           return { ok: true, id };
         } catch (e) { return { error: 'pipeline_delete failed: ' + (e && e.message || e) }; }
       },
+      async pipeline_resume(args) {
+        const id = args && args.id;
+        if (!id) return { error: 'id is required' };
+        try {
+          const r = await fetch('/api/scrap/pipelines/' + encodeURIComponent(id) + '/resume', { method: 'POST' });
+          const d = await r.json().catch(() => ({}));
+          if (!r.ok) return { error: d.error || ('HTTP ' + r.status) };
+          return { ok: true, id, schedule: d.pipeline && d.pipeline.schedule, consecutiveFailures: d.pipeline && d.pipeline.consecutiveFailures };
+        } catch (e) { return { error: 'pipeline_resume failed: ' + (e && e.message || e) }; }
+      },
       async pipeline_set_schedule(args) {
         const id = args && args.id;
         if (!id) return { error: 'id is required' };

@@ -5,6 +5,28 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [4.2.2] — 2026-05-14 — Pipeline scheduler tuning: transient retry + backoff + auto-pause
+
+### Added
+
+- **Transient-error retry inside the scheduler tick** — `_pipelineRunWithRetry` wraps `_executePipeline`. If the first attempt raises (or surfaces in `result.errors`) something matching the transient-error regex (`ECONNRESET` / `ETIMEDOUT` / `ENOTFOUND` / `EAI_AGAIN` / `socket hang up` / `fetch failed` / `network` / `timeout` / `gateway` / `429` / `502` / `503` / `504`), the runner waits 5s and retries once. Persisted as `pipeline.lastAttempts` (1 = first try succeeded; 2 = retried).
+- **Failure tracking** — `pipeline.consecutiveFailures` counter. Increments on any tick or manual run that does not finish cleanly; resets to `0` on any successful run.
+- **Exponential backoff via `nextRunAt`** — after each tick the scheduler computes `nextRunAt = now + intervalMs * min(2 ** (failures - 1), 16)`. The next tick uses `nextRunAt` as the gate so a flapping target stops hammering immediately. Successful runs bring the next attempt back to the configured interval.
+- **Auto-pause after `PIPELINE_MAX_FAILURES` (5) consecutive failures** — sets `schedule.pausedReason` (and `pausedAt`). The tick skips paused pipelines, so no further auto-runs happen until the user resumes.
+- **Manual successful run resets the failure state** — `POST /api/scrap/pipelines/:id/run` and the SSE streaming endpoint both clear `consecutiveFailures` + `pausedReason` + `pausedAt` and reset `nextRunAt = now + intervalMs` on success. So fixing the upstream issue and clicking ▶ Run is enough to bring the schedule back to life.
+- **`POST /api/scrap/pipelines/:id/resume`** — explicit resume that clears the pause without running the pipeline. Sets `nextRunAt` to the recent past so the next 60s tick will pick it up immediately.
+- **`pipeline_resume(id)` Sidekick tool** — calls the resume route. Use this from chat after fixing a flaky target ("resume pipeline xyz").
+- **`_normalizePipeline` preserves the new fields** — `consecutiveFailures`, `nextRunAt`, `lastAttempts`, `lastDurationMs`, `schedule.pausedReason`, `schedule.pausedAt` all round-trip through saves so `POST /api/scrap/pipelines` doesn't accidentally clear pause state mid-edit.
+
+### Notes
+
+- The legacy "interval since last run" gate is preserved as a fallback for pipelines that pre-date this version (no `nextRunAt` in their JSON yet). On the next tick they get a `nextRunAt` and start using the new logic.
+- Auto-pause logs a `[pipeline-tick] <id> auto-paused: ...` warning to the server console for visibility.
+- The transient-error matcher is intentionally permissive (substring + regex). False positives just mean an extra 5s + one retry; false negatives mean immediate failure-counting (as before).
+- Pipeline list responses (and `pipeline_get` / `pipeline_list` Sidekick tools) now include the new fields automatically — Flow Builder UI can later surface "next run in 12 min" or a "▶️ Resume" pill without a server change.
+
+---
+
 ## [4.2.1] — 2026-05-14 — Flow Builder: SQLite Store executor (real)
 
 ### Added

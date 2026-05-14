@@ -22,7 +22,7 @@ Tools รัน cross-tab — สั่ง chat แล้วเห็นผล�
 | ⚡ Execute | `create_terminal` `run_terminal` `run_in_active_terminal` `kill_terminal_session` `browser_reload` | 5 |
 | 🧭 Navigation / Tabs | `list_tabs` `get_active_tab` `switch_tab` `close_tab` `rename_tab` `split_tab` `set_active_session` `rename_terminal_session` `open_editor` `open_file_in_editor` `duplicate_editor_tab` `browser_navigate` `browser_get_url` `list_shells` `list_terminal_sessions` | 15 |
 | 🐳 Docker | `docker_list` `docker_action` `docker_logs` `docker_inspect` `docker_images` `docker_volumes` `docker_networks` `docker_remove_container` `docker_compose_file` `docker_browse_container` `docker_browse_volume` | 11 |
-| 🔍 Scrap | `scrap_run` `scrap_list_recipes` `scrap_save_recipe` `scrap_run_recipe` `scrap_list_snapshots` `pipeline_list` `pipeline_get` `pipeline_run` `pipeline_save` `pipeline_delete` `pipeline_set_schedule` `scrap_heal_events` | 12 |
+| 🔍 Scrap | `scrap_run` `scrap_list_recipes` `scrap_save_recipe` `scrap_run_recipe` `scrap_list_snapshots` `pipeline_list` `pipeline_get` `pipeline_run` `pipeline_save` `pipeline_delete` `pipeline_set_schedule` `pipeline_resume` `scrap_heal_events` | 13 |
 | 🗂 Workspace Layouts | `list_workspaces` `save_workspace_layout` `load_workspace_layout` | 3 |
 | 📦 Snippets | `list_snippets` | 1 |
 | 🌐 Network / Admin | `get_listening_ports` `get_arp_table` `get_routes` `get_vpn_status` `list_connected_clients` `tailscale_status` `list_processes` | 7 |
@@ -146,6 +146,7 @@ Tools รัน cross-tab — สั่ง chat แล้วเห็นผล�
 | `pipeline_save` | Create/update pipeline (full body) ⚠️ | `name` `blocks` | `id` `description` `startBlock` |
 | `pipeline_delete` | Delete pipeline by id ⚠️ **DESTRUCTIVE** | `id` | — |
 | `pipeline_set_schedule` | Turn auto-run on/off + set interval (≥1 min) | `id` `enabled` | `intervalMin` |
+| `pipeline_resume` | Resume an auto-paused pipeline (clears `pausedReason` + resets failure counter); next tick picks it up | `id` | — |
 
 ---
 

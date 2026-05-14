@@ -2473,6 +2473,20 @@ const CROSS_TAB_TOOLS = [
   {
     type: 'function',
     function: {
+      name: 'pipeline_resume',
+      description: 'Resume a pipeline that auto-paused after consecutive failures. Clears pausedReason and resets failure counter. Use this after fixing the upstream issue (network, selector, target site) so the scheduler picks the pipeline back up on the next tick.',
+      parameters: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'Pipeline id.' },
+        },
+        required: ['id'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'scrap_heal_events',
       description: 'List recent self-heal events (attempts, successes, failures, rollbacks). Useful for status checks.',
       parameters: {
@@ -7504,6 +7518,49 @@ setInterval(_scrapTick, SCRAP_TICK_MS).unref();
 setTimeout(_scrapTick, 15_000).unref?.();
 
 // v4.1.0 — Pipeline scheduler (auto-run pipelines flagged schedule.enabled)
+// v4.2.2 — Tuning: transient retry + exponential backoff + auto-pause after N failures
+const PIPELINE_MAX_FAILURES = 5;       // auto-pause threshold
+const PIPELINE_BACKOFF_CAP_X = 16;     // max backoff = interval * 16
+const PIPELINE_RETRY_DELAY_MS = 5000;  // wait before transient retry
+
+function _isTransientPipelineError(e) {
+  const msg = String((e && (e.message || e)) || "").toLowerCase();
+  if (!msg) return false;
+  return /econnreset|etimedout|enotfound|enetunreach|eai_again|socket hang up|read econnrefused|fetch failed|network|timeout|gateway|503|502|504|429/i.test(msg);
+}
+
+async function _pipelineRunWithRetry(p) {
+  // Returns { result?, error?, attempts }
+  try {
+    const result = await _executePipeline(p, {});
+    if (result && Array.isArray(result.errors) && result.errors.length) {
+      const errStr = result.errors.join("; ");
+      if (_isTransientPipelineError(errStr)) {
+        await new Promise(r => setTimeout(r, PIPELINE_RETRY_DELAY_MS));
+        try {
+          const r2 = await _executePipeline(p, {});
+          return { result: r2, attempts: 2 };
+        } catch (e2) {
+          return { error: e2, attempts: 2 };
+        }
+      }
+      return { result, attempts: 1 };
+    }
+    return { result, attempts: 1 };
+  } catch (e) {
+    if (_isTransientPipelineError(e)) {
+      await new Promise(r => setTimeout(r, PIPELINE_RETRY_DELAY_MS));
+      try {
+        const r2 = await _executePipeline(p, {});
+        return { result: r2, attempts: 2 };
+      } catch (e2) {
+        return { error: e2, attempts: 2 };
+      }
+    }
+    return { error: e, attempts: 1 };
+  }
+}
+
 let _pipelineTickInFlight = false;
 async function _pipelineTick() {
   if (_pipelineTickInFlight) return;
@@ -7516,24 +7573,45 @@ async function _pipelineTick() {
     for (const p of pipelines) {
       const sch = p.schedule;
       if (!sch || !sch.enabled) continue;
+      if (sch.pausedReason) continue; // auto-paused, requires manual resume
       const intervalMs = Math.max(60, parseInt(sch.intervalMin) || 60) * 60 * 1000;
-      const lastMs = p.lastRunAt ? new Date(p.lastRunAt).getTime() : 0;
-      if (lastMs && now - lastMs < intervalMs) continue;
+      // Backoff-aware nextRunAt overrides simple lastRun + interval
+      const nextMs = p.nextRunAt ? new Date(p.nextRunAt).getTime() : 0;
+      if (nextMs && now < nextMs) continue;
+      // Fallback to legacy lastRunAt + interval check (when nextRunAt missing on old data)
+      if (!nextMs) {
+        const lastMs = p.lastRunAt ? new Date(p.lastRunAt).getTime() : 0;
+        if (lastMs && now - lastMs < intervalMs) continue;
+      }
       const nowIso = new Date().toISOString();
       const t0 = Date.now();
-      try {
-        const result = await _executePipeline(p, {});
-        p.lastRunAt = nowIso;
+      const { result, error, attempts } = await _pipelineRunWithRetry(p);
+      p.lastRunAt = nowIso;
+      p.lastDurationMs = Date.now() - t0;
+      p.lastAttempts = attempts;
+      if (error) {
+        p.lastError = String(error.message || error).slice(0, 500);
+        p.consecutiveFailures = (p.consecutiveFailures || 0) + 1;
+      } else if (result && Array.isArray(result.errors) && result.errors.length) {
+        p.lastRowCount = result.rowCount || 0;
+        p.lastError = result.errors.join("; ").slice(0, 500);
+        p.consecutiveFailures = (p.consecutiveFailures || 0) + 1;
+      } else {
         p.lastRowCount = (result && result.rowCount) || 0;
-        p.lastError = (result && Array.isArray(result.errors) && result.errors.length) ? result.errors.join("; ").slice(0, 500) : null;
-        p.lastDurationMs = Date.now() - t0;
-        mutated = true;
-      } catch (e) {
-        p.lastRunAt = nowIso;
-        p.lastError = String(e.message || e).slice(0, 500);
-        p.lastDurationMs = Date.now() - t0;
-        mutated = true;
+        p.lastError = null;
+        p.consecutiveFailures = 0;
       }
+      // Compute nextRunAt with exponential backoff on failure
+      const failures = p.consecutiveFailures || 0;
+      const backoffX = failures > 0 ? Math.min(Math.pow(2, failures - 1), PIPELINE_BACKOFF_CAP_X) : 1;
+      p.nextRunAt = new Date(Date.now() + intervalMs * backoffX).toISOString();
+      // Auto-pause after N consecutive failures
+      if (failures >= PIPELINE_MAX_FAILURES) {
+        sch.pausedReason = `auto-paused after ${failures} consecutive failures`;
+        sch.pausedAt = nowIso;
+        console.warn("[pipeline-tick]", p.id, "auto-paused:", sch.pausedReason, "·", p.lastError);
+      }
+      mutated = true;
     }
     if (mutated) savePipelines(pipelines);
   } catch (e) {
@@ -7745,10 +7823,17 @@ function _normalizePipeline(body, existing) {
     schedule: body.schedule && typeof body.schedule === "object" ? {
       enabled: !!body.schedule.enabled,
       intervalMin: Math.max(1, parseInt(body.schedule.intervalMin) || 60),
+      // v4.2.2 — preserve auto-pause state across edits (cleared by explicit resume or successful manual run)
+      pausedReason: existing?.schedule?.pausedReason || null,
+      pausedAt: existing?.schedule?.pausedAt || null,
     } : (existing?.schedule || { enabled: false, intervalMin: 60 }),
     lastRunAt: existing?.lastRunAt || null,
     lastRowCount: existing?.lastRowCount || 0,
     lastError: existing?.lastError || null,
+    lastDurationMs: existing?.lastDurationMs || 0,
+    lastAttempts: existing?.lastAttempts || 0,
+    consecutiveFailures: existing?.consecutiveFailures || 0,
+    nextRunAt: existing?.nextRunAt || null,
     createdAt: existing?.createdAt || new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
@@ -8304,6 +8389,20 @@ app.delete("/api/scrap/pipelines/:id", requireAuth, (req, res) => {
   res.json({ ok: true });
 });
 
+// v4.2.2 — resume an auto-paused pipeline (clears pausedReason + resets failure counter)
+app.post("/api/scrap/pipelines/:id/resume", requireAuth, (req, res) => {
+  const list = loadPipelines();
+  const idx = list.findIndex(x => x.id === req.params.id);
+  if (idx < 0) return res.status(404).json({ error: "pipeline not found" });
+  const p = list[idx];
+  if (p.schedule) { p.schedule.pausedReason = null; p.schedule.pausedAt = null; }
+  p.consecutiveFailures = 0;
+  // Schedule next run on the next tick (don't wait for the full interval)
+  p.nextRunAt = new Date(Date.now() - 1000).toISOString();
+  savePipelines(list);
+  res.json({ ok: true, pipeline: p });
+});
+
 app.post("/api/scrap/pipelines/:id/run", requireAuth, express.json({ limit: "128kb" }), async (req, res) => {
   const list = loadPipelines();
   const idx = list.findIndex(x => x.id === req.params.id);
@@ -8314,10 +8413,21 @@ app.post("/api/scrap/pipelines/:id/run", requireAuth, express.json({ limit: "128
     p.lastRunAt = new Date().toISOString();
     p.lastRowCount = result.rowCount;
     p.lastError = result.ok ? null : (result.errors.join("; ") || "errors");
+    // v4.2.2 — manual successful run resets failure tracking and resumes auto-pause
+    if (result.ok) {
+      p.consecutiveFailures = 0;
+      if (p.schedule) { p.schedule.pausedReason = null; p.schedule.pausedAt = null; }
+      const intervalMs = Math.max(60, parseInt(p.schedule?.intervalMin) || 60) * 60 * 1000;
+      if (p.schedule?.enabled) p.nextRunAt = new Date(Date.now() + intervalMs).toISOString();
+    } else {
+      p.consecutiveFailures = (p.consecutiveFailures || 0) + 1;
+    }
     savePipelines(list);
     res.json({ ok: result.ok, ...result, pipeline: p });
   } catch (e) {
-    p.lastError = String(e.message || e); p.lastRunAt = new Date().toISOString(); savePipelines(list);
+    p.lastError = String(e.message || e); p.lastRunAt = new Date().toISOString();
+    p.consecutiveFailures = (p.consecutiveFailures || 0) + 1;
+    savePipelines(list);
     res.status(500).json({ error: p.lastError });
   }
 });
@@ -8350,10 +8460,21 @@ app.get("/api/scrap/pipelines/:id/run/stream", requireAuth, async (req, res) => 
     p.lastRunAt = new Date().toISOString();
     p.lastRowCount = result.rowCount;
     p.lastError = result.ok ? null : (result.errors.join("; ") || "errors");
+    // v4.2.2 — successful manual SSE run resets failure tracking + resumes auto-pause
+    if (result.ok) {
+      p.consecutiveFailures = 0;
+      if (p.schedule) { p.schedule.pausedReason = null; p.schedule.pausedAt = null; }
+      const intervalMs = Math.max(60, parseInt(p.schedule?.intervalMin) || 60) * 60 * 1000;
+      if (p.schedule?.enabled) p.nextRunAt = new Date(Date.now() + intervalMs).toISOString();
+    } else {
+      p.consecutiveFailures = (p.consecutiveFailures || 0) + 1;
+    }
     savePipelines(list);
     send("result", { ok: result.ok, rowCount: result.rowCount, durationMs: result.durationMs, outputFile: result.outputFile, outputFiles: result.outputFiles, errors: result.errors, pipeline: p });
   } catch (e) {
-    p.lastError = String(e.message || e); p.lastRunAt = new Date().toISOString(); savePipelines(list);
+    p.lastError = String(e.message || e); p.lastRunAt = new Date().toISOString();
+    p.consecutiveFailures = (p.consecutiveFailures || 0) + 1;
+    savePipelines(list);
     send("fatal", { error: p.lastError });
   } finally {
     clearInterval(hb);
