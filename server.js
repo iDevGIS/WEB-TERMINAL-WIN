@@ -8319,6 +8319,58 @@ async function _pipeExecFollow(state, config, ctx) {
   return state;
 }
 
+// v4.5.0 — classify block failure into category + actionable hints (max 3)
+function _pipeClassifyError(blockType, errMsg, blockConfig, state) {
+  const msg = String(errMsg || "").toLowerCase();
+  const cfg = blockConfig || {};
+  const hints = [];
+  let category = "unknown";
+  const push = (h) => { if (hints.length < 3 && h && !hints.includes(h)) hints.push(h); };
+  if (blockType === "fetch") {
+    if (msg.includes("invalid url")) { category = "bad-input"; push("URL must start with http:// or https://"); push("Check the URL field in this block's config"); }
+    else if (/\b401\b|unauthorized/.test(msg)) { category = "auth"; push("Add a Login block before this Fetch"); push("Or set config.auth.cookie / Authorization header"); }
+    else if (/\b403\b|forbidden/.test(msg)) { category = "auth"; push("Site may block bots — try mode=browser"); push("Check if login or cookies are required"); }
+    else if (/\b404\b|not found/.test(msg)) { category = "bad-input"; push("URL not found — check for typos"); push("Site may have moved or removed this page"); }
+    else if (/\b5\d\d\b|server error/.test(msg)) { category = "transient"; push("Server-side error — retry in a moment"); push("Scheduler will auto-retry (v4.2.2 backoff)"); }
+    else if (/timeout|etimedout|aborted/.test(msg)) { category = "transient"; push("Try mode=browser with waitFor selector"); push("Increase waitMs or check site responsiveness"); }
+    else if (/enotfound|getaddrinfo|dns/.test(msg)) { category = "bad-input"; push("DNS lookup failed — check URL spelling"); push("Site may be offline or domain expired"); }
+    else if (/econnreset|econnrefused|network/.test(msg)) { category = "transient"; push("Network glitch — retry"); push("Check firewall / VPN settings"); }
+    else if (/playwright|chromium|browser/.test(msg)) { category = "config"; push("Browser mode requires Playwright installed"); push("Run: npx playwright install chromium"); }
+    else if (/fetch failed/.test(msg)) { category = "transient"; push("Network/DNS failure — verify the URL resolves"); push("Site may be offline, or DNS lookup failed"); push("Retry will help if it was a transient blip"); }
+    else { category = "other"; push("Inspect the URL and network reachability"); }
+  } else if (blockType === "extract") {
+    if (/no html/.test(msg)) { category = "config"; push("Place an Extract block AFTER a Fetch block"); push("Check that the previous Fetch succeeded"); }
+    else if (state && state.lastBlockRowCount === 0) {
+      category = "selector-stale";
+      if (cfg.rootSelector) push(`rootSelector "${cfg.rootSelector}" matched 0 elements`);
+      push("Site may have changed — add an AI Self-Heal block");
+      push("Open the URL in Browser and inspect the actual HTML");
+    } else { category = "other"; push("Check rootSelector and field selectors"); }
+  } else if (blockType === "login") {
+    if (/cookie/.test(msg)) { category = "config"; push("Set config.cookie (header string) or switch to form mode"); }
+    else if (/\b401\b|wrong|invalid/.test(msg)) { category = "auth"; push("Wrong credentials or login form selectors stale"); push("Inspect the live login page for current selectors"); }
+    else if (/selector|element/.test(msg)) { category = "selector-stale"; push("Login form selectors stale — site may have changed"); push("Update userSelector / passSelector / submitSelector"); }
+    else { category = "other"; push("Verify mode (cookie/api/form) matches the site's login"); }
+  } else if (blockType === "store") {
+    if (/permission|eacces|eperm/.test(msg)) { category = "filesystem"; push("Output directory not writable"); push("Check scraps/pipelines-out/ permissions"); }
+    else if (/enospc/.test(msg)) { category = "filesystem"; push("Disk full — free up space"); }
+    else if (/sqlite/.test(msg)) { category = "dependency"; push("Rebuild better-sqlite3 native bindings"); push("Or remove sqlite from formats list"); }
+    else { category = "other"; push("Check target path and formats"); }
+  } else if (blockType === "transform") {
+    if (/syntax/.test(msg)) { category = "config"; push("Pipeline syntax error — check your filter/dedupe/sort steps"); }
+    else { category = "other"; push("Check transform pipeline definition"); }
+  } else if (blockType === "self_heal") {
+    if (/api key|anthropic_api_key/.test(msg)) { category = "config"; push("Set ANTHROPIC_API_KEY env var"); push("Restart server after setting the env var"); }
+    else if (/no.*extract|context/.test(msg)) { category = "config"; push("Place Self-Heal after an Extract block"); push("Self-heal needs last extract config to regenerate selectors"); }
+    else { category = "other"; push("Verify Claude API key and recent Extract context"); }
+  } else if (blockType === "follow") {
+    if (/nextselector|no next|selector/.test(msg)) { category = "config"; push("Set nextSelector (CSS for the 'next page' link)"); push("Or set maxPages=1 to disable pagination"); }
+    else { category = "other"; push("Check pagination config (nextSelector / maxPages)"); }
+  }
+  if (!hints.length) push("Open the block's properties panel and review config");
+  return { category, hints };
+}
+
 // Execute pipeline linearly along block.next[0] edges, with optional loopback for follow blocks
 // and healFallback rerouting after a successful self_heal.
 async function _executePipeline(pipeline, opts = {}) {
@@ -8332,6 +8384,7 @@ async function _executePipeline(pipeline, opts = {}) {
     rows: [],
     cookies: [],
     errors: [],
+    errorDetails: [],
     log: [],
     healed: [],
     lastBlockRowCount: 0,
@@ -8368,7 +8421,9 @@ async function _executePipeline(pipeline, opts = {}) {
     const exec = executors[block.type];
     if (!exec) {
       state.errors.push(`unknown block type "${block.type}" at ${currentId}`);
-      try { onProgress({ kind: "block-error", blockId: currentId, type: block.type, error: "unknown block type" }); } catch {}
+      const det = { blockId: currentId, type: block.type, error: "unknown block type", category: "config", hints: [`Block type "${block.type}" not recognized`, "Delete this block or change its type"] };
+      state.errorDetails.push(det);
+      try { onProgress({ kind: "block-error", ...det }); } catch {}
       currentId = block.next[0] || null;
       continue;
     }
@@ -8380,10 +8435,14 @@ async function _executePipeline(pipeline, opts = {}) {
       const dur = Date.now() - blockStartMs;
       try { onProgress({ kind: "block-done", blockId: currentId, type: block.type, durationMs: dur, rows: state.rows.length, blockRows: state.lastBlockRowCount }); } catch {}
     } catch (e) {
-      const errMsg = `${block.type}@${currentId}: ${e.message || String(e)}`;
+      const rawErr = e.message || String(e);
+      const errMsg = `${block.type}@${currentId}: ${rawErr}`;
       state.errors.push(errMsg);
       state.log.push("ERROR " + errMsg);
-      try { onProgress({ kind: "block-error", blockId: currentId, type: block.type, error: e.message || String(e), durationMs: Date.now() - blockStartMs }); } catch {}
+      const cls = _pipeClassifyError(block.type, rawErr, block.config, state);
+      const det = { blockId: currentId, type: block.type, error: rawErr, category: cls.category, hints: cls.hints, durationMs: Date.now() - blockStartMs };
+      state.errorDetails.push(det);
+      try { onProgress({ kind: "block-error", ...det }); } catch {}
       // If a heal fallback is configured, jump there
       if (block.healFallback && blockMap.has(block.healFallback)) {
         currentId = block.healFallback;
@@ -8405,13 +8464,14 @@ async function _executePipeline(pipeline, opts = {}) {
     rows: state.rows,
     rowCount: state.rows.length,
     errors: state.errors,
+    errorDetails: state.errorDetails,
     log: state.log,
     healed: state.healed,
     outputFile: state.outputFile || null,
     outputFiles: state.outputFiles || (state.outputFile ? [state.outputFile] : []),
     durationMs: Date.now() - startedAt,
   };
-  try { onProgress({ kind: "done", ok: result.ok, rowCount: result.rowCount, durationMs: result.durationMs, outputFile: result.outputFile, outputFiles: result.outputFiles, errors: result.errors }); } catch {}
+  try { onProgress({ kind: "done", ok: result.ok, rowCount: result.rowCount, durationMs: result.durationMs, outputFile: result.outputFile, outputFiles: result.outputFiles, errors: result.errors, errorDetails: result.errorDetails }); } catch {}
   return result;
 }
 
@@ -8528,7 +8588,7 @@ app.get("/api/scrap/pipelines/:id/run/stream", requireAuth, async (req, res) => 
       p.consecutiveFailures = (p.consecutiveFailures || 0) + 1;
     }
     savePipelines(list);
-    send("result", { ok: result.ok, rowCount: result.rowCount, durationMs: result.durationMs, outputFile: result.outputFile, outputFiles: result.outputFiles, errors: result.errors, pipeline: p });
+    send("result", { ok: result.ok, rowCount: result.rowCount, durationMs: result.durationMs, outputFile: result.outputFile, outputFiles: result.outputFiles, errors: result.errors, errorDetails: result.errorDetails, pipeline: p });
   } catch (e) {
     p.lastError = String(e.message || e); p.lastRunAt = new Date().toISOString();
     p.consecutiveFailures = (p.consecutiveFailures || 0) + 1;

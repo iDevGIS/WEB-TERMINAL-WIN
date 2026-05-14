@@ -5,6 +5,35 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [4.5.0] — 2026-05-14 — Phase E 🅲 Better Error UI: classifier + hints + inspector
+
+### Added
+
+- **Server-side error classifier** — new `_pipeClassifyError(blockType, errMsg, blockConfig, state)` helper attached to every pipeline failure path. Returns `{ category, hints[] }` (max 3 hints) covering all seven block types:
+  - **fetch** — bad-input (`invalid url`, `404`, DNS), auth (`401`, `403`), transient (`5xx`, timeout, connection reset), config (Playwright missing for browser mode).
+  - **extract** — selector-stale (rootSelector matched 0 rows → suggests AI Self-Heal block), config (`no html` → put after Fetch).
+  - **login** — config (missing cookie / wrong mode), auth (wrong creds), selector-stale (form selectors stale).
+  - **store** — filesystem (permission, disk full), dependency (sqlite native build), other.
+  - **transform**, **self_heal** (API key, missing extract context), **follow** (missing nextSelector).
+- **`state.errorDetails[]`** — parallel array to `state.errors` now persisted in every run result. Each entry: `{ blockId, type, error, category, hints[], durationMs }`.
+- **SSE `block-error` event** now includes `category` + `hints[]` for live progress streaming. The `result` event also carries `errorDetails[]` so the UI can re-render after disconnect.
+- **Flow Builder console — inline error rendering** — every failed block now logs `✘ fetch@abc123 [transient] · timeout` plus two compact pill buttons: **💡 N hints** (expands the suggested fixes inline below the line, salmon-tinted side bar) and **➜ Jump** (highlights + scrolls the failing block into view with a 1.1s flash animation).
+- **🔍 Error Inspector modal** — when a run fails with 1+ classified errors, the console adds a `🔍 Inspect` action button next to the failure summary. Clicking opens a centered modal listing each error as a card (numbered, with block-type icon, monospaced ID, raw error, category badge, 💡 Suggested fixes panel, and a `➜ Jump to block` button). ESC / backdrop click / `✕` closes.
+- **`fbScrollToBlock(tabId, blockId)`** — generic canvas helper that smooth-scrolls the failing block to viewport center and adds a `.fb-flash` ring pulse. Reusable for any future "jump-to-block" callsite.
+
+### Changed
+
+- The non-stream POST `/api/scrap/pipelines/:id/run` response now includes `errorDetails[]` alongside `errors[]`. The Flow Builder fallback path (when SSE fails) renders the same `fbLogError` + Inspect modal so error UX is consistent across both transports.
+- Welcome log line updated to `Flow Builder ready · v4.5.0 (Phase E 🅲 — Better Error UI: hints + jump + inspector)`.
+
+### Notes
+
+- Backwards compatible: legacy `errors[]` array of strings still emitted. Older clients ignoring `errorDetails` continue to work.
+- Phase E status: 🅰 (parser v2) + 🅱 (templates) + 🅲 (error UI) **DONE 3/5**. Remaining: 🅳 Pipeline Diff Viewer · 🅴 Pause & dogfood.
+- No new Sidekick tools this release — still **82 tools** since classification is a server-internal capability surfaced through SSE/result, not a chat command.
+
+---
+
 ## [4.4.0] — 2026-05-14 — Pipeline Templates Library + 2 new Sidekick tools
 
 ### Added

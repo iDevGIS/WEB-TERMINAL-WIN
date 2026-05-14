@@ -1624,6 +1624,32 @@
     .fb-console .fb-log-action:hover { background: rgba(99,102,241,.32); border-color: rgba(199,210,254,.7); color: #ede9fe; }
     .fb-console .fb-log-action:active { transform: translateY(1px); }
 
+    /* v4.5.0 — Error UI: hint panel inline, block-flash, inspector modal */
+    .fb-console .fb-hint-panel { width: 100%; margin-top: 4px; margin-left: 56px; padding: 6px 10px; background: rgba(248,113,113,.08); border-left: 2px solid rgba(252,165,165,.55); border-radius: 4px; }
+    .fb-console .fb-hint { font-size: 11px; color: #fecaca; line-height: 1.5; }
+    @keyframes fbFlash { 0% { box-shadow: 0 0 0 0 rgba(252,165,165,.7); } 50% { box-shadow: 0 0 0 8px rgba(252,165,165,.0); } 100% { box-shadow: 0 0 0 0 rgba(252,165,165,0); } }
+    .fb-block.fb-flash { animation: fbFlash 1.1s ease-out; }
+    .fb-modal-overlay { position: fixed; inset: 0; background: rgba(6,8,20,.7); backdrop-filter: blur(6px); z-index: 600; display: flex; align-items: center; justify-content: center; padding: 20px; }
+    .fb-modal { width: min(720px, 100%); max-height: 86vh; overflow: hidden; display: flex; flex-direction: column; background: linear-gradient(180deg, #1a0d1f, #0a0a1f); border: 1px solid rgba(248,113,113,.32); border-radius: 14px; box-shadow: 0 24px 60px rgba(0,0,0,.6); color: var(--text); }
+    .fb-modal-header { padding: 14px 18px; font-size: 15px; color: #fecaca; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid rgba(255,255,255,.08); }
+    .fb-modal-count { font-size: 12px; color: #fca5a5; background: rgba(248,113,113,.15); border: 1px solid rgba(252,165,165,.35); padding: 2px 8px; border-radius: 10px; }
+    .fb-modal-close { margin-left: auto; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12); color: var(--text2); cursor: pointer; font-size: 13px; padding: 3px 10px; border-radius: 6px; }
+    .fb-modal-close:hover { background: rgba(255,255,255,.12); color: var(--text); }
+    .fb-modal-body { padding: 14px 18px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
+    .fb-modal-empty { color: var(--text3); font-size: 13px; padding: 12px; text-align: center; }
+    .fb-err-card { background: rgba(15,15,35,.5); border: 1px solid rgba(248,113,113,.22); border-radius: 10px; padding: 12px 14px; }
+    .fb-err-card-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 13px; color: #fecaca; }
+    .fb-err-num { background: rgba(248,113,113,.18); color: #fca5a5; font-size: 11px; padding: 2px 7px; border-radius: 999px; font-weight: 600; }
+    .fb-err-ico { font-size: 15px; }
+    .fb-err-title { font-family: ui-monospace, monospace; color: #ddd2ff; font-size: 12px; }
+    .fb-err-cat { margin-left: auto; font-size: 10px; color: #fde68a; background: rgba(234,179,8,.12); border: 1px solid rgba(253,230,138,.3); padding: 1px 7px; border-radius: 8px; text-transform: uppercase; letter-spacing: .04em; }
+    .fb-err-msg { font-family: ui-monospace, monospace; font-size: 11px; color: var(--text2); background: rgba(0,0,0,.3); padding: 6px 10px; border-radius: 6px; margin-bottom: 8px; word-break: break-word; white-space: pre-wrap; }
+    .fb-err-hints { margin-top: 6px; padding: 8px 10px; background: rgba(99,102,241,.08); border-left: 2px solid rgba(165,180,252,.55); border-radius: 4px; }
+    .fb-err-hints-title { font-size: 11px; color: #c7d2fe; margin-bottom: 4px; font-weight: 600; }
+    .fb-err-hint { font-size: 12px; color: #ddd2ff; line-height: 1.5; }
+    .fb-err-actions { margin-top: 10px; display: flex; gap: 8px; }
+    .fb-err-actions .fb-log-action { padding: 4px 12px; font-size: 11px; }
+
     /* Flow Builder — Template Gallery modal */
     .fb-tpl-backdrop { position: absolute; inset: 0; background: rgba(6,8,20,.7); backdrop-filter: blur(8px); z-index: 60; display: none; align-items: center; justify-content: center; }
     .fb-tpl-backdrop.open { display: flex; }
@@ -5728,7 +5754,7 @@
     function fbInit(tabId) {
       const t = tabs.get(tabId); if (!t) return;
       t.fb = { pipelines: [], current: null, selectedBlockId: null, _dirty: false };
-      fbLog(tabId, 'info', 'Flow Builder ready · v4.0.3 (Phase C — live SSE progress + minimap)');
+      fbLog(tabId, 'info', 'Flow Builder ready · v4.5.0 (Phase E 🅲 — Better Error UI: hints + jump + inspector)');
       fbLog(tabId, 'info', 'Tip: drag block from left palette · click ＋ New for blank pipeline · Del removes selected block · Ctrl+S to save · ▶ Run streams live status to dots');
       fbLoadList(tabId);
       _fbAttachMinimapHooks(tabId);
@@ -6250,6 +6276,103 @@
       }
     }
 
+    // v4.5.0 — Better Error UI: scroll-to-block, error log w/ hints expander + jump
+    function fbScrollToBlock(tabId, blockId) {
+      const canvas = document.getElementById(tabId + '-fb-canvas');
+      if (!canvas || !blockId) return;
+      const el = canvas.querySelector('[data-block-id="' + blockId + '"]');
+      if (!el) return;
+      const scroller = canvas.parentElement;
+      if (scroller) {
+        const r = el.getBoundingClientRect();
+        const sr = scroller.getBoundingClientRect();
+        scroller.scrollBy({ left: (r.left - sr.left) - sr.width/2 + r.width/2, top: (r.top - sr.top) - sr.height/2 + r.height/2, behavior: 'smooth' });
+      }
+      el.classList.add('fb-flash');
+      setTimeout(() => el.classList.remove('fb-flash'), 1100);
+    }
+    // v4.5.0 — error log line: ✘ message + 💡 hints toggle + ➜ Jump button
+    function fbLogError(tabId, blockId, blockType, errorMsg, hints, category) {
+      const host = document.getElementById(tabId + '-fb-console');
+      if (!host) return;
+      const ts = new Date().toLocaleTimeString();
+      const row = document.createElement('div');
+      row.className = 'line fb-err-line';
+      row.dataset.blockId = blockId || '';
+      const tsSpan = document.createElement('span'); tsSpan.className = 'ts'; tsSpan.textContent = ts;
+      const txtSpan = document.createElement('span'); txtSpan.className = 'lvl-err';
+      const shortId = String(blockId || '').slice(0, 6);
+      const catBit = category && category !== 'other' && category !== 'unknown' ? ' [' + category + ']' : '';
+      txtSpan.textContent = '  ✘ ' + (blockType || 'block') + '@' + shortId + catBit + ' · ' + (errorMsg || 'error');
+      row.appendChild(tsSpan); row.appendChild(txtSpan);
+      const hintList = Array.isArray(hints) ? hints.filter(Boolean) : [];
+      if (hintList.length) {
+        const toggle = document.createElement('button');
+        toggle.type = 'button'; toggle.className = 'fb-log-action';
+        toggle.textContent = '💡 ' + hintList.length + ' hint' + (hintList.length === 1 ? '' : 's');
+        const hintDiv = document.createElement('div');
+        hintDiv.className = 'fb-hint-panel';
+        hintDiv.style.display = 'none';
+        hintList.forEach(h => { const li = document.createElement('div'); li.className = 'fb-hint'; li.textContent = '• ' + h; hintDiv.appendChild(li); });
+        toggle.onclick = (ev) => { ev.preventDefault(); ev.stopPropagation(); hintDiv.style.display = hintDiv.style.display === 'none' ? 'block' : 'none'; };
+        row.appendChild(toggle);
+        if (blockId) {
+          const jump = document.createElement('button');
+          jump.type = 'button'; jump.className = 'fb-log-action';
+          jump.textContent = '➜ Jump';
+          jump.onclick = (ev) => { ev.preventDefault(); ev.stopPropagation(); fbSelectBlock(tabId, blockId); fbScrollToBlock(tabId, blockId); };
+          row.appendChild(jump);
+        }
+        row.appendChild(hintDiv);
+      }
+      host.appendChild(row);
+      while (host.children.length > 200) host.removeChild(host.firstChild);
+      host.scrollTop = host.scrollHeight;
+    }
+    // v4.5.0 — Inspector modal: list all errors with hints + jump per row
+    function fbShowErrorInspector(tabId, errorDetails) {
+      const details = Array.isArray(errorDetails) ? errorDetails : [];
+      const overlay = document.createElement('div');
+      overlay.className = 'fb-modal-overlay';
+      overlay.onclick = (ev) => { if (ev.target === overlay) document.body.removeChild(overlay); };
+      const panel = document.createElement('div');
+      panel.className = 'fb-modal';
+      const closeBtn = '<button type="button" class="fb-modal-close" onclick="this.closest(\\'.fb-modal-overlay\\').remove()">✕</button>';
+      const header = '<div class="fb-modal-header">🔍 Error Inspector <span class="fb-modal-count">' + details.length + ' error' + (details.length === 1 ? '' : 's') + '</span>' + closeBtn + '</div>';
+      panel.innerHTML = header + '<div class="fb-modal-body"></div>';
+      const body = panel.querySelector('.fb-modal-body');
+      if (!details.length) {
+        body.innerHTML = '<div class="fb-modal-empty">No detailed errors captured. Check the console log above for raw failures.</div>';
+      } else {
+        details.forEach((d, i) => {
+          const card = document.createElement('div');
+          card.className = 'fb-err-card';
+          const head = document.createElement('div'); head.className = 'fb-err-card-head';
+          const ico = (FB_TYPE_META && FB_TYPE_META[d.type] && FB_TYPE_META[d.type].ico) || '⬛';
+          head.innerHTML = '<span class="fb-err-num">' + (i + 1) + '</span><span class="fb-err-ico">' + ico + '</span><span class="fb-err-title">' + escHtml((d.type || 'block') + '@' + String(d.blockId || '').slice(0, 6)) + '</span>' + (d.category && d.category !== 'other' && d.category !== 'unknown' ? '<span class="fb-err-cat">' + escHtml(d.category) + '</span>' : '');
+          const msg = document.createElement('div'); msg.className = 'fb-err-msg'; msg.textContent = d.error || '(no message)';
+          card.appendChild(head); card.appendChild(msg);
+          const hintList = Array.isArray(d.hints) ? d.hints.filter(Boolean) : [];
+          if (hintList.length) {
+            const hintBox = document.createElement('div'); hintBox.className = 'fb-err-hints';
+            hintBox.innerHTML = '<div class="fb-err-hints-title">💡 Suggested fixes</div>';
+            hintList.forEach(h => { const li = document.createElement('div'); li.className = 'fb-err-hint'; li.textContent = '• ' + h; hintBox.appendChild(li); });
+            card.appendChild(hintBox);
+          }
+          if (d.blockId) {
+            const actions = document.createElement('div'); actions.className = 'fb-err-actions';
+            const jump = document.createElement('button'); jump.type = 'button'; jump.className = 'fb-log-action';
+            jump.textContent = '➜ Jump to block';
+            jump.onclick = () => { overlay.remove(); fbSelectBlock(tabId, d.blockId); fbScrollToBlock(tabId, d.blockId); };
+            actions.appendChild(jump);
+            card.appendChild(actions);
+          }
+          body.appendChild(card);
+        });
+      }
+      overlay.appendChild(panel);
+      document.body.appendChild(overlay);
+    }
     // v4.0.3 — Phase C: Minimap (mini map of canvas + viewport indicator)
     const FB_MINI = { W: 200, H: 140, CANVAS_W: 2400, CANVAS_H: 1600 };
     const FB_MINI_TYPE_COLOR = {
@@ -6478,7 +6601,13 @@
         if (r.ok && d.ok) {
           _fbLogRunResult(tabId, d);
         } else {
-          fbLog(tabId, 'err', '✘ Failed: ' + ((d.errors && d.errors.join('; ')) || d.error || 'unknown'));
+          const details = Array.isArray(d.errorDetails) ? d.errorDetails : [];
+          if (details.length) {
+            details.forEach(det => fbLogError(tabId, det.blockId, det.type, det.error, det.hints, det.category));
+            fbLogWithAction(tabId, 'err', '✘ Failed · ' + details.length + ' error' + (details.length === 1 ? '' : 's'), '🔍 Inspect', () => fbShowErrorInspector(tabId, details));
+          } else {
+            fbLog(tabId, 'err', '✘ Failed: ' + ((d.errors && d.errors.join('; ')) || d.error || 'unknown'));
+          }
         }
         if (d.pipeline) { t.fb.current = d.pipeline; fbRender(tabId); fbUpdateMeta(tabId); }
       } catch (e) {
@@ -6528,7 +6657,7 @@
           try {
             const d = JSON.parse(m.data);
             _fbSetBlockStatus(tabId, d.blockId, 'err', '✘ ' + d.type + ' · ' + (d.error || 'error').slice(0,40));
-            fbLog(tabId, 'err', '  ✘ ' + d.type + '@' + String(d.blockId).slice(0,6) + ' · ' + (d.error || 'error'));
+            fbLogError(tabId, d.blockId, d.type, d.error || 'error', d.hints, d.category);
           } catch {}
         });
         es.addEventListener('loop', (m) => {
@@ -6547,7 +6676,14 @@
             if (d.ok) {
               _fbLogRunResult(tabId, d);
             } else {
-              fbLog(tabId, 'err', '✘ Failed: ' + ((d.errors && d.errors.join('; ')) || 'errors'));
+              const details = Array.isArray(d.errorDetails) ? d.errorDetails : [];
+              const errCount = details.length || (Array.isArray(d.errors) ? d.errors.length : 0) || 1;
+              const summary = '✘ Failed · ' + errCount + ' error' + (errCount === 1 ? '' : 's');
+              if (details.length) {
+                fbLogWithAction(tabId, 'err', summary, '🔍 Inspect', () => fbShowErrorInspector(tabId, details));
+              } else {
+                fbLog(tabId, 'err', summary + ': ' + ((d.errors && d.errors.join('; ')) || 'errors'));
+              }
             }
             const t = tabs.get(tabId);
             if (d.pipeline && t && t.fb) {
