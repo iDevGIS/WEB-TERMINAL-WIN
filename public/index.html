@@ -5981,7 +5981,11 @@
         else if (b.type === 'extract') bodyText = cfg.root || '(no root selector)';
         else if (b.type === 'follow') bodyText = cfg.nextSelector || '(no next selector)';
         else if (b.type === 'transform') bodyText = (cfg.ops || []).map(o => o.op || o.type).filter(Boolean).join(' → ') || '(no ops)';
-        else if (b.type === 'store') bodyText = (cfg.format || 'json') + ' · ' + _fbTrunc(cfg.path || '(no path)', 24);
+        else if (b.type === 'store') {
+          const _extras = String(cfg.formats || '').split(/[,\s]+/).filter(Boolean);
+          const _fmtLabel = _extras.length ? `${cfg.format || 'json'}+${_extras.length}` : (cfg.format || 'json');
+          bodyText = _fmtLabel + ' · ' + _fbTrunc(cfg.path || '(no path)', 24);
+        }
         else if (b.type === 'self_heal') bodyText = cfg.goal ? _fbTrunc(cfg.goal, 38) : 'AI regen selectors';
         else if (b.type === 'login') bodyText = cfg.mode || 'form';
         const status = b.lastStatus || 'idle';
@@ -6059,7 +6063,8 @@
       } else if (block.type === 'transform') {
         cfgInputs.push(_row('Ops (JSON array)', `<textarea class="val" style="width:100%;box-sizing:border-box;font-family:ui-monospace,monospace;font-size:11px;min-height:90px;resize:vertical" oninput="fbEditBlockCfgJson('${tabId}','${block.id}','ops', this.value, this)">${escHtml(JSON.stringify(cfg.ops || [], null, 2))}</textarea>`));
       } else if (block.type === 'store') {
-        cfgInputs.push(_row('Format', _sel('format', cfg.format || 'json', ['json', 'csv', 'sqlite', 'jsonl'])));
+        cfgInputs.push(_row('Format', _sel('format', cfg.format || 'json', ['json', 'csv', 'jsonl', 'md', 'sqlite'])));
+        cfgInputs.push(_row('Extra formats <span style="opacity:.55;font-weight:400">(comma-sep)</span>', _txt('formats', cfg.formats || '', 'e.g., csv,md,jsonl')));
         cfgInputs.push(_row('Output path', _txt('path', cfg.path, 'scraps/pipelines-out/results.json')));
       }
 
@@ -6145,7 +6150,11 @@
       else if (b.type === 'extract') bodyText = cfg.root || '(no root selector)';
       else if (b.type === 'follow') bodyText = cfg.nextSelector || '(no next selector)';
       else if (b.type === 'transform') bodyText = (cfg.ops || []).map(o => o.op || o.type).filter(Boolean).join(' → ') || '(no ops)';
-      else if (b.type === 'store') bodyText = (cfg.format || 'json') + ' · ' + _fbTrunc(cfg.path || '(no path)', 24);
+      else if (b.type === 'store') {
+        const _extras = String(cfg.formats || '').split(/[,\s]+/).filter(Boolean);
+        const _fmtLabel = _extras.length ? `${cfg.format || 'json'}+${_extras.length}` : (cfg.format || 'json');
+        bodyText = _fmtLabel + ' · ' + _fbTrunc(cfg.path || '(no path)', 24);
+      }
       else if (b.type === 'self_heal') bodyText = cfg.goal ? _fbTrunc(cfg.goal, 38) : 'AI regen selectors';
       else if (b.type === 'login') bodyText = cfg.mode || 'form';
       const el = document.querySelector('#' + tabId + '-fb-canvas .fb-block[data-block-id="' + blockId + '"] .fb-bbody');
@@ -6190,6 +6199,30 @@
       host.appendChild(div);
       while (host.children.length > 200) host.removeChild(host.firstChild);
       host.scrollTop = host.scrollHeight;
+    }
+
+    // v4.2.0 — render run result with multi-file output support (one button per file)
+    function _fbLogRunResult(tabId, d) {
+      const files = (Array.isArray(d.outputFiles) && d.outputFiles.length)
+        ? d.outputFiles
+        : (d.outputFile ? [d.outputFile] : []);
+      const primary = files[0] || '';
+      const outName = primary ? (String(primary).split(/[\\/]/).pop() || primary) : '';
+      const fileSummary = files.length > 1
+        ? ` · ${files.length} files`
+        : (outName ? ` · ${outName}` : '');
+      const msg = '✔ Done · ' + (d.rowCount || 0) + ' rows · ' + (d.durationMs || 0) + 'ms' + fileSummary;
+      if (files.length > 1 && typeof openEditor === 'function') {
+        fbLog(tabId, 'ok', msg);
+        files.forEach(fp => {
+          const name = String(fp).split(/[\\/]/).pop() || fp;
+          fbLogWithAction(tabId, 'info', '  ↳ ' + name, '📂 Open', () => openEditor(fp, name));
+        });
+      } else if (primary && typeof openEditor === 'function') {
+        fbLogWithAction(tabId, 'ok', msg, '📂 Show output', () => openEditor(primary, outName));
+      } else {
+        fbLog(tabId, 'ok', msg);
+      }
     }
 
     // v4.0.3 — Phase C: Minimap (mini map of canvas + viewport indicator)
@@ -6418,13 +6451,7 @@
         });
         const d = await r.json();
         if (r.ok && d.ok) {
-          const outName = d.outputFile ? (String(d.outputFile).split(/[\\/]/).pop() || d.outputFile) : '';
-          const msg = '✔ Done · ' + (d.rowCount || 0) + ' rows · ' + (d.durationMs || 0) + 'ms' + (outName ? ' · ' + outName : '');
-          if (d.outputFile && typeof openEditor === 'function') {
-            fbLogWithAction(tabId, 'ok', msg, '📂 Show output', () => openEditor(d.outputFile, outName));
-          } else {
-            fbLog(tabId, 'ok', msg);
-          }
+          _fbLogRunResult(tabId, d);
         } else {
           fbLog(tabId, 'err', '✘ Failed: ' + ((d.errors && d.errors.join('; ')) || d.error || 'unknown'));
         }
@@ -6493,13 +6520,7 @@
           try {
             const d = JSON.parse(m.data);
             if (d.ok) {
-              const outName = d.outputFile ? (String(d.outputFile).split(/[\\/]/).pop() || d.outputFile) : '';
-              const msg = '✔ Done · ' + (d.rowCount || 0) + ' rows · ' + (d.durationMs || 0) + 'ms' + (outName ? ' · ' + outName : '');
-              if (d.outputFile && typeof openEditor === 'function') {
-                fbLogWithAction(tabId, 'ok', msg, '📂 Show output', () => openEditor(d.outputFile, outName));
-              } else {
-                fbLog(tabId, 'ok', msg);
-              }
+              _fbLogRunResult(tabId, d);
             } else {
               fbLog(tabId, 'err', '✘ Failed: ' + ((d.errors && d.errors.join('; ')) || 'errors'));
             }

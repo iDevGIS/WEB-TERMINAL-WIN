@@ -5,6 +5,31 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [4.2.0] — 2026-05-14 — Flow Builder: Multi-format Store block
+
+### Added
+
+- **`_pipeExecStore` now supports multiple output formats per Store block.** Two config knobs:
+  - `format` (legacy, single) — kept for backward compat. Default `json`.
+  - `formats` (new) — comma-separated string OR array. Each listed format produces its own file using a shared filename stem.
+  - Example: `format=json`, `formats="csv,md,jsonl"` → emits `rows.json`, `rows.csv`, `rows.md`, `rows.ndjson` in one run.
+- **Four pure-JS formats:** `json` (pretty-printed), `csv` (RFC 4180-ish escaping), `jsonl`/`ndjson` (newline-delimited JSON, one row per line), `md`/`markdown` (GFM pipe-table).
+- **`sqlite` explicitly opt-out** — currently logs `store: sqlite format not enabled in this build (skipped); use jsonl + sqlite3 CLI for now` and continues. Avoids silent fall-through to JSON that hid the gap in earlier builds. Add `better-sqlite3` dep + executor to enable.
+- **Filename stem normalization.** Strips extension from the configured path, sanitizes unsafe chars, then appends `.${format}` for each requested format. `target=results.json` → stem `results` → outputs `results.csv`, `results.md`, etc.
+- **`state.outputFiles[]` array** added to result + SSE `result` event + `onProgress` `done` event. `state.outputFile` retained as primary (= first file) for back-compat with existing consumers.
+- **Flow Builder Store config UI** — new "Extra formats (comma-sep)" text input below the existing Format dropdown. Inline placeholder `e.g., csv,md,jsonl`.
+- **Block bodyText** now shows multi-format hint: `json+2 · results.json` when 2 extras are configured (previously just `json · results.json`).
+- **Run log helper `_fbLogRunResult(tabId, d)`** — single helper reused by both POST fallback and SSE result handlers. When `outputFiles.length > 1`, renders summary line `✔ Done · N rows · Mms · K files` followed by one `↳ <name>  [📂 Open]` line per file. Single-file path keeps the original `📂 Show output` button behavior.
+
+### Notes
+
+- Backward-compatible: existing pipelines with just `format: "json"` produce one file exactly as before. Extra formats opt-in via `formats` string.
+- All formats share the same `state.rows` snapshot — no per-format filtering yet. (Use a Transform block upstream if format-specific row shaping is needed.)
+- `.ndjson` extension chosen for `jsonl` to match common tooling (jq, vector); `.md` for both `md` and `markdown`.
+- Pattern generalizes: same `format`/`formats` knob applies to TerraSight survey export, AUTH-MONITOR alert sinks, Keycloak audit logs, etc.
+
+---
+
 ## [4.1.4] — 2026-05-14 — Flow Builder: Smart Auto Layout (viewport-aware)
 
 ### Improved

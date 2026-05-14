@@ -7925,27 +7925,72 @@ async function _pipeExecTransform(state, config, ctx) {
   return state;
 }
 
+// v4.2.0 — Multi-format store. Supports `format` (legacy single) + `formats` (new array/CSV string).
+// Writes one file per requested format, using shared filename stem.
 async function _pipeExecStore(state, config, ctx) {
-  const target = String(config.target || "rows.json");
-  const format = String(config.format || (target.endsWith(".csv") ? "csv" : "json")).toLowerCase();
-  const safeName = target.replace(/[^a-zA-Z0-9_.-]+/g, "_");
+  const rows = state.rows || [];
+  const target = String(config.target || config.path || "rows.json");
+
+  // Collect requested formats (de-duped, normalized lower-case)
+  const formats = [];
+  const seen = new Set();
+  const pushFmt = (f) => {
+    const v = String(f || "").toLowerCase().trim();
+    if (v && !seen.has(v)) { seen.add(v); formats.push(v); }
+  };
+  pushFmt(config.format);
+  if (Array.isArray(config.formats)) config.formats.forEach(pushFmt);
+  else if (typeof config.formats === "string") config.formats.split(/[,\s]+/).forEach(pushFmt);
+  if (formats.length === 0) {
+    const ext = (target.match(/\.([a-z0-9]+)$/i) || ["", "json"])[1].toLowerCase();
+    pushFmt(["csv", "jsonl", "ndjson", "md", "markdown"].includes(ext) ? ext : "json");
+  }
+
   const outDir = path.join(SCRAP_DIR, "pipelines-out");
   if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
-  const file = path.join(outDir, safeName);
-  if (format === "csv") {
-    const rows = state.rows || [];
-    const cols = rows.length ? Object.keys(rows[0]) : [];
-    const esc = v => {
-      const s = String(v == null ? "" : v);
-      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-    };
-    const lines = [cols.join(",")].concat(rows.map(r => cols.map(c => esc(r[c])).join(",")));
-    fs.writeFileSync(file, lines.join("\n"));
-  } else {
-    fs.writeFileSync(file, JSON.stringify(state.rows || [], null, 2));
+
+  const safeBase = target.replace(/[^a-zA-Z0-9_.-]+/g, "_");
+  const stem = safeBase.replace(/\.[^.]+$/, "") || "rows";
+
+  const formatExt = (f) => (f === "jsonl" ? "ndjson" : f === "markdown" ? "md" : f);
+  const outputFiles = [];
+
+  for (const fmt of formats) {
+    if (fmt === "sqlite") {
+      state.log.push("store: sqlite format not enabled in this build (skipped); use jsonl + sqlite3 CLI for now");
+      continue;
+    }
+    const fname = `${stem}.${formatExt(fmt)}`;
+    const fpath = path.join(outDir, fname);
+    let content = "";
+    if (fmt === "csv") {
+      const cols = rows.length ? Object.keys(rows[0]) : [];
+      const esc = v => {
+        const s = String(v == null ? "" : v);
+        return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+      };
+      content = [cols.join(",")].concat(rows.map(r => cols.map(c => esc(r[c])).join(","))).join("\n");
+    } else if (fmt === "jsonl" || fmt === "ndjson") {
+      content = rows.map(r => JSON.stringify(r)).join("\n");
+    } else if (fmt === "md" || fmt === "markdown") {
+      const cols = rows.length ? Object.keys(rows[0]) : [];
+      const esc = v => String(v == null ? "" : v).replace(/\|/g, "\\|").replace(/\n/g, " ");
+      content = [
+        `| ${cols.join(" | ")} |`,
+        `| ${cols.map(() => "---").join(" | ")} |`,
+        ...rows.map(r => `| ${cols.map(c => esc(r[c])).join(" | ")} |`),
+      ].join("\n");
+    } else {
+      content = JSON.stringify(rows, null, 2);
+    }
+    fs.writeFileSync(fpath, content);
+    outputFiles.push(path.resolve(fpath));
   }
-  state.log.push(`store ok (${(state.rows || []).length} rows → ${safeName})`);
-  state.outputFile = path.resolve(file);
+
+  const names = outputFiles.map(p => path.basename(p));
+  state.log.push(`store ok (${rows.length} rows → ${outputFiles.length} file${outputFiles.length === 1 ? "" : "s"}: ${names.join(", ") || "none"})`);
+  state.outputFile = outputFiles[0] || null;
+  state.outputFiles = outputFiles;
   return state;
 }
 
@@ -8141,9 +8186,10 @@ async function _executePipeline(pipeline, opts = {}) {
     log: state.log,
     healed: state.healed,
     outputFile: state.outputFile || null,
+    outputFiles: state.outputFiles || (state.outputFile ? [state.outputFile] : []),
     durationMs: Date.now() - startedAt,
   };
-  try { onProgress({ kind: "done", ok: result.ok, rowCount: result.rowCount, durationMs: result.durationMs, outputFile: result.outputFile, errors: result.errors }); } catch {}
+  try { onProgress({ kind: "done", ok: result.ok, rowCount: result.rowCount, durationMs: result.durationMs, outputFile: result.outputFile, outputFiles: result.outputFiles, errors: result.errors }); } catch {}
   return result;
 }
 
@@ -8226,7 +8272,7 @@ app.get("/api/scrap/pipelines/:id/run/stream", requireAuth, async (req, res) => 
     p.lastRowCount = result.rowCount;
     p.lastError = result.ok ? null : (result.errors.join("; ") || "errors");
     savePipelines(list);
-    send("result", { ok: result.ok, rowCount: result.rowCount, durationMs: result.durationMs, outputFile: result.outputFile, errors: result.errors, pipeline: p });
+    send("result", { ok: result.ok, rowCount: result.rowCount, durationMs: result.durationMs, outputFile: result.outputFile, outputFiles: result.outputFiles, errors: result.errors, pipeline: p });
   } catch (e) {
     p.lastError = String(e.message || e); p.lastRunAt = new Date().toISOString(); savePipelines(list);
     send("fatal", { error: p.lastError });
