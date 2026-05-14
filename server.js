@@ -2503,7 +2503,7 @@ const CROSS_TAB_TOOLS = [
     type: 'function',
     function: {
       name: 'pipeline_build_from_description',
-      description: 'Generate a draft Scrap pipeline (blocks + edges) from a natural-language description. Parses URLs, output formats (csv/json/jsonl/md/sqlite), schedule (every N min/hour/day), pagination ("follow next"), and auth ("cookie ...") into a fetch → [follow] → extract → store DAG. Returns the draft. If save=true persists it. If run=true runs it after save.',
+      description: 'Generate a draft Scrap pipeline (blocks + edges) from a natural-language description. Parses URLs, output formats (csv/json/jsonl/md/sqlite), schedule (every N min/hour/day), pagination ("follow next"), and auth ("cookie ...") into a fetch → [follow] → extract → store DAG. Field hints support BOTH name-only ("extract title author price") AND inline CSS hints ("extract title=.t price=.price"); Unicode/Thai names supported. Multi-URL is detected but only the first URL is used (extras returned in summary.warnings). Returns the draft. If save=true persists it. If run=true runs it after save.',
       parameters: {
         type: 'object',
         properties: {

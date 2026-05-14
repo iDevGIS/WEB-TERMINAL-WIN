@@ -5,6 +5,23 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [4.3.1] — 2026-05-14 — NL pipeline builder parser v2 (4 hotfixes)
+
+### Fixed
+
+- **🐞 Greedy field regex** — old `(?:fields?|extract)[:\s]+([A-Za-z0-9_,\s]+)` swallowed everything past `extract` until end-of-line. Inputs like `"extract title, author store csv"` got `fieldNames = [title, author, store, csv]`. Now uses **stop-word-bounded segment**: parser captures everything after `extract:` / `fields:` until the next clause keyword (`store|save|every|then|cookie|follow|paginate|render|js|spa|browser|playwright|using|into csv/json/...`).
+- **🐞 ASCII-only names** — old `[A-Za-z0-9_]` silently dropped Thai/Unicode names (`extract ชื่อ ราคา` → `fieldNames=[]`). Now uses `[\p{L}_][\p{L}\p{N}_]*` with `u` flag. Thai, Japanese, Korean, etc. all supported.
+- **🆕 Selector hint syntax** — segments like `extract title=.title price=.product-price` now populate `selectors` directly (instead of treating `.title` as a stop-word). Falls back to name-only for tokens without `=`. Mixed forms OK: `extract title=.title author price`.
+- **🆕 Multi-URL warning** — old code silently dropped `urls[1..N]`. Now adds `summary.warnings[]` line listing extras so users see what was ignored (e.g. `"multi-url: only the first URL (...) is used; 2 additional URL(s) ignored — Extras: https://b.com, https://c.com"`).
+
+### Notes
+
+- Conjunctions inside field segment (`and`, `or`, `plus`, `with`, `the`, `a`, `an`) are skipped — so `extract title and author and price` → `[title, author, price]`.
+- Tool count unchanged (80). Pure client-side change (`public/index.html`) — no server restart needed; just hard-refresh Sidekick.
+- v4.3.0 smoke test had 14/14 DAG well-formed but 0/3 field-extraction scenarios passing (greedy bug); v4.3.1 closes that gap.
+
+---
+
 ## [4.3.0] — 2026-05-14 — Sidekick NL pipeline builder + v3.x recipe interop
 
 ### Added

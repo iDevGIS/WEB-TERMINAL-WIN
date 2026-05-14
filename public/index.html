@@ -13715,12 +13715,46 @@ ${fields}
         const wantsBrowser = /\b(render|js|javascript|spa|playwright|browser)\b/.test(lower);
         const cookieM = desc.match(/cookie[:\s]+([^\n;]+(?:;[^\n;]+)*)/i);
         const cookie = cookieM ? cookieM[1].trim() : '';
-        const fieldsM = desc.match(/(?:fields?|extract)[:\s]+([A-Za-z0-9_,\s]+)/i);
-        const fieldNames = fieldsM
-          ? fieldsM[1].split(/[\s,]+/).map(s => s.trim()).filter(Boolean).slice(0, 12)
-          : [];
+        // Parser v2 — stop-word-bounded segment, Unicode names (Thai+), `name=.css` selector hints
+        const FIELD_STOP_RE = /\b(?:store|stores|stored|saving|saves?|saved|every|then|cookie|cookies|follow|paginate|all\s+pages|next\s+page|render|js|javascript|spa|browser|playwright|using)\b/i;
+        const FIELD_INTO_RE = /\binto\s+(?:csv|json|sqlite|md|markdown|jsonl|ndjson)\b/i;
+        const fieldsHeadM = desc.match(/(?:fields?|extract)\s*[:\s]\s*/i);
         const selectors = {};
-        for (const f of fieldNames) selectors[f] = '';
+        const fieldNames = [];
+        if (fieldsHeadM) {
+          const start = fieldsHeadM.index + fieldsHeadM[0].length;
+          const rest = desc.slice(start);
+          let stopIdx = rest.length;
+          const stopA = rest.match(FIELD_STOP_RE);
+          const stopB = rest.match(FIELD_INTO_RE);
+          if (stopA && stopA.index < stopIdx) stopIdx = stopA.index;
+          if (stopB && stopB.index < stopIdx) stopIdx = stopB.index;
+          const segment = rest.slice(0, stopIdx).trim();
+          const tokens = segment.replace(/,/g, ' ').split(/\s+/).filter(Boolean);
+          const SKIP_CONJ = /^(?:and|or)$/i;
+          // Letter + Mark (combining vowels/tone marks for Thai/etc.) + Digit + underscore
+          const NAME_HEAD = '[\\p{L}\\p{M}_]';
+          const NAME_TAIL = '[\\p{L}\\p{M}\\p{N}_]*';
+          const HINT_RE = new RegExp('^(' + NAME_HEAD + NAME_TAIL + ')\\s*=\\s*(.+)$', 'u');
+          const NAME_RE = new RegExp('^(' + NAME_HEAD + NAME_TAIL + ')$', 'u');
+          for (const tok of tokens) {
+            if (SKIP_CONJ.test(tok)) continue;
+            const eqM = tok.match(HINT_RE);
+            if (eqM) {
+              const name = eqM[1];
+              const sel = eqM[2].trim();
+              if (!(name in selectors)) fieldNames.push(name);
+              selectors[name] = sel;
+            } else {
+              const nameM = tok.match(NAME_RE);
+              if (nameM && !(nameM[1] in selectors)) {
+                selectors[nameM[1]] = '';
+                fieldNames.push(nameM[1]);
+              }
+            }
+            if (fieldNames.length >= 12) break;
+          }
+        }
         // --- Build blocks ---
         const blocks = [];
         const newId = (prefix) => prefix + '_' + Math.random().toString(36).slice(2, 7);
@@ -13791,6 +13825,10 @@ ${fields}
           startBlock: blocks[0].id,
         };
         if (intervalMin > 0) draft.schedule = { enabled: true, intervalMin };
+        const warnings = [];
+        if (urls.length > 1) {
+          warnings.push('multi-url: only the first URL (' + firstUrl + ') is used; ' + (urls.length - 1) + ' additional URL(s) ignored — clone the pipeline or add Fetch blocks manually for parallel sources. Extras: ' + urls.slice(1).join(', '));
+        }
         const summary = {
           urls: urls.length,
           fetchMode: wantsBrowser ? 'browser' : 'static',
@@ -13800,6 +13838,7 @@ ${fields}
           loginCookie: !!cookie,
           fields: fieldNames,
         };
+        if (warnings.length) summary.warnings = warnings;
         if (!args || !args.save) {
           return { ok: true, preview: true, draft, summary, hint: 'Pass save:true to persist via pipeline_save.' };
         }
