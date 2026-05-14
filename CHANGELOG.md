@@ -5,6 +5,32 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [4.13.0] — 2026-05-15 — Tabs: Phase F 🅲 IDE-shell pack (pin · context menu · middle-click)
+
+### Added
+
+- **Pin Tab** — pinned tabs sort to the left of the strip, show a 📌 indicator, and hide their close button so a stray click can't kill them. Pin/unpin via right-click context menu. Pinned state persists across reload alongside the rest of the workspace.
+- **Right-click context menu on any tab**:
+  - 📌 Pin Tab / Unpin Tab
+  - ✕ Close (also shown as `Mid-click` shortcut)
+  - ⊟ Close Others — closes every other unpinned tab (pinned tabs are skipped, not killed)
+  - ⇥ Close to Right — closes everything strictly to the right of the clicked tab (skipping pinned)
+  - Glassmorphism floater · viewport-clamped · dismisses on outside click, ESC, or window blur
+- **Middle-click to close** — universal IDE convention. Same pin guard applies, so middle-clicking a pinned tab is a no-op (with a toast hint).
+- **Pin guard on `closeTab`** — any path that reaches `closeTab(id)` for a pinned tab now bails with a toast/log instead of dropping the workspace tab. `closeTab(id, { force: true })` overrides the guard for explicit programmatic closes.
+- **Auto-resort after pin toggle** — `_resortPinnedTabs()` keeps pinned tabs in a stable left-aligned block while preserving relative order in each group.
+
+### Why
+
+The Flow Builder shell now feels like an IDE — three-panel layout, presets, shortcuts. The tab strip was the last piece still acting like a hot-list: every tab equally killable, no signal for "this is the one I always want open". Pinning is the smallest possible primitive that fixes both — visual marker + close-by-accident immunity — and the right-click menu carries the rest of the IDE conventions (close others, close to right) for free. Middle-click close is the muscle-memory finish.
+
+### Files Modified
+
+- `public/index.html` — `.tab-pin-ind` / `.tab-context-menu` CSS, `togglePinTab` / `closeOtherTabs` / `closeTabsToRight` / `_showTabContextMenu` / `_resortPinnedTabs`, `closeTab` pin guard, mousedown/contextmenu wiring inside `createTab`, `pinned` flag in `_saveTabsState`/`_restoreTabsState`
+- `package.json`, `CHANGELOG.md`
+
+---
+
 ## [4.12.0] — 2026-05-15 — Flow Builder: Phase F 🅱 layout presets
 
 ### Added

@@ -621,6 +621,35 @@
     }
     .tab-item:hover .tab-close { opacity: .6; }
     .tab-close:hover { opacity: 1 !important; background: rgba(248,113,113,.15); color: #f87171; }
+    .tab-pin-ind { font-size: 9px; color: var(--accent); opacity: .85; flex-shrink: 0; display: none; }
+    .tab-item.pinned .tab-pin-ind { display: inline; }
+    .tab-item.pinned .tab-close { display: none; }
+    .tab-item.pinned { background: rgba(108,99,255,.06); }
+    .tab-item.pinned:hover { background: rgba(108,99,255,.10); }
+
+    .tab-context-menu {
+      position: fixed;
+      z-index: 9999;
+      min-width: 180px;
+      background: rgba(20,20,28,.96);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: 8px;
+      padding: 4px;
+      box-shadow: 0 12px 32px rgba(0,0,0,.5);
+      font-size: 12px;
+    }
+    .tab-context-menu .tcm-item {
+      display: flex; align-items: center; gap: 8px;
+      padding: 7px 10px; border-radius: 5px;
+      color: var(--text2); cursor: pointer;
+      transition: background .12s;
+    }
+    .tab-context-menu .tcm-item:hover { background: rgba(108,99,255,.18); color: var(--text); }
+    .tab-context-menu .tcm-item.disabled { opacity: .35; pointer-events: none; }
+    .tab-context-menu .tcm-sep { height: 1px; background: rgba(255,255,255,.06); margin: 4px 2px; }
+    .tab-context-menu .tcm-key { margin-left: auto; font-size: 10px; color: var(--text3); }
 
     .tab-add {
       width: 28px; height: 28px;
@@ -11510,9 +11539,18 @@ ${fields}
       tabEl.dataset.tabId = tabId;
       const icon = opts.icon || (type === 'terminal' ? '⚡' : type === 'editor' ? '📝' : type === 'preview' ? '👁' : type === 'admin' ? '🛡️' : type === 'chat' ? '💬' : type === 'agent-monitor' ? '🤖' : type === 'vscode' ? '💻' : type === 'vnc' ? '🖥️' : type === 'docker' ? '🐳' : type === 'spy' ? '👁' : type === 'claude-code' ? '⚡' : type === 'browser' ? '🌐' : type === 'scrap' ? '🪝' : type === 'flow-builder' ? '🎨' : '📂');
       const label = opts.name || (type === 'terminal' ? 'Shell' : type === 'editor' ? 'Editor' : type === 'preview' ? 'Preview' : type === 'admin' ? 'Admin' : type === 'chat' ? 'AI Chat' : type === 'agent-monitor' ? 'Agent Monitor' : type === 'vscode' ? 'VS Code' : type === 'vnc' ? 'Remote Desktop' : type === 'docker' ? 'Docker' : type === 'spy' ? 'Spy' : type === 'claude-code' ? 'Claude Code' : type === 'browser' ? 'Browser' : type === 'scrap' ? 'Scrap' : type === 'flow-builder' ? 'Flow Builder' : 'Files');
-      tabEl.innerHTML = `<span class="tab-icon">${icon}</span><span class="tab-label">${escHtml(label)}</span><span class="tab-close" onclick="event.stopPropagation();closeTab('${tabId}')">✕</span>`;
+      tabEl.innerHTML = `<span class="tab-pin-ind" title="Pinned">📌</span><span class="tab-icon">${icon}</span><span class="tab-label">${escHtml(label)}</span><span class="tab-close" onclick="event.stopPropagation();closeTab('${tabId}')">✕</span>`;
       if (type === 'claude-code') tabEl.style.color = '#f97316';
       tabEl.onclick = () => switchTab(tabId);
+      // Middle-click closes tab (universal IDE convention; pin guard inside closeTab)
+      tabEl.addEventListener('mousedown', (e) => {
+        if (e.button === 1) { e.preventDefault(); closeTab(tabId); }
+      });
+      // Right-click → context menu
+      tabEl.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        _showTabContextMenu(tabId, e.clientX, e.clientY);
+      });
       // Drag to reorder
       tabEl.draggable = true;
       tabEl.addEventListener('dragstart', (e) => {
@@ -12953,9 +12991,111 @@ ${fields}
       tab.tabEl.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
     }
 
-    function closeTab(tabId) {
+    // === Pin tab + multi-close (Phase F 🅲 IDE-shell pack v4.13.0) ===
+    function togglePinTab(tabId) {
       const tab = tabs.get(tabId);
       if (!tab) return;
+      tab.pinned = !tab.pinned;
+      tab.tabEl.classList.toggle('pinned', !!tab.pinned);
+      _resortPinnedTabs();
+      if (typeof saveWorkspaceState === 'function') saveWorkspaceState();
+      else if (typeof _saveTabsState === 'function') _saveTabsState();
+    }
+    function _resortPinnedTabs() {
+      const tabBar = document.getElementById('tab-bar');
+      if (!tabBar) return;
+      const addBtn = tabBar.querySelector('.tab-add');
+      const items = Array.from(tabBar.querySelectorAll('.tab-item'));
+      // Stable: pinned first preserving relative order, then unpinned preserving relative order
+      const pinned = items.filter(el => el.classList.contains('pinned'));
+      const rest = items.filter(el => !el.classList.contains('pinned'));
+      [...pinned, ...rest].forEach(el => tabBar.insertBefore(el, addBtn));
+    }
+    function closeOtherTabs(keepId) {
+      const ids = Array.from(tabs.keys());
+      for (const id of ids) {
+        if (id === keepId) continue;
+        const t = tabs.get(id);
+        if (t && t.pinned) continue;
+        closeTab(id);
+      }
+    }
+    function closeTabsToRight(fromId) {
+      const tabBar = document.getElementById('tab-bar');
+      if (!tabBar) return;
+      const order = Array.from(tabBar.querySelectorAll('.tab-item')).map(el => el.dataset.tabId);
+      const idx = order.indexOf(fromId);
+      if (idx < 0) return;
+      for (const id of order.slice(idx + 1)) {
+        const t = tabs.get(id);
+        if (t && t.pinned) continue;
+        closeTab(id);
+      }
+    }
+    function _hideTabContextMenu() {
+      const m = document.getElementById('tab-context-menu');
+      if (m) m.remove();
+      document.removeEventListener('mousedown', _onTabCtxOutside, true);
+      document.removeEventListener('keydown', _onTabCtxKey, true);
+      window.removeEventListener('blur', _hideTabContextMenu);
+    }
+    function _onTabCtxOutside(e) {
+      const m = document.getElementById('tab-context-menu');
+      if (m && !m.contains(e.target)) _hideTabContextMenu();
+    }
+    function _onTabCtxKey(e) {
+      if (e.key === 'Escape') _hideTabContextMenu();
+    }
+    function _showTabContextMenu(tabId, x, y) {
+      _hideTabContextMenu();
+      const tab = tabs.get(tabId);
+      if (!tab) return;
+      const tabBar = document.getElementById('tab-bar');
+      const order = tabBar ? Array.from(tabBar.querySelectorAll('.tab-item')).map(el => el.dataset.tabId) : [];
+      const idx = order.indexOf(tabId);
+      const hasRight = idx >= 0 && idx < order.length - 1;
+      const hasOthers = tabs.size > 1;
+      const m = document.createElement('div');
+      m.id = 'tab-context-menu';
+      m.className = 'tab-context-menu';
+      m.innerHTML = `
+        <div class="tcm-item" data-act="pin">${tab.pinned ? '📌 Unpin Tab' : '📌 Pin Tab'}</div>
+        <div class="tcm-sep"></div>
+        <div class="tcm-item ${tab.pinned ? 'disabled' : ''}" data-act="close">✕ Close<span class="tcm-key">Mid-click</span></div>
+        <div class="tcm-item ${hasOthers ? '' : 'disabled'}" data-act="close-others">⊟ Close Others</div>
+        <div class="tcm-item ${hasRight ? '' : 'disabled'}" data-act="close-right">⇥ Close to Right</div>
+      `;
+      m.addEventListener('click', (e) => {
+        const it = e.target.closest('.tcm-item');
+        if (!it || it.classList.contains('disabled')) return;
+        const act = it.dataset.act;
+        _hideTabContextMenu();
+        if (act === 'pin') togglePinTab(tabId);
+        else if (act === 'close') closeTab(tabId);
+        else if (act === 'close-others') closeOtherTabs(tabId);
+        else if (act === 'close-right') closeTabsToRight(tabId);
+      });
+      document.body.appendChild(m);
+      // Position with viewport clamping
+      const w = m.offsetWidth || 200, h = m.offsetHeight || 160;
+      const vw = window.innerWidth, vh = window.innerHeight;
+      m.style.left = Math.min(x, vw - w - 8) + 'px';
+      m.style.top = Math.min(y, vh - h - 8) + 'px';
+      // Dismiss on outside click / ESC / blur
+      setTimeout(() => document.addEventListener('mousedown', _onTabCtxOutside, true), 0);
+      document.addEventListener('keydown', _onTabCtxKey, true);
+      window.addEventListener('blur', _hideTabContextMenu);
+    }
+
+    function closeTab(tabId, opts) {
+      const tab = tabs.get(tabId);
+      if (!tab) return;
+      // Pin guard — pinned tabs require explicit unpin first (or force:true)
+      if (tab.pinned && !(opts && opts.force)) {
+        if (window._toast) window._toast('📌 Tab is pinned — right-click → Unpin first');
+        else console.log('[closeTab] tab pinned:', tabId);
+        return;
+      }
 
       // Check for unsaved editor
       if (tab.type === 'editor' && tab.monacoEditor) {
@@ -25374,7 +25514,7 @@ ${fields}
           const tabId = el.dataset.tabId;
           const tab = tabs.get(tabId);
           if (!tab) return;
-          const entry = { type: tab.type, name: tab.name, icon: tab.icon };
+          const entry = { type: tab.type, name: tab.name, icon: tab.icon, pinned: !!tab.pinned };
           if (tab.type === 'terminal') {
             entry.sessionId = tab.sessionId || (tab.panes && tab.panes[0] ? tab.panes[0].sessionId : null);
           }
@@ -25595,6 +25735,19 @@ ${fields}
             restoredAny = true;
           }
         }
+
+        // Apply pinned state (createTab order maps 1:1 to state.tabs entries)
+        try {
+          const allTabs = Array.from(tabs.keys());
+          state.tabs.forEach((entry, i) => {
+            if (!entry.pinned) return;
+            const t = tabs.get(allTabs[i]);
+            if (!t) return;
+            t.pinned = true;
+            if (t.tabEl) t.tabEl.classList.add('pinned');
+          });
+          if (typeof _resortPinnedTabs === 'function') _resortPinnedTabs();
+        } catch(e) { console.warn('[TabState] pin restore failed', e); }
 
         // Switch to previously active tab
         if (restoredAny) {
