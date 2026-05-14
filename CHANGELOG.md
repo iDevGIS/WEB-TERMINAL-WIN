@@ -5,6 +5,14 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [4.8.1] — 2026-05-15 — Hotfix: Flow Builder bottom panel vertical resize
+
+### Fixed
+
+- **Bottom-panel vertical drag did nothing visible.** `.fb-console` was styled with `max-height: var(--fb-bottomH)` so changing the CSS variable only updated the cap — actual height stayed pinned to its auto/min content size (~28px when empty). Dragging the `↕` handle updated the variable correctly but the panel never grew or shrank. Changed to `height: var(--fb-bottomH)` so the panel binds its rendered height to the CSS variable. Drag (and double-click reset) now move pixels live within the existing 60–480 clamp. Client-only — no server restart.
+
+---
+
 ## [4.8.0] — 2026-05-15 — Flow Builder: collapsible + resizable panels
 
 ### Added
