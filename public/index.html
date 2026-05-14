@@ -1600,6 +1600,9 @@
     .fb-console .lvl-err  { color: #fca5a5; }
     .fb-console .lvl-info { color: #93c5fd; }
     .fb-console .lvl-warn { color: #fde68a; }
+    .fb-console .fb-log-action { margin-left: 8px; padding: 2px 8px; font-size: 10px; line-height: 1.4; background: rgba(99,102,241,.18); border: 1px solid rgba(165,180,252,.4); color: #c7d2fe; border-radius: 4px; cursor: pointer; font-family: inherit; transition: background .12s, border-color .12s; }
+    .fb-console .fb-log-action:hover { background: rgba(99,102,241,.32); border-color: rgba(199,210,254,.7); color: #ede9fe; }
+    .fb-console .fb-log-action:active { transform: translateY(1px); }
 
     /* Batch modal */
     .scrap-batch-backdrop { position: absolute; inset: 0; background: rgba(8,8,20,.62); backdrop-filter: blur(4px); z-index: 50; display: none; align-items: center; justify-content: center; }
@@ -6044,6 +6047,26 @@
       host.scrollTop = host.scrollHeight;
     }
 
+    // v4.0.1 — log line with clickable action button (opens output file in editor tab)
+    function fbLogWithAction(tabId, lvl, msg, actionLabel, onClick) {
+      const host = document.getElementById(tabId + '-fb-console');
+      if (!host) return;
+      const ts = new Date().toLocaleTimeString();
+      const div = document.createElement('div');
+      div.className = 'line';
+      const tsSpan = document.createElement('span'); tsSpan.className = 'ts'; tsSpan.textContent = ts;
+      const txtSpan = document.createElement('span'); txtSpan.className = 'lvl-' + (lvl || 'info'); txtSpan.textContent = msg;
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'fb-log-action';
+      btn.textContent = actionLabel;
+      btn.onclick = (ev) => { ev.preventDefault(); ev.stopPropagation(); try { onClick(); } catch (e) { console.error(e); } };
+      div.appendChild(tsSpan); div.appendChild(txtSpan); div.appendChild(btn);
+      host.appendChild(div);
+      while (host.children.length > 200) host.removeChild(host.firstChild);
+      host.scrollTop = host.scrollHeight;
+    }
+
     async function fbRun(tabId) {
       const t = tabs.get(tabId); if (!t || !t.fb || !t.fb.current) {
         fbLog(tabId, 'warn', 'No pipeline loaded — select one first');
@@ -6058,7 +6081,13 @@
         });
         const d = await r.json();
         if (r.ok && d.ok) {
-          fbLog(tabId, 'ok', '✔ Done · ' + (d.rowCount || 0) + ' rows · ' + (d.durationMs || 0) + 'ms' + (d.outputFile ? ' · ' + d.outputFile : ''));
+          const msg = '✔ Done · ' + (d.rowCount || 0) + ' rows · ' + (d.durationMs || 0) + 'ms' + (d.outputFile ? ' · ' + d.outputFile : '');
+          if (d.outputFile && typeof openEditor === 'function') {
+            const outName = String(d.outputFile).split(/[\\/]/).pop() || d.outputFile;
+            fbLogWithAction(tabId, 'ok', msg, '📂 Show output', () => openEditor(d.outputFile, outName));
+          } else {
+            fbLog(tabId, 'ok', msg);
+          }
         } else {
           fbLog(tabId, 'err', '✘ Failed: ' + ((d.errors && d.errors.join('; ')) || d.error || 'unknown'));
         }
