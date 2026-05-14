@@ -2532,6 +2532,31 @@ const CROSS_TAB_TOOLS = [
       },
     },
   },
+  {
+    type: 'function',
+    function: {
+      name: 'pipeline_list_templates',
+      description: 'List built-in Scrap pipeline starter templates. Returns key/name/category/icon/description/blockTypes for each. Use these keys with pipeline_create_from_template to instantiate a working draft.',
+      parameters: { type: 'object', properties: {}, required: [] },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'pipeline_create_from_template',
+      description: 'Clone a built-in Scrap template into a new draft pipeline. Block ids are regenerated so the same template can be used multiple times. Default = preview; save:true persists; save:true + run:true also runs once after save (only safe for templates with real URLs like quotes/hn-front/sitemap — others use example.com placeholders).',
+      parameters: {
+        type: 'object',
+        properties: {
+          key: { type: 'string', description: 'Template key (e.g. "quotes", "hn-front", "rss-feed", "json-api", "ecom-listing", "sitemap"). Call pipeline_list_templates for the canonical list.' },
+          name: { type: 'string', description: 'Optional override for the pipeline name.' },
+          save: { type: 'boolean', description: 'Persist the draft (default false — preview only).' },
+          run: { type: 'boolean', description: 'After saving, run the pipeline once (default false).' },
+        },
+        required: ['key'],
+      },
+    },
+  },
   // Workspaces
   {
     type: 'function',

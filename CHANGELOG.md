@@ -5,6 +5,28 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [4.4.0] — 2026-05-14 — Pipeline Templates Library + 2 new Sidekick tools
+
+### Added
+
+- **Pipeline Templates Library** — Flow Builder gains a `📂 Templates` toolbar button next to `＋ New`. Click opens a modal gallery of 6 starter pipelines:
+  - **💬 Quotes Demo** (`quotes`) — `quotes.toscrape.com` paginated list → JSON + CSV. Best first run.
+  - **📰 Hacker News Front Page** (`hn-front`) — `news.ycombinator.com` stories → SQLite (upsert by url), hourly schedule pre-set.
+  - **🗞️ RSS Feed** (`rss-feed`) — generic `<item>` extractor → JSONL, 30-min schedule.
+  - **🔌 JSON API Endpoint** (`json-api`) — raw API passthrough into JSON store (no HTML extract).
+  - **🛒 E-commerce Listing** (`ecom-listing`) — cookie auth + browser-mode fetch + paginate + AI self-heal fallback → CSV + SQLite (upsert by sku).
+  - **🗺️ Sitemap Crawl** (`sitemap`) — `sitemap.xml` → URL discovery list → JSON + CSV.
+- **`pipeline_list_templates()` Sidekick tool** — returns full catalog of templates with `key`, `name`, `icon`, `category`, `description`, `blockTypes[]`. Lets the model discover what's available without scraping the UI.
+- **`pipeline_create_from_template(key, name?, save?, run?)` Sidekick tool** — clones a template into a draft pipeline. Block ids regenerated per call (no collision if the same template is used multiple times). `loopback` + `healFallback` refs rewritten through the same id map. Default = preview; `save:true` persists; `save:true + run:true` runs once. Safe-to-run templates: `quotes`, `hn-front`, `sitemap` (real URLs); others use `example.com` placeholders.
+
+### Notes
+
+- Template loader uses `_fbCloneTemplate(key)` — single source of truth for both the modal UI and the Sidekick tool, so the catalog stays in sync.
+- Block positions are pre-baked in each template so Auto Layout is **optional** on first import. Click `🪄 Auto Layout` only if you add/remove blocks after importing.
+- Sidekick tool count: **82** (was 80). Phase E 🅱 Templates Library closed.
+
+---
+
 ## [4.3.1] — 2026-05-14 — NL pipeline builder parser v2 (4 hotfixes)
 
 ### Fixed

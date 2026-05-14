@@ -1624,6 +1624,27 @@
     .fb-console .fb-log-action:hover { background: rgba(99,102,241,.32); border-color: rgba(199,210,254,.7); color: #ede9fe; }
     .fb-console .fb-log-action:active { transform: translateY(1px); }
 
+    /* Flow Builder — Template Gallery modal */
+    .fb-tpl-backdrop { position: absolute; inset: 0; background: rgba(6,8,20,.7); backdrop-filter: blur(8px); z-index: 60; display: none; align-items: center; justify-content: center; }
+    .fb-tpl-backdrop.open { display: flex; }
+    .fb-tpl-modal { width: min(820px, 94%); max-height: 86%; overflow: auto; background: linear-gradient(180deg, #0f1029, #0a0a1f); border: 1px solid rgba(168,85,247,.32); border-radius: 16px; box-shadow: 0 24px 60px rgba(0,0,0,.6); padding: 22px 24px 18px; color: var(--text); }
+    .fb-tpl-modal h3 { margin: 0 0 4px; font-size: 16px; color: #ddd2ff; display: flex; align-items: center; gap: 8px; }
+    .fb-tpl-modal h3 .x { margin-left: auto; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.1); color: var(--text2); cursor: pointer; font-size: 14px; padding: 4px 10px; border-radius: 6px; }
+    .fb-tpl-modal h3 .x:hover { background: rgba(255,255,255,.12); color: #fff; }
+    .fb-tpl-modal .sub { font-size: 11.5px; color: var(--text3); margin: 0 0 16px; }
+    .fb-tpl-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
+    .fb-tpl-card { background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.08); border-radius: 12px; padding: 14px; cursor: pointer; transition: transform .15s, border-color .15s, background .15s; display: flex; flex-direction: column; gap: 8px; }
+    .fb-tpl-card:hover { transform: translateY(-2px); border-color: rgba(168,85,247,.45); background: rgba(168,85,247,.06); }
+    .fb-tpl-card .head { display: flex; align-items: center; gap: 8px; }
+    .fb-tpl-card .ico { font-size: 22px; line-height: 1; }
+    .fb-tpl-card .name { font-size: 13px; font-weight: 600; color: var(--text); }
+    .fb-tpl-card .cat { display: inline-block; font-size: 9.5px; text-transform: uppercase; letter-spacing: .06em; color: #c7d2fe; background: rgba(99,102,241,.16); padding: 2px 6px; border-radius: 4px; margin-left: auto; }
+    .fb-tpl-card .desc { font-size: 11.5px; color: var(--text2); line-height: 1.45; flex: 1; }
+    .fb-tpl-card .blocks { display: flex; gap: 4px; flex-wrap: wrap; font-size: 10.5px; color: var(--text3); }
+    .fb-tpl-card .blocks span { background: rgba(255,255,255,.05); padding: 2px 7px; border-radius: 9999px; border: 1px solid rgba(255,255,255,.08); }
+    .fb-tpl-card .cta { font-size: 11px; color: #a78bfa; opacity: 0; transition: opacity .15s; }
+    .fb-tpl-card:hover .cta { opacity: 1; }
+
     /* Batch modal */
     .scrap-batch-backdrop { position: absolute; inset: 0; background: rgba(8,8,20,.62); backdrop-filter: blur(4px); z-index: 50; display: none; align-items: center; justify-content: center; }
     .scrap-batch-backdrop.open { display: flex; }
@@ -6659,6 +6680,219 @@
       };
     }
 
+    // ---- Pipeline Template Gallery (v4.4.0) -----------------------------
+    // Each template is a recipe for a draft pipeline. Block ids inside `build()`
+    // are local placeholders; the clone path generates fresh ids and rewrites
+    // every `next` ref so multiple instances never collide. Position fields
+    // are pre-baked so Auto Layout is optional on first import.
+    const _FB_TEMPLATES = [
+      {
+        key: 'quotes',
+        name: 'Quotes Demo',
+        icon: '💬',
+        category: 'Starter',
+        description: 'Scrape quotes.toscrape.com — paginate all pages, store JSON + CSV. Great first run.',
+        build() {
+          return {
+            name: 'Quotes Demo',
+            blocks: [
+              { id: 'fetch', type: 'fetch', name: 'Fetch quotes.toscrape.com', config: { mode: 'static', url: 'https://quotes.toscrape.com/' }, next: ['extract'], position: { x: 60, y: 80 } },
+              { id: 'extract', type: 'extract', name: 'Extract quote rows', config: { root: '.quote', fields: { text: '.text', author: '.author', tags: '.tags' } }, next: ['follow'], position: { x: 360, y: 80 } },
+              { id: 'follow', type: 'follow', name: 'Follow next page', config: { nextSelector: 'li.next a', maxPages: 10 }, next: ['store'], loopback: 'fetch', position: { x: 660, y: 80 } },
+              { id: 'store', type: 'store', name: 'Store JSON + CSV', config: { format: 'json', formats: ['csv'], path: 'scraps/pipelines-out/quotes.json' }, next: [], position: { x: 960, y: 80 } },
+            ],
+            startBlock: 'fetch',
+            schedule: { enabled: false, intervalMin: 1440 },
+          };
+        },
+      },
+      {
+        key: 'hn-front',
+        name: 'Hacker News Front Page',
+        icon: '📰',
+        category: 'News',
+        description: 'Scrape news.ycombinator.com — title, url, score, comments. Daily refresh into SQLite.',
+        build() {
+          return {
+            name: 'Hacker News Front Page',
+            blocks: [
+              { id: 'fetch', type: 'fetch', name: 'Fetch HN front page', config: { mode: 'static', url: 'https://news.ycombinator.com/' }, next: ['extract'], position: { x: 60, y: 80 } },
+              { id: 'extract', type: 'extract', name: 'Extract stories', config: { root: 'tr.athing', fields: { title: '.titleline > a', url: '.titleline > a@href', rank: '.rank', site: '.sitestr' } }, next: ['store'], position: { x: 360, y: 80 } },
+              { id: 'store', type: 'store', name: 'Store JSON + SQLite (upsert by url)', config: { format: 'json', formats: ['sqlite'], path: 'scraps/pipelines-out/hn-front.json', sqlite: { table: 'hn_front', mode: 'upsert', upsertKey: 'url' } }, next: [], position: { x: 660, y: 80 } },
+            ],
+            startBlock: 'fetch',
+            schedule: { enabled: true, intervalMin: 60 },
+          };
+        },
+      },
+      {
+        key: 'rss-feed',
+        name: 'RSS Feed',
+        icon: '🗞️',
+        category: 'Feed',
+        description: 'Generic RSS/Atom scraper — fetch XML, extract <item>/<entry>, store JSONL.',
+        build() {
+          return {
+            name: 'RSS Feed Scraper',
+            blocks: [
+              { id: 'fetch', type: 'fetch', name: 'Fetch RSS feed', config: { mode: 'static', url: 'https://example.com/feed.xml' }, next: ['extract'], position: { x: 60, y: 80 } },
+              { id: 'extract', type: 'extract', name: 'Extract items', config: { root: 'item', fields: { title: 'title', link: 'link', pubDate: 'pubDate', description: 'description' } }, next: ['store'], position: { x: 360, y: 80 } },
+              { id: 'store', type: 'store', name: 'Store JSONL', config: { format: 'jsonl', path: 'scraps/pipelines-out/feed.jsonl' }, next: [], position: { x: 660, y: 80 } },
+            ],
+            startBlock: 'fetch',
+            schedule: { enabled: true, intervalMin: 30 },
+          };
+        },
+      },
+      {
+        key: 'json-api',
+        name: 'JSON API Endpoint',
+        icon: '🔌',
+        category: 'API',
+        description: 'Hit a REST endpoint that returns JSON — no HTML extract, raw store as-is.',
+        build() {
+          return {
+            name: 'JSON API Endpoint',
+            blocks: [
+              { id: 'fetch', type: 'fetch', name: 'Fetch API endpoint', config: { mode: 'static', url: 'https://api.example.com/items' }, next: ['extract'], position: { x: 60, y: 80 } },
+              { id: 'extract', type: 'extract', name: 'Pass-through (raw JSON)', config: { root: '', fields: {} }, next: ['store'], position: { x: 360, y: 80 } },
+              { id: 'store', type: 'store', name: 'Store JSON', config: { format: 'json', path: 'scraps/pipelines-out/api.json' }, next: [], position: { x: 660, y: 80 } },
+            ],
+            startBlock: 'fetch',
+            schedule: { enabled: false, intervalMin: 60 },
+          };
+        },
+      },
+      {
+        key: 'ecom-listing',
+        name: 'E-commerce Listing',
+        icon: '🛒',
+        category: 'Commerce',
+        description: 'Product grid with cookie auth + pagination + AI self-heal. Store CSV + SQLite.',
+        build() {
+          return {
+            name: 'E-commerce Listing',
+            blocks: [
+              { id: 'login', type: 'login', name: 'Login (cookie)', config: { mode: 'cookie', cookie: 'sessionid=REPLACE_ME; csrftoken=REPLACE_ME' }, next: ['fetch'], position: { x: 60, y: 80 } },
+              { id: 'fetch', type: 'fetch', name: 'Fetch listing page', config: { mode: 'browser', url: 'https://shop.example.com/category/all' }, next: ['extract'], position: { x: 360, y: 80 } },
+              { id: 'extract', type: 'extract', name: 'Extract products', config: { root: '.product-card', fields: { title: '.title', price: '.price', sku: '@data-sku', image: 'img@src' } }, next: ['heal', 'follow'], position: { x: 660, y: 80 } },
+              { id: 'heal', type: 'self_heal', name: 'AI rescue (on selector drift)', config: { goal: 'product listing with title, price, sku, image', threshold: 0.9 }, next: ['follow'], healFallback: 'extract', position: { x: 960, y: 30 } },
+              { id: 'follow', type: 'follow', name: 'Follow pagination', config: { nextSelector: 'a.next, a[rel="next"]', maxPages: 20 }, next: ['store'], loopback: 'fetch', position: { x: 960, y: 180 } },
+              { id: 'store', type: 'store', name: 'Store CSV + SQLite (upsert by sku)', config: { format: 'csv', formats: ['sqlite'], path: 'scraps/pipelines-out/products.csv', sqlite: { table: 'products', mode: 'upsert', upsertKey: 'sku' } }, next: [], position: { x: 1260, y: 80 } },
+            ],
+            startBlock: 'login',
+            schedule: { enabled: true, intervalMin: 240 },
+          };
+        },
+      },
+      {
+        key: 'sitemap',
+        name: 'Sitemap Crawl',
+        icon: '🗺️',
+        category: 'Discovery',
+        description: 'Fetch sitemap.xml — extract all <loc> URLs as a discovery list. Use as input for downstream pipelines.',
+        build() {
+          return {
+            name: 'Sitemap Crawler',
+            blocks: [
+              { id: 'fetch', type: 'fetch', name: 'Fetch sitemap.xml', config: { mode: 'static', url: 'https://example.com/sitemap.xml' }, next: ['extract'], position: { x: 60, y: 80 } },
+              { id: 'extract', type: 'extract', name: 'Extract URLs', config: { root: 'url', fields: { loc: 'loc', lastmod: 'lastmod', changefreq: 'changefreq', priority: 'priority' } }, next: ['store'], position: { x: 360, y: 80 } },
+              { id: 'store', type: 'store', name: 'Store JSON + CSV', config: { format: 'json', formats: ['csv'], path: 'scraps/pipelines-out/sitemap.json' }, next: [], position: { x: 660, y: 80 } },
+            ],
+            startBlock: 'fetch',
+            schedule: { enabled: false, intervalMin: 1440 },
+          };
+        },
+      },
+    ];
+
+    function _fbCloneTemplate(key) {
+      const tpl = _FB_TEMPLATES.find(t => t.key === key);
+      if (!tpl) return null;
+      const drafted = tpl.build();
+      // Remap placeholder ids → fresh ids; rewrite every reference site.
+      const idMap = Object.create(null);
+      const fresh = () => 'b_' + Math.random().toString(36).slice(2, 8);
+      for (const b of drafted.blocks) {
+        idMap[b.id] = fresh();
+      }
+      const remap = (id) => (id && idMap[id]) ? idMap[id] : id;
+      const newBlocks = drafted.blocks.map(b => ({
+        ...b,
+        id: idMap[b.id],
+        next: (b.next || []).map(remap),
+        ...(b.loopback ? { loopback: remap(b.loopback) } : {}),
+        ...(b.healFallback ? { healFallback: remap(b.healFallback) } : {}),
+      }));
+      return {
+        id: 'p_' + Math.random().toString(36).slice(2, 10),
+        name: drafted.name + ' ' + new Date().toLocaleTimeString(),
+        blocks: newBlocks,
+        startBlock: remap(drafted.startBlock),
+        schedule: drafted.schedule || { enabled: false, intervalMin: 60 },
+        createdAt: new Date().toISOString(),
+        fromTemplate: key,
+      };
+    }
+
+    function fbShowTemplates(tabId) {
+      const wrap = document.getElementById(tabId + '-fb');
+      if (!wrap) return;
+      let bd = wrap.querySelector('.fb-tpl-backdrop');
+      if (!bd) {
+        bd = document.createElement('div');
+        bd.className = 'fb-tpl-backdrop';
+        bd.addEventListener('click', (ev) => { if (ev.target === bd) fbCloseTemplates(tabId); });
+        wrap.appendChild(bd);
+      }
+      const cards = _FB_TEMPLATES.map(t => {
+        const blockTypes = t.build().blocks.map(b => b.type).filter((v, i, a) => a.indexOf(v) === i);
+        const blockChips = blockTypes.map(bt => `<span>${escHtml(bt)}</span>`).join('');
+        return `<div class="fb-tpl-card" onclick="fbUseTemplate('${tabId}','${t.key}')">
+          <div class="head">
+            <span class="ico">${t.icon}</span>
+            <span class="name">${escHtml(t.name)}</span>
+            <span class="cat">${escHtml(t.category)}</span>
+          </div>
+          <div class="desc">${escHtml(t.description)}</div>
+          <div class="blocks">${blockChips}</div>
+          <div class="cta">Click to use →</div>
+        </div>`;
+      }).join('');
+      bd.innerHTML = `<div class="fb-tpl-modal">
+        <h3>📂 Pipeline Templates <button class="x" onclick="fbCloseTemplates('${tabId}')">Close ✕</button></h3>
+        <div class="sub">Click any template to drop it onto the canvas. Block ids are regenerated so you can use the same template multiple times. After importing — edit URLs/selectors/cookies, then Save.</div>
+        <div class="fb-tpl-grid">${cards}</div>
+      </div>`;
+      bd.classList.add('open');
+    }
+
+    function fbCloseTemplates(tabId) {
+      const wrap = document.getElementById(tabId + '-fb');
+      const bd = wrap && wrap.querySelector('.fb-tpl-backdrop');
+      if (bd) bd.classList.remove('open');
+    }
+
+    function fbUseTemplate(tabId, key) {
+      const t = tabs.get(tabId); if (!t) return;
+      if (!t.fb) t.fb = { pipelines: [], current: null, selectedBlockId: null };
+      if (t.fb.current && t.fb._dirty) {
+        if (!confirm('Discard unsaved changes to "' + (t.fb.current.name || t.fb.current.id) + '"?')) return;
+      }
+      const drafted = _fbCloneTemplate(key);
+      if (!drafted) { fbLog(tabId, 'err', 'template not found: ' + key); return; }
+      t.fb.current = drafted;
+      t.fb.selectedBlockId = null;
+      fbMarkDirty(tabId, true);
+      fbRender(tabId);
+      fbUpdateMeta(tabId);
+      fbShowProps(tabId, null);
+      const sel = document.getElementById(tabId + '-fb-sel');
+      if (sel) sel.value = '';
+      fbCloseTemplates(tabId);
+      fbLog(tabId, 'info', '📂 Template "' + key + '" loaded — edit URLs/selectors/cookies then Ctrl+S to save');
+    }
+
     function _fbDefaultBlock(type, position) {
       const id = 'b_' + Math.random().toString(36).slice(2, 8);
       const base = { id, type, name: '', config: {}, next: [], position };
@@ -10179,6 +10413,7 @@ ${fields}
             <select id="${tabId}-fb-sel" onchange="fbLoad('${tabId}', this.value)" style="min-width:220px"><option value="">— Loading pipelines… —</option></select>
             <button class="fb-btn" onclick="fbLoadList('${tabId}')" title="Refresh pipeline list">🔄</button>
             <button class="fb-btn" onclick="fbNewPipeline('${tabId}')" title="Create blank pipeline">＋ New</button>
+            <button class="fb-btn" onclick="fbShowTemplates('${tabId}')" title="Browse starter templates (Quotes, HN, RSS, JSON API, e-commerce, sitemap)">📂 Templates</button>
             <button class="fb-btn" onclick="fbSave('${tabId}')" title="Save current pipeline (Ctrl+S)" id="${tabId}-fb-save">💾 Save</button>
             <button class="fb-btn" onclick="fbAutoArrange('${tabId}')" title="Auto-arrange blocks to fit the visible canvas (centers small pipelines, wraps long ones, packs tall layers, orphans in a tray)">🪄 Auto Layout</button>
             <span class="fb-spacer"></span>
@@ -13859,6 +14094,49 @@ ${fields}
           return { ok: true, saved: true, ran: true, id: saved.id, rowCount: rd.rowCount, outputFile: rd.outputFile, outputFiles: rd.outputFiles, summary };
         } catch (e) {
           return { error: 'pipeline_build_from_description save/run failed: ' + (e && e.message || e), draft };
+        }
+      },
+      async pipeline_list_templates() {
+        if (!Array.isArray(_FB_TEMPLATES)) return { templates: [] };
+        return {
+          ok: true,
+          count: _FB_TEMPLATES.length,
+          templates: _FB_TEMPLATES.map(t => {
+            let blockTypes = [];
+            try {
+              const built = t.build();
+              blockTypes = (built.blocks || []).map(b => b.type).filter((v, i, a) => a.indexOf(v) === i);
+            } catch (e) { blockTypes = []; }
+            return { key: t.key, name: t.name, icon: t.icon, category: t.category, description: t.description, blockTypes };
+          }),
+        };
+      },
+      async pipeline_create_from_template(args) {
+        const key = args && args.key;
+        if (!key) return { error: 'key is required (call pipeline_list_templates for keys)' };
+        const drafted = (typeof _fbCloneTemplate === 'function') ? _fbCloneTemplate(key) : null;
+        if (!drafted) return { error: 'template not found: ' + key };
+        if (args && args.name) drafted.name = String(args.name);
+        if (!args || !args.save) {
+          return { ok: true, preview: true, draft: drafted, hint: 'Pass save:true to persist via /api/scrap/pipelines.' };
+        }
+        try {
+          const r = await fetch('/api/scrap/pipelines', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(drafted),
+          });
+          const d = await r.json().catch(() => ({}));
+          if (!r.ok) return { error: d.error || ('pipeline_save HTTP ' + r.status), draft: drafted };
+          const saved = d.pipeline || d;
+          if (!args.run) return { ok: true, saved: true, id: saved.id, name: saved.name, fromTemplate: key };
+          const rr = await fetch('/api/scrap/pipelines/' + encodeURIComponent(saved.id) + '/run', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
+          });
+          const rd = await rr.json().catch(() => ({}));
+          if (!rr.ok) return { ok: true, saved: true, id: saved.id, runError: rd.error || ('HTTP ' + rr.status), fromTemplate: key };
+          return { ok: true, saved: true, ran: true, id: saved.id, rowCount: rd.rowCount, outputFile: rd.outputFile, outputFiles: rd.outputFiles, fromTemplate: key };
+        } catch (e) {
+          return { error: 'pipeline_create_from_template save/run failed: ' + (e && e.message || e), draft: drafted };
         }
       },
       async pipeline_export_recipe(args) {
