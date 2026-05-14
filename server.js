@@ -7932,7 +7932,7 @@ async function _pipeExecStore(state, config, ctx) {
     fs.writeFileSync(file, JSON.stringify(state.rows || [], null, 2));
   }
   state.log.push(`store ok (${(state.rows || []).length} rows → ${safeName})`);
-  state.outputFile = safeName;
+  state.outputFile = file;
   return state;
 }
 

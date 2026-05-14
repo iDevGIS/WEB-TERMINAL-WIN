@@ -5,6 +5,22 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [4.1.1] — 2026-05-14 — Fix: Pipeline "Show output" ENOENT
+
+### Fixed
+
+- **Show output button → ENOENT after pipeline run.** The Store block was returning only the *basename* of the written file (`quotes-sample.json`) in `state.outputFile`, but the actual file lives under `scraps/pipelines-out/<basename>`. When the Flow Builder's `📂 Show output` button asked `openEditor()` to load the file, `path.resolve()` rebased the basename against the server's cwd (`SCRIPT-TOOLS/WEB-TERMINAL/`) and produced a missing path.
+- Store block (`server.js:7935`) now returns the **absolute path** in `state.outputFile`.
+- Flow Builder run handlers (POST + SSE, `index.html:6319` and `:6394`) now display the basename in the log line (already had `outName` for the action button) so the message stays readable even when the path is fully qualified.
+
+### Verify
+
+1. Hard-refresh the Flow Builder tab.
+2. Run any pipeline that ends with a Store block.
+3. Click `📂 Show output` — the result file opens in a Monaco editor tab.
+
+---
+
 ## [4.1.0] — 2026-05-14 — Pipeline Scheduler + Sidekick Pipeline Tools + Minimap Status
 
 The Flow Builder gets unattended execution and chat-driven management. Pipelines with `schedule.enabled` now run automatically on their `intervalMin` cadence (60s tick, 30s startup grace). Sidekick gains three pipeline tools so the whole lifecycle — create / delete / schedule — works from chat without touching the canvas. The minimap now syncs block status colors during runs.

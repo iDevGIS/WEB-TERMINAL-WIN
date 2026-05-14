@@ -6316,9 +6316,9 @@
         });
         const d = await r.json();
         if (r.ok && d.ok) {
-          const msg = '✔ Done · ' + (d.rowCount || 0) + ' rows · ' + (d.durationMs || 0) + 'ms' + (d.outputFile ? ' · ' + d.outputFile : '');
+          const outName = d.outputFile ? (String(d.outputFile).split(/[\\/]/).pop() || d.outputFile) : '';
+          const msg = '✔ Done · ' + (d.rowCount || 0) + ' rows · ' + (d.durationMs || 0) + 'ms' + (outName ? ' · ' + outName : '');
           if (d.outputFile && typeof openEditor === 'function') {
-            const outName = String(d.outputFile).split(/[\\/]/).pop() || d.outputFile;
             fbLogWithAction(tabId, 'ok', msg, '📂 Show output', () => openEditor(d.outputFile, outName));
           } else {
             fbLog(tabId, 'ok', msg);
@@ -6391,9 +6391,9 @@
           try {
             const d = JSON.parse(m.data);
             if (d.ok) {
-              const msg = '✔ Done · ' + (d.rowCount || 0) + ' rows · ' + (d.durationMs || 0) + 'ms' + (d.outputFile ? ' · ' + d.outputFile : '');
+              const outName = d.outputFile ? (String(d.outputFile).split(/[\\/]/).pop() || d.outputFile) : '';
+              const msg = '✔ Done · ' + (d.rowCount || 0) + ' rows · ' + (d.durationMs || 0) + 'ms' + (outName ? ' · ' + outName : '');
               if (d.outputFile && typeof openEditor === 'function') {
-                const outName = String(d.outputFile).split(/[\\/]/).pop() || d.outputFile;
                 fbLogWithAction(tabId, 'ok', msg, '📂 Show output', () => openEditor(d.outputFile, outName));
               } else {
                 fbLog(tabId, 'ok', msg);
