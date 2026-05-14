@@ -5,6 +5,23 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [4.9.1] — 2026-05-15 — Flow Builder: drop canvas empty-state placeholder
+
+### Changed
+
+- **Removed the canvas empty-state placeholder** (`🎨 Select a pipeline above — or click ＋ New + drag blocks here`) from both the initial tab template and the post-clear branch of `fbClearCanvas`. The canvas now stays visually empty (grid background only) when no pipeline is selected.
+- The "🪹 This pipeline has no blocks" empty-state inside `fbRenderPipeline` is preserved — it conveys a genuinely different state (pipeline loaded but contains zero blocks vs. nothing-selected-yet).
+
+### Why
+
+User feedback: the placeholder felt redundant with the pipeline dropdown + `＋ New` button already visible in the toolbar. Removing it makes the canvas feel like a cleaner authoring surface (the grid alone is enough of an "empty canvas" cue).
+
+### Notes
+
+- Client-only — no server restart needed.
+
+---
+
 ## [4.9.0] — 2026-05-15 — Flow Builder: dock minimap inside right sidebar
 
 ### Changed

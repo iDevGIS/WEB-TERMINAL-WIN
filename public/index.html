@@ -6299,7 +6299,7 @@
 
     function fbClearCanvas(tabId) {
       const canvas = document.getElementById(tabId + '-fb-canvas');
-      if (canvas) canvas.innerHTML = '<div class="fb-canvas-empty"><span class="big">🎨</span><div>Select a pipeline above to view its flow</div></div>';
+      if (canvas) canvas.innerHTML = '';
       const props = document.getElementById(tabId + '-fb-props-body') || document.getElementById(tabId + '-fb-props');
       if (props) props.innerHTML = '<div class="empty">Select a pipeline to begin</div>';
     }
@@ -11949,9 +11949,7 @@ ${fields}
                  ondragleave="fbCanvasDragLeave(event,'${tabId}')"
                  ondrop="fbCanvasDrop(event,'${tabId}')"
                  onclick="if(event.target===this||event.target.classList.contains('fb-canvas')){fbSelectBlock('${tabId}', null);}">
-              <div class="fb-canvas" id="${tabId}-fb-canvas">
-                <div class="fb-canvas-empty"><span class="big">🎨</span><div>Select a pipeline above — or click <b>＋ New</b> + drag blocks here</div></div>
-              </div>
+              <div class="fb-canvas" id="${tabId}-fb-canvas"></div>
             </div>
             <div class="fb-vresize fb-vresize-r" onmousedown="fbStartVResize(event,'${tabId}','right')" title="Drag to resize · double-click to reset"></div>
             <div class="fb-props" id="${tabId}-fb-props">
