@@ -2936,6 +2936,26 @@ const CROSS_TAB_TOOLS = [
       },
     },
   },
+  // v4.22.0 — Flow Builder canvas batch move (Sidekick slot tool)
+  {
+    type: 'function',
+    function: {
+      name: 'canvas_batch_move',
+      description: 'Move multiple Flow Builder blocks at once. Three move modes (mutually exclusive): (1) `dx`/`dy` relative offset in pixels — every targeted block shifts by the same delta; (2) `to: {x, y}` absolute target — the first targeted block is moved to that position; other blocks move by the same delta (preserves group shape); (3) `align: <mode>` — performs group alignment. Align modes: "left" / "right" / "top" / "bottom" (snap to selection bounds), "h-center" / "v-center" (align centers), "distribute-h" / "distribute-v" (equal spacing along axis). Targets the current canvas multi-selection unless `blockIds` is given explicitly. Use after `canvas_multi_select` to perform layout cleanup like "align all fetch blocks to the same X coordinate" or "shift the whole pipeline down 100px."',
+      parameters: {
+        type: 'object',
+        properties: {
+          tabId: { type: 'string', description: 'Flow Builder tab id (optional; defaults to active flow-builder tab).' },
+          blockIds: { type: 'array', items: { type: 'string' }, description: 'Explicit list of block ids to move. If omitted, uses the current multi-selection on the canvas.' },
+          dx: { type: 'number', description: 'Relative horizontal offset in pixels (negative = left).' },
+          dy: { type: 'number', description: 'Relative vertical offset in pixels (negative = up).' },
+          to: { type: 'object', description: 'Absolute target {x, y} for the first block; other blocks move by the same delta.', properties: { x: { type: 'number' }, y: { type: 'number' } } },
+          align: { type: 'string', description: 'Alignment mode: "left" | "right" | "top" | "bottom" | "h-center" | "v-center" | "distribute-h" | "distribute-v".' },
+        },
+        required: [],
+      },
+    },
+  },
 ];
 
 function _ctiSystemPreamble() {
@@ -2947,7 +2967,7 @@ function _ctiSystemPreamble() {
     ' open/navigate (open_editor, open_file_in_editor, browser_navigate, browser_reload, create_terminal, switch_tab, set_active_session, split_tab, load_workspace_layout);' +
     ' mutate/write (save_file, insert_at_line, replace_in_file, create_file, create_folder, rename_path, move_path, delete_path, rename_tab, duplicate_editor_tab, add_snippet, delete_snippet, save_workspace_layout, scrap_save_recipe);' +
     ' execute (run_terminal, run_in_active_terminal, scrap_run, scrap_run_recipe, docker_action, kill_process, kill_terminal_session, rename_terminal_session, export_session_transcript, tts_speak, take_screenshot);' +
-    ' Flow Builder canvas (canvas_multi_select); UI (notify); teardown (close_tab).' +
+    ' Flow Builder canvas (canvas_multi_select, canvas_batch_move); UI (notify); teardown (close_tab).' +
     ' RULES:' +
     ' (1) Always read state first before mutating.' +
     ' (2) When a request is "open X and run Y" (e.g. "open admin powershell and run whoami"), prefer passing `command` directly to create_terminal in ONE call — do NOT split into create_terminal+run_terminal.' +

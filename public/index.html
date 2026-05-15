@@ -16823,6 +16823,129 @@ ${fields}
           return { ok: true, id, deleted: true };
         } catch (e) { return { error: 'delete_snippet failed: ' + (e && e.message || e) }; }
       },
+      // v4.22.0 — Sidekick Flow Builder canvas batch move (align/distribute/offset)
+      async canvas_batch_move(args) {
+        args = args || {};
+        // 1. Resolve target Flow Builder tab (same shape as canvas_multi_select)
+        let targetTab = null;
+        if (args.tabId) targetTab = tabs.get(args.tabId);
+        if (!targetTab) {
+          const cur = tabs.get(activeTabId);
+          if (cur && cur.type === 'flow-builder') targetTab = cur;
+        }
+        if (!targetTab) {
+          for (const t of tabs.values()) { if (t.type === 'flow-builder') { targetTab = t; break; } }
+        }
+        if (!targetTab) return { error: 'No Flow Builder tab open.' };
+        if (targetTab.type !== 'flow-builder') return { error: 'Tab "' + targetTab.id + '" is not a Flow Builder tab.' };
+        const pipeline = targetTab.fb && targetTab.fb.current;
+        if (!pipeline) return { error: 'No pipeline loaded in this Flow Builder tab.' };
+        const blocks = pipeline.blocks || [];
+        const blocksById = new Map(blocks.map(b => [b.id, b]));
+        // 2. Resolve target ids: explicit > current selection
+        let ids = [];
+        if (Array.isArray(args.blockIds) && args.blockIds.length) {
+          ids = args.blockIds.filter(id => blocksById.has(String(id)));
+          if (!ids.length) return { error: 'None of the provided blockIds match blocks in the loaded pipeline.' };
+        } else {
+          ids = [..._fbSelection(targetTab)];
+          if (!ids.length) return { error: 'No blocks selected. Call canvas_multi_select first, or pass blockIds.' };
+        }
+        // 3. Snapshot original positions (read from DOM if available — that's the authoritative live position)
+        const canvas = document.getElementById(targetTab.id + '-fb-canvas');
+        const orig = new Map();
+        for (const id of ids) {
+          const el = canvas && canvas.querySelector('[data-block-id="' + id + '"]');
+          const fromDom = el ? { x: parseFloat(el.style.left) || 0, y: parseFloat(el.style.top) || 0 } : null;
+          const block = blocksById.get(id);
+          const fromBlock = block && block.position ? { x: +block.position.x, y: +block.position.y } : null;
+          const p = fromDom || fromBlock || { x: 0, y: 0 };
+          orig.set(id, p);
+        }
+        // 4. Compute new positions
+        const next = new Map();
+        const BW = 200, BH = 84; // canvas block box (matches _fbRedrawEdges constants)
+        if (args.align) {
+          const mode = String(args.align).toLowerCase();
+          // Bounds across selection
+          let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+          for (const p of orig.values()) {
+            if (p.x < minX) minX = p.x;
+            if (p.x + BW > maxX) maxX = p.x + BW;
+            if (p.y < minY) minY = p.y;
+            if (p.y + BH > maxY) maxY = p.y + BH;
+          }
+          if (mode === 'left') {
+            for (const [id, p] of orig) next.set(id, { x: minX, y: p.y });
+          } else if (mode === 'right') {
+            for (const [id, p] of orig) next.set(id, { x: maxX - BW, y: p.y });
+          } else if (mode === 'top') {
+            for (const [id, p] of orig) next.set(id, { x: p.x, y: minY });
+          } else if (mode === 'bottom') {
+            for (const [id, p] of orig) next.set(id, { x: p.x, y: maxY - BH });
+          } else if (mode === 'h-center') {
+            const cx = (minX + maxX) / 2;
+            for (const [id, p] of orig) next.set(id, { x: cx - BW / 2, y: p.y });
+          } else if (mode === 'v-center') {
+            const cy = (minY + maxY) / 2;
+            for (const [id, p] of orig) next.set(id, { x: p.x, y: cy - BH / 2 });
+          } else if (mode === 'distribute-h' || mode === 'distribute-v') {
+            if (orig.size < 3) return { error: 'distribute requires at least 3 blocks.' };
+            const sorted = [...orig.entries()].sort((a, b) =>
+              mode === 'distribute-h' ? a[1].x - b[1].x : a[1].y - b[1].y
+            );
+            const first = sorted[0][1];
+            const last = sorted[sorted.length - 1][1];
+            const span = (mode === 'distribute-h' ? last.x - first.x : last.y - first.y);
+            const step = span / (sorted.length - 1);
+            for (let i = 0; i < sorted.length; i++) {
+              const [id, p] = sorted[i];
+              if (mode === 'distribute-h') next.set(id, { x: first.x + step * i, y: p.y });
+              else next.set(id, { x: p.x, y: first.y + step * i });
+            }
+            // preserve non-distributed axis from orig for blocks not in sorted (impossible here since sorted covers all)
+          } else {
+            return { error: 'Unknown align mode "' + args.align + '". Use left/right/top/bottom/h-center/v-center/distribute-h/distribute-v.' };
+          }
+        } else if (args.to && typeof args.to.x === 'number' && typeof args.to.y === 'number') {
+          const firstId = ids[0];
+          const firstOrig = orig.get(firstId);
+          const dx = args.to.x - firstOrig.x;
+          const dy = args.to.y - firstOrig.y;
+          for (const [id, p] of orig) next.set(id, { x: p.x + dx, y: p.y + dy });
+        } else if (typeof args.dx === 'number' || typeof args.dy === 'number') {
+          const dx = typeof args.dx === 'number' ? args.dx : 0;
+          const dy = typeof args.dy === 'number' ? args.dy : 0;
+          if (dx === 0 && dy === 0) return { error: 'Both dx and dy are zero — nothing to move.' };
+          for (const [id, p] of orig) next.set(id, { x: p.x + dx, y: p.y + dy });
+        } else {
+          return { error: 'Provide one of: dx/dy (offset), to:{x,y} (absolute target for first block), or align:<mode>.' };
+        }
+        // 5. Clamp to canvas (no negatives) and apply
+        const applied = [];
+        for (const [id, p] of next) {
+          const finalX = Math.max(0, Math.round(p.x));
+          const finalY = Math.max(0, Math.round(p.y));
+          const block = blocksById.get(id);
+          if (block) block.position = { x: finalX, y: finalY };
+          const el = canvas && canvas.querySelector('[data-block-id="' + id + '"]');
+          if (el) {
+            el.style.left = finalX + 'px';
+            el.style.top = finalY + 'px';
+          }
+          applied.push({ id, type: block ? block.type : null, x: finalX, y: finalY });
+        }
+        // 6. Redraw edges + mark dirty
+        if (typeof _fbRedrawEdges === 'function') _fbRedrawEdges(targetTab.id);
+        if (typeof fbMarkDirty === 'function') fbMarkDirty(targetTab.id, true);
+        return {
+          ok: true,
+          tabId: targetTab.id,
+          pipelineId: pipeline.id,
+          count: applied.length,
+          moves: applied,
+        };
+      },
       // v4.21.0 — Sidekick Flow Builder canvas multi-select
       async canvas_multi_select(args) {
         args = args || {};

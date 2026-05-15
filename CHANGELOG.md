@@ -5,6 +5,28 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [4.22.0] — 2026-05-16 — Sidekick: Flow Builder canvas batch move tool
+
+Second of three planned Sidekick slot tools for the Flow Builder canvas (ship `c` of the overnight cascade after v4.21.0). Pairs with `canvas_multi_select` to enable layout cleanup workflows like "select all fetch blocks → align them left" or "shift the whole pipeline down 100px."
+
+### Added
+
+- **`canvas_batch_move` Cross-Tab tool** — moves multiple blocks at once. Three mutually-exclusive move modes:
+  - **Relative offset** (`dx` + `dy`) — every targeted block shifts by the same delta. Negative values move left/up.
+  - **Absolute target** (`to: {x, y}`) — the first block is moved to that position; the rest move by the same delta, preserving group shape.
+  - **Alignment** (`align: <mode>`) — group operations: `left` / `right` / `top` / `bottom` (snap to selection bounds), `h-center` / `v-center` (align centers across), `distribute-h` / `distribute-v` (equal spacing along axis; requires ≥3 blocks).
+- **Selection-first targeting** — defaults to the current canvas multi-selection if `blockIds` is omitted. Lets the AI chain `canvas_multi_select(selector='type:fetch') → canvas_batch_move(align='left')` naturally.
+- **Live DOM + state sync** — updates `block.position`, `el.style.left/top`, redraws edges, marks pipeline dirty. Same UX as a manual group drag.
+
+### Notes
+
+- All positions clamp to non-negative integers (matches existing drag behavior, prevents blocks rendering off-canvas).
+- The "distribute" modes preserve the first and last block's positions and equalize spacing between intermediate blocks along the chosen axis.
+- Sidekick system preamble: Flow Builder canvas category now includes `canvas_multi_select, canvas_batch_move`. Count `~83` reserved at ship `b` already covers this addition.
+- Next: `d` = `panel_set_preset` (Properties panel preset application).
+
+---
+
 ## [4.21.0] — 2026-05-16 — Sidekick: Flow Builder canvas multi-select tool
 
 First of three planned Sidekick slot tools for the Flow Builder canvas (this ship is `b` of the overnight cascade after v4.20.1). Adds a high-value primitive that lets the chat AI populate the canvas's multi-selection programmatically — so subsequent batch operations (delete, move, configure) have a target set without requiring the user to marquee manually.
