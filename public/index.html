@@ -9759,6 +9759,23 @@
       catch (err) { const e = new Error('bad JSON: ' + (err.message || err)); e.code = 'parse'; throw e; }
     }
 
+    // v4.20.0 — Show engine dropdown only when mode=browser; show CDP endpoint only when engine=cdp.
+    function scrapModeChanged(tabId) {
+      const modeEl = document.getElementById(tabId + '-sc-mode');
+      const engineEl = document.getElementById(tabId + '-sc-engine');
+      const cdpEl = document.getElementById(tabId + '-sc-cdp');
+      if (!modeEl || !engineEl) return;
+      const isBrowser = modeEl.value === 'browser';
+      engineEl.style.display = isBrowser ? '' : 'none';
+      if (cdpEl) cdpEl.style.display = (isBrowser && engineEl.value === 'cdp') ? '' : 'none';
+    }
+    function scrapEngineChanged(tabId) {
+      const engineEl = document.getElementById(tabId + '-sc-engine');
+      const cdpEl = document.getElementById(tabId + '-sc-cdp');
+      if (!engineEl || !cdpEl) return;
+      cdpEl.style.display = engineEl.value === 'cdp' ? '' : 'none';
+    }
+
     async function scrapRun(tabId) {
       const tab = tabs.get(tabId);
       if (!tab) return;
@@ -9766,15 +9783,22 @@
       if (!url) { scrapSetStatus(tabId, 'enter URL', 'err'); return; }
       const mode = document.getElementById(tabId + '-sc-mode').value;
       const scroll = !!document.getElementById(tabId + '-sc-scroll').checked;
+      // v4.20.0 — engine + cdpEndpoint (only meaningful for browser mode)
+      const engineEl = document.getElementById(tabId + '-sc-engine');
+      const cdpEl = document.getElementById(tabId + '-sc-cdp');
+      const engine = (mode === 'browser' && engineEl) ? engineEl.value : 'playwright';
+      const cdpEndpoint = (engine === 'cdp' && cdpEl) ? (cdpEl.value.trim() || 'http://localhost:9222') : 'http://localhost:9222';
       tab.scrap.url = url;
       tab.scrap.mode = mode;
+      tab.scrap.engine = engine;
+      tab.scrap.cdpEndpoint = cdpEndpoint;
       const runBtn = document.getElementById(tabId + '-sc-run');
       const extractBtn = document.getElementById(tabId + '-sc-extract');
       runBtn.disabled = true;
       scrapSetStatus(tabId, 'fetching…');
       try {
         const endpoint = mode === 'browser' ? '/api/scrap/browser' : '/api/scrap/fetch';
-        const body = mode === 'browser' ? { url, scroll, waitMs: 800 } : { url };
+        const body = mode === 'browser' ? { url, scroll, waitMs: 800, engine, cdpEndpoint } : { url };
         if (tab.scrap.auth && (tab.scrap.auth.cookie || (tab.scrap.auth.headers && Object.keys(tab.scrap.auth.headers).length))) body.auth = tab.scrap.auth;
         const r = await fetch(endpoint, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' }, body: JSON.stringify(body) });
         const d = await scrapJson(r);
@@ -9788,7 +9812,8 @@
         const fu = document.getElementById(tabId + '-sc-final-url');
         if (fu) fu.textContent = d.final_url || url;
         scrapMountFrame(tabId);
-        scrapSetStatus(tabId, `${mode} ok ${d.status||''}`.trim(), 'ok');
+        const engineSuffix = (mode === 'browser' && engine === 'cdp') ? ' (CDP)' : '';
+        scrapSetStatus(tabId, `${mode}${engineSuffix} ok ${d.status||''}`.trim(), 'ok');
         extractBtn.disabled = false;
         const pickBtn = document.getElementById(tabId + '-sc-pick');
         if (pickBtn) pickBtn.disabled = false;
@@ -11367,8 +11392,12 @@ ${fields}
       const addSourceCol = !!document.getElementById(tabId + '-sc-bp-source').checked;
       const append = !!document.getElementById(tabId + '-sc-bp-append').checked;
 
-      // Build URL spec
-      const spec = { mode, delayMs, addSourceCol };
+      // Build URL spec — v4.20.0: forward engine + cdpEndpoint when mode='browser'
+      const engineEl = document.getElementById(tabId + '-sc-engine');
+      const cdpEl = document.getElementById(tabId + '-sc-cdp');
+      const bEngine = (mode === 'browser' && engineEl) ? engineEl.value : 'playwright';
+      const bCdpEndpoint = (cdpEl ? (cdpEl.value.trim() || 'http://localhost:9222') : 'http://localhost:9222');
+      const spec = { mode, delayMs, addSourceCol, engine: bEngine, cdpEndpoint: bCdpEndpoint };
       if (bmode === 'list') {
         const raw = document.getElementById(tabId + '-sc-bp-urls').value || '';
         spec.urls = raw.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
@@ -11690,6 +11719,9 @@ ${fields}
             rootSelector: document.getElementById(tabId + '-sc-root').value,
             selectors,
             scroll: !!document.getElementById(tabId + '-sc-scroll').checked,
+            // v4.20.0 — persist engine + cdpEndpoint with recipe
+            engine: (document.getElementById(tabId + '-sc-engine') || {}).value || 'playwright',
+            cdpEndpoint: (document.getElementById(tabId + '-sc-cdp') || {}).value || 'http://localhost:9222',
             auth: tab.scrap.auth || { cookie: '', headers: {} },
           }),
         });
@@ -11900,6 +11932,12 @@ ${fields}
       document.getElementById(tabId + '-sc-url').value = rec.url || '';
       document.getElementById(tabId + '-sc-mode').value = rec.mode || 'static';
       document.getElementById(tabId + '-sc-scroll').checked = !!rec.scroll;
+      // v4.20.0 — restore engine + cdpEndpoint, sync visibility
+      const eEl = document.getElementById(tabId + '-sc-engine');
+      const cEl = document.getElementById(tabId + '-sc-cdp');
+      if (eEl) eEl.value = rec.engine || 'playwright';
+      if (cEl) cEl.value = rec.cdpEndpoint || 'http://localhost:9222';
+      scrapModeChanged(tabId);
       tab.scrap.rootSelector = rec.rootSelector || '';
       tab.scrap.fields = Object.keys(rec.selectors || {}).map(name => ({ name, selector: rec.selectors[name].selector || '', attr: rec.selectors[name].attr || 'text' }));
       if (!tab.scrap.fields.length) tab.scrap.fields = [{ name: 'field1', selector: '', attr: 'text' }];
@@ -12393,10 +12431,15 @@ ${fields}
         paneEl.innerHTML = `<div class="scrap-tab-wrap">
           <div class="scrap-toolbar">
             <input class="scrap-url" id="${tabId}-sc-url" placeholder="https:// — paste URL to scrape" value="${escAttr(startUrl)}" onkeydown="if(event.key==='Enter'){scrapRun('${tabId}')}">
-            <select id="${tabId}-sc-mode" title="Fetch mode">
+            <select id="${tabId}-sc-mode" title="Fetch mode" onchange="scrapModeChanged('${tabId}')">
               <option value="static">Static (fast)</option>
               <option value="browser">Browser (JS-render)</option>
             </select>
+            <select id="${tabId}-sc-engine" title="Browser engine (Browser mode only) — CDP attaches to your real Chrome on the server for logged-in scraping" onchange="scrapEngineChanged('${tabId}')" style="display:none">
+              <option value="playwright">⚙ Playwright</option>
+              <option value="cdp">🔧 CDP attach</option>
+            </select>
+            <input id="${tabId}-sc-cdp" placeholder="http://localhost:9222" value="http://localhost:9222" style="display:none;width:170px;font-size:11px;padding:4px 6px;background:var(--bg-input,#161616);color:var(--text);border:1px solid var(--border,#333);border-radius:4px" title="CDP endpoint — must point to Chrome started with --remote-debugging-port">
             <label style="display:flex;align-items:center;gap:4px;font-size:11.5px;color:var(--text2);padding:0 4px"><input type="checkbox" id="${tabId}-sc-scroll" style="margin:0"> scroll</label>
             <button class="scrap-btn primary" onclick="scrapRun('${tabId}')" id="${tabId}-sc-run">▷ Run</button>
             <button class="scrap-btn" onclick="scrapExtract('${tabId}')" id="${tabId}-sc-extract" disabled>Extract</button>

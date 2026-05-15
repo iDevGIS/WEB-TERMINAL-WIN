@@ -6845,7 +6845,29 @@ function saveScrapRecipes(list) {
 }
 
 let _scrapBrowser = null;
-async function _getScrapBrowser() {
+// v4.20.0 — CDP-attached browser pool (one entry per CDP endpoint)
+const _scrapBrowserCDP = new Map();
+async function _getScrapBrowser(opts) {
+  const engine = (opts && opts.engine) || "playwright";
+  if (engine === "cdp") {
+    const endpoint = (opts && opts.cdpEndpoint) || "http://localhost:9222";
+    const cached = _scrapBrowserCDP.get(endpoint);
+    if (cached && cached.isConnected && cached.isConnected()) return cached;
+    try {
+      const { chromium } = require("playwright");
+      const browser = await chromium.connectOverCDP(endpoint);
+      browser.on("disconnected", () => { _scrapBrowserCDP.delete(endpoint); });
+      _scrapBrowserCDP.set(endpoint, browser);
+      return browser;
+    } catch (e) {
+      throw new Error(
+        `Cannot connect to Chrome at ${endpoint}. Start Chrome on the server with: ` +
+        `chrome.exe --remote-debugging-port=9222 --user-data-dir="%TEMP%\\chrome-cdp". ` +
+        `(Underlying error: ${e.message || e})`
+      );
+    }
+  }
+  // Default: headless Playwright singleton
   if (_scrapBrowser && _scrapBrowser.isConnected && _scrapBrowser.isConnected()) return _scrapBrowser;
   try {
     const { chromium } = require("playwright");
@@ -6855,6 +6877,22 @@ async function _getScrapBrowser() {
   } catch (e) {
     throw new Error("Playwright unavailable: " + (e.message || e));
   }
+}
+
+// v4.20.0 — Engine-aware context selection.
+// CDP: prefer browser.contexts()[0] (the user's real session with cookies/extensions); newContext() as fallback.
+// Playwright (default): always create a fresh, isolated context.
+async function _getScrapContextForEngine(browser, opts) {
+  const engine = (opts && opts.engine) || "playwright";
+  const contextOptions = (opts && opts.contextOptions) || { userAgent: SCRAP_UA, viewport: { width: 1366, height: 900 } };
+  if (engine === "cdp") {
+    const contexts = browser.contexts();
+    if (contexts.length > 0) return { context: contexts[0], owned: false };
+    const ctx = await browser.newContext(contextOptions);
+    return { context: ctx, owned: true };
+  }
+  const ctx = await browser.newContext(contextOptions);
+  return { context: ctx, owned: true };
 }
 
 function _scrapExtractValue($, node, attr) {
@@ -6920,26 +6958,29 @@ app.post("/api/scrap/fetch", requireAuth, express.json({ limit: "512kb" }), asyn
   }
 });
 
-// Tier 2 — headless browser (JS-rendered)
+// Tier 2 — headless browser (JS-rendered) | v4.20.0: supports engine='cdp' to attach to user's real Chrome
 app.post("/api/scrap/browser", requireAuth, express.json({ limit: "512kb" }), async (req, res) => {
   const url = String(req.body.url || "").trim();
   const waitFor = String(req.body.waitFor || "").trim();
   const waitMs = Math.min(20000, Math.max(0, parseInt(req.body.waitMs) || 0));
   const scroll = !!req.body.scroll;
   const wantScreenshot = req.body.screenshot !== false;
+  const engine = req.body.engine === "cdp" ? "cdp" : "playwright";
+  const cdpEndpoint = String(req.body.cdpEndpoint || "").trim() || "http://localhost:9222";
   if (!/^https?:\/\//i.test(url)) return res.status(400).json({ error: "invalid url" });
   let context = null;
+  let page = null;
+  let contextOwned = false;
   try {
-    const browser = await _getScrapBrowser();
-    context = await browser.newContext({
-      userAgent: SCRAP_UA,
-      viewport: { width: 1366, height: 900 },
-    });
+    const browser = await _getScrapBrowser({ engine, cdpEndpoint });
+    const ctxResult = await _getScrapContextForEngine(browser, { engine });
+    context = ctxResult.context;
+    contextOwned = ctxResult.owned;
     const extraHeaders = _scrapAuthHeaders(req.body.auth);
     if (Object.keys(extraHeaders).length) await context.setExtraHTTPHeaders(extraHeaders);
     const cookieArr = _scrapCookieArrayForUrl(req.body.auth && req.body.auth.cookie, url);
     if (cookieArr.length) await context.addCookies(cookieArr);
-    const page = await context.newPage();
+    page = await context.newPage();
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 });
     if (waitFor) { try { await page.waitForSelector(waitFor, { timeout: 15000 }); } catch (e) { /* keep going */ } }
     if (waitMs) await page.waitForTimeout(waitMs);
@@ -6964,11 +7005,13 @@ app.post("/api/scrap/browser", requireAuth, express.json({ limit: "512kb" }), as
     if (wantScreenshot) {
       try { const buf = await page.screenshot({ fullPage: false, type: "png" }); screenshot = "data:image/png;base64," + buf.toString("base64"); } catch {}
     }
-    await context.close(); context = null;
-    res.json({ ok: true, status: 200, html: html.slice(0, 5_000_000), final_url, screenshot });
+    // v4.20.0 — CDP cleanup boundary: close only what we created.
+    if (contextOwned) { await context.close(); context = null; }
+    else { try { await page.close(); } catch {} page = null; }
+    res.json({ ok: true, status: 200, html: html.slice(0, 5_000_000), final_url, screenshot, engine });
   } catch (e) {
-    try { if (context) await context.close(); } catch {}
-    res.status(500).json({ error: String(e.message || e) });
+    try { if (contextOwned && context) await context.close(); else if (page) await page.close(); } catch {}
+    res.status(500).json({ error: String(e.message || e), engine });
   }
 });
 
@@ -7658,17 +7701,23 @@ async function _scrapRunRecipe(recipe) {
   const url = String(recipe.url || "").trim();
   if (!/^https?:\/\//i.test(url)) throw new Error("invalid recipe url");
   const mode = ["static", "browser"].includes(recipe.mode) ? recipe.mode : "static";
+  // v4.20.0 — honor recipe engine + cdpEndpoint
+  const engine = recipe.engine === "cdp" ? "cdp" : "playwright";
+  const cdpEndpoint = String(recipe.cdpEndpoint || "http://localhost:9222");
   const auth = recipe.auth || {};
   let html, finalUrl, status;
   if (mode === "browser") {
-    const browser = await _getScrapBrowser();
-    const context = await browser.newContext({ userAgent: SCRAP_UA, viewport: { width: 1366, height: 900 } });
+    const browser = await _getScrapBrowser({ engine, cdpEndpoint });
+    const ctxResult = await _getScrapContextForEngine(browser, { engine });
+    const context = ctxResult.context;
+    const owned = ctxResult.owned;
+    let page = null;
     try {
       const extraHeaders = _scrapAuthHeaders(auth);
       if (Object.keys(extraHeaders).length) await context.setExtraHTTPHeaders(extraHeaders);
       const cookieArr = _scrapCookieArrayForUrl(auth.cookie, url);
       if (cookieArr.length) await context.addCookies(cookieArr);
-      const page = await context.newPage();
+      page = await context.newPage();
       await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 });
       if (recipe.waitFor) { try { await page.waitForSelector(recipe.waitFor, { timeout: 15000 }); } catch {} }
       if (recipe.waitMs) await page.waitForTimeout(Math.min(20000, recipe.waitMs));
@@ -7688,7 +7737,11 @@ async function _scrapRunRecipe(recipe) {
       html = await page.content();
       finalUrl = page.url();
       status = 200;
-    } finally { try { await context.close(); } catch {} }
+    } finally {
+      // v4.20.0 — CDP cleanup boundary: keep user's real context; only close the page we opened.
+      if (owned) { try { await context.close(); } catch {} }
+      else { try { if (page) await page.close(); } catch {} }
+    }
   } else {
     const r = await fetch(url, {
       headers: { "User-Agent": SCRAP_UA, "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8", "Accept-Language": "en-US,en;q=0.7,th;q=0.5", ..._scrapAuthHeaders(auth) },
@@ -8000,6 +8053,9 @@ app.post("/api/scrap/recipes", requireAuth, express.json({ limit: "512kb" }), (r
     waitFor: String(body.waitFor || existing.waitFor || ""),
     waitMs: parseInt(body.waitMs) || existing.waitMs || 0,
     scroll: body.scroll != null ? !!body.scroll : !!existing.scroll,
+    // v4.20.0 — Scrap CDP engine: persist engine + cdpEndpoint with recipe
+    engine: (body.engine === "cdp" ? "cdp" : (body.engine === "playwright" ? "playwright" : (existing.engine || "playwright"))),
+    cdpEndpoint: String(body.cdpEndpoint != null ? body.cdpEndpoint : (existing.cdpEndpoint || "http://localhost:9222")),
     auth: (body.auth && typeof body.auth === "object") ? {
       cookie: String(body.auth.cookie || ""),
       headers: (body.auth.headers && typeof body.auth.headers === "object") ? body.auth.headers : {},
@@ -9038,6 +9094,9 @@ app.post("/api/scrap/batch", requireAuth, express.json({ limit: "1mb" }), async 
   if (!followSpec && !urls.length) return res.status(400).json({ error: "no valid urls (provide urls[] or pattern + from/to)" });
   if (followSpec && !/^https?:\/\//i.test(followStartUrl)) return res.status(400).json({ error: "follow: invalid startUrl" });
   const mode = ["static", "browser"].includes(body.mode) ? body.mode : "static";
+  // v4.20.0 — Scrap CDP engine (only meaningful when mode='browser')
+  const engine = body.engine === "cdp" ? "cdp" : "playwright";
+  const cdpEndpoint = String(body.cdpEndpoint || "").trim() || "http://localhost:9222";
   const selectors = body.selectors || {};
   const rootSelector = String(body.rootSelector || "").trim();
   const delayMs = Math.min(60000, Math.max(0, parseInt(body.delayMs) || 0));
@@ -9080,14 +9139,17 @@ app.post("/api/scrap/batch", requireAuth, express.json({ limit: "1mb" }), async 
     try {
       let html, finalUrl, status;
       if (mode === "browser") {
-        const browser = await _getScrapBrowser();
-        const context = await browser.newContext({ userAgent: SCRAP_UA, viewport: { width: 1366, height: 900 } });
+        const browser = await _getScrapBrowser({ engine, cdpEndpoint });
+        const ctxResult = await _getScrapContextForEngine(browser, { engine });
+        const context = ctxResult.context;
+        const owned = ctxResult.owned;
+        let page = null;
         try {
           const extraHeaders = _scrapAuthHeaders(auth);
           if (Object.keys(extraHeaders).length) await context.setExtraHTTPHeaders(extraHeaders);
           const cookieArr = _scrapCookieArrayForUrl(auth.cookie, url);
           if (cookieArr.length) await context.addCookies(cookieArr);
-          const page = await context.newPage();
+          page = await context.newPage();
           await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 });
           if (waitFor) { try { await page.waitForSelector(waitFor, { timeout: 15000 }); } catch {} }
           if (waitMs) await page.waitForTimeout(waitMs);
@@ -9107,7 +9169,11 @@ app.post("/api/scrap/batch", requireAuth, express.json({ limit: "1mb" }), async 
           html = await page.content();
           finalUrl = page.url();
           status = 200;
-        } finally { try { await context.close(); } catch {} }
+        } finally {
+          // v4.20.0 — CDP cleanup boundary: keep user's real context; only close the page we opened.
+          if (owned) { try { await context.close(); } catch {} }
+          else { try { if (page) await page.close(); } catch {} }
+        }
       } else {
         const r = await fetch(url, {
           headers: { "User-Agent": SCRAP_UA, "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8", "Accept-Language": "en-US,en;q=0.7,th;q=0.5", ..._scrapAuthHeaders(auth) },
@@ -9218,10 +9284,12 @@ app.post("/api/scrap/batch", requireAuth, express.json({ limit: "1mb" }), async 
 
     if (strategy === "click" || mode === "browser") {
       // Browser click-loop: persistent context+page across pagination
-      let browser, context, page;
+      let browser, context, page, ctxOwned = false;
       try {
-        browser = await _getScrapBrowser();
-        context = await browser.newContext({ userAgent: SCRAP_UA, viewport: { width: 1366, height: 900 } });
+        browser = await _getScrapBrowser({ engine, cdpEndpoint });
+        const ctxResult = await _getScrapContextForEngine(browser, { engine });
+        context = ctxResult.context;
+        ctxOwned = ctxResult.owned;
         const extraHeaders = _scrapAuthHeaders(auth);
         if (Object.keys(extraHeaders).length) await context.setExtraHTTPHeaders(extraHeaders);
         const cookieArr = _scrapCookieArrayForUrl(auth.cookie, followStartUrl);
@@ -9269,7 +9337,9 @@ app.post("/api/scrap/batch", requireAuth, express.json({ limit: "1mb" }), async 
       } catch (e) {
         if (streamMode) res.write(`event: error\ndata: ${JSON.stringify({ error: String(e.message || e) })}\n\n`);
       } finally {
-        try { if (context) await context.close(); } catch {}
+        // v4.20.0 — CDP cleanup boundary: close only the page when context is shared (user's session)
+        if (ctxOwned) { try { if (context) await context.close(); } catch {} }
+        else { try { if (page) await page.close(); } catch {} }
       }
     } else {
       // Static href-follow loop

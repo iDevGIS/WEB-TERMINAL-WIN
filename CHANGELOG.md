@@ -5,6 +5,32 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [4.20.0] — 2026-05-16 — Scrap Tool: CDP engine (logged-in scraping)
+
+Reuses the Tab Browser CDP infrastructure shipped in v4.19.0 for the Scrap Tool. When `engine: 'cdp'` is selected, the Scrap server attaches to the user's real Chrome (started with `--remote-debugging-port=9222`) and reuses the existing browser session — unlocking scraping for sites behind login walls (Twitter/X, LinkedIn, Reddit personalized feeds, banking dashboards, internal Grafana/AWS consoles, etc.).
+
+### Added
+
+- **`_getScrapBrowser(opts)` is now engine-aware** — accepts optional `{ engine, cdpEndpoint }`. When `engine === 'cdp'`, calls `chromium.connectOverCDP(cdpEndpoint)` and caches per-endpoint in `_scrapBrowserCDP: Map<string, Browser>`. Falls back to the existing headless Playwright singleton for the default `'playwright'` engine. **Backward compatible** — zero-arg callers behave exactly as v4.19.x.
+- **`_getScrapContextForEngine(browser, opts)`** — new helper that prefers `browser.contexts()[0]` (user's real session: cookies, extensions, login state) when attached over CDP, with `browser.newContext()` fallback if no contexts exist yet. Always creates a fresh isolated context for the default Playwright engine.
+- **`POST /api/scrap/browser` (Tier 2)** — accepts `engine` and `cdpEndpoint` in request body. Echoes `engine` back in the response so the UI can show which engine actually ran.
+- **`POST /api/scrap/batch`** — same: `engine` + `cdpEndpoint` in body propagate through both the per-URL `mode='browser'` branch and the follow click-loop.
+- **`POST /api/scrap/recipes`** — recipes persist `engine` + `cdpEndpoint` fields, so saved recipes restore the engine choice on load. `_scrapRunRecipe` honors them for manual + scheduled runs.
+- **Scrap Tool toolbar UI** — new Engine dropdown (Playwright / CDP) that auto-shows only when mode is Browser. CDP endpoint input field auto-shows only when engine is CDP. Status pill prints `browser (CDP) ok` on successful CDP runs.
+
+### Changed
+
+- **CDP cleanup boundary across all Scrap browser branches** — Scrap now mirrors the Tab Browser CDP cleanup rule: close only the page Playwright opened, never the user's shared context or browser. Headless Playwright path still closes the context (cheap, isolated) — semantics unchanged for that engine.
+
+### Notes
+
+- Configure Chrome on the server (ROG) once: `chrome.exe --remote-debugging-port=9222 --user-data-dir="%TEMP%\chrome-cdp"` (PowerShell equivalent in the docs). Log into the target site once inside that Chrome window — all subsequent CDP Scrap runs reuse the session, including cookies and browser extensions.
+- Scrap-CDP requests against the same endpoint share `contexts()[0]`, so concurrent scrapes can race on cookie/localStorage updates. For high-concurrency batch scrapes, keep `engine: 'playwright'` (default).
+- Pipeline runner (Visual Builder block-level engine override) deferred to v4.20.1.
+- Full documentation: `docs/BROWSER_MODES.md` §14 — pre-shipped in `1fb01f7`.
+
+---
+
 ## [4.19.1] — 2026-05-16 — Tab Browser hotfix: iframe teardown + sticky error
 
 ### Fixed

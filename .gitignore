@@ -6,6 +6,7 @@ node_modules/
 *.err
 npm-debug.log*
 nohup.out
+server.out
 logs/
 debug-*.txt
 
