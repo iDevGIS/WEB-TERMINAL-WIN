@@ -1622,7 +1622,7 @@
     .fb-canvas-empty .big { font-size: 38px; opacity: .55; }
 
     .fb-svg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
-    .fb-edge { stroke: rgba(167,139,250,.55); stroke-width: 2; fill: none; }
+    .fb-edge { stroke: rgba(167,139,250,.55); stroke-width: 1.4; fill: none; }
     .fb-edge.heal { stroke: #f472b6; stroke-dasharray: 6 4; }
     .fb-edge.loop { stroke: #c084fc; stroke-dasharray: 8 4; }
     .fb-edge-arrow { fill: rgba(167,139,250,.95); }
@@ -6131,7 +6131,7 @@
       const SVG = 'http://www.w3.org/2000/svg';
       const svg = document.createElementNS(SVG, 'svg');
       svg.setAttribute('class', 'fb-svg');
-      svg.innerHTML = '<defs><marker id="fb-arrow-' + tabId + '" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="fb-edge-arrow"/></marker><marker id="fb-arrow-heal-' + tabId + '" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="fb-edge-arrow-heal"/></marker><marker id="fb-arrow-loop-' + tabId + '" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="fb-edge-arrow-loop"/></marker></defs>';
+      svg.innerHTML = '<defs><marker id="fb-arrow-' + tabId + '" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="fb-edge-arrow"/></marker><marker id="fb-arrow-heal-' + tabId + '" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="fb-edge-arrow-heal"/></marker><marker id="fb-arrow-loop-' + tabId + '" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="fb-edge-arrow-loop"/></marker></defs>';
       const BW = 200, BH = 84, GAP = 14;
       function _edge(from, to, cls, markerId) {
         const fcx = from.x + BW/2, fcy = from.y + BH/2;
@@ -8946,7 +8946,7 @@
       const SVG = 'http://www.w3.org/2000/svg';
       const svg = document.createElementNS(SVG, 'svg');
       svg.setAttribute('class', 'fb-svg');
-      svg.innerHTML = '<defs><marker id="fb-arrow-' + tabId + '" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="fb-edge-arrow"/></marker><marker id="fb-arrow-heal-' + tabId + '" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="fb-edge-arrow-heal"/></marker><marker id="fb-arrow-loop-' + tabId + '" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="fb-edge-arrow-loop"/></marker></defs>';
+      svg.innerHTML = '<defs><marker id="fb-arrow-' + tabId + '" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="fb-edge-arrow"/></marker><marker id="fb-arrow-heal-' + tabId + '" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="fb-edge-arrow-heal"/></marker><marker id="fb-arrow-loop-' + tabId + '" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="fb-edge-arrow-loop"/></marker></defs>';
       const BW = 200, BH = 84, GAP = 14;
       function _e(from, to, cls, mk) {
         const fcx = from.x + BW/2, fcy = from.y + BH/2;

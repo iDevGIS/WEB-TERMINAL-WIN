@@ -5,6 +5,17 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [4.16.4] — 2026-05-16 — Flow Builder: thinner edges + smaller arrowheads
+
+### Changed
+
+- **Edge stroke-width**: `2` → `1.4` (`.fb-edge` CSS). Lines now read as a network graph, not a flowchart.
+- **Arrowhead size**: marker `9×9` → `6×6` on all three marker defs (main / heal / loop) in both `fbRender` and `_fbRedrawEdges`. Tip remains crisp at 50%+ browser zoom; no longer dominates the block face it points at.
+
+Refinement of v4.16.2 (clip standoff) + v4.16.3 (smart routing). Client-only diff — hard refresh (Ctrl+Shift+R). No server bounce.
+
+---
+
 ## [4.16.3] — 2026-05-16 — Flow Builder: smart edge routing (4-sided anchors)
 
 ### Changed
