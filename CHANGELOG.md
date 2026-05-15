@@ -5,6 +5,19 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [4.16.6] — 2026-05-16 — Flow Builder: smoother edges + chevron arrowheads
+
+### Changed
+
+- **Bezier control points** now use direction-projected lead-in offsets (`max(40, min(140, |Δ|*0.55))` horizontal · `max(30, min(110, |Δ|*0.55))` vertical) instead of geometric midpoint. The old midpoint formula produced an abrupt inflection at the halfway mark; the new formula extends control handles along the exit/entry normal, giving a continuously varying curvature with no kink.
+- **Arrow marker path**: `M0,0 L10,5 L0,10 z` (wide filled triangle) → `M0,1.6 L10,5 L0,8.4 L2,5 Z` (slim concave-base chevron). Tighter visual weight; reads as a point not a wedge.
+- **`.fb-edge` stroke**: added `stroke-linecap: round`, `stroke-linejoin: round`, `vector-effect: non-scaling-stroke` for cleaner caps and zoom-stable width.
+- **`.fb-svg`**: added `shape-rendering: geometricPrecision` so the rasterizer favors smoothness over speed on the canvas SVG.
+
+Applied to both renderers (`_edge` inside `fbRender`, `_e` inside `_fbRedrawEdges`). Client-only diff — hard refresh (Ctrl+Shift+R). No server bounce.
+
+---
+
 ## [4.16.5] — 2026-05-16 — Flow Builder: marquee no longer selects block text
 
 ### Fixed
