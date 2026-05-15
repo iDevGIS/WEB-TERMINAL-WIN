@@ -2936,6 +2936,22 @@ const CROSS_TAB_TOOLS = [
       },
     },
   },
+  // v4.24.0 — Flow Builder pipeline merge sibling stores (Sidekick slot tool)
+  {
+    type: 'function',
+    function: {
+      name: 'pipeline_merge_stores',
+      description: 'Detect groups of sibling `store` blocks in a Scrap pipeline (multiple store blocks that share the same upstream block) and collapse each group into ONE store block with `formats:[]` array. This is the migration tool for legacy pipelines authored manually with one-store-per-format. Pass `dryRun: true` to inspect what would change without writing. The canonical store keeps the first sibling\'s name/position/path; format strings are de-duplicated. Block ids of removed siblings are returned so the caller can confirm. Idempotent: running twice on the same pipeline is a no-op the second time.',
+      parameters: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'Pipeline id to merge.' },
+          dryRun: { type: 'boolean', description: 'If true, return the proposed changes without writing. Default false.' },
+        },
+        required: ['id'],
+      },
+    },
+  },
   // v4.23.0 — Flow Builder panel preset (Sidekick slot tool)
   {
     type: 'function',
@@ -9020,6 +9036,107 @@ app.delete("/api/scrap/pipelines/:id", requireAuth, (req, res) => {
   const list = loadPipelines().filter(x => x.id !== req.params.id);
   savePipelines(list);
   res.json({ ok: true });
+});
+
+// v4.24.0 — Collapse sibling store blocks into one store with formats:[].
+// Sibling = stores that share the same upstream block (i.e., the same parent has all of them in its `next`).
+// Idempotent: re-running on a pipeline with no sibling store groups is a no-op.
+function _pipelineMergeSiblingStores(pipeline) {
+  const blocks = (pipeline.blocks || []).slice();
+  const byId = new Map(blocks.map(b => [b.id, b]));
+  // Index parents: for each block, list parents (blocks whose next[] includes it)
+  const parentsOf = new Map();
+  for (const b of blocks) {
+    for (const nid of b.next || []) {
+      if (!parentsOf.has(nid)) parentsOf.set(nid, []);
+      parentsOf.get(nid).push(b.id);
+    }
+  }
+  // For each parent that has multiple store children, find the store children
+  const groups = new Map(); // parentId -> [storeIds]
+  for (const [childId, parents] of parentsOf) {
+    const child = byId.get(childId);
+    if (!child || child.type !== "store") continue;
+    for (const pid of parents) {
+      if (!groups.has(pid)) groups.set(pid, []);
+      groups.get(pid).push(childId);
+    }
+  }
+  // Also detect orphaned store siblings via pipeline.startBlock when startBlock itself is a store group
+  // (rare — skip for now; covers parent-driven case which is the typical authoring pattern)
+  const merges = [];
+  for (const [parentId, storeIds] of groups) {
+    if (storeIds.length < 2) continue;
+    // Stable order: pick first store as canonical, others removed
+    const sorted = storeIds.slice().sort((a, b) => {
+      const aPos = (byId.get(a).position || { x: 9e9 });
+      const bPos = (byId.get(b).position || { x: 9e9 });
+      if (aPos.x !== bPos.x) return aPos.x - bPos.x;
+      return a.localeCompare(b);
+    });
+    const canonicalId = sorted[0];
+    const removeIds = sorted.slice(1);
+    const canonical = byId.get(canonicalId);
+    canonical.config = canonical.config || {};
+    // Dedup formats: canonical's format + canonical's formats[] + each removed's format + formats[]
+    const accum = [];
+    const seen = new Set();
+    const pushFmt = (f) => {
+      const v = String(f || "").toLowerCase().trim();
+      if (v && !seen.has(v)) { seen.add(v); accum.push(v); }
+    };
+    pushFmt(canonical.config.format);
+    if (Array.isArray(canonical.config.formats)) canonical.config.formats.forEach(pushFmt);
+    else if (typeof canonical.config.formats === "string") canonical.config.formats.split(/[,\s]+/).forEach(pushFmt);
+    for (const rid of removeIds) {
+      const r = byId.get(rid);
+      pushFmt(r.config && r.config.format);
+      if (Array.isArray(r.config && r.config.formats)) r.config.formats.forEach(pushFmt);
+      else if (typeof (r.config && r.config.formats) === "string") r.config.formats.split(/[,\s]+/).forEach(pushFmt);
+      // Best-effort: keep sqlite config from first sibling that defines it (none > canonical > removed in order)
+      if (!canonical.config.sqlite && r.config && r.config.sqlite) canonical.config.sqlite = r.config.sqlite;
+    }
+    // Promote first entry to format, rest to formats[]
+    canonical.config.format = accum[0] || "json";
+    canonical.config.formats = accum.slice(1);
+    merges.push({ parentId, canonicalId, removedIds: removeIds, formats: accum });
+  }
+  // Apply removals + parent.next rewrites
+  const removedSet = new Set();
+  for (const m of merges) for (const rid of m.removedIds) removedSet.add(rid);
+  if (!removedSet.size) return { pipeline, merges: [], changed: false };
+  const newBlocks = blocks.filter(b => !removedSet.has(b.id));
+  for (const b of newBlocks) {
+    if (Array.isArray(b.next) && b.next.some(n => removedSet.has(n))) {
+      b.next = b.next.filter(n => !removedSet.has(n));
+    }
+    if (b.healFallback && removedSet.has(b.healFallback)) b.healFallback = null;
+    if (b.loopback && removedSet.has(b.loopback)) b.loopback = null;
+  }
+  if (pipeline.startBlock && removedSet.has(pipeline.startBlock)) {
+    // If a removed store happened to be startBlock (degenerate case), pick the canonical of its merge group
+    const myMerge = merges.find(m => m.removedIds.includes(pipeline.startBlock));
+    pipeline.startBlock = myMerge ? myMerge.canonicalId : (newBlocks[0]?.id || null);
+  }
+  pipeline.blocks = newBlocks;
+  return { pipeline, merges, changed: true };
+}
+
+app.post("/api/scrap/pipelines/:id/merge-stores", requireAuth, express.json({ limit: "16kb" }), (req, res) => {
+  const list = loadPipelines();
+  const idx = list.findIndex(x => x.id === req.params.id);
+  if (idx < 0) return res.status(404).json({ error: "pipeline not found" });
+  const dryRun = !!(req.body && req.body.dryRun);
+  // Deep-clone before merging so a dry run never mutates state
+  const cloned = JSON.parse(JSON.stringify(list[idx]));
+  const { pipeline: merged, merges, changed } = _pipelineMergeSiblingStores(cloned);
+  if (!changed) return res.json({ ok: true, changed: false, merges: [], pipeline: list[idx] });
+  if (dryRun) return res.json({ ok: true, dryRun: true, changed: true, merges, preview: merged });
+  // Snapshot pre-update state then persist
+  _pipelineSnapshotWrite(list[idx].id, list[idx]);
+  list[idx] = merged;
+  savePipelines(list);
+  res.json({ ok: true, changed: true, merges, pipeline: merged });
 });
 
 // v4.2.2 — resume an auto-paused pipeline (clears pausedReason + resets failure counter)

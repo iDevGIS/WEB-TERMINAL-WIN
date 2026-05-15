@@ -16823,6 +16823,39 @@ ${fields}
           return { ok: true, id, deleted: true };
         } catch (e) { return { error: 'delete_snippet failed: ' + (e && e.message || e) }; }
       },
+      // v4.24.0 — Sidekick Flow Builder pipeline merge sibling stores
+      async pipeline_merge_stores(args) {
+        const id = args && args.id;
+        if (!id) return { error: 'id is required' };
+        const dryRun = !!(args && args.dryRun);
+        try {
+          const r = await fetch('/api/scrap/pipelines/' + encodeURIComponent(id) + '/merge-stores', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ dryRun }),
+          });
+          const d = await r.json().catch(() => ({}));
+          if (!r.ok || d.error) return { error: d.error || ('HTTP ' + r.status) };
+          // If a Flow Builder tab is open on this pipeline, refresh it so the user sees the change
+          if (!dryRun && d.changed) {
+            for (const t of tabs.values()) {
+              if (t.type === 'flow-builder' && t.fb && t.fb.current && t.fb.current.id === id) {
+                if (typeof fbLoad === 'function') {
+                  try { fbLoad(t.id, id); } catch {}
+                }
+              }
+            }
+          }
+          return {
+            ok: true,
+            changed: !!d.changed,
+            dryRun,
+            mergesApplied: (d.merges || []).length,
+            merges: d.merges || [],
+            pipelineId: id,
+          };
+        } catch (e) { return { error: 'pipeline_merge_stores failed: ' + (e && e.message || e) }; }
+      },
       // v4.23.0 — Sidekick Flow Builder panel preset
       async panel_set_preset(args) {
         args = args || {};

@@ -5,6 +5,32 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [4.24.0] — 2026-05-16 — Pipeline merge-to-formats migration
+
+Ship `e` of the overnight cascade. Closes the long-standing "sibling stores ↔ one store with `formats:[]`" gap noted in the fan-out lint warning (v4.15.0). Two-store-after-extract is a common authoring mistake; this provides both a programmatic fix and an AI-driven path for chatting "merge the stores in pipeline X."
+
+### Added
+
+- **`POST /api/scrap/pipelines/:id/merge-stores`** (requireAuth). Body: `{ dryRun?: boolean }`. Server-side function `_pipelineMergeSiblingStores(pipeline)` walks the block graph, groups store blocks by shared upstream parent, and collapses each group with ≥2 stores into one canonical store with deduplicated `formats:[]` array. Returns `{ ok, changed, merges: [...], pipeline }`. On non-dry write, snapshots the pre-merge state via `_pipelineSnapshotWrite` so the v4.7.0 ring-buffer history captures the change.
+- **`pipeline_merge_stores` Cross-Tab tool** — Sidekick slot tool that posts to the new endpoint. Args: `id` (required), `dryRun` (optional). On successful non-dry merge, auto-refreshes any open Flow Builder tab that has this pipeline loaded so the user sees the canvas change immediately. Returns `{ ok, changed, dryRun, mergesApplied, merges }`.
+
+### Merge logic
+
+- **Sibling detection**: stores that share the same upstream block (i.e., the upstream's `next[]` includes ≥2 store ids).
+- **Canonical pick**: lowest x-coordinate first, then lexical id as tiebreaker. Stable & deterministic.
+- **Format dedup**: canonical's `format` + canonical's `formats[]` + each removed sibling's `format` + `formats[]` → unique lowercase set. First entry promotes to `format`; rest become `formats[]`.
+- **SQLite config carry-over**: if canonical lacks `sqlite` block but any removed sibling has one, take the first non-null.
+- **Reference cleanup**: removed ids are pulled from parent's `next[]`, plus any `healFallback` / `loopback` that pointed at them are nulled. If `startBlock` happened to be a removed sibling (degenerate case), it's pointed at the canonical of its merge group.
+- **Idempotent**: re-running on a pipeline with no sibling groups returns `{ changed: false, merges: [] }`. No-op safe.
+
+### Notes
+
+- The dry-run flow lets the AI inspect a proposed change BEFORE writing — pattern: "Hey ลูกพี่, here are the 2 merges I'd apply, OK to proceed?" → user confirms → tool re-call without `dryRun`.
+- Pairs with the v4.15.0 fan-out lint warning, which already pointed at the `formats:['json','csv',...]` pattern but offered no migration path. Now there is one.
+- Next: `f` = dogfood-3 prep (Reddit/Twitter/Thai-news scrape recipes + docs polish).
+
+---
+
 ## [4.23.0] — 2026-05-16 — Sidekick: Flow Builder panel preset tool
 
 Third of three planned Sidekick canvas slot tools (ship `d` of the overnight cascade, completing the Flow Builder canvas category started in v4.21.0). Wraps the existing `fbPanelApplyPreset` infrastructure (shipped in v4.12.0 layout presets) and exposes it to the chat AI for workspace-reshaping flows.
