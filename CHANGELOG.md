@@ -5,6 +5,20 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [4.16.1] — 2026-05-16 — Flow Builder: dropdown legibility hotfix
+
+### Fixed
+
+- **Native dropdown text was washed-out gray-on-dark in the pipeline selector and Properties form selects.** Browsers were rendering `<option>` popups in light-mode by default because the page never declared its color scheme; the dark `<select>` background paired with light-mode option text produced poor contrast.
+- Added `color-scheme: dark` on `:root` so every native form control (`<select>` option dropdowns, scrollbars, autofill UI, calendar pickers) renders in dark mode globally.
+- Added explicit `<option>` styling for `.fb-toolbar select` and `.fb-props select.val` — `background: #0b0e22`, `color: #e5e7eb`, and a purple-tinted highlight for the `:checked` option for consistency with the focus accent.
+
+### Why
+
+`color-scheme` is the canonical fix — telling the UA the page is dark mode lets it render native controls correctly across Windows / macOS / Linux without needing per-control `<option>` overrides. The explicit toolbar/props option styles are belt-and-suspenders in case a browser still ignores `color-scheme` for nested popups.
+
+---
+
 ## [4.16.0] — 2026-05-16 — Flow Builder: marquee multi-select + group drag
 
 ### Added

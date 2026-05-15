@@ -22,6 +22,7 @@
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
     :root {
+      color-scheme: dark;
       --glass-bg: rgba(255,255,255,.04);
       --glass-bg2: rgba(255,255,255,.06);
       --glass-bg3: rgba(255,255,255,.08);
@@ -1541,7 +1542,9 @@
     /* === Flow Builder tab (v4.0.0-alpha.2) ===================================== */
     .fb-tab-wrap { display: flex; flex-direction: column; width: 100%; height: 100%; overflow: hidden; background: radial-gradient(ellipse at 20% 10%, #1a1130 0%, #060818 60%); color: var(--text); }
     .fb-toolbar { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid rgba(255,255,255,.06); background: rgba(8,10,22,.6); backdrop-filter: blur(20px); flex-shrink: 0; }
-    .fb-toolbar select, .fb-toolbar input { background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.1); border-radius: 6px; padding: 5px 10px; color: var(--text); font: inherit; font-size: 12px; outline: none; }
+    .fb-toolbar select, .fb-toolbar input { background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.1); border-radius: 6px; padding: 5px 10px; color: var(--text); font: inherit; font-size: 12px; outline: none; color-scheme: dark; }
+    .fb-toolbar select option { background: #0b0e22; color: #e5e7eb; }
+    .fb-toolbar select option:checked { background: linear-gradient(0deg, rgba(168,85,247,.35), rgba(168,85,247,.35)), #0b0e22; color: #fff; }
     .fb-toolbar select:focus, .fb-toolbar input:focus { border-color: rgba(167,139,250,.5); }
     .fb-toolbar .fb-btn { padding: 5px 12px; border-radius: 6px; font-size: 12px; border: 1px solid rgba(255,255,255,.12); background: rgba(255,255,255,.04); color: var(--text); cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
     .fb-toolbar .fb-btn:hover { background: rgba(167,139,250,.12); border-color: rgba(167,139,250,.32); }
@@ -1687,7 +1690,9 @@
     .fb-props .row label { display: block; font-size: 10.5px; text-transform: uppercase; letter-spacing: .03em; color: var(--text3); margin-bottom: 4px; }
     .fb-props .row .val { font-size: 12px; color: var(--text); word-break: break-all; padding: 6px 8px; background: rgba(255,255,255,.03); border-radius: 5px; border: 1px solid rgba(255,255,255,.06); }
     .fb-props pre.val { font-family: ui-monospace,monospace; font-size: 11px; white-space: pre-wrap; max-height: 220px; overflow: auto; }
-    .fb-props input.val, .fb-props textarea.val, .fb-props select.val { font: inherit; font-size: 12px; color: var(--text); background: rgba(0,0,0,.32); border: 1px solid rgba(255,255,255,.08); border-radius: 5px; padding: 6px 8px; outline: none; transition: border-color .12s; }
+    .fb-props input.val, .fb-props textarea.val, .fb-props select.val { font: inherit; font-size: 12px; color: var(--text); background: rgba(0,0,0,.32); border: 1px solid rgba(255,255,255,.08); border-radius: 5px; padding: 6px 8px; outline: none; transition: border-color .12s; color-scheme: dark; }
+    .fb-props select.val option { background: #0b0e22; color: #e5e7eb; }
+    .fb-props select.val option:checked { background: linear-gradient(0deg, rgba(168,85,247,.35), rgba(168,85,247,.35)), #0b0e22; color: #fff; }
     .fb-props input.val:focus, .fb-props textarea.val:focus, .fb-props select.val:focus { border-color: rgba(168,85,247,.55); background: rgba(0,0,0,.4); }
     .fb-props textarea.val { line-height: 1.45; }
 
