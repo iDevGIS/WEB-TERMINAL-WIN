@@ -490,4 +490,89 @@ A: By default Chrome binds `--remote-debugging-port=9222` to `127.0.0.1` only. W
 
 ---
 
-_Last updated: 2026-05-16 (CYBERFRAME v4.19.1)_
+## 14. Scrap Tool integration (v4.20.0+)
+
+The Scrap Tool reuses the same browser primitives as Tab Browser, but with a **3-tier mode taxonomy** (Live mode is omitted — see below).
+
+### 14.1 Mode-to-Scrap mapping
+
+| Tab Browser mode | Scrap fit? | Rationale |
+|---|---|---|
+| 🌐 **Live** | ❌ omitted | Scrap reads DOM/HTML directly. An iframe can't extract cross-origin DOM (CORS). |
+| 🛡 **Proxy** | ✅ equivalent | The existing `/api/scrap/fetch` (Tier 1 static fetch) is the same primitive — strip-header proxy not needed because we control the server-side fetch. |
+| 🤖 **Pro** | ✅ default | `/api/scrap/browser` (Tier 2) and the pipeline runner use `_getScrapBrowser()` → headless Chromium. This is the default `engine: 'playwright'`. |
+| 🔧 **CDP** | ✅ **new in v4.20.0** | `engine: 'cdp'` attaches the scraper to the user's real Chrome (via `--remote-debugging-port=9222`) — unlocks logged-in scraping. |
+
+### 14.2 Scrap CDP engine — what it unlocks
+
+| Use case | Before v4.20.0 | With CDP engine |
+|---|---|---|
+| Twitter / X timeline | ❌ login wall | ✅ real cookies, personalized feed |
+| LinkedIn jobs / connections | ❌ blocked | ✅ session reuse |
+| Private dashboards (Grafana, AWS console, internal tools) | ❌ no cookies | ✅ works with browser extensions too |
+| Reddit account-specific feeds | ❌ logged-out view | ✅ personalized |
+| Banking / fintech read-only views | ❌ MFA wall | ✅ uses existing browser session |
+
+### 14.3 Scrap config schema (v4.20.0)
+
+```json
+{
+  "url": "https://twitter.com/explore",
+  "engine": "cdp",
+  "cdpEndpoint": "http://localhost:9222",
+  "waitFor": "[data-testid='trend']",
+  "waitMs": 2000,
+  "scroll": true,
+  "auth": { "cookie": "..." }
+}
+```
+
+| Field | Type | Default | Notes |
+|---|---|---|---|
+| `engine` | `'playwright' \| 'cdp'` | `'playwright'` | If omitted, behavior identical to v4.19.x |
+| `cdpEndpoint` | `string` | `'http://localhost:9222'` | Only read when `engine='cdp'` |
+
+### 14.4 Server-side behavior
+
+When `engine === 'cdp'`:
+1. `_getScrapBrowser({ engine, cdpEndpoint })` → `chromium.connectOverCDP(cdpEndpoint)`, cached per-endpoint in `_scrapBrowserCDP: Map<string, Browser>`
+2. Context selection: prefer `browser.contexts()[0]` (the user's existing session) over `browser.newContext()` — inherits cookies, extensions, login state
+3. `context.newPage()` → opens a **new tab** in the user's visible Chrome (same pattern as Tab Browser CDP mode)
+4. Cleanup: closes **only the page** Playwright created — never the context, never the browser
+
+When `engine === 'playwright'` (default), v4.19.x semantics unchanged.
+
+### 14.5 Endpoints touched by v4.20.0
+
+| Endpoint | Reads `engine` from |
+|---|---|
+| `POST /api/scrap/browser` (Tier 2 manual scrape) | `req.body.engine` |
+| `POST /api/scrap/follow` (pagination follow-mode, when `mode='browser'`) | `req.body.engine` |
+| Pipeline runner (`/api/scrap/pipelines/:id/run`) | per-block `config.engine` (v4.20.1 — deferred) |
+
+### 14.6 UI surface (v4.20.0)
+
+- **Scrap Tool tab** → engine dropdown (Playwright / CDP) next to the mode toggle, with CDP endpoint input field that appears when CDP is selected
+- **Flow Builder block properties panel** — engine field (v4.20.1 — deferred to next ship)
+
+### 14.7 Setup parity with Tab Browser CDP
+
+Same setup as **§4 CDP mode** above — start Chrome on the **server (ROG)**:
+
+```powershell
+& "C:\Program Files\Google\Chrome\Application\chrome.exe" `
+  --remote-debugging-port=9222 `
+  --user-data-dir="$env:TEMP\chrome-cdp"
+```
+
+Then any Scrap request with `engine: 'cdp'` attaches to it. Log into the target site once inside that Chrome window — all subsequent Scrap CDP requests reuse the session.
+
+### 14.8 Limitations & gotchas
+
+- **Shared sessions:** all Scrap CDP requests against the same endpoint share the user's `contexts()[0]` — concurrent scrapes can race on cookie/localStorage updates. For high-concurrency scraping, stick with `engine: 'playwright'`.
+- **Visible tab spam:** each Scrap CDP run opens a new tab in user Chrome. For batched runs (pipeline), consider closing tabs between blocks. Auto-close on Playwright `page.close()` handles this for sequential runs.
+- **Anti-bot:** real-Chrome session is *less* detectable than headless, but logged-in scraping at high volume may still trigger account locks. Use the same prudence as manual browsing.
+
+---
+
+_Last updated: 2026-05-16 (CYBERFRAME v4.20.0)_
