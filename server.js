@@ -8262,15 +8262,20 @@ async function _pipeExecFetch(state, config, ctx) {
   // v4.0.2 — inherit cookies from prior login block if not explicitly overridden
   const auth = Object.assign({}, config.auth || {});
   if (!auth.cookie && ctx && ctx.authCookie) auth.cookie = ctx.authCookie;
+  // v4.20.1 — block-level engine override (playwright | cdp); inherits ctx.engine from a prior login block
+  const engine = String(config.engine || (ctx && ctx.engine) || "playwright").toLowerCase();
+  const cdpEndpoint = String(config.cdpEndpoint || (ctx && ctx.cdpEndpoint) || "http://localhost:9222");
   if (mode === "browser") {
-    const browser = await _getScrapBrowser();
-    const context = await browser.newContext({ userAgent: SCRAP_UA, viewport: { width: 1366, height: 900 } });
+    const browser = await _getScrapBrowser({ engine, cdpEndpoint });
+    const ctxResult = await _getScrapContextForEngine(browser, { engine });
+    const context = ctxResult.context;
+    let page = null;
     try {
       const extraHeaders = _scrapAuthHeaders(auth);
       if (Object.keys(extraHeaders).length) await context.setExtraHTTPHeaders(extraHeaders);
       const cookieArr = _scrapCookieArrayForUrl(auth.cookie, url);
       if (cookieArr.length) await context.addCookies(cookieArr);
-      const page = await context.newPage();
+      page = await context.newPage();
       await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 });
       if (config.waitFor) { try { await page.waitForSelector(config.waitFor, { timeout: 15000 }); } catch {} }
       if (config.waitMs) await page.waitForTimeout(Math.min(20000, parseInt(config.waitMs) || 0));
@@ -8289,7 +8294,12 @@ async function _pipeExecFetch(state, config, ctx) {
       }
       state.html = await page.content();
       state.finalUrl = page.url();
-    } finally { try { await context.close(); } catch {} }
+    } finally {
+      // v4.20.1 — close the page we created; close context only if we own it (Playwright fresh context;
+      // CDP reuses the user's existing context which must remain intact)
+      try { if (page) await page.close(); } catch {}
+      if (ctxResult.owned) { try { await context.close(); } catch {} }
+    }
   } else {
     const r = await fetch(url, {
       headers: { "User-Agent": SCRAP_UA, "Accept": "text/html,application/xhtml+xml,*/*;q=0.8", ..._scrapAuthHeaders(auth) },
@@ -8610,10 +8620,15 @@ async function _pipeExecLogin(state, config, ctx) {
     return state;
   }
   // form mode — headless browser
-  const browser = await _getScrapBrowser();
-  const browserCtx = await browser.newContext({ userAgent: SCRAP_UA, viewport: { width: 1366, height: 900 } });
+  // v4.20.1 — block-level engine override; persist on ctx so downstream fetch blocks can inherit
+  const engine = String(config.engine || "playwright").toLowerCase();
+  const cdpEndpoint = String(config.cdpEndpoint || "http://localhost:9222");
+  const browser = await _getScrapBrowser({ engine, cdpEndpoint });
+  const ctxResult = await _getScrapContextForEngine(browser, { engine });
+  const browserCtx = ctxResult.context;
+  let page = null;
   try {
-    const page = await browserCtx.newPage();
+    page = await browserCtx.newPage();
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 });
     const fields = config.fields || {};
     const userSel = String(fields.username || 'input[name="username"], input[type="email"], input[name="email"]');
@@ -8634,8 +8649,14 @@ async function _pipeExecLogin(state, config, ctx) {
     }
     const cookies = await browserCtx.cookies();
     ctx.authCookie = cookies.map(c => `${c.name}=${c.value}`).join("; ");
-    state.log.push(`login ok (form mode, ${cookies.length} cookies)`);
-  } finally { try { await browserCtx.close(); } catch {} }
+    // v4.20.1 — propagate engine choice so downstream fetch blocks reuse the same browser session
+    ctx.engine = engine;
+    ctx.cdpEndpoint = cdpEndpoint;
+    state.log.push(`login ok (form mode, ${cookies.length} cookies, engine=${engine})`);
+  } finally {
+    try { if (page) await page.close(); } catch {}
+    if (ctxResult.owned) { try { await browserCtx.close(); } catch {} }
+  }
   return state;
 }
 

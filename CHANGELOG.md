@@ -5,6 +5,30 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [4.20.1] — 2026-05-16 — Visual Builder: block-level engine override
+
+Closes the gap noted in v4.20.0 — pipeline blocks built in the Visual Flow Builder can now choose `engine: 'playwright' | 'cdp'` per-block (and per-pipeline by extension). The Scrap Tool toolbar got the engine dropdown in v4.20.0; this brings parity to the pipeline runner so saved/scheduled pipelines can target the user's real Chrome session for logged-in scraping (Twitter/LinkedIn/Reddit/private dashboards).
+
+### Added
+
+- **`_pipeExecFetch`** — reads `config.engine` + `config.cdpEndpoint` (browser mode only). Falls back to `ctx.engine`/`ctx.cdpEndpoint` if a prior `login` block set them. Calls `_getScrapBrowser({engine, cdpEndpoint})` + `_getScrapContextForEngine` (the same primitives the Scrap toolbar uses), then applies the v4.20.0 CDP cleanup boundary: close the page we created; close the context only if Playwright (owned). For CDP, the user's shared `contexts()[0]` survives intact.
+- **`_pipeExecLogin`** (form mode) — same engine/cdpEndpoint config, and **persists the choice on `ctx`** so downstream `fetch` blocks inherit it automatically. This means a single `login(engine=cdp) → fetch → fetch → extract` chain runs entirely against the user's real Chrome without repeating the engine config on every block.
+- **Block Properties panel — Engine + CDP endpoint rows** (`public/index.html` `fbShowProps`) — conditional 2-level cascade: Engine dropdown only renders when `mode='browser'` on `fetch` blocks (or `mode='form'` on `login` blocks). CDP endpoint input renders only when engine is `cdp`. Same UX shape as the Scrap toolbar in v4.20.0.
+- **`fbEditBlockCfg` — re-render trigger for `mode`/`engine` keys** — when the user toggles either, the panel re-renders so the conditional Engine + CDP rows appear/disappear correctly without losing other input state.
+
+### Changed
+
+- **`fetch` block mode dropdown** — corrected `['static', 'render']` → `['static', 'browser']` (the executor only ever recognized `'static'` or `'browser'`; `'render'` silently fell through to `'static'`). Existing saved pipelines with `mode: 'render'` continue to run as static fetch as before, but the UI now reflects the actual supported modes.
+- **`login` block mode dropdown** — corrected `['form', 'api', 'oauth']` → `['form', 'api', 'cookie']` (the executor implements `cookie` mode, not `oauth`). Same drift fix as above.
+
+### Notes
+
+- For CDP mode in pipelines, start Chrome on the server (ROG) the same way as v4.20.0: `chrome.exe --remote-debugging-port=9222 --user-data-dir="%TEMP%\chrome-cdp"`. Log in to your target site inside that Chrome window once; all pipeline runs that select `engine: 'cdp'` reuse the same session.
+- Scheduled pipelines that pick `engine: 'cdp'` will fail if Chrome on the server isn't running on `:9222`. The thrown error includes the launch command, so the failure message in the schedule log is actionable.
+- Concurrency caution (carries over from v4.20.0): multiple pipelines using CDP against the same endpoint share `contexts()[0]`; for high-concurrency scheduled runs prefer `engine: 'playwright'` (default).
+
+---
+
 ## [4.20.0] — 2026-05-16 — Scrap Tool: CDP engine (logged-in scraping)
 
 Reuses the Tab Browser CDP infrastructure shipped in v4.19.0 for the Scrap Tool. When `engine: 'cdp'` is selected, the Scrap server attaches to the user's real Chrome (started with `--remote-debugging-port=9222`) and reuses the existing browser session — unlocking scraping for sites behind login walls (Twitter/X, LinkedIn, Reddit personalized feeds, banking dashboards, internal Grafana/AWS consoles, etc.).

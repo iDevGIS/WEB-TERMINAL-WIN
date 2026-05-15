@@ -6549,15 +6549,29 @@
       const _sel = (key, val, opts) => `<select class="val" style="width:100%;box-sizing:border-box" onchange="fbEditBlockCfg('${tabId}','${block.id}','${key}', this.value)">` + opts.map(o => `<option value="${escAttr(o)}"${o===val?' selected':''}>${escHtml(o)}</option>`).join('') + '</select>';
 
       if (block.type === 'fetch') {
-        cfgInputs.push(_row('Mode', _sel('mode', cfg.mode || 'static', ['static', 'render'])));
+        cfgInputs.push(_row('Mode', _sel('mode', cfg.mode || 'static', ['static', 'browser'])));
         cfgInputs.push(_row('URL', _txt('url', cfg.url, 'https://example.com/page')));
+        // v4.20.1 — engine override (only meaningful when mode=browser)
+        if ((cfg.mode || 'static') === 'browser') {
+          cfgInputs.push(_row('Engine <span style="opacity:.55;font-weight:400">(browser only)</span>', _sel('engine', cfg.engine || 'playwright', ['playwright', 'cdp'])));
+          if ((cfg.engine || 'playwright') === 'cdp') {
+            cfgInputs.push(_row('CDP endpoint', _txt('cdpEndpoint', cfg.cdpEndpoint, 'http://localhost:9222')));
+          }
+        }
       } else if (block.type === 'login') {
-        cfgInputs.push(_row('Mode', _sel('mode', cfg.mode || 'form', ['form', 'api', 'oauth'])));
+        cfgInputs.push(_row('Mode', _sel('mode', cfg.mode || 'form', ['form', 'api', 'cookie'])));
         cfgInputs.push(_row('Login URL', _txt('url', cfg.url, 'https://example.com/login')));
         cfgInputs.push(_row('Username field', _txt('userField', cfg.userField, 'input[name=email]')));
         cfgInputs.push(_row('Password field', _txt('passField', cfg.passField, 'input[name=password]')));
         cfgInputs.push(_row('Username', _txt('user', cfg.user, '')));
         cfgInputs.push(_row('Password', _txt('pass', cfg.pass, '')));
+        // v4.20.1 — engine override propagates to downstream fetch blocks via ctx
+        if ((cfg.mode || 'form') === 'form') {
+          cfgInputs.push(_row('Engine <span style="opacity:.55;font-weight:400">(form mode)</span>', _sel('engine', cfg.engine || 'playwright', ['playwright', 'cdp'])));
+          if ((cfg.engine || 'playwright') === 'cdp') {
+            cfgInputs.push(_row('CDP endpoint', _txt('cdpEndpoint', cfg.cdpEndpoint, 'http://localhost:9222')));
+          }
+        }
       } else if (block.type === 'extract') {
         cfgInputs.push(_row('Root selector', _txt('root', cfg.root, '.product')));
         cfgInputs.push(_row('Fields (JSON)', `<textarea class="val" style="width:100%;box-sizing:border-box;font-family:ui-monospace,monospace;font-size:11px;min-height:80px;resize:vertical" oninput="fbEditBlockCfgJson('${tabId}','${block.id}','fields', this.value, this)">${escHtml(JSON.stringify(cfg.fields || {}, null, 2))}</textarea>`));
@@ -6606,6 +6620,11 @@
       fbMarkDirty(tabId, true);
       // re-render only the canvas to reflect new body text without losing inputs
       _fbUpdateBlockBody(tabId, blockId);
+      // v4.20.1 — keys that gate conditional UI rows (mode/engine) trigger props re-render so
+      // engine + cdpEndpoint inputs appear/disappear correctly
+      if (key === 'mode' || key === 'engine') {
+        fbShowProps(tabId, b);
+      }
     }
     function fbEditBlockCfgJson(tabId, blockId, key, raw, el) {
       const b = _fbBlock(tabId, blockId); if (!b) return;
