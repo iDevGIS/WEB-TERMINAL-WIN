@@ -5832,7 +5832,10 @@
       tab._pro = null;
     }
 
-    function _browserTabProStart(tabId, startUrl) {
+    // v4.19.0: parameterized mode ('pro' | 'cdp') — Pro uses headless Chromium singleton,
+    // CDP attaches to user's existing Chrome via --remote-debugging-port endpoint
+    function _browserTabProStart(tabId, startUrl, mode) {
+      mode = mode || 'pro';
       const tab = tabs.get(tabId);
       if (!tab) return;
       const frame = document.getElementById(tabId + '-bb-frame');
@@ -5846,8 +5849,12 @@
       canvas.style.cssText = 'flex:1;width:100%;height:100%;background:#0a0a1a;display:block;outline:none;cursor:default';
       canvas.tabIndex = 0;
       const status = document.createElement('div');
-      status.textContent = '🤖 Pro mode connecting…';
-      status.style.cssText = 'position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#a78bfa;font:14px system-ui;pointer-events:none;background:rgba(10,10,26,0.85);padding:8px 14px;border-radius:6px;border:1px solid rgba(167,139,250,0.3)';
+      const isCdp = mode === 'cdp';
+      const accent = isCdp ? '#fbbf24' : '#a78bfa';
+      const accentBorder = isCdp ? 'rgba(251,191,36,0.3)' : 'rgba(167,139,250,0.3)';
+      const label = isCdp ? '🔧 CDP mode connecting…' : '🤖 Pro mode connecting…';
+      status.textContent = label;
+      status.style.cssText = `position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:${accent};font:14px system-ui;pointer-events:none;background:rgba(10,10,26,0.85);padding:8px 14px;border-radius:6px;border:1px solid ${accentBorder};max-width:80%;text-align:center;white-space:pre-wrap`;
       wrap.appendChild(canvas);
       wrap.appendChild(status);
       if (frame.nextSibling) parent.insertBefore(wrap, frame.nextSibling);
@@ -5865,11 +5872,14 @@
       const initRect = canvas.getBoundingClientRect();
       const initW = Math.max(320, Math.round(initRect.width)) || 1280;
       const initH = Math.max(240, Math.round(initRect.height)) || 800;
-      const wsUrl = `${proto}//${location.host}/browser-pro-ws?url=${encodeURIComponent(startUrl)}&w=${initW}&h=${initH}`;
+      const cdpEndpoint = (typeof localStorage !== 'undefined' && localStorage.getItem('cdpEndpoint')) || 'http://localhost:9222';
+      const path = isCdp ? '/browser-cdp-ws' : '/browser-pro-ws';
+      const cdpQ = isCdp ? `&cdp=${encodeURIComponent(cdpEndpoint)}` : '';
+      const wsUrl = `${proto}//${location.host}${path}?url=${encodeURIComponent(startUrl)}&w=${initW}&h=${initH}${cdpQ}`;
       const ws = new WebSocket(wsUrl);
 
       let lastUrl = startUrl;
-      ws.onopen = () => { status.textContent = '🤖 Loading…'; fitCanvas(); };
+      ws.onopen = () => { status.textContent = isCdp ? '🔧 Loading…' : '🤖 Loading…'; fitCanvas(); };
       ws.onmessage = (ev) => {
         let m; try { m = JSON.parse(ev.data); } catch { return; }
         if (m.type === 'frame') {
@@ -5949,29 +5959,42 @@
       tab._pro = { ws, canvas, statusEl: status, wrapEl: wrap, ro };
     }
 
+    // v4.19.0: CDP mode now functional — attach to user's Chrome via --remote-debugging-port
     function browserTabSetMode(tabId, mode) {
       const tab = tabs.get(tabId);
       if (!tab || tab.type !== 'browser') return;
       const sel = document.getElementById(tabId + '-bb-mode');
-      // CDP is upcoming ship — toast and revert
-      if (mode === 'cdp') {
-        try { if (typeof showToast === 'function') showToast(`CDP mode → coming in v4.19.0 🚧`); } catch {}
-        if (sel) sel.value = tab.browserMode || 'live';
-        return;
-      }
       const prevMode = tab.browserMode || 'live';
-      if (prevMode === 'pro' && mode !== 'pro') _browserTabProStop(tabId);
+      // Stop existing screencast if switching out of pro/cdp
+      if ((prevMode === 'pro' || prevMode === 'cdp') && mode !== prevMode) _browserTabProStop(tabId);
       tab.browserMode = mode;
       if (sel) sel.setAttribute('data-mode', mode);
       const cur = tab.url || tab.history?.[tab.histIdx] || 'https://www.bing.com';
       const frame = document.getElementById(tabId + '-bb-frame');
-      if (mode === 'pro') {
-        _browserTabProStart(tabId, cur);
+      if (mode === 'pro' || mode === 'cdp') {
+        _browserTabProStart(tabId, cur, mode);
         return;
       }
       if (frame) {
         frame.style.display = '';
         frame.src = _browserWrapUrl(cur, mode);
+      }
+    }
+
+    // v4.19.0: CDP settings modal — endpoint + Chrome launch helper instructions
+    function browserTabCdpSettings() {
+      const cur = (localStorage.getItem('cdpEndpoint') || 'http://localhost:9222');
+      const endpoint = prompt(
+        'CDP Endpoint URL (Chrome --remote-debugging-port):\n\n' +
+        'To start Chrome with CDP enabled (Windows):\n' +
+        '  "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe" --remote-debugging-port=9222 --user-data-dir="%TEMP%\\chrome-cdp"\n\n' +
+        'macOS: open -na "Google Chrome" --args --remote-debugging-port=9222 --user-data-dir=/tmp/chrome-cdp\n' +
+        'Linux: google-chrome --remote-debugging-port=9222 --user-data-dir=/tmp/chrome-cdp\n',
+        cur
+      );
+      if (endpoint && endpoint.trim()) {
+        localStorage.setItem('cdpEndpoint', endpoint.trim());
+        if (typeof showToast === 'function') showToast(`CDP endpoint set: ${endpoint.trim()}`);
       }
     }
 
@@ -12734,12 +12757,15 @@ ${fields}
             </button>
             <input class="browser-tab-url" id="${tabId}-bb-url" placeholder="URL or search…" value="${escAttr(startUrl)}" onkeydown="if(event.key==='Enter'){browserTabGo('${tabId}',this.value)}" onfocus="this.select()">
             <button onclick="browserTabGo('${tabId}',document.getElementById('${tabId}-bb-url').value)" title="Go" style="padding:5px 12px">Go</button>
-            <select class="browser-tab-mode" id="${tabId}-bb-mode" data-mode="live" onchange="browserTabSetMode('${tabId}', this.value)" title="Render mode — Live: native iframe · Proxy: strips X-Frame-Options/CSP (~60% of sites) · Pro: headless Chromium screencast (~95%) · CDP: coming v4.19.0">
+            <select class="browser-tab-mode" id="${tabId}-bb-mode" data-mode="live" onchange="browserTabSetMode('${tabId}', this.value)" title="Render mode — Live: native iframe · Proxy: strips X-Frame-Options/CSP (~60%) · Pro: headless Chromium (~95%) · CDP: attach to your Chrome (~99%, needs --remote-debugging-port)">
               <option value="live">🌐 Live</option>
               <option value="proxy">🛡 Proxy</option>
               <option value="pro">🤖 Pro</option>
               <option value="cdp">🔧 CDP</option>
             </select>
+            <button onclick="browserTabCdpSettings()" title="Configure CDP endpoint + Chrome launch instructions">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            </button>
             <button onclick="browserTabOpenExternal('${tabId}')" title="Open in real browser">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
             </button>

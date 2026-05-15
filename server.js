@@ -1107,6 +1107,7 @@ app.get("/api/browser-proxy", requireAuth, async (req, res) => {
 });
 
 // === Browser Tab Pro mode (v4.18.0) — Playwright + CDP screencast over WS ===
+// v4.19.0 — shared `_streamPageOverWS` helper consumed by both Pro + CDP modes
 let _browserProBrowser = null;
 async function _getBrowserProBrowser() {
   if (_browserProBrowser && _browserProBrowser.isConnected && _browserProBrowser.isConnected()) return _browserProBrowser;
@@ -1116,53 +1117,26 @@ async function _getBrowserProBrowser() {
   return _browserProBrowser;
 }
 
-const proWss = new WebSocketServer({ noServer: true, perMessageDeflate: false });
-proWss.on("connection", async (ws, req) => {
-  let page = null;
-  let context = null;
-  let cdp = null;
+async function _streamPageOverWS(ws, opts) {
+  const { page, cdp, startUrl, dims, cleanup } = opts;
   let closed = false;
-  let dims = { w: 1280, h: 800 };
+  const wrappedCleanup = async () => { if (closed) return; closed = true; try { await cleanup(); } catch {} };
   const sendJSON = (obj) => { try { if (ws.readyState === 1) ws.send(JSON.stringify(obj)); } catch {} };
-  const cleanup = async () => {
-    if (closed) return;
-    closed = true;
-    try { if (cdp) await cdp.send("Page.stopScreencast").catch(() => {}); } catch {}
-    try { if (page && !page.isClosed()) await page.close().catch(() => {}); } catch {}
-    try { if (context) await context.close().catch(() => {}); } catch {}
-    page = null; context = null; cdp = null;
-  };
-  try {
-    const url = new URL(req.url, "http://localhost");
-    const startUrl = url.searchParams.get("url") || "about:blank";
-    const w = Math.max(320, Math.min(2560, parseInt(url.searchParams.get("w"), 10) || 1280));
-    const h = Math.max(240, Math.min(1440, parseInt(url.searchParams.get("h"), 10) || 800));
-    dims = { w, h };
-    const browser = await _getBrowserProBrowser();
-    context = await browser.newContext({
-      viewport: { width: dims.w, height: dims.h },
-      userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36",
-    });
-    page = await context.newPage();
-    cdp = await context.newCDPSession(page);
-    cdp.on("Page.screencastFrame", async (params) => {
-      sendJSON({ type: "frame", data: params.data, ts: Date.now() });
-      try { await cdp.send("Page.screencastFrameAck", { sessionId: params.sessionId }); } catch {}
-    });
-    page.on("framenavigated", (f) => { try { if (f === page.mainFrame()) sendJSON({ type: "url", url: f.url() }); } catch {} });
-    page.on("close", () => { sendJSON({ type: "closed" }); cleanup(); });
+  cdp.on("Page.screencastFrame", async (params) => {
+    sendJSON({ type: "frame", data: params.data, ts: Date.now() });
+    try { await cdp.send("Page.screencastFrameAck", { sessionId: params.sessionId }); } catch {}
+  });
+  page.on("framenavigated", (f) => { try { if (f === page.mainFrame()) sendJSON({ type: "url", url: f.url() }); } catch {} });
+  page.on("close", () => { sendJSON({ type: "closed" }); wrappedCleanup(); });
+  if (startUrl && startUrl !== "about:blank") {
     page.goto(startUrl, { waitUntil: "domcontentloaded", timeout: 25000 }).catch((e) => {
       sendJSON({ type: "error", message: "goto failed: " + (e.message || String(e)) });
     });
-    await cdp.send("Page.startScreencast", { format: "jpeg", quality: 70, maxWidth: dims.w, maxHeight: dims.h, everyNthFrame: 1 });
-    sendJSON({ type: "ready", url: page.url() });
-  } catch (e) {
-    sendJSON({ type: "error", message: "init failed: " + (e.message || String(e)) });
-    setTimeout(() => { try { ws.close(); } catch {} cleanup(); }, 100);
-    return;
   }
+  await cdp.send("Page.startScreencast", { format: "jpeg", quality: 70, maxWidth: dims.w, maxHeight: dims.h, everyNthFrame: 1 });
+  sendJSON({ type: "ready", url: page.url() });
   ws.on("message", async (raw) => {
-    if (!page || closed) return;
+    if (closed || !page || page.isClosed()) return;
     let msg;
     try { msg = JSON.parse(String(raw)); } catch { return; }
     try {
@@ -1204,8 +1178,93 @@ proWss.on("connection", async (ws, req) => {
       sendJSON({ type: "error", message: String(e.message || e) });
     }
   });
-  ws.on("close", cleanup);
-  ws.on("error", cleanup);
+  ws.on("close", wrappedCleanup);
+  ws.on("error", wrappedCleanup);
+}
+
+const proWss = new WebSocketServer({ noServer: true, perMessageDeflate: false });
+proWss.on("connection", async (ws, req) => {
+  let page = null;
+  let context = null;
+  let cdp = null;
+  const sendJSON = (obj) => { try { if (ws.readyState === 1) ws.send(JSON.stringify(obj)); } catch {} };
+  const cleanup = async () => {
+    try { if (cdp) await cdp.send("Page.stopScreencast").catch(() => {}); } catch {}
+    try { if (page && !page.isClosed()) await page.close().catch(() => {}); } catch {}
+    try { if (context) await context.close().catch(() => {}); } catch {}
+    page = null; context = null; cdp = null;
+  };
+  try {
+    const url = new URL(req.url, "http://localhost");
+    const startUrl = url.searchParams.get("url") || "about:blank";
+    const w = Math.max(320, Math.min(2560, parseInt(url.searchParams.get("w"), 10) || 1280));
+    const h = Math.max(240, Math.min(1440, parseInt(url.searchParams.get("h"), 10) || 800));
+    const dims = { w, h };
+    const browser = await _getBrowserProBrowser();
+    context = await browser.newContext({
+      viewport: { width: dims.w, height: dims.h },
+      userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36",
+    });
+    page = await context.newPage();
+    cdp = await context.newCDPSession(page);
+    await _streamPageOverWS(ws, { page, cdp, startUrl, dims, cleanup });
+  } catch (e) {
+    sendJSON({ type: "error", message: "init failed: " + (e.message || String(e)) });
+    setTimeout(() => { try { ws.close(); } catch {} cleanup(); }, 100);
+  }
+});
+
+// === Browser Tab CDP mode (v4.19.0) — attach to user's existing Chrome ===
+// User runs Chrome with: chrome.exe --remote-debugging-port=9222 --user-data-dir=<dir>
+// Then this mode reuses the user's REAL session (cookies, extensions, logged-in state).
+const cdpWss = new WebSocketServer({ noServer: true, perMessageDeflate: false });
+cdpWss.on("connection", async (ws, req) => {
+  let page = null;
+  let cdp = null;
+  // Don't close context/browser — those are the user's actual Chrome
+  const sendJSON = (obj) => { try { if (ws.readyState === 1) ws.send(JSON.stringify(obj)); } catch {} };
+  const cleanup = async () => {
+    try { if (cdp) await cdp.send("Page.stopScreencast").catch(() => {}); } catch {}
+    try { if (page && !page.isClosed()) await page.close().catch(() => {}); } catch {}
+    page = null; cdp = null;
+  };
+  try {
+    const url = new URL(req.url, "http://localhost");
+    const startUrl = url.searchParams.get("url") || "about:blank";
+    const cdpEndpoint = url.searchParams.get("cdp") || "http://localhost:9222";
+    const w = Math.max(320, Math.min(2560, parseInt(url.searchParams.get("w"), 10) || 1280));
+    const h = Math.max(240, Math.min(1440, parseInt(url.searchParams.get("h"), 10) || 800));
+    const dims = { w, h };
+    const { chromium } = require("playwright");
+    let browser;
+    try {
+      browser = await chromium.connectOverCDP(cdpEndpoint);
+    } catch (e) {
+      throw new Error(`Cannot connect to Chrome at ${cdpEndpoint}. Start Chrome first: chrome.exe --remote-debugging-port=9222 --user-data-dir="%TEMP%\\chrome-cdp" — refresh after.`);
+    }
+    const contexts = browser.contexts();
+    const context = contexts.length > 0 ? contexts[0] : await browser.newContext();
+    page = await context.newPage();
+    try { await page.setViewportSize({ width: dims.w, height: dims.h }); } catch {}
+    cdp = await context.newCDPSession(page);
+    await _streamPageOverWS(ws, { page, cdp, startUrl, dims, cleanup });
+  } catch (e) {
+    sendJSON({ type: "error", message: e.message || String(e) });
+    setTimeout(() => { try { ws.close(); } catch {} cleanup(); }, 100);
+  }
+});
+
+// CDP helper endpoint — check if Chrome remote-debug is reachable
+app.get("/api/browser/cdp/check", requireAuth, async (req, res) => {
+  const endpoint = req.query.endpoint || "http://localhost:9222";
+  try {
+    const r = await fetch(endpoint + "/json/version", { signal: AbortSignal.timeout(2000) });
+    if (!r.ok) return res.json({ ok: false, status: r.status });
+    const d = await r.json();
+    res.json({ ok: true, browser: d.Browser, ua: d["User-Agent"], webSocketDebuggerUrl: d.webSocketDebuggerUrl });
+  } catch (e) {
+    res.json({ ok: false, error: e.message || String(e) });
+  }
 });
 
 app.get("/api/files/download", requireAuth, (req, res) => {
@@ -4819,6 +4878,10 @@ server.on("upgrade", (req, socket, head) => {
     } else if (req.url.startsWith("/browser-pro-ws")) {
       proWss.handleUpgrade(req, socket, head, (ws) => {
         proWss.emit("connection", ws, req);
+      });
+    } else if (req.url.startsWith("/browser-cdp-ws")) {
+      cdpWss.handleUpgrade(req, socket, head, (ws) => {
+        cdpWss.emit("connection", ws, req);
       });
     } else {
       wss.handleUpgrade(req, socket, head, (ws) => {

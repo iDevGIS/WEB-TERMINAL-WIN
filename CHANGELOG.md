@@ -5,6 +5,28 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [4.19.0] — 2026-05-16 — Tab Browser CDP mode: attach to user's real Chrome
+
+### Added
+
+- **🔧 CDP mode** in the Browser tab — server connects to the user's existing Chrome via `chromium.connectOverCDP(<endpoint>)` (default `http://localhost:9222`) and reuses the user's real session (cookies, extensions, logged-in state). Frames stream over a new WebSocket endpoint `/browser-cdp-ws?url=<target>&w=<initW>&h=<initH>&cdp=<endpoint>` (auth via session cookie).
+- Settings button (⚙ gear icon) next to the mode dropdown — opens a prompt to set `localStorage.cdpEndpoint`, with copy-pasteable Chrome launch commands for Windows / macOS / Linux.
+- `GET /api/browser/cdp/check?endpoint=<url>` helper endpoint — does a 2-second `/json/version` probe and returns `{ok, browser, ua, webSocketDebuggerUrl}` so the UI can show friendly state.
+
+### Changed
+
+- **Refactored Pro + CDP onto shared `_streamPageOverWS(ws, opts)` helper** (server-side) — single source for screencast loop, mouse/key relay, navigate/back/forward/reload, resize, framenavigated, and cleanup. Eliminates the v4.18.0 / v4.19.0 duplication noted in memory (render-twice anti-pattern remediation #1).
+- Client `_browserTabProStart(tabId, startUrl, mode)` now accepts a `mode` parameter (`'pro'` or `'cdp'`), routes to the right WS path, and tints the loading overlay accordingly (purple for Pro, amber for CDP).
+- `browserTabSetMode` removed the "coming in v4.19.0" toast guard; both `'pro'` and `'cdp'` now start the screencast pipeline.
+
+### Notes
+
+- **CDP mode does not close the user's Chrome browser or context on disconnect** — only the page it opened. This is intentional; the user's real browser keeps running.
+- Connection failure emits an actionable error with the exact Chrome launch command (`chrome.exe --remote-debugging-port=9222 --user-data-dir="%TEMP%\chrome-cdp"`).
+- CDP endpoint is configurable per-client via the gear button; default works for `localhost:9222` (the documented Chrome remote-debug port).
+
+---
+
 ## [4.18.0] — 2026-05-16 — Tab Browser Pro mode: Playwright + CDP screencast
 
 ### Added
