@@ -5,6 +5,20 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [4.16.3] — 2026-05-16 — Flow Builder: smart edge routing (4-sided anchors)
+
+### Changed
+
+- **Edges no longer always exit RIGHT and enter LEFT.** Forward (`next[]`) and heal edges now pick exit/entry anchors based on relative block position:
+  - `|dx| ≥ |dy|` → horizontal-dominant: exit RIGHT, enter LEFT (or reversed if `to` is to the left of `from`)
+  - `|dx| < |dy|` → vertical-dominant: exit BOTTOM, enter TOP (or reversed if `to` is above `from`)
+- Bezier control points are also chosen per direction (`h` → control along x-midline; `v` → control along y-midline), so the curve approaches the destination perpendicular to its face — no more lines crossing through other blocks just to land on the left edge.
+- Loop edges retain their existing U-shaped curve (designed to loop around the source block); unchanged.
+
+Applied symmetrically in both `fbRender` (full redraw) and `_fbRedrawEdges` (drag-live redraw). Client-only diff — hard refresh (Ctrl+Shift+R).
+
+---
+
 ## [4.16.2] — 2026-05-16 — Flow Builder: edge arrowheads no longer clipped
 
 ### Fixed

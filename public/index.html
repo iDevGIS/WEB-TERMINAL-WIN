@@ -6133,10 +6133,25 @@
       svg.setAttribute('class', 'fb-svg');
       svg.innerHTML = '<defs><marker id="fb-arrow-' + tabId + '" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="fb-edge-arrow"/></marker><marker id="fb-arrow-heal-' + tabId + '" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="fb-edge-arrow-heal"/></marker><marker id="fb-arrow-loop-' + tabId + '" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="fb-edge-arrow-loop"/></marker></defs>';
       const BW = 200, BH = 84, GAP = 14;
-      function _edge(p1, p2, cls, markerId) {
-        const mid = (p1.x + p2.x) / 2;
+      function _edge(from, to, cls, markerId) {
+        const fcx = from.x + BW/2, fcy = from.y + BH/2;
+        const tcx = to.x + BW/2, tcy = to.y + BH/2;
+        const dx = tcx - fcx, dy = tcy - fcy;
+        let p1, p2, dir;
+        if (Math.abs(dx) >= Math.abs(dy)) {
+          if (dx >= 0) { p1 = { x: from.x + BW, y: fcy }; p2 = { x: to.x - GAP, y: tcy }; }
+          else         { p1 = { x: from.x, y: fcy };      p2 = { x: to.x + BW + GAP, y: tcy }; }
+          dir = 'h';
+        } else {
+          if (dy >= 0) { p1 = { x: fcx, y: from.y + BH }; p2 = { x: tcx, y: to.y - GAP }; }
+          else         { p1 = { x: fcx, y: from.y };      p2 = { x: tcx, y: to.y + BH + GAP }; }
+          dir = 'v';
+        }
+        let c1, c2;
+        if (dir === 'h') { const m = (p1.x + p2.x) / 2; c1 = { x: m, y: p1.y }; c2 = { x: m, y: p2.y }; }
+        else             { const m = (p1.y + p2.y) / 2; c1 = { x: p1.x, y: m }; c2 = { x: p2.x, y: m }; }
         const path = document.createElementNS(SVG, 'path');
-        path.setAttribute('d', 'M' + p1.x + ',' + p1.y + ' C' + mid + ',' + p1.y + ' ' + mid + ',' + p2.y + ' ' + p2.x + ',' + p2.y);
+        path.setAttribute('d', 'M' + p1.x + ',' + p1.y + ' C' + c1.x + ',' + c1.y + ' ' + c2.x + ',' + c2.y + ' ' + p2.x + ',' + p2.y);
         path.setAttribute('class', cls);
         path.setAttribute('marker-end', 'url(#' + markerId + ')');
         return path;
@@ -6145,11 +6160,11 @@
         const from = positions[b.id]; if (!from) continue;
         for (const nid of (b.next || [])) {
           const to = positions[nid]; if (!to) continue;
-          svg.appendChild(_edge({ x: from.x + BW, y: from.y + BH/2 }, { x: to.x - GAP, y: to.y + BH/2 }, 'fb-edge', 'fb-arrow-' + tabId));
+          svg.appendChild(_edge(from, to, 'fb-edge', 'fb-arrow-' + tabId));
         }
         if (b.healFallback && positions[b.healFallback]) {
           const to = positions[b.healFallback];
-          svg.appendChild(_edge({ x: from.x + BW/2, y: from.y + BH }, { x: to.x + BW/2, y: to.y - GAP }, 'fb-edge heal', 'fb-arrow-heal-' + tabId));
+          svg.appendChild(_edge(from, to, 'fb-edge heal', 'fb-arrow-heal-' + tabId));
         }
         if (b.loopback && positions[b.loopback]) {
           const to = positions[b.loopback];
@@ -8933,10 +8948,25 @@
       svg.setAttribute('class', 'fb-svg');
       svg.innerHTML = '<defs><marker id="fb-arrow-' + tabId + '" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="fb-edge-arrow"/></marker><marker id="fb-arrow-heal-' + tabId + '" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="fb-edge-arrow-heal"/></marker><marker id="fb-arrow-loop-' + tabId + '" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="fb-edge-arrow-loop"/></marker></defs>';
       const BW = 200, BH = 84, GAP = 14;
-      function _e(p1, p2, cls, mk) {
-        const mid = (p1.x + p2.x) / 2;
+      function _e(from, to, cls, mk) {
+        const fcx = from.x + BW/2, fcy = from.y + BH/2;
+        const tcx = to.x + BW/2, tcy = to.y + BH/2;
+        const dx = tcx - fcx, dy = tcy - fcy;
+        let p1, p2, dir;
+        if (Math.abs(dx) >= Math.abs(dy)) {
+          if (dx >= 0) { p1 = { x: from.x + BW, y: fcy }; p2 = { x: to.x - GAP, y: tcy }; }
+          else         { p1 = { x: from.x, y: fcy };      p2 = { x: to.x + BW + GAP, y: tcy }; }
+          dir = 'h';
+        } else {
+          if (dy >= 0) { p1 = { x: fcx, y: from.y + BH }; p2 = { x: tcx, y: to.y - GAP }; }
+          else         { p1 = { x: fcx, y: from.y };      p2 = { x: tcx, y: to.y + BH + GAP }; }
+          dir = 'v';
+        }
+        let c1, c2;
+        if (dir === 'h') { const m = (p1.x + p2.x) / 2; c1 = { x: m, y: p1.y }; c2 = { x: m, y: p2.y }; }
+        else             { const m = (p1.y + p2.y) / 2; c1 = { x: p1.x, y: m }; c2 = { x: p2.x, y: m }; }
         const path = document.createElementNS(SVG, 'path');
-        path.setAttribute('d', 'M' + p1.x + ',' + p1.y + ' C' + mid + ',' + p1.y + ' ' + mid + ',' + p2.y + ' ' + p2.x + ',' + p2.y);
+        path.setAttribute('d', 'M' + p1.x + ',' + p1.y + ' C' + c1.x + ',' + c1.y + ' ' + c2.x + ',' + c2.y + ' ' + p2.x + ',' + p2.y);
         path.setAttribute('class', cls);
         path.setAttribute('marker-end', 'url(#' + mk + ')');
         return path;
@@ -8945,11 +8975,11 @@
         const from = positions[b.id]; if (!from) continue;
         for (const nid of (b.next || [])) {
           const to = positions[nid]; if (!to) continue;
-          svg.appendChild(_e({ x: from.x + BW, y: from.y + BH/2 }, { x: to.x - GAP, y: to.y + BH/2 }, 'fb-edge', 'fb-arrow-' + tabId));
+          svg.appendChild(_e(from, to, 'fb-edge', 'fb-arrow-' + tabId));
         }
         if (b.healFallback && positions[b.healFallback]) {
           const to = positions[b.healFallback];
-          svg.appendChild(_e({ x: from.x + BW/2, y: from.y + BH }, { x: to.x + BW/2, y: to.y - GAP }, 'fb-edge heal', 'fb-arrow-heal-' + tabId));
+          svg.appendChild(_e(from, to, 'fb-edge heal', 'fb-arrow-heal-' + tabId));
         }
         if (b.loopback && positions[b.loopback]) {
           const to = positions[b.loopback];
