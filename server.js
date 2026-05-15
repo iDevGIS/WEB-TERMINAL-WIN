@@ -8408,8 +8408,10 @@ async function _pipeExecFollow(state, config, ctx) {
   return state;
 }
 
-// v4.14.0 — pipeline-level lint. Surfaces structural issues that the linear walker silently masks.
-// Today: fan-out branches (executor follows block.next[0] only — siblings are dropped without trace).
+// v4.15.0 — pipeline-level lint. Surfaces structural patterns worth flagging.
+// Today: fan-out (multiple `next[]`). v4.14.0 surfaced this as "silent drop";
+// v4.15.0 executor now visits ALL siblings via BFS, so this is informational —
+// it still suggests the cleaner `formats:[]` merge for the common extract→2×store case.
 function _pipelineWarnings(pipeline) {
   const warnings = [];
   if (!pipeline || !Array.isArray(pipeline.blocks)) return warnings;
@@ -8420,14 +8422,15 @@ function _pipelineWarnings(pipeline) {
         const target = pipeline.blocks.find(x => x.id === id);
         return target ? `${target.type}@${id}` : id;
       });
+      const allStores = b.type === "extract" && outs.every(id => pipeline.blocks.find(x => x.id === id)?.type === "store");
       warnings.push({
         blockId: b.id,
         type: b.type,
-        kind: "fan-out-silent-drop",
-        message: `${b.type}@${b.id} has ${outs.length} outgoing edges — executor only follows the first (${labels[0]}). Siblings dropped: ${labels.slice(1).join(", ")}.`,
-        hint: b.type === "extract" && outs.every(id => pipeline.blocks.find(x => x.id === id)?.type === "store")
-          ? "Multiple Store blocks after Extract? Merge into one Store with `formats: ['json','csv',...]`."
-          : "BFS executor is a planned change (v4.15.0). For now, chain blocks linearly.",
+        kind: "fan-out",
+        message: `${b.type}@${b.id} fans out to ${outs.length} siblings (executed in order: ${labels.join(" → ")}).`,
+        hint: allStores
+          ? "Multiple Store blocks after Extract? Cleaner pattern: one Store with `formats: ['json','csv',...]`."
+          : "Siblings run sequentially in declared order and share the same upstream state — order matters if any sibling mutates rows.",
       });
     }
   }
@@ -8486,8 +8489,9 @@ function _pipeClassifyError(blockType, errMsg, blockConfig, state) {
   return { category, hints };
 }
 
-// Execute pipeline linearly along block.next[0] edges, with optional loopback for follow blocks
-// and healFallback rerouting after a successful self_heal.
+// v4.15.0 — BFS executor: visits ALL `next[]` siblings in declared order (previously next[0] only).
+// Loopback (follow) and healFallback re-queue at the FRONT so they win over pending siblings.
+// State is shared across siblings; v4.15.0 warning lint flags ambiguous fan-out shapes up front.
 async function _executePipeline(pipeline, opts = {}) {
   const startId = pipeline.startBlock || (pipeline.blocks[0]?.id || null);
   if (!startId) throw new Error("pipeline has no startBlock");
@@ -8509,7 +8513,7 @@ async function _executePipeline(pipeline, opts = {}) {
   const ctx = { lastExtractConfig: null, healedSelectors: null };
   const visited = new Map(); // blockId -> visit count (for follow loops)
   const maxVisits = 50;
-  let currentId = startId;
+  const queue = [startId];
   const executors = {
     fetch: _pipeExecFetch,
     extract: _pipeExecExtract,
@@ -8522,22 +8526,24 @@ async function _executePipeline(pipeline, opts = {}) {
   const onProgress = typeof opts.onProgress === "function" ? opts.onProgress : () => {};
   const startedAt = Date.now();
   const maxMs = Math.max(5000, opts.maxMs || 120_000);
-  // v4.14.0 — emit structural warnings (e.g. fan-out drop) up-front so the user sees them even on success
+  // v4.14.0 — emit structural warnings up-front so the user sees them even on success
   const lintWarnings = _pipelineWarnings(pipeline);
   if (lintWarnings.length) {
     state.warnings.push(...lintWarnings);
     for (const w of lintWarnings) {
       state.log.push(`WARN ${w.kind}: ${w.message}`);
-      try { onProgress({ kind: "warning", ...w }); } catch {}
+      try { onProgress({ ...w, kind: "warning", warningKind: w.kind }); } catch {}
     }
   }
   try { onProgress({ kind: "start", pipelineId: pipeline.id, blockCount: pipeline.blocks.length, startBlock: startId }); } catch {}
-  while (currentId) {
+  let aborted = false;
+  while (queue.length && !aborted) {
     if (Date.now() - startedAt > maxMs) {
       state.errors.push("pipeline timed out after " + maxMs + "ms");
       try { onProgress({ kind: "timeout", durationMs: Date.now() - startedAt }); } catch {}
       break;
     }
+    const currentId = queue.shift();
     const block = blockMap.get(currentId);
     if (!block) { state.errors.push("missing block: " + currentId); break; }
     const visits = (visited.get(currentId) || 0) + 1;
@@ -8549,7 +8555,10 @@ async function _executePipeline(pipeline, opts = {}) {
       const det = { blockId: currentId, type: block.type, error: "unknown block type", category: "config", hints: [`Block type "${block.type}" not recognized`, "Delete this block or change its type"] };
       state.errorDetails.push(det);
       try { onProgress({ kind: "block-error", ...det }); } catch {}
-      currentId = block.next[0] || null;
+      // skip but still try downstream branches
+      for (const nid of (block.next || []).filter(Boolean)) {
+        if (blockMap.has(nid)) queue.push(nid);
+      }
       continue;
     }
     if (block.type === "extract") ctx.lastExtractConfig = block.config;
@@ -8568,21 +8577,25 @@ async function _executePipeline(pipeline, opts = {}) {
       const det = { blockId: currentId, type: block.type, error: rawErr, category: cls.category, hints: cls.hints, durationMs: Date.now() - blockStartMs };
       state.errorDetails.push(det);
       try { onProgress({ kind: "block-error", ...det }); } catch {}
-      // If a heal fallback is configured, jump there
+      // If a heal fallback is configured, jump there (priority over queued siblings)
       if (block.healFallback && blockMap.has(block.healFallback)) {
-        currentId = block.healFallback;
+        queue.unshift(block.healFallback);
         continue;
       }
+      aborted = true; // legacy semantics: unhandled block error aborts the whole pipeline
       break;
     }
-    // v4.0.2 — Loopback: follow block sets state.shouldLoop=true → route back via block.loopback.
+    // v4.0.2 — Loopback: follow block sets state.shouldLoop=true → route back via block.loopback (priority).
     if (block.type === "follow" && state.shouldLoop && block.loopback && blockMap.has(block.loopback)) {
       state.shouldLoop = false; // reset for next pass
       try { onProgress({ kind: "loop", from: currentId, to: block.loopback }); } catch {}
-      currentId = block.loopback;
+      queue.unshift(block.loopback);
       continue;
     }
-    currentId = (block.next && block.next[0]) || null;
+    // v4.15.0 — fan out to ALL next[] siblings in declared order (previously next[0] only)
+    for (const nid of (block.next || []).filter(Boolean)) {
+      if (blockMap.has(nid)) queue.push(nid);
+    }
   }
   const result = {
     ok: state.errors.length === 0,

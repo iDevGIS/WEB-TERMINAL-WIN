@@ -7061,6 +7061,14 @@
         es.addEventListener('timeout', (m) => {
           try { const d = JSON.parse(m.data); fbLog(tabId, 'err', '  ⏱ timeout after ' + d.durationMs + 'ms'); } catch {}
         });
+        es.addEventListener('warning', (m) => {
+          try {
+            const d = JSON.parse(m.data);
+            const label = d.warningKind || 'warning';
+            fbLog(tabId, 'warn', '⚠ ' + label + (d.blockId ? ' @ ' + String(d.blockId).slice(0,6) : '') + ': ' + (d.message || ''));
+            if (d.hint) fbLog(tabId, 'info', '   💡 ' + d.hint);
+          } catch {}
+        });
         es.addEventListener('done', () => { /* result event will follow */ });
         es.addEventListener('result', (m) => {
           try {

@@ -5,6 +5,44 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [4.15.0] — 2026-05-15 — Flow Builder: BFS executor — fan-out actually runs all siblings
+
+### Fixed
+
+- **Multi-branch fan-out now runs ALL siblings** — `_executePipeline()` previously walked `block.next[0]` only, so an Extract → [Store-A, Store-B] pipeline silently dropped Store-B. The executor is now a BFS queue that visits every entry in `next[]` in declared order. The v4.14.0 lint that warned about fan-out is now informational (kind `fan-out`, not `fan-out-silent-drop`) and suggests the cleaner `formats:[]` merge for the Extract→Stores common case.
+- **SSE `warning` event now reaches the Flow Builder console** — v4.14.0 emitted `{ kind: "warning", ...w }` but `w.kind` overwrote the outer `kind` via spread, so the SSE event name became the inner kind (`fan-out-silent-drop`) which no client listener handled. Now emitted as `{ ...w, kind: "warning", warningKind: w.kind }`, and the client subscribes to the `warning` event to log `⚠ kind @ blockId: message` plus the hint in the run console.
+
+### Why
+
+The v4.14.0 hotfix made the silent fan-out drop visible. v4.15.0 actually fixes it — `block.next[]` is now the authoritative list of downstream branches, executed sequentially in declared order, sharing the same upstream `state` (rows, html, cookies, etc.). Extract → two Stores now writes two files; the warning still fires informationally to nudge users toward the cleaner single-Store + `formats:[]` pattern when applicable.
+
+### Notes on semantics
+
+- **Sequential, not parallel.** Siblings execute one after another, sharing state. If sibling A mutates `state.rows` (e.g. a Transform block), sibling B sees the mutation. The lint warning now reads "siblings run sequentially in declared order" so users understand ordering matters.
+- **healFallback and follow loopback re-queue at the FRONT** of the BFS queue (priority) so they win over pending siblings — preserves the legacy "this is the next thing to do" semantics.
+- **Diamond joins** (multiple parents → one downstream) currently re-execute the downstream block once per parent, capped by the existing `maxVisits=50` guard. Proper "wait for all parents" join semantics is future work; for now this matches the historical "extract → 2 stores → end" shape, where `end` running once per finished sibling is acceptable.
+- **Block-error abort.** An unhandled block exception (no healFallback) still aborts the entire pipeline, same as before. Sibling B does NOT run if sibling A throws.
+
+### Files Modified
+
+- `server.js`
+  - `_executePipeline()` — `while (currentId)` → `while (queue.length && !aborted)`; replaced both `currentId = block.next[0] || null` sites with `for (const nid of block.next) queue.push(nid)`; healFallback and loopback use `queue.unshift()` for priority.
+  - `_pipelineWarnings()` — kind renamed `fan-out-silent-drop` → `fan-out`; message and hint reflect "runs siblings in declared order" instead of "drops siblings"; warning emit corrected to `{ ...w, kind: "warning", warningKind: w.kind }`.
+- `public/index.html`
+  - SSE listener block — added `es.addEventListener('warning', …)` so live runs log `⚠ <kind> @ <blockId>: <message>` plus hint into the Flow Builder console.
+- `package.json` — 4.14.0 → 4.15.0
+- `CHANGELOG.md`
+
+### Smoke
+
+Extracted-function harness (mocked block executors): 6/6 pass — linear regression · 2-sibling fan-out · 3-sibling fan-out · diamond join (downstream runs N times) · warning fires on fan-out · single-store emits no warning.
+
+### Notes
+
+- Server-side change → **restart required**.
+
+---
+
 ## [4.14.0] — 2026-05-15 — Flow Builder: dogfood hotfix bundle (path slashes · manual-run stats · fan-out lint)
 
 ### Fixed
