@@ -5,6 +5,24 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [4.21.0] — 2026-05-16 — Sidekick: Flow Builder canvas multi-select tool
+
+First of three planned Sidekick slot tools for the Flow Builder canvas (this ship is `b` of the overnight cascade after v4.20.1). Adds a high-value primitive that lets the chat AI populate the canvas's multi-selection programmatically — so subsequent batch operations (delete, move, configure) have a target set without requiring the user to marquee manually.
+
+### Added
+
+- **`canvas_multi_select` Cross-Tab tool** — adds CROSS_TAB_TOOLS entry #83. Accepts an optional `tabId` (defaults to active Flow Builder tab; falls back to first found), optional `selector` (symbolic: `"all"` / `"none"` / `"errors"` / `"type:<blockType>"`), optional explicit `blockIds` array (wins over selector), and `additive` boolean (false = replace selection, true = add). Mirrors the Set-based selection state already used by marquee+single-click in the canvas — same `_fbSelection(t)` Set + `_fbApplySelectionClasses` + `fbShowProps`/`fbShowMultiProps` UX, so the result feels identical to a marquee drag (selection borders, properties panel banner).
+- **`_ctiSystemPreamble`** — Sidekick system prompt now mentions "Flow Builder canvas (canvas_multi_select)" and bumps the tool count from "~71" → "~83" to match the actual surface (counted including new tool).
+
+### Notes
+
+- Returned payload includes each selected block's id + type + name + hasError flag, so the model can plan downstream batch ops without an extra read call.
+- Selector `"errors"` picks blocks where `block.lastError` is set — useful for "retry just the broken blocks" workflows.
+- `additive: true` lets the model build a selection across multiple tool calls (e.g. "select all fetch blocks, then also add the store blocks") without losing prior state.
+- Next ships in cascade: `c` = `canvas_batch_move`, `d` = `panel_set_preset` — both queued for tonight.
+
+---
+
 ## [4.20.1] — 2026-05-16 — Visual Builder: block-level engine override
 
 Closes the gap noted in v4.20.0 — pipeline blocks built in the Visual Flow Builder can now choose `engine: 'playwright' | 'cdp'` per-block (and per-pipeline by extension). The Scrap Tool toolbar got the engine dropdown in v4.20.0; this brings parity to the pipeline runner so saved/scheduled pipelines can target the user's real Chrome session for logged-in scraping (Twitter/LinkedIn/Reddit/private dashboards).

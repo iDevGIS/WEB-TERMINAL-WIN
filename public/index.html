@@ -16823,6 +16823,73 @@ ${fields}
           return { ok: true, id, deleted: true };
         } catch (e) { return { error: 'delete_snippet failed: ' + (e && e.message || e) }; }
       },
+      // v4.21.0 — Sidekick Flow Builder canvas multi-select
+      async canvas_multi_select(args) {
+        args = args || {};
+        // 1. Resolve target Flow Builder tab
+        let targetTab = null;
+        if (args.tabId) targetTab = tabs.get(args.tabId);
+        if (!targetTab) {
+          const cur = tabs.get(activeTabId);
+          if (cur && cur.type === 'flow-builder') targetTab = cur;
+        }
+        if (!targetTab) {
+          for (const t of tabs.values()) { if (t.type === 'flow-builder') { targetTab = t; break; } }
+        }
+        if (!targetTab) return { error: 'No Flow Builder tab open. Create one first.' };
+        if (targetTab.type !== 'flow-builder') return { error: 'Tab "' + targetTab.id + '" is not a Flow Builder tab.' };
+        // 2. Ensure pipeline loaded
+        const pipeline = targetTab.fb && targetTab.fb.current;
+        if (!pipeline) return { error: 'No pipeline loaded in this Flow Builder tab. Open or create a pipeline first.' };
+        const blocks = pipeline.blocks || [];
+        // 3. Resolve target ids
+        let targetIds = [];
+        if (Array.isArray(args.blockIds) && args.blockIds.length) {
+          const validIds = new Set(blocks.map(b => b.id));
+          targetIds = args.blockIds.filter(id => validIds.has(String(id)));
+          if (!targetIds.length) return { error: 'None of the provided blockIds match blocks in the loaded pipeline.' };
+        } else {
+          const sel = String(args.selector || 'all').toLowerCase();
+          if (sel === 'all') targetIds = blocks.map(b => b.id);
+          else if (sel === 'none') targetIds = [];
+          else if (sel === 'errors') targetIds = blocks.filter(b => b.lastError).map(b => b.id);
+          else if (sel.startsWith('type:')) {
+            const wanted = sel.slice(5).trim();
+            if (!wanted) return { error: 'selector "type:" requires a block type (e.g., "type:fetch").' };
+            targetIds = blocks.filter(b => String(b.type || '').toLowerCase() === wanted).map(b => b.id);
+          } else {
+            return { error: 'Unknown selector "' + args.selector + '". Use "all" | "none" | "errors" | "type:<blockType>".' };
+          }
+        }
+        // 4. Apply selection (replace or additive)
+        const selSet = _fbSelection(targetTab);
+        if (!args.additive) selSet.clear();
+        for (const id of targetIds) selSet.add(id);
+        // 5. Sync UI
+        targetTab.fb.selectedBlockId = selSet.size === 1 ? [...selSet][0] : null;
+        _fbApplySelectionClasses(targetTab.id);
+        if (selSet.size === 0) {
+          fbShowProps(targetTab.id, null);
+        } else if (selSet.size === 1) {
+          const onlyId = [...selSet][0];
+          const onlyBlock = blocks.find(b => b.id === onlyId);
+          if (onlyBlock) fbShowProps(targetTab.id, onlyBlock);
+        } else {
+          fbShowMultiProps(targetTab.id, selSet.size);
+        }
+        // 6. Return summary (types echoed back so the model can plan next batch op)
+        const selected = [...selSet].map(id => {
+          const b = blocks.find(x => x.id === id);
+          return b ? { id: b.id, type: b.type, name: b.name || null, hasError: !!b.lastError } : { id, missing: true };
+        });
+        return {
+          ok: true,
+          tabId: targetTab.id,
+          pipelineId: pipeline.id,
+          count: selSet.size,
+          selected,
+        };
+      },
     };
 
     // === Sidekick proactive suggestion bus (v3.10.0) ===

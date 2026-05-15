@@ -2918,18 +2918,36 @@ const CROSS_TAB_TOOLS = [
       },
     },
   },
+  // v4.21.0 — Flow Builder canvas multi-select (Sidekick slot tool)
+  {
+    type: 'function',
+    function: {
+      name: 'canvas_multi_select',
+      description: 'Multi-select blocks in a Flow Builder canvas. Use this BEFORE batch operations (delete, move, configure). Supports symbolic selectors or explicit block ids. Symbolic selectors: "all" (every block in current pipeline), "none" (clear selection), "errors" (only blocks with lastError set), "type:<blockType>" (e.g. "type:fetch", "type:extract", "type:store"). If both `selector` and `blockIds` are provided, blockIds wins. Defaults to the active Flow Builder tab if `tabId` is omitted. Returns the resulting selection (count, ids, types).',
+      parameters: {
+        type: 'object',
+        properties: {
+          tabId: { type: 'string', description: 'Flow Builder tab id (optional; defaults to active flow-builder tab, or the first one found).' },
+          selector: { type: 'string', description: 'Symbolic selector: "all" | "none" | "errors" | "type:<blockType>". Ignored if blockIds is provided.' },
+          blockIds: { type: 'array', items: { type: 'string' }, description: 'Explicit list of block ids to select. Overrides selector.' },
+          additive: { type: 'boolean', description: 'If true, ADD to current selection. If false (default), REPLACE the current selection.' },
+        },
+        required: [],
+      },
+    },
+  },
 ];
 
 function _ctiSystemPreamble() {
   return (
-    'You are connected to the CYBERFRAME UI via Cross-Tab Intelligence tools (~71 total).' +
+    'You are connected to the CYBERFRAME UI via Cross-Tab Intelligence tools (~83 total).' +
     ' Major categories: read state (list_tabs, get_active_tab, read_file, list_files, search_files, server_info, activity_log, list_snippets, list_shells, list_terminal_sessions, list_connected_clients, list_processes, list_monitors, list_workspaces, scrap_list_recipes/snapshots, git_status, git_pr_status, code_symbols, code_peek);' +
     ' docker (list/images/volumes/networks/inspect/logs/action/remove/compose_file/browse_container/browse_volume);' +
     ' network/admin (get_listening_ports/arp_table/routes/vpn_status, tailscale_status);' +
     ' open/navigate (open_editor, open_file_in_editor, browser_navigate, browser_reload, create_terminal, switch_tab, set_active_session, split_tab, load_workspace_layout);' +
     ' mutate/write (save_file, insert_at_line, replace_in_file, create_file, create_folder, rename_path, move_path, delete_path, rename_tab, duplicate_editor_tab, add_snippet, delete_snippet, save_workspace_layout, scrap_save_recipe);' +
     ' execute (run_terminal, run_in_active_terminal, scrap_run, scrap_run_recipe, docker_action, kill_process, kill_terminal_session, rename_terminal_session, export_session_transcript, tts_speak, take_screenshot);' +
-    ' UI (notify); teardown (close_tab).' +
+    ' Flow Builder canvas (canvas_multi_select); UI (notify); teardown (close_tab).' +
     ' RULES:' +
     ' (1) Always read state first before mutating.' +
     ' (2) When a request is "open X and run Y" (e.g. "open admin powershell and run whoami"), prefer passing `command` directly to create_terminal in ONE call — do NOT split into create_terminal+run_terminal.' +
