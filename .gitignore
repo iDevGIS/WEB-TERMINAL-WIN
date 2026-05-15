@@ -33,3 +33,5 @@ scraps/
 playwright-report/
 test-results/
 playwright/.cache/
+.out
+.err

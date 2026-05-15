@@ -5822,23 +5822,157 @@
       return rawUrl;
     }
 
+    // v4.18.0 — Pro mode: Playwright screencast via WS, canvas paint, mouse/key relay
+    function _browserTabProStop(tabId) {
+      const tab = tabs.get(tabId);
+      if (!tab || !tab._pro) return;
+      try { tab._pro.ro && tab._pro.ro.disconnect(); } catch {}
+      try { tab._pro.ws && tab._pro.ws.close(); } catch {}
+      try { if (tab._pro.wrapEl && tab._pro.wrapEl.parentNode) tab._pro.wrapEl.parentNode.removeChild(tab._pro.wrapEl); } catch {}
+      tab._pro = null;
+    }
+
+    function _browserTabProStart(tabId, startUrl) {
+      const tab = tabs.get(tabId);
+      if (!tab) return;
+      const frame = document.getElementById(tabId + '-bb-frame');
+      if (!frame) return;
+      _browserTabProStop(tabId);
+      frame.style.display = 'none';
+      const parent = frame.parentNode;
+      const wrap = document.createElement('div');
+      wrap.style.cssText = 'position:relative;flex:1;background:#0a0a1a;overflow:hidden;display:flex';
+      const canvas = document.createElement('canvas');
+      canvas.style.cssText = 'flex:1;width:100%;height:100%;background:#0a0a1a;display:block;outline:none;cursor:default';
+      canvas.tabIndex = 0;
+      const status = document.createElement('div');
+      status.textContent = '🤖 Pro mode connecting…';
+      status.style.cssText = 'position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#a78bfa;font:14px system-ui;pointer-events:none;background:rgba(10,10,26,0.85);padding:8px 14px;border-radius:6px;border:1px solid rgba(167,139,250,0.3)';
+      wrap.appendChild(canvas);
+      wrap.appendChild(status);
+      if (frame.nextSibling) parent.insertBefore(wrap, frame.nextSibling);
+      else parent.appendChild(wrap);
+
+      const ctx = canvas.getContext('2d');
+      let imgScale = 1, imgW = 1280, imgH = 800, imgOx = 0, imgOy = 0;
+      function fitCanvas() {
+        const r = canvas.getBoundingClientRect();
+        canvas.width = Math.max(320, Math.round(r.width));
+        canvas.height = Math.max(240, Math.round(r.height));
+        if (ws.readyState === 1) ws.send(JSON.stringify({ type: 'resize', w: canvas.width, h: canvas.height }));
+      }
+      const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const initRect = canvas.getBoundingClientRect();
+      const initW = Math.max(320, Math.round(initRect.width)) || 1280;
+      const initH = Math.max(240, Math.round(initRect.height)) || 800;
+      const wsUrl = `${proto}//${location.host}/browser-pro-ws?url=${encodeURIComponent(startUrl)}&w=${initW}&h=${initH}`;
+      const ws = new WebSocket(wsUrl);
+
+      let lastUrl = startUrl;
+      ws.onopen = () => { status.textContent = '🤖 Loading…'; fitCanvas(); };
+      ws.onmessage = (ev) => {
+        let m; try { m = JSON.parse(ev.data); } catch { return; }
+        if (m.type === 'frame') {
+          const bin = atob(m.data);
+          const u8 = new Uint8Array(bin.length);
+          for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+          const blob = new Blob([u8], { type: 'image/jpeg' });
+          const objUrl = URL.createObjectURL(blob);
+          const im = new Image();
+          im.onload = () => {
+            imgW = im.width; imgH = im.height;
+            ctx.fillStyle = '#0a0a1a';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            const s = Math.min(canvas.width / imgW, canvas.height / imgH);
+            imgScale = s;
+            const dw = imgW * s, dh = imgH * s;
+            imgOx = (canvas.width - dw) / 2;
+            imgOy = (canvas.height - dh) / 2;
+            ctx.drawImage(im, imgOx, imgOy, dw, dh);
+            URL.revokeObjectURL(objUrl);
+            status.style.display = 'none';
+          };
+          im.onerror = () => URL.revokeObjectURL(objUrl);
+          im.src = objUrl;
+        } else if (m.type === 'url') {
+          lastUrl = m.url;
+          tab.url = m.url;
+          try {
+            const inp = document.getElementById(tabId + '-bb-url');
+            if (inp && document.activeElement !== inp) inp.value = m.url;
+            const u = new URL(m.url);
+            if (tab.tabEl) {
+              const lbl = tab.tabEl.querySelector('.tab-label');
+              if (lbl) lbl.textContent = u.hostname || 'Browser';
+            }
+          } catch {}
+        } else if (m.type === 'error') {
+          status.style.display = 'block';
+          status.textContent = '⚠ ' + (m.message || 'unknown error');
+          status.style.color = '#fb7185';
+          status.style.borderColor = 'rgba(251,113,133,0.4)';
+        } else if (m.type === 'closed') {
+          status.style.display = 'block';
+          status.textContent = 'Page closed';
+        } else if (m.type === 'ready') {
+          lastUrl = m.url || startUrl;
+        }
+      };
+      ws.onerror = () => { status.style.display = 'block'; status.textContent = '⚠ Connection error'; status.style.color = '#fb7185'; };
+      ws.onclose = () => { status.style.display = 'block'; status.textContent = 'Disconnected'; status.style.color = '#fb7185'; };
+
+      function mapCoords(ev) {
+        const r = canvas.getBoundingClientRect();
+        const cx = ev.clientX - r.left - imgOx;
+        const cy = ev.clientY - r.top - imgOy;
+        return { x: Math.round(cx / imgScale), y: Math.round(cy / imgScale) };
+      }
+      const sendWs = (obj) => { if (ws.readyState === 1) ws.send(JSON.stringify(obj)); };
+      canvas.addEventListener('mousedown', (ev) => { ev.preventDefault(); canvas.focus(); const { x, y } = mapCoords(ev); sendWs({ type: 'mouse', action: 'down', x, y, button: ev.button }); });
+      canvas.addEventListener('mouseup', (ev) => { ev.preventDefault(); const { x, y } = mapCoords(ev); sendWs({ type: 'mouse', action: 'up', x, y, button: ev.button }); });
+      let lastMoveTs = 0;
+      canvas.addEventListener('mousemove', (ev) => { const now = performance.now(); if (now - lastMoveTs < 25) return; lastMoveTs = now; const { x, y } = mapCoords(ev); sendWs({ type: 'mouse', action: 'move', x, y }); });
+      canvas.addEventListener('wheel', (ev) => { ev.preventDefault(); sendWs({ type: 'mouse', action: 'wheel', deltaX: ev.deltaX, deltaY: ev.deltaY }); }, { passive: false });
+      canvas.addEventListener('contextmenu', (ev) => ev.preventDefault());
+      canvas.addEventListener('keydown', (ev) => {
+        if (ev.key.length === 1 && !ev.ctrlKey && !ev.metaKey && !ev.altKey) {
+          ev.preventDefault();
+          sendWs({ type: 'key', action: 'type', text: ev.key });
+          return;
+        }
+        ev.preventDefault();
+        sendWs({ type: 'key', action: 'press', key: ev.key });
+      });
+
+      let ro = null;
+      try { ro = new ResizeObserver(() => fitCanvas()); ro.observe(canvas); } catch {}
+      tab._pro = { ws, canvas, statusEl: status, wrapEl: wrap, ro };
+    }
+
     function browserTabSetMode(tabId, mode) {
       const tab = tabs.get(tabId);
       if (!tab || tab.type !== 'browser') return;
       const sel = document.getElementById(tabId + '-bb-mode');
-      // Pro & CDP are upcoming ships — show toast and revert
-      if (mode === 'pro' || mode === 'cdp') {
-        const next = mode === 'pro' ? 'v4.18.0' : 'v4.19.0';
-        try { if (typeof showToast === 'function') showToast(`${mode.toUpperCase()} mode → coming in ${next} 🚧`); } catch {}
+      // CDP is upcoming ship — toast and revert
+      if (mode === 'cdp') {
+        try { if (typeof showToast === 'function') showToast(`CDP mode → coming in v4.19.0 🚧`); } catch {}
         if (sel) sel.value = tab.browserMode || 'live';
         return;
       }
+      const prevMode = tab.browserMode || 'live';
+      if (prevMode === 'pro' && mode !== 'pro') _browserTabProStop(tabId);
       tab.browserMode = mode;
       if (sel) sel.setAttribute('data-mode', mode);
-      // Re-navigate current url with new mode
       const cur = tab.url || tab.history?.[tab.histIdx] || 'https://www.bing.com';
       const frame = document.getElementById(tabId + '-bb-frame');
-      if (frame) frame.src = _browserWrapUrl(cur, mode);
+      if (mode === 'pro') {
+        _browserTabProStart(tabId, cur);
+        return;
+      }
+      if (frame) {
+        frame.style.display = '';
+        frame.src = _browserWrapUrl(cur, mode);
+      }
     }
 
     function browserTabGo(tabId, url, skipHistory) {
@@ -5868,13 +6002,20 @@
         }
         tab.name = newName;
       } catch {}
-      if (frame) frame.src = _browserWrapUrl(target, tab.browserMode || 'live');
+      if ((tab.browserMode || 'live') === 'pro' && tab._pro && tab._pro.ws && tab._pro.ws.readyState === 1) {
+        tab._pro.ws.send(JSON.stringify({ type: 'navigate', url: target }));
+      } else if (frame) frame.src = _browserWrapUrl(target, tab.browserMode || 'live');
       _browserUpdateNav(tabId);
     }
 
     function browserTabBack(tabId) {
       const tab = tabs.get(tabId);
-      if (!tab || tab.histIdx <= 0) return;
+      if (!tab) return;
+      if ((tab.browserMode || 'live') === 'pro' && tab._pro && tab._pro.ws && tab._pro.ws.readyState === 1) {
+        tab._pro.ws.send(JSON.stringify({ type: 'back' }));
+        return;
+      }
+      if (tab.histIdx <= 0) return;
       tab.histIdx--;
       const u = tab.history[tab.histIdx];
       tab.url = u;
@@ -5887,7 +6028,12 @@
 
     function browserTabForward(tabId) {
       const tab = tabs.get(tabId);
-      if (!tab || tab.histIdx >= (tab.history || []).length - 1) return;
+      if (!tab) return;
+      if ((tab.browserMode || 'live') === 'pro' && tab._pro && tab._pro.ws && tab._pro.ws.readyState === 1) {
+        tab._pro.ws.send(JSON.stringify({ type: 'forward' }));
+        return;
+      }
+      if (tab.histIdx >= (tab.history || []).length - 1) return;
       tab.histIdx++;
       const u = tab.history[tab.histIdx];
       tab.url = u;
@@ -5901,9 +6047,13 @@
     function browserTabReload(tabId) {
       const tab = tabs.get(tabId);
       if (!tab) return;
+      if ((tab.browserMode || 'live') === 'pro' && tab._pro && tab._pro.ws && tab._pro.ws.readyState === 1) {
+        tab._pro.ws.send(JSON.stringify({ type: 'reload' }));
+        return;
+      }
       const frame = document.getElementById(tabId + '-bb-frame');
       if (!frame) return;
-      // For proxy/pro/cdp modes contentWindow cross-origin may block reload() — fall back to src set
+      // For proxy mode contentWindow cross-origin may block reload() — fall back to src set
       const cur = tab.url || frame.src;
       try {
         if ((tab.browserMode || 'live') === 'live') frame.contentWindow.location.reload();
@@ -12584,7 +12734,7 @@ ${fields}
             </button>
             <input class="browser-tab-url" id="${tabId}-bb-url" placeholder="URL or search…" value="${escAttr(startUrl)}" onkeydown="if(event.key==='Enter'){browserTabGo('${tabId}',this.value)}" onfocus="this.select()">
             <button onclick="browserTabGo('${tabId}',document.getElementById('${tabId}-bb-url').value)" title="Go" style="padding:5px 12px">Go</button>
-            <select class="browser-tab-mode" id="${tabId}-bb-mode" data-mode="live" onchange="browserTabSetMode('${tabId}', this.value)" title="Render mode — Live: native iframe · Proxy: server strips X-Frame-Options/CSP (~60% of sites) · Pro/CDP: coming soon">
+            <select class="browser-tab-mode" id="${tabId}-bb-mode" data-mode="live" onchange="browserTabSetMode('${tabId}', this.value)" title="Render mode — Live: native iframe · Proxy: strips X-Frame-Options/CSP (~60% of sites) · Pro: headless Chromium screencast (~95%) · CDP: coming v4.19.0">
               <option value="live">🌐 Live</option>
               <option value="proxy">🛡 Proxy</option>
               <option value="pro">🤖 Pro</option>

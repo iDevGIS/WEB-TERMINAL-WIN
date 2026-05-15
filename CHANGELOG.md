@@ -5,6 +5,34 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [4.18.0] — 2026-05-16 — Tab Browser Pro mode: Playwright + CDP screencast
+
+### Added
+
+- **🤖 Pro mode** in the Browser tab — server spawns a headless Chromium page via Playwright (singleton browser, per-tab page+context), opens a CDP session, and starts `Page.startScreencast` (JPEG quality 70, `everyNthFrame: 1`). Frames stream over a new WebSocket endpoint `/browser-pro-ws?url=<target>&w=<initW>&h=<initH>` (auth via session cookie, same as other WS routes).
+- Client renders frames to a `<canvas>` overlay that replaces the iframe while in Pro mode. Mouse (`down`/`up`/`move`/`wheel`/`contextmenu` blocked) and keyboard (single-char → `keyboard.type`, control keys → `keyboard.press`) are mapped to canvas coords (account for aspect-ratio letterbox) and relayed over the WS to Playwright `page.mouse` / `page.keyboard`.
+- `resize` message → `page.setViewportSize` + screencast restart; URL bar updates from `framenavigated` events. Mouse-move throttled to 40Hz to keep WS lean.
+- Mode dropdown tooltip updated to reflect Pro mode is functional (~95% coverage including login pages); only CDP remains "coming in v4.19.0".
+
+### Changed
+
+- `browserTabGo` / `Back` / `Forward` / `Reload` now relay through the Pro WS (`navigate`/`back`/`forward`/`reload`) when `tab.browserMode === 'pro'`, instead of mutating `frame.src`.
+- `browserTabSetMode` tears down Pro state (`_browserTabProStop`: close WS, disconnect ResizeObserver, remove canvas wrap) when leaving Pro mode, and restarts (`_browserTabProStart`) when entering.
+
+### Added (server)
+
+- `_browserProBrowser` singleton via `_getBrowserProBrowser()` — `playwright.chromium.launch({ headless: true })`, reused across tabs.
+- New WebSocket server `proWss = new WebSocketServer({ noServer: true })`, wired into the existing `server.on('upgrade')` chain (auth gated by `sessionMiddleware`).
+- Per-connection: new `context` + `page` + CDP session, screencast loop with ack, cleanup on `ws.close` / `ws.error` / `page.close`.
+- Hardening: viewport clamped to 320–2560 × 240–1440, JSON message parse guarded, all CDP/page actions wrapped in `try`/`catch` with `error` events back to client.
+
+### Notes
+
+- Pro mode requires `npx playwright install chromium` if not already installed (one-time, ~300MB).
+- Browser singleton survives across tabs/sessions; only pages + contexts are per-WS-connection so isolation is preserved.
+
+---
+
 ## [4.17.0] — 2026-05-16 — Tab Browser: render-mode switcher + Proxy mode
 
 ### Added

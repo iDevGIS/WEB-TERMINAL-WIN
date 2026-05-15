@@ -1106,6 +1106,108 @@ app.get("/api/browser-proxy", requireAuth, async (req, res) => {
   }
 });
 
+// === Browser Tab Pro mode (v4.18.0) — Playwright + CDP screencast over WS ===
+let _browserProBrowser = null;
+async function _getBrowserProBrowser() {
+  if (_browserProBrowser && _browserProBrowser.isConnected && _browserProBrowser.isConnected()) return _browserProBrowser;
+  const { chromium } = require("playwright");
+  _browserProBrowser = await chromium.launch({ headless: true });
+  _browserProBrowser.on("disconnected", () => { _browserProBrowser = null; });
+  return _browserProBrowser;
+}
+
+const proWss = new WebSocketServer({ noServer: true, perMessageDeflate: false });
+proWss.on("connection", async (ws, req) => {
+  let page = null;
+  let context = null;
+  let cdp = null;
+  let closed = false;
+  let dims = { w: 1280, h: 800 };
+  const sendJSON = (obj) => { try { if (ws.readyState === 1) ws.send(JSON.stringify(obj)); } catch {} };
+  const cleanup = async () => {
+    if (closed) return;
+    closed = true;
+    try { if (cdp) await cdp.send("Page.stopScreencast").catch(() => {}); } catch {}
+    try { if (page && !page.isClosed()) await page.close().catch(() => {}); } catch {}
+    try { if (context) await context.close().catch(() => {}); } catch {}
+    page = null; context = null; cdp = null;
+  };
+  try {
+    const url = new URL(req.url, "http://localhost");
+    const startUrl = url.searchParams.get("url") || "about:blank";
+    const w = Math.max(320, Math.min(2560, parseInt(url.searchParams.get("w"), 10) || 1280));
+    const h = Math.max(240, Math.min(1440, parseInt(url.searchParams.get("h"), 10) || 800));
+    dims = { w, h };
+    const browser = await _getBrowserProBrowser();
+    context = await browser.newContext({
+      viewport: { width: dims.w, height: dims.h },
+      userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36",
+    });
+    page = await context.newPage();
+    cdp = await context.newCDPSession(page);
+    cdp.on("Page.screencastFrame", async (params) => {
+      sendJSON({ type: "frame", data: params.data, ts: Date.now() });
+      try { await cdp.send("Page.screencastFrameAck", { sessionId: params.sessionId }); } catch {}
+    });
+    page.on("framenavigated", (f) => { try { if (f === page.mainFrame()) sendJSON({ type: "url", url: f.url() }); } catch {} });
+    page.on("close", () => { sendJSON({ type: "closed" }); cleanup(); });
+    page.goto(startUrl, { waitUntil: "domcontentloaded", timeout: 25000 }).catch((e) => {
+      sendJSON({ type: "error", message: "goto failed: " + (e.message || String(e)) });
+    });
+    await cdp.send("Page.startScreencast", { format: "jpeg", quality: 70, maxWidth: dims.w, maxHeight: dims.h, everyNthFrame: 1 });
+    sendJSON({ type: "ready", url: page.url() });
+  } catch (e) {
+    sendJSON({ type: "error", message: "init failed: " + (e.message || String(e)) });
+    setTimeout(() => { try { ws.close(); } catch {} cleanup(); }, 100);
+    return;
+  }
+  ws.on("message", async (raw) => {
+    if (!page || closed) return;
+    let msg;
+    try { msg = JSON.parse(String(raw)); } catch { return; }
+    try {
+      switch (msg.type) {
+        case "navigate":
+          if (msg.url) page.goto(String(msg.url), { waitUntil: "domcontentloaded", timeout: 25000 }).catch(() => {});
+          break;
+        case "back": page.goBack({ timeout: 8000 }).catch(() => {}); break;
+        case "forward": page.goForward({ timeout: 8000 }).catch(() => {}); break;
+        case "reload": page.reload({ timeout: 15000 }).catch(() => {}); break;
+        case "mouse": {
+          const { action, x, y, button, deltaY, deltaX } = msg;
+          const b = button === 2 ? "right" : (button === 1 ? "middle" : "left");
+          if (action === "move") await page.mouse.move(x, y);
+          else if (action === "down") { await page.mouse.move(x, y); await page.mouse.down({ button: b }); }
+          else if (action === "up") { await page.mouse.move(x, y); await page.mouse.up({ button: b }); }
+          else if (action === "click") await page.mouse.click(x, y, { button: b });
+          else if (action === "wheel") await page.mouse.wheel(deltaX || 0, deltaY || 0);
+          break;
+        }
+        case "key": {
+          const { action, key, text } = msg;
+          if (action === "type" && typeof text === "string") await page.keyboard.type(text);
+          else if (action === "press" && key) await page.keyboard.press(key);
+          else if (action === "down" && key) await page.keyboard.down(key);
+          else if (action === "up" && key) await page.keyboard.up(key);
+          break;
+        }
+        case "resize": {
+          dims.w = Math.max(320, Math.min(2560, parseInt(msg.w, 10) || dims.w));
+          dims.h = Math.max(240, Math.min(1440, parseInt(msg.h, 10) || dims.h));
+          await page.setViewportSize({ width: dims.w, height: dims.h });
+          try { await cdp.send("Page.stopScreencast"); } catch {}
+          try { await cdp.send("Page.startScreencast", { format: "jpeg", quality: 70, maxWidth: dims.w, maxHeight: dims.h, everyNthFrame: 1 }); } catch {}
+          break;
+        }
+      }
+    } catch (e) {
+      sendJSON({ type: "error", message: String(e.message || e) });
+    }
+  });
+  ws.on("close", cleanup);
+  ws.on("error", cleanup);
+});
+
 app.get("/api/files/download", requireAuth, (req, res) => {
   const filePath = req.query.path;
   if (!filePath) return res.status(400).json({ error: "No path" });
@@ -4713,6 +4815,10 @@ server.on("upgrade", (req, socket, head) => {
     } else if (req.url.startsWith("/spy-ws")) {
       spyWss.handleUpgrade(req, socket, head, (ws) => {
         spyWss.emit("connection", ws, req);
+      });
+    } else if (req.url.startsWith("/browser-pro-ws")) {
+      proWss.handleUpgrade(req, socket, head, (ws) => {
+        proWss.emit("connection", ws, req);
       });
     } else {
       wss.handleUpgrade(req, socket, head, (ws) => {
