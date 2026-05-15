@@ -5,6 +5,19 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [4.16.5] — 2026-05-16 — Flow Builder: marquee no longer selects block text
+
+### Fixed
+
+- **Marquee drag now blocks native text selection.** Starting a marquee on the canvas would let the browser also begin a text selection inside any block label/value the cursor swept over (Thai text + numbers got highlighted, copy buffer polluted, weird focus jumps).
+- `fbCanvasMarqueeStart` now `ev.preventDefault()`s on mousedown, clears the current selection, and adds `body.fb-marqueeing`.
+- `body.fb-marqueeing, body.fb-marqueeing *` → `user-select: none !important; -webkit-user-select: none !important;` + `cursor: crosshair`. Same belt-and-suspenders pattern already used by `fb-resizing-col/row`.
+- Class is removed in `onUp` (always — even if marquee was a single click).
+
+Client-only diff — hard refresh (Ctrl+Shift+R). No server bounce.
+
+---
+
 ## [4.16.4] — 2026-05-16 — Flow Builder: thinner edges + smaller arrowheads
 
 ### Changed

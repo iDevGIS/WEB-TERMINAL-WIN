@@ -1580,6 +1580,8 @@
     body.fb-resizing-col { cursor: col-resize !important; }
     body.fb-resizing-row { cursor: row-resize !important; }
     body.fb-resizing-col *, body.fb-resizing-row * { user-select: none !important; }
+    body.fb-marqueeing, body.fb-marqueeing * { user-select: none !important; -webkit-user-select: none !important; }
+    body.fb-marqueeing { cursor: crosshair !important; }
 
     .fb-toolbar .fb-btn.fb-tgl { padding: 5px 8px; min-width: 28px; }
     .fb-toolbar .fb-btn.fb-tgl.fb-on { background: rgba(168,85,247,.2); border-color: rgba(168,85,247,.5); color: #ede9fe; }
@@ -8782,6 +8784,10 @@
       if (ev.target.closest('.fb-block, button, input, textarea, select, a, .fb-minimap, .fb-pb')) return;
       const t = tabs.get(tabId); if (!t || !t.fb) return;
       const canvas = document.getElementById(tabId + '-fb-canvas'); if (!canvas) return;
+      // v4.16.5 — block native text selection during marquee drag
+      ev.preventDefault();
+      try { window.getSelection && window.getSelection().removeAllRanges(); } catch(_) {}
+      document.body.classList.add('fb-marqueeing');
       const cRect = canvas.getBoundingClientRect();
       const sx = ev.clientX - cRect.left;
       const sy = ev.clientY - cRect.top;
@@ -8823,6 +8829,7 @@
       const onUp = () => {
         document.removeEventListener('mousemove', onMove);
         document.removeEventListener('mouseup', onUp);
+        document.body.classList.remove('fb-marqueeing');
         if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
         if (!moved) {
           // plain click on empty area: clear unless additive
