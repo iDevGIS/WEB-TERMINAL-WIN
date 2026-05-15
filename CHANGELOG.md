@@ -5,6 +5,45 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [4.17.0] — 2026-05-16 — Tab Browser: render-mode switcher + Proxy mode
+
+### Added
+
+- **Mode selector dropdown** in the Browser tab toolbar with 4 options:
+  - **🌐 Live** — native `<iframe src=url>` (default, current behavior). Works for ~30-40% of sites that don't ship `X-Frame-Options` / CSP `frame-ancestors`.
+  - **🛡 Proxy** — same-origin reverse proxy `/api/browser-proxy?url=<target>` that fetches the page server-side, drops `x-frame-options` / `content-security-policy` response headers, strips equivalent `<meta>` tags from HTML, and injects a `<base href>` so relative resources resolve against the upstream origin. Expected to work on ~60% of sites (anything that doesn't depend on third-party cookies or strict origin checks).
+  - **🤖 Pro** — placeholder for v4.18.0 (Playwright headless screencast). Selecting → toast "coming in v4.18.0 🚧", reverts to previous mode.
+  - **🔧 CDP** — placeholder for v4.19.0 (Chrome DevTools Protocol attach). Selecting → toast "coming in v4.19.0 🚧".
+- Mode is persisted in `tabData.browserMode`; saved to `localStorage` alongside `url` and restored on reload via the existing tab state machine.
+- Mode dropdown shows a subtle color hint (`data-mode` attribute → CSS): purple tint for Proxy, emerald for Pro, amber for CDP.
+
+### Changed
+
+- `browserTabGo` / `browserTabBack` / `browserTabForward` / `browserTabReload` now route `frame.src` through `_browserWrapUrl(rawUrl, mode)`. For `live` the function is identity; for `proxy` it wraps `https://example.com/path` → `/api/browser-proxy?url=https%3A%2F%2Fexample.com%2Fpath`.
+- The URL input still shows the **real** URL (not the proxied one) — better UX, no copy-paste surprises.
+- Reload in non-Live modes uses `frame.src = wrap(cur, mode)` (cross-origin `contentWindow.location.reload()` would throw).
+
+### Added (server)
+
+- New route `app.get("/api/browser-proxy", requireAuth, ...)`:
+  - Validates `?url=` is `http(s)://`.
+  - Uses Node 25 native `fetch` with a Mozilla-style User-Agent and the requester's Accept-Language.
+  - Follows redirects (`redirect: "follow"`).
+  - Mirrors upstream status + `content-type` + `content-disposition`. Deliberately does **not** forward `x-frame-options` or `content-security-policy`.
+  - For HTML responses: strips CSP/X-Frame-Options `<meta http-equiv=...>` tags, injects `<base href="...">` inside `<head>` if missing.
+  - For binary responses: pipes the raw bytes.
+  - Errors fall back to a dark-themed error HTML page (so the iframe shows the failure cleanly instead of going blank).
+
+### Known limitations of Proxy mode
+
+- Sites that depend on logged-in third-party cookies (banks, Google services, GitHub when logged-in) will fail because the proxy is anonymous.
+- Heavy SPAs that POST/PUT (GitHub create-repo, Notion edit, etc.) won't round-trip without a more elaborate request proxy.
+- `<iframe>`s inside the proxied page are not rewritten — they'll hit upstream origin directly and may still get clipped.
+
+These are the gaps that Pro mode (v4.18.0 — full Playwright session with real browser features) and CDP mode (v4.19.0 — attach to host Chrome with real cookies) are designed to fill.
+
+---
+
 ## [4.16.6] — 2026-05-16 — Flow Builder: smoother edges + chevron arrowheads
 
 ### Changed

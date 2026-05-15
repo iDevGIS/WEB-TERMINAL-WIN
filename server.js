@@ -1054,6 +1054,58 @@ app.get("/api/files/list", requireAuth, (req, res) => {
   }
 });
 
+// === Browser Tab Proxy mode (v4.17.0) ===
+// Strips X-Frame-Options / CSP frame-ancestors so iframe embedding works.
+// Same-origin → session cookie auto-flows → requireAuth holds.
+app.get("/api/browser-proxy", requireAuth, async (req, res) => {
+  const target = req.query.url;
+  if (!target) return res.status(400).send("missing url");
+  let u;
+  try { u = new URL(String(target)); } catch { return res.status(400).send("invalid url"); }
+  if (!/^https?:$/.test(u.protocol)) return res.status(400).send("http(s) only");
+  try {
+    const upstream = await fetch(u.toString(), {
+      method: "GET",
+      headers: {
+        "User-Agent": req.headers["user-agent"] || "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "Accept": req.headers["accept"] || "text/html,application/xhtml+xml,*/*",
+        "Accept-Language": req.headers["accept-language"] || "en-US,en;q=0.9",
+      },
+      redirect: "follow",
+    });
+    const ct = upstream.headers.get("content-type") || "application/octet-stream";
+    res.status(upstream.status);
+    res.set("content-type", ct);
+    const cd = upstream.headers.get("content-disposition");
+    if (cd) res.set("content-disposition", cd);
+    // Deliberately drop: x-frame-options, content-security-policy, x-content-type-options upstream
+    res.removeHeader && res.removeHeader("x-frame-options");
+    res.removeHeader && res.removeHeader("content-security-policy");
+    // HTML rewrite: inject <base> + strip CSP <meta> + neutralize X-Frame-Options meta
+    if (/text\/html/i.test(ct)) {
+      const html = await upstream.text();
+      const baseHref = u.origin + u.pathname.replace(/[^\/]+$/, "");
+      let rewritten = html
+        .replace(/<meta[^>]+http-equiv=["']?content-security-policy["']?[^>]*>/gi, "")
+        .replace(/<meta[^>]+http-equiv=["']?x-frame-options["']?[^>]*>/gi, "");
+      if (!/<base\s/i.test(rewritten)) {
+        rewritten = rewritten.replace(/<head([^>]*)>/i, (m) => m + `<base href="${baseHref}">`);
+      }
+      return res.send(rewritten);
+    }
+    const buf = Buffer.from(await upstream.arrayBuffer());
+    return res.send(buf);
+  } catch (e) {
+    res.status(502).type("text/html").send(
+      `<!doctype html><meta charset="utf-8"><body style="background:#0a0a1a;color:#e5e7eb;font:14px system-ui;padding:24px">`+
+      `<h2 style="color:#f472b6">Proxy fetch failed</h2>`+
+      `<p>${String(e.message || e).replace(/[<>]/g, "")}</p>`+
+      `<p style="color:#9ca3af;font-size:12px">URL: ${u.toString().replace(/[<>]/g, "")}</p>`+
+      `</body>`
+    );
+  }
+});
+
 app.get("/api/files/download", requireAuth, (req, res) => {
   const filePath = req.query.path;
   if (!filePath) return res.status(400).json({ error: "No path" });

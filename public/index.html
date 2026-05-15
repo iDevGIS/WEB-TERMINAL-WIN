@@ -1058,6 +1058,24 @@
       outline: none;
     }
     .browser-tab-url:focus { border-color: rgba(108,99,255,.4); background: rgba(0,0,0,.35); }
+    .browser-tab-mode {
+      height: 28px;
+      padding: 0 8px;
+      border-radius: 6px;
+      background: rgba(255,255,255,.05);
+      border: 1px solid rgba(255,255,255,.08);
+      color: var(--text2);
+      font-size: 12px;
+      font-family: inherit;
+      cursor: pointer;
+      outline: none;
+    }
+    .browser-tab-mode:hover { background: rgba(108,99,255,.15); color: var(--text); border-color: rgba(108,99,255,.3); }
+    .browser-tab-mode option { background:#0b0e22; color:#e5e7eb; }
+    .browser-tab-mode option:checked { background: rgba(108,99,255,.25); color: var(--text); }
+    .browser-tab-mode[data-mode="proxy"] { color:#a78bfa; border-color: rgba(167,139,250,.35); background: rgba(167,139,250,.08); }
+    .browser-tab-mode[data-mode="pro"]   { color:#34d399; border-color: rgba(52,211,153,.35); background: rgba(52,211,153,.08); }
+    .browser-tab-mode[data-mode="cdp"]   { color:#fbbf24; border-color: rgba(251,191,36,.35); background: rgba(251,191,36,.08); }
     .browser-tab-frame {
       flex: 1;
       min-height: 0;
@@ -5791,6 +5809,38 @@
       return 'https://www.bing.com/search?q=' + encodeURIComponent(s);
     }
 
+    // v4.17.0: wrap URL based on render mode
+    // live  → real URL (default)
+    // proxy → server-side fetch + strip X-Frame-Options/CSP (only http/https targets)
+    // pro / cdp → not implemented yet, fall back to live + toast
+    function _browserWrapUrl(rawUrl, mode) {
+      if (!rawUrl || rawUrl === 'about:blank') return rawUrl;
+      if (mode === 'proxy') {
+        if (/^https?:/i.test(rawUrl)) return '/api/browser-proxy?url=' + encodeURIComponent(rawUrl);
+        return rawUrl;
+      }
+      return rawUrl;
+    }
+
+    function browserTabSetMode(tabId, mode) {
+      const tab = tabs.get(tabId);
+      if (!tab || tab.type !== 'browser') return;
+      const sel = document.getElementById(tabId + '-bb-mode');
+      // Pro & CDP are upcoming ships — show toast and revert
+      if (mode === 'pro' || mode === 'cdp') {
+        const next = mode === 'pro' ? 'v4.18.0' : 'v4.19.0';
+        try { if (typeof showToast === 'function') showToast(`${mode.toUpperCase()} mode → coming in ${next} 🚧`); } catch {}
+        if (sel) sel.value = tab.browserMode || 'live';
+        return;
+      }
+      tab.browserMode = mode;
+      if (sel) sel.setAttribute('data-mode', mode);
+      // Re-navigate current url with new mode
+      const cur = tab.url || tab.history?.[tab.histIdx] || 'https://www.bing.com';
+      const frame = document.getElementById(tabId + '-bb-frame');
+      if (frame) frame.src = _browserWrapUrl(cur, mode);
+    }
+
     function browserTabGo(tabId, url, skipHistory) {
       const tab = tabs.get(tabId);
       if (!tab || tab.type !== 'browser') return;
@@ -5818,7 +5868,7 @@
         }
         tab.name = newName;
       } catch {}
-      if (frame) frame.src = target;
+      if (frame) frame.src = _browserWrapUrl(target, tab.browserMode || 'live');
       _browserUpdateNav(tabId);
     }
 
@@ -5830,7 +5880,7 @@
       tab.url = u;
       const frame = document.getElementById(tabId + '-bb-frame');
       const urlInp = document.getElementById(tabId + '-bb-url');
-      if (frame) frame.src = u;
+      if (frame) frame.src = _browserWrapUrl(u, tab.browserMode || 'live');
       if (urlInp) urlInp.value = u;
       _browserUpdateNav(tabId);
     }
@@ -5843,7 +5893,7 @@
       tab.url = u;
       const frame = document.getElementById(tabId + '-bb-frame');
       const urlInp = document.getElementById(tabId + '-bb-url');
-      if (frame) frame.src = u;
+      if (frame) frame.src = _browserWrapUrl(u, tab.browserMode || 'live');
       if (urlInp) urlInp.value = u;
       _browserUpdateNav(tabId);
     }
@@ -5853,7 +5903,12 @@
       if (!tab) return;
       const frame = document.getElementById(tabId + '-bb-frame');
       if (!frame) return;
-      try { frame.contentWindow.location.reload(); } catch { frame.src = tab.url || frame.src; }
+      // For proxy/pro/cdp modes contentWindow cross-origin may block reload() — fall back to src set
+      const cur = tab.url || frame.src;
+      try {
+        if ((tab.browserMode || 'live') === 'live') frame.contentWindow.location.reload();
+        else frame.src = _browserWrapUrl(cur, tab.browserMode || 'live');
+      } catch { frame.src = _browserWrapUrl(cur, tab.browserMode || 'live'); }
     }
 
     function browserTabHome(tabId) { browserTabGo(tabId, 'https://www.bing.com'); }
@@ -12529,6 +12584,12 @@ ${fields}
             </button>
             <input class="browser-tab-url" id="${tabId}-bb-url" placeholder="URL or search…" value="${escAttr(startUrl)}" onkeydown="if(event.key==='Enter'){browserTabGo('${tabId}',this.value)}" onfocus="this.select()">
             <button onclick="browserTabGo('${tabId}',document.getElementById('${tabId}-bb-url').value)" title="Go" style="padding:5px 12px">Go</button>
+            <select class="browser-tab-mode" id="${tabId}-bb-mode" data-mode="live" onchange="browserTabSetMode('${tabId}', this.value)" title="Render mode — Live: native iframe · Proxy: server strips X-Frame-Options/CSP (~60% of sites) · Pro/CDP: coming soon">
+              <option value="live">🌐 Live</option>
+              <option value="proxy">🛡 Proxy</option>
+              <option value="pro">🤖 Pro</option>
+              <option value="cdp">🔧 CDP</option>
+            </select>
             <button onclick="browserTabOpenExternal('${tabId}')" title="Open in real browser">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
             </button>
@@ -25861,6 +25922,7 @@ ${fields}
           }
           if (tab.type === 'browser') {
             entry.url = tab.url || 'https://www.bing.com';
+            entry.browserMode = tab.browserMode || 'live';
           }
           if (tab.type === 'scrap' && tab.scrap) {
             try {
@@ -26012,7 +26074,15 @@ ${fields}
             }, 300);
             restoredAny = true;
           } else if (entry.type === 'browser') {
-            createTab('browser', { name: entry.name || 'Browser', icon: entry.icon || '🌐', url: entry.url });
+            const newTabId = createTab('browser', { name: entry.name || 'Browser', icon: entry.icon || '🌐', url: entry.url });
+            // v4.17.0: restore browserMode after tab DOM created
+            if (entry.browserMode && entry.browserMode !== 'live') {
+              setTimeout(() => {
+                const t = newTabId && tabs.get(newTabId);
+                const sel = newTabId && document.getElementById(newTabId + '-bb-mode');
+                if (t && sel) { sel.value = entry.browserMode; browserTabSetMode(newTabId, entry.browserMode); }
+              }, 80);
+            }
             restoredAny = true;
           } else if (entry.type === 'scrap') {
             createTab('scrap', {
