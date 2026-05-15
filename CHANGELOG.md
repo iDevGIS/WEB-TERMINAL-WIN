@@ -5,6 +5,30 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [4.23.0] — 2026-05-16 — Sidekick: Flow Builder panel preset tool
+
+Third of three planned Sidekick canvas slot tools (ship `d` of the overnight cascade, completing the Flow Builder canvas category started in v4.21.0). Wraps the existing `fbPanelApplyPreset` infrastructure (shipped in v4.12.0 layout presets) and exposes it to the chat AI for workspace-reshaping flows.
+
+### Added
+
+- **`panel_set_preset` Cross-Tab tool** — applies a built-in preset OR custom panel configuration to the active Flow Builder tab. Built-in presets:
+  - **`editor`** (default authoring) — palette+properties+log all visible
+  - **`reading`** (read-heavy review) — palette hidden, properties wide, log hidden
+  - **`run`** (runtime/debug) — palette+properties hidden, log tall
+  - **`reset`** — equivalent to `editor`
+  - **`custom`** — start from current state, then apply explicit overrides
+- **Custom overrides** — `leftW` / `rightW` / `bottomH` (px, clamped to `FB_PANEL.LIMITS`) + `left` / `right` / `bottom` (visibility booleans). If any override is passed, the preset pill highlight clears (matches existing v4.8.0 behavior on manual toggle).
+- **Mini-map sync** — calls `fbMinimapRender` after apply so the minimap viewport indicator reflects the new canvas size.
+
+### Notes
+
+- Sidekick system preamble: Flow Builder canvas category now includes `canvas_multi_select, canvas_batch_move, panel_set_preset` — the full overnight set is in.
+- Returns `applied` state echoing all 6 dimensions/visibility values, so the model can verify the layout change without an additional read call.
+- Pairs with `canvas_multi_select` + `canvas_batch_move` for end-to-end Sidekick-driven canvas authoring (select → align → reshape workspace for the user's next focus).
+- Next: `e` = `merge-to-formats` (collapse sibling store blocks into single `formats:[]` array).
+
+---
+
 ## [4.22.0] — 2026-05-16 — Sidekick: Flow Builder canvas batch move tool
 
 Second of three planned Sidekick slot tools for the Flow Builder canvas (ship `c` of the overnight cascade after v4.21.0). Pairs with `canvas_multi_select` to enable layout cleanup workflows like "select all fetch blocks → align them left" or "shift the whole pipeline down 100px."

@@ -2936,6 +2936,28 @@ const CROSS_TAB_TOOLS = [
       },
     },
   },
+  // v4.23.0 — Flow Builder panel preset (Sidekick slot tool)
+  {
+    type: 'function',
+    function: {
+      name: 'panel_set_preset',
+      description: 'Apply a Flow Builder side-panel layout preset OR a custom panel configuration. Built-in presets: "editor" (palette+properties+log all visible — default authoring layout), "reading" (palette hidden, properties wide, log hidden — read-heavy review), "run" (palette+properties hidden, log tall — runtime/debug). "reset" returns to the editor default. Optionally pass custom dimensions/visibility for fine-grained control: leftW/rightW/bottomH (px) + left/right/bottom (visibility booleans). Custom values override the preset. Use this to reshape the workspace before guiding the user through an authoring vs review vs debug task.',
+      parameters: {
+        type: 'object',
+        properties: {
+          tabId: { type: 'string', description: 'Flow Builder tab id (optional; defaults to active flow-builder tab).' },
+          preset: { type: 'string', description: 'One of: "editor" | "reading" | "run" | "reset" | "custom" (use "custom" with explicit dim/visibility values).' },
+          leftW: { type: 'number', description: 'Left panel (palette) width in px. Range: 180-360. Optional.' },
+          rightW: { type: 'number', description: 'Right panel (properties) width in px. Range: 240-520. Optional.' },
+          bottomH: { type: 'number', description: 'Bottom panel (log) height in px. Range: 80-400. Optional.' },
+          left: { type: 'boolean', description: 'Show/hide left panel. Optional.' },
+          right: { type: 'boolean', description: 'Show/hide right panel. Optional.' },
+          bottom: { type: 'boolean', description: 'Show/hide bottom panel. Optional.' },
+        },
+        required: [],
+      },
+    },
+  },
   // v4.22.0 — Flow Builder canvas batch move (Sidekick slot tool)
   {
     type: 'function',
@@ -2967,7 +2989,7 @@ function _ctiSystemPreamble() {
     ' open/navigate (open_editor, open_file_in_editor, browser_navigate, browser_reload, create_terminal, switch_tab, set_active_session, split_tab, load_workspace_layout);' +
     ' mutate/write (save_file, insert_at_line, replace_in_file, create_file, create_folder, rename_path, move_path, delete_path, rename_tab, duplicate_editor_tab, add_snippet, delete_snippet, save_workspace_layout, scrap_save_recipe);' +
     ' execute (run_terminal, run_in_active_terminal, scrap_run, scrap_run_recipe, docker_action, kill_process, kill_terminal_session, rename_terminal_session, export_session_transcript, tts_speak, take_screenshot);' +
-    ' Flow Builder canvas (canvas_multi_select, canvas_batch_move); UI (notify); teardown (close_tab).' +
+    ' Flow Builder canvas (canvas_multi_select, canvas_batch_move, panel_set_preset); UI (notify); teardown (close_tab).' +
     ' RULES:' +
     ' (1) Always read state first before mutating.' +
     ' (2) When a request is "open X and run Y" (e.g. "open admin powershell and run whoami"), prefer passing `command` directly to create_terminal in ONE call — do NOT split into create_terminal+run_terminal.' +

@@ -16823,6 +16823,62 @@ ${fields}
           return { ok: true, id, deleted: true };
         } catch (e) { return { error: 'delete_snippet failed: ' + (e && e.message || e) }; }
       },
+      // v4.23.0 — Sidekick Flow Builder panel preset
+      async panel_set_preset(args) {
+        args = args || {};
+        // 1. Resolve target Flow Builder tab
+        let targetTab = null;
+        if (args.tabId) targetTab = tabs.get(args.tabId);
+        if (!targetTab) {
+          const cur = tabs.get(activeTabId);
+          if (cur && cur.type === 'flow-builder') targetTab = cur;
+        }
+        if (!targetTab) {
+          for (const t of tabs.values()) { if (t.type === 'flow-builder') { targetTab = t; break; } }
+        }
+        if (!targetTab) return { error: 'No Flow Builder tab open.' };
+        if (targetTab.type !== 'flow-builder') return { error: 'Tab "' + targetTab.id + '" is not a Flow Builder tab.' };
+        // 2. Resolve preset name (with reset shortcut)
+        const preset = String(args.preset || 'editor').toLowerCase();
+        const validPresets = Object.keys(FB_PANEL.PRESETS).concat(['reset', 'custom']);
+        if (!validPresets.includes(preset)) {
+          return { error: 'Unknown preset "' + args.preset + '". Use: ' + validPresets.join(' | ') + '.' };
+        }
+        // 3. Build base state from preset (or current state for 'custom')
+        let base;
+        if (preset === 'custom') {
+          base = fbPanelGetState();
+        } else if (preset === 'reset') {
+          base = { ...FB_PANEL.PRESETS.editor, preset: 'editor' };
+        } else {
+          base = { ...FB_PANEL.PRESETS[preset], preset };
+        }
+        // 4. Apply optional custom overrides + clamp to LIMITS
+        const lim = FB_PANEL.LIMITS;
+        if (typeof args.leftW === 'number') base.leftW = Math.max(lim.leftMin, Math.min(lim.leftMax, args.leftW));
+        if (typeof args.rightW === 'number') base.rightW = Math.max(lim.rightMin, Math.min(lim.rightMax, args.rightW));
+        if (typeof args.bottomH === 'number') base.bottomH = Math.max(lim.bottomMin, Math.min(lim.bottomMax, args.bottomH));
+        if (typeof args.left === 'boolean') base.left = args.left;
+        if (typeof args.right === 'boolean') base.right = args.right;
+        if (typeof args.bottom === 'boolean') base.bottom = args.bottom;
+        // If user passed explicit overrides, preset becomes 'custom' for the active-pill highlight
+        const hasOverride = typeof args.leftW === 'number' || typeof args.rightW === 'number' || typeof args.bottomH === 'number'
+          || typeof args.left === 'boolean' || typeof args.right === 'boolean' || typeof args.bottom === 'boolean';
+        if (hasOverride && preset !== 'reset') base.preset = null; // custom layout, no preset pill highlighted
+        // 5. Save + apply
+        fbPanelSave(base);
+        fbPanelApply(targetTab.id);
+        try { setTimeout(() => fbMinimapRender(targetTab.id), 200); } catch {}
+        return {
+          ok: true,
+          tabId: targetTab.id,
+          preset: base.preset,
+          applied: {
+            leftW: base.leftW, rightW: base.rightW, bottomH: base.bottomH,
+            left: base.left, right: base.right, bottom: base.bottom,
+          },
+        };
+      },
       // v4.22.0 — Sidekick Flow Builder canvas batch move (align/distribute/offset)
       async canvas_batch_move(args) {
         args = args || {};
