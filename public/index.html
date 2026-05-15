@@ -1591,6 +1591,8 @@
     .fb-canvas-wrap.fb-drop-active::after { content: '＋ drop to add block'; position: absolute; top: 16px; right: 16px; background: rgba(168,85,247,.85); color: #fff; padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 600; pointer-events: none; z-index: 10; }
     .fb-block.fb-moving { cursor: grabbing !important; opacity: .82; box-shadow: 0 8px 28px rgba(168,85,247,.45) !important; z-index: 5; }
     .fb-block .fb-bh { cursor: move; }
+    /* v4.16.0 — marquee selection overlay (multi-select on canvas) */
+    .fb-marquee { position: absolute; border: 1.5px dashed rgba(168,85,247,.85); background: rgba(168,85,247,.12); pointer-events: none; z-index: 4; border-radius: 3px; box-shadow: 0 0 0 1px rgba(0,0,0,.25); }
     .fb-pb-ico { width: 26px; height: 26px; border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; }
     .fb-pb-fetch    .fb-pb-ico { background: rgba(6,182,212,.18);  color: #67e8f9; }
     .fb-pb-follow   .fb-pb-ico { background: rgba(168,85,247,.18); color: #c084fc; }
@@ -6156,11 +6158,13 @@
       }
       canvas.appendChild(svg);
 
+      const _selSet = _fbSelection(t);
       for (const b of blocks) {
         const pos = positions[b.id]; if (!pos) continue;
         const meta = FB_TYPE_META[b.type] || { ico: '⬛', bg: 'rgba(255,255,255,.08)' };
         const div = document.createElement('div');
-        div.className = 'fb-block t-' + b.type + (b.id === p.startBlock ? ' t-start' : '') + (b.id === t.fb.selectedBlockId ? ' selected' : '');
+        const _isSel = (b.id === t.fb.selectedBlockId) || _selSet.has(b.id);
+        div.className = 'fb-block t-' + b.type + (b.id === p.startBlock ? ' t-start' : '') + (_isSel ? ' selected' : '');
         div.style.left = pos.x + 'px';
         div.style.top = pos.y + 'px';
         div.dataset.blockId = b.id;
@@ -6196,17 +6200,62 @@
 
     function _fbTrunc(s, n) { s = String(s == null ? '' : s); return s.length > n ? s.slice(0, n - 1) + '…' : s; }
 
+    // v4.16.0 — lazy multi-selection Set per Flow Builder tab
+    function _fbSelection(t) {
+      if (!t || !t.fb) return new Set();
+      if (!t.fb._sel || !(t.fb._sel instanceof Set)) t.fb._sel = new Set();
+      return t.fb._sel;
+    }
+    function _fbApplySelectionClasses(tabId) {
+      const t = tabs.get(tabId); if (!t || !t.fb) return;
+      const sel = _fbSelection(t);
+      const canvas = document.getElementById(tabId + '-fb-canvas'); if (!canvas) return;
+      canvas.querySelectorAll('.fb-block').forEach(el => {
+        el.classList.toggle('selected', sel.has(el.dataset.blockId));
+      });
+    }
+    function fbShowMultiProps(tabId, n) {
+      const host = document.getElementById(tabId + '-fb-props-body') || document.getElementById(tabId + '-fb-props');
+      if (!host) return;
+      host.innerHTML = '<h3>' + n + ' blocks selected</h3>'
+        + '<div class="empty" style="margin-top:8px;line-height:1.7">'
+        + 'Drag any selected block to move them all together.<br>'
+        + 'Press <kbd>Del</kbd> to remove all selected.<br>'
+        + 'Press <kbd>Esc</kbd> or click empty canvas to clear.<br>'
+        + 'Shift/Ctrl-click block to toggle in selection.'
+        + '</div>';
+    }
+    function fbToggleBlockSelection(tabId, blockId) {
+      const t = tabs.get(tabId); if (!t || !t.fb) return;
+      const sel = _fbSelection(t);
+      if (sel.has(blockId)) {
+        sel.delete(blockId);
+        if (t.fb.selectedBlockId === blockId) {
+          t.fb.selectedBlockId = sel.size ? [...sel][sel.size - 1] : null;
+        }
+      } else {
+        sel.add(blockId);
+        t.fb.selectedBlockId = blockId;
+      }
+      _fbApplySelectionClasses(tabId);
+      if (sel.size === 1) {
+        const sid = [...sel][0];
+        const block = t.fb.current ? (t.fb.current.blocks || []).find(b => b.id === sid) : null;
+        fbShowProps(tabId, block);
+      } else if (sel.size > 1) {
+        fbShowMultiProps(tabId, sel.size);
+      } else {
+        fbShowProps(tabId, null);
+      }
+    }
+
     function fbSelectBlock(tabId, blockId) {
       const t = tabs.get(tabId); if (!t || !t.fb) return;
+      const sel = _fbSelection(t);
+      sel.clear();
+      if (blockId) sel.add(blockId);
       t.fb.selectedBlockId = blockId;
-      const canvas = document.getElementById(tabId + '-fb-canvas');
-      if (canvas) {
-        canvas.querySelectorAll('.fb-block.selected').forEach(el => el.classList.remove('selected'));
-        if (blockId) {
-          const sel = canvas.querySelector('[data-block-id="' + blockId + '"]');
-          if (sel) sel.classList.add('selected');
-        }
-      }
+      _fbApplySelectionClasses(tabId);
       const block = blockId && t.fb.current ? (t.fb.current.blocks || []).find(b => b.id === blockId) : null;
       fbShowProps(tabId, block);
     }
@@ -6530,7 +6579,12 @@
         { k: '3',           d: 'Run preset — max canvas + tall console' },
         { k: 'Ctrl/Cmd + S', d: 'Save pipeline' },
         { k: 'Ctrl/Cmd + ↵', d: 'Run pipeline' },
-        { k: 'Delete / Backspace', d: 'Remove selected block' },
+        { k: 'Drag on canvas',     d: 'Marquee-select multiple blocks' },
+        { k: 'Shift / Ctrl-click', d: 'Toggle block in selection' },
+        { k: 'Drag selected block', d: 'Move all selected blocks together' },
+        { k: 'Ctrl/Cmd + A', d: 'Select all blocks' },
+        { k: 'Esc',          d: 'Clear selection' },
+        { k: 'Delete / Backspace', d: 'Remove selected block(s)' },
         { k: '?',            d: 'Show this help' },
       ];
       const overlay = document.createElement('div');
@@ -7529,23 +7583,32 @@
 
     function fbDeleteSelectedBlock(tabId) {
       const t = tabs.get(tabId); if (!t || !t.fb || !t.fb.current) return;
-      const sid = t.fb.selectedBlockId; if (!sid) return;
+      // v4.16.0 — delete all blocks in multi-selection (fallback to single selectedBlockId)
+      const sel = _fbSelection(t);
+      const ids = sel.size ? [...sel] : (t.fb.selectedBlockId ? [t.fb.selectedBlockId] : []);
+      if (!ids.length) return;
       const p = t.fb.current;
       const blocks = p.blocks || [];
-      const blk = blocks.find(b => b.id === sid); if (!blk) return;
-      p.blocks = blocks.filter(b => b.id !== sid);
-      // also strip references from other blocks
+      const idSet = new Set(ids);
+      const removed = blocks.filter(b => idSet.has(b.id));
+      if (!removed.length) return;
+      p.blocks = blocks.filter(b => !idSet.has(b.id));
+      // strip references from other blocks
       for (const b of p.blocks) {
-        if (Array.isArray(b.next)) b.next = b.next.filter(nid => nid !== sid);
-        if (b.healFallback === sid) delete b.healFallback;
-        if (b.loopback === sid) delete b.loopback;
+        if (Array.isArray(b.next)) b.next = b.next.filter(nid => !idSet.has(nid));
+        if (idSet.has(b.healFallback)) delete b.healFallback;
+        if (idSet.has(b.loopback)) delete b.loopback;
       }
-      if (p.startBlock === sid) p.startBlock = (p.blocks[0] && p.blocks[0].id) || null;
+      if (idSet.has(p.startBlock)) p.startBlock = (p.blocks[0] && p.blocks[0].id) || null;
       t.fb.selectedBlockId = null;
+      sel.clear();
       fbMarkDirty(tabId, true);
       fbRender(tabId);
       fbShowProps(tabId, null);
-      fbLog(tabId, 'info', '🗑 Removed ' + blk.type + ' block (' + sid.slice(0, 6) + ')');
+      const summary = removed.length === 1
+        ? '🗑 Removed ' + removed[0].type + ' block (' + removed[0].id.slice(0, 6) + ')'
+        : '🗑 Removed ' + removed.length + ' blocks · ' + removed.map(b => b.type + '/' + b.id.slice(0, 4)).join(' · ');
+      fbLog(tabId, 'info', summary);
     }
 
     // ---- v4.6.0 — Export pipeline as runnable Node.js / Python script ----
@@ -8678,45 +8741,169 @@
     }
 
     // Mousedown drag-reposition for canvas blocks (called from within fbRender)
+    // v4.16.0 — marquee selection + canvas click-to-clear
+    function _fbBlocksInRect(t, x0, y0, x1, y1) {
+      const BW = 200, BH = 84;
+      const found = [];
+      const blocks = (t && t.fb && t.fb.current && t.fb.current.blocks) || [];
+      for (const b of blocks) {
+        const pos = b.position || { x: 0, y: 0 };
+        const bx0 = +pos.x || 0, by0 = +pos.y || 0;
+        const bx1 = bx0 + BW, by1 = by0 + BH;
+        if (bx1 > x0 && bx0 < x1 && by1 > y0 && by0 < y1) found.push(b.id);
+      }
+      return found;
+    }
+    function fbCanvasMarqueeStart(ev, tabId) {
+      if (ev.button !== 0) return;
+      // Bail out if mousedown originated on a block, palette badge, minimap, or any interactive widget
+      if (ev.target.closest('.fb-block, button, input, textarea, select, a, .fb-minimap, .fb-pb')) return;
+      const t = tabs.get(tabId); if (!t || !t.fb) return;
+      const canvas = document.getElementById(tabId + '-fb-canvas'); if (!canvas) return;
+      const cRect = canvas.getBoundingClientRect();
+      const sx = ev.clientX - cRect.left;
+      const sy = ev.clientY - cRect.top;
+      const additive = ev.shiftKey || ev.ctrlKey || ev.metaKey;
+      const baseSel = additive ? new Set(_fbSelection(t)) : new Set();
+
+      const overlay = document.createElement('div');
+      overlay.className = 'fb-marquee';
+      overlay.style.left = sx + 'px';
+      overlay.style.top = sy + 'px';
+      overlay.style.width = '0px';
+      overlay.style.height = '0px';
+      canvas.appendChild(overlay);
+
+      let lastX = sx, lastY = sy, moved = false;
+      const onMove = (e2) => {
+        const cx = e2.clientX - cRect.left;
+        const cy = e2.clientY - cRect.top;
+        lastX = cx; lastY = cy;
+        const x0 = Math.min(sx, cx), y0 = Math.min(sy, cy);
+        const w = Math.abs(cx - sx), h = Math.abs(cy - sy);
+        if (!moved && w + h > 3) moved = true;
+        overlay.style.left = x0 + 'px';
+        overlay.style.top = y0 + 'px';
+        overlay.style.width = w + 'px';
+        overlay.style.height = h + 'px';
+        if (moved) {
+          const enclosed = _fbBlocksInRect(t, x0, y0, x0 + w, y0 + h);
+          const live = new Set(baseSel);
+          for (const id of enclosed) live.add(id);
+          // Live visual feedback during drag
+          if (canvas) {
+            canvas.querySelectorAll('.fb-block').forEach(el => {
+              el.classList.toggle('selected', live.has(el.dataset.blockId));
+            });
+          }
+        }
+      };
+      const onUp = () => {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+        if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+        if (!moved) {
+          // plain click on empty area: clear unless additive
+          if (!additive) fbSelectBlock(tabId, null);
+          return;
+        }
+        const x0 = Math.min(sx, lastX), y0 = Math.min(sy, lastY);
+        const x1 = Math.max(sx, lastX), y1 = Math.max(sy, lastY);
+        const enclosed = _fbBlocksInRect(t, x0, y0, x1, y1);
+        const sel = _fbSelection(t);
+        sel.clear();
+        for (const id of baseSel) sel.add(id);
+        for (const id of enclosed) sel.add(id);
+        if (sel.size === 1) {
+          t.fb.selectedBlockId = [...sel][0];
+          const block = t.fb.current ? (t.fb.current.blocks || []).find(b => b.id === t.fb.selectedBlockId) : null;
+          fbShowProps(tabId, block);
+        } else if (sel.size > 1) {
+          t.fb.selectedBlockId = null;
+          fbShowMultiProps(tabId, sel.size);
+        } else {
+          t.fb.selectedBlockId = null;
+          fbShowProps(tabId, null);
+        }
+        _fbApplySelectionClasses(tabId);
+      };
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    }
+
     function _fbAttachBlockDrag(tabId, blockEl, blockId) {
-      let startX = 0, startY = 0, origLeft = 0, origTop = 0, moving = false, raf = null;
+      let startX = 0, startY = 0, moving = false, raf = null;
+      let dragSet = null;       // Array<{id, el, origLeft, origTop}>
       blockEl.addEventListener('mousedown', (ev) => {
         if (ev.button !== 0) return;
         // ignore clicks on inputs / textareas inside the block
         if (ev.target.closest('input, textarea, button, select, a')) return;
+        const t = tabs.get(tabId); if (!t || !t.fb) return;
+
+        // v4.16.0 — Shift/Ctrl/Cmd-click toggles block in multi-selection (no drag)
+        if (ev.shiftKey || ev.ctrlKey || ev.metaKey) {
+          ev.preventDefault();
+          ev.stopPropagation();
+          fbToggleBlockSelection(tabId, blockId);
+          return;
+        }
+
         ev.preventDefault();
+        ev.stopPropagation();
         startX = ev.clientX; startY = ev.clientY;
-        origLeft = parseFloat(blockEl.style.left) || 0;
-        origTop  = parseFloat(blockEl.style.top)  || 0;
         moving = false;
+
+        // Decide drag set: if this block is in multi-selection (>1), drag the whole group
+        const selSet = _fbSelection(t);
+        const ids = (selSet.has(blockId) && selSet.size > 1) ? [...selSet] : [blockId];
+        const canvas = document.getElementById(tabId + '-fb-canvas');
+        dragSet = [];
+        for (const bid of ids) {
+          const el = canvas && canvas.querySelector('[data-block-id="' + bid + '"]');
+          if (!el) continue;
+          dragSet.push({
+            id: bid,
+            el,
+            origLeft: parseFloat(el.style.left) || 0,
+            origTop:  parseFloat(el.style.top)  || 0,
+          });
+        }
+
         const onMove = (e2) => {
           const dx = e2.clientX - startX, dy = e2.clientY - startY;
           if (!moving && Math.abs(dx) + Math.abs(dy) < 4) return;
-          if (!moving) { moving = true; blockEl.classList.add('fb-moving'); }
+          if (!moving) {
+            moving = true;
+            for (const item of dragSet) item.el.classList.add('fb-moving');
+          }
           if (raf) return;
           raf = requestAnimationFrame(() => {
             raf = null;
-            blockEl.style.left = Math.max(0, origLeft + dx) + 'px';
-            blockEl.style.top  = Math.max(0, origTop  + dy) + 'px';
-            // re-draw edges in real-time
-            const t = tabs.get(tabId);
-            if (t && t.fb && t.fb.current) {
-              const blk = (t.fb.current.blocks || []).find(b => b.id === blockId);
-              if (blk) blk.position = { x: parseFloat(blockEl.style.left) || 0, y: parseFloat(blockEl.style.top) || 0 };
-              _fbRedrawEdges(tabId);
+            const tt = tabs.get(tabId);
+            for (const item of dragSet) {
+              const newLeft = Math.max(0, item.origLeft + dx);
+              const newTop  = Math.max(0, item.origTop  + dy);
+              item.el.style.left = newLeft + 'px';
+              item.el.style.top  = newTop  + 'px';
+              if (tt && tt.fb && tt.fb.current) {
+                const blk = (tt.fb.current.blocks || []).find(b => b.id === item.id);
+                if (blk) blk.position = { x: newLeft, y: newTop };
+              }
             }
+            _fbRedrawEdges(tabId);
           });
         };
         const onUp = () => {
           document.removeEventListener('mousemove', onMove);
           document.removeEventListener('mouseup', onUp);
           if (moving) {
-            blockEl.classList.remove('fb-moving');
+            for (const item of dragSet) item.el.classList.remove('fb-moving');
             fbMarkDirty(tabId, true);
           } else {
-            // treat as click → select
+            // treat as plain click → single-select this block
             fbSelectBlock(tabId, blockId);
           }
+          dragSet = null;
         };
         document.addEventListener('mousemove', onMove);
         document.addEventListener('mouseup', onUp);
@@ -8810,8 +8997,38 @@
         try { fbRun(activeTab); } catch {}
         return;
       }
-      // Delete / Backspace → remove selected block (only when not typing)
-      if ((ev.key === 'Delete' || ev.key === 'Backspace') && !inField && t.fb.selectedBlockId) {
+      // v4.16.0 — Ctrl/Cmd+A → select all blocks (not when typing)
+      if (mod && !ev.shiftKey && !ev.altKey && !inField && (ev.key === 'a' || ev.key === 'A')) {
+        ev.preventDefault();
+        const p = t.fb.current; if (!p) return;
+        const sel = _fbSelection(t);
+        sel.clear();
+        for (const b of (p.blocks || [])) sel.add(b.id);
+        if (sel.size === 1) {
+          t.fb.selectedBlockId = [...sel][0];
+          const block = (p.blocks || []).find(b => b.id === t.fb.selectedBlockId);
+          fbShowProps(activeTab, block);
+        } else if (sel.size > 1) {
+          t.fb.selectedBlockId = null;
+          fbShowMultiProps(activeTab, sel.size);
+        } else {
+          fbShowProps(activeTab, null);
+        }
+        _fbApplySelectionClasses(activeTab);
+        return;
+      }
+      // v4.16.0 — Escape → clear selection (when not typing)
+      if (!inField && ev.key === 'Escape') {
+        const sel = _fbSelection(t);
+        if (sel.size || t.fb.selectedBlockId) {
+          ev.preventDefault();
+          fbSelectBlock(activeTab, null);
+          return;
+        }
+      }
+      // Delete / Backspace → remove selected block(s) (only when not typing)
+      const _selCount = _fbSelection(t).size;
+      if ((ev.key === 'Delete' || ev.key === 'Backspace') && !inField && (_selCount || t.fb.selectedBlockId)) {
         ev.preventDefault();
         fbDeleteSelectedBlock(activeTab);
         return;
@@ -12158,7 +12375,7 @@ ${fields}
                  ondragover="fbCanvasDragOver(event,'${tabId}')"
                  ondragleave="fbCanvasDragLeave(event,'${tabId}')"
                  ondrop="fbCanvasDrop(event,'${tabId}')"
-                 onclick="if(event.target===this||event.target.classList.contains('fb-canvas')){fbSelectBlock('${tabId}', null);}">
+                 onmousedown="fbCanvasMarqueeStart(event,'${tabId}')">
               <div class="fb-canvas" id="${tabId}-fb-canvas"></div>
             </div>
             <div class="fb-vresize fb-vresize-r" onmousedown="fbStartVResize(event,'${tabId}','right')" title="Drag to resize · double-click to reset"></div>

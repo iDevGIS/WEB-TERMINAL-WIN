@@ -5,6 +5,52 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [4.16.0] — 2026-05-16 — Flow Builder: marquee multi-select + group drag
+
+### Added
+
+- **Marquee selection** — drag on empty canvas area to draw a purple dashed rectangle; every block whose bounding box intersects the marquee joins the selection live as you drag. Release to commit. Hold Shift/Ctrl/Cmd while dragging to add to (rather than replace) the existing selection.
+- **Group drag** — when more than one block is selected and you drag any one of them, all selected blocks translate together by the same `dx`/`dy`. Edges re-route in real time, positions are persisted on `mouseup`, and the pipeline is marked dirty.
+- **Shift / Ctrl / Cmd-click on a block** toggles it in the multi-selection without starting a drag. The most recently toggled-in block becomes the "primary" selection for the Properties panel.
+- **Click empty canvas** clears the selection (replacing the old `onclick`-on-wrap behavior).
+- **Properties panel: multi-select view** — when N > 1 blocks are selected, the right panel shows `N blocks selected` plus inline hints for Drag / Del / Esc / Shift+click.
+- **Keyboard shortcuts**
+  - `Ctrl/Cmd + A` — select all blocks in the current pipeline.
+  - `Esc` — clear selection.
+  - `Delete` / `Backspace` — now removes ALL selected blocks (was: only the single `selectedBlockId`). References (`next[]`, `healFallback`, `loopback`, `startBlock`) are stripped across the pipeline.
+- **Shortcuts help modal** updated with the 6 new entries (Drag on canvas / Shift-Ctrl-click / Drag selected block / Ctrl+A / Esc / Delete).
+
+### How it works
+
+- `t.fb._sel` is a lazy-init `Set<blockId>` per Flow Builder tab; `_fbSelection(t)` returns it, creating on first read. The legacy `t.fb.selectedBlockId` is preserved as the "primary" pick for the Properties panel.
+- Block render adds `.selected` if the id is in the set OR matches the legacy primary id. `_fbApplySelectionClasses(tabId)` is a one-pass DOM sync used everywhere selection changes.
+- `fbCanvasMarqueeStart(ev, tabId)` is bound via inline `onmousedown` on `.fb-canvas-wrap`; it bails out if the mousedown originated on a `.fb-block`, `.fb-minimap`, `.fb-pb`, or any `button/input/textarea/select/a` so existing widgets keep working.
+- `_fbBlocksInRect(t, x0, y0, x1, y1)` does AABB intersection against block `position` + `200×84` size constants (matching the SVG edge code).
+- `_fbAttachBlockDrag` now captures original positions for every block in the drag set (Array<{id, el, origLeft, origTop}>) and applies the same translation in the `requestAnimationFrame` tick.
+
+### Files Modified
+
+- `public/index.html`
+  - CSS: `.fb-marquee` overlay (purple dashed border + tinted fill, `pointer-events: none`).
+  - `_fbSelection`, `_fbApplySelectionClasses`, `fbShowMultiProps`, `fbToggleBlockSelection` — new helpers.
+  - `fbSelectBlock` — clears and rebuilds the selection set, then uses the apply helper.
+  - `_fbBlocksInRect`, `fbCanvasMarqueeStart` — new marquee implementation.
+  - `_fbAttachBlockDrag` — shift-click toggles selection (no drag); group drag when block is part of multi-selection.
+  - `fbDeleteSelectedBlock` — iterates all ids in selection set; updates log to summarize bulk removal.
+  - Block render in `fbRender` — uses selection set for `.selected` class.
+  - Keyboard handler — `Ctrl/Cmd+A`, `Escape`, and Delete updated to handle multi-selection.
+  - Shortcuts help modal — 6 new rows.
+  - Canvas wrap markup — `onclick` replaced with `onmousedown="fbCanvasMarqueeStart(...)"`.
+- `package.json` — `4.15.0` → `4.16.0`.
+
+### Compatibility
+
+- Existing single-block flows are unchanged: a plain click on a block still selects only it; a plain drag on a single-selected block still moves only that block.
+- Pipeline JSON shape is unchanged — selection state lives only in-memory.
+- All previous keyboard shortcuts retained.
+
+---
+
 ## [4.15.0] — 2026-05-15 — Flow Builder: BFS executor — fan-out actually runs all siblings
 
 ### Fixed
