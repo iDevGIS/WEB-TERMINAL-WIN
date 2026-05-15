@@ -5,6 +5,22 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [4.16.2] — 2026-05-16 — Flow Builder: edge arrowheads no longer clipped
+
+### Fixed
+
+- **Arrowheads on edges were being visually clipped or "cut" by the destination block.** Block `<div>`s render on top of the SVG layer, and edges terminated *exactly* at the block boundary — so the arrowhead's triangle was drawn underneath the block.
+- Inserted a `GAP = 14px` standoff before the destination block on all three edge types:
+  - Main edge (right → left): ends `to.x - GAP`
+  - Heal edge (top → bottom of next): ends `to.y - GAP`
+  - Loop edge (right → right): ends `to.x + BW + GAP`
+- Bumped `markerWidth/Height` from `7 → 9` so arrowheads read more crisply at canvas zoom.
+- Themed heal/loop arrowheads via classes `fb-edge-arrow-heal` and `fb-edge-arrow-loop` (parity with main `fb-edge-arrow`) instead of hardcoded `fill=` attributes — same currentColor cascade philosophy as v4.10.x stroke-SVG sweep.
+
+Patched in both `fbRender` (full redraw) and `_fbRedrawEdges` (drag-live redraw) so both paths render arrows identically.
+
+---
+
 ## [4.16.1] — 2026-05-16 — Flow Builder: dropdown legibility hotfix
 
 ### Fixed

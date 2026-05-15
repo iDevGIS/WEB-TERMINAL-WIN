@@ -1625,7 +1625,9 @@
     .fb-edge { stroke: rgba(167,139,250,.55); stroke-width: 2; fill: none; }
     .fb-edge.heal { stroke: #f472b6; stroke-dasharray: 6 4; }
     .fb-edge.loop { stroke: #c084fc; stroke-dasharray: 8 4; }
-    .fb-edge-arrow { fill: rgba(167,139,250,.85); }
+    .fb-edge-arrow { fill: rgba(167,139,250,.95); }
+    .fb-edge-arrow-heal { fill: #f472b6; }
+    .fb-edge-arrow-loop { fill: #c084fc; }
 
     .fb-block { position: absolute; width: 200px; background: rgba(15,15,35,.92); border: 1px solid rgba(255,255,255,.1); border-radius: 12px; padding: 10px 12px; cursor: pointer; transition: border-color .15s, box-shadow .15s; backdrop-filter: blur(8px); font-size: 12px; }
     .fb-block:hover { border-color: rgba(168,85,247,.5); box-shadow: 0 4px 18px rgba(168,85,247,.18); }
@@ -6129,8 +6131,8 @@
       const SVG = 'http://www.w3.org/2000/svg';
       const svg = document.createElementNS(SVG, 'svg');
       svg.setAttribute('class', 'fb-svg');
-      svg.innerHTML = '<defs><marker id="fb-arrow-' + tabId + '" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="fb-edge-arrow"/></marker><marker id="fb-arrow-heal-' + tabId + '" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#f472b6"/></marker><marker id="fb-arrow-loop-' + tabId + '" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#c084fc"/></marker></defs>';
-      const BW = 200, BH = 84;
+      svg.innerHTML = '<defs><marker id="fb-arrow-' + tabId + '" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="fb-edge-arrow"/></marker><marker id="fb-arrow-heal-' + tabId + '" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="fb-edge-arrow-heal"/></marker><marker id="fb-arrow-loop-' + tabId + '" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="fb-edge-arrow-loop"/></marker></defs>';
+      const BW = 200, BH = 84, GAP = 14;
       function _edge(p1, p2, cls, markerId) {
         const mid = (p1.x + p2.x) / 2;
         const path = document.createElementNS(SVG, 'path');
@@ -6143,17 +6145,17 @@
         const from = positions[b.id]; if (!from) continue;
         for (const nid of (b.next || [])) {
           const to = positions[nid]; if (!to) continue;
-          svg.appendChild(_edge({ x: from.x + BW, y: from.y + BH/2 }, { x: to.x, y: to.y + BH/2 }, 'fb-edge', 'fb-arrow-' + tabId));
+          svg.appendChild(_edge({ x: from.x + BW, y: from.y + BH/2 }, { x: to.x - GAP, y: to.y + BH/2 }, 'fb-edge', 'fb-arrow-' + tabId));
         }
         if (b.healFallback && positions[b.healFallback]) {
           const to = positions[b.healFallback];
-          svg.appendChild(_edge({ x: from.x + BW/2, y: from.y + BH }, { x: to.x + BW/2, y: to.y }, 'fb-edge heal', 'fb-arrow-heal-' + tabId));
+          svg.appendChild(_edge({ x: from.x + BW/2, y: from.y + BH }, { x: to.x + BW/2, y: to.y - GAP }, 'fb-edge heal', 'fb-arrow-heal-' + tabId));
         }
         if (b.loopback && positions[b.loopback]) {
           const to = positions[b.loopback];
           const path = document.createElementNS(SVG, 'path');
           const p1 = { x: from.x, y: from.y + BH/2 };
-          const p2 = { x: to.x + BW, y: to.y + BH/2 };
+          const p2 = { x: to.x + BW + GAP, y: to.y + BH/2 };
           const dropY = Math.max(p1.y, p2.y) + 60;
           path.setAttribute('d', 'M' + p1.x + ',' + p1.y + ' C' + (p1.x-50) + ',' + dropY + ' ' + (p2.x+50) + ',' + dropY + ' ' + p2.x + ',' + p2.y);
           path.setAttribute('class', 'fb-edge loop');
@@ -8929,8 +8931,8 @@
       const SVG = 'http://www.w3.org/2000/svg';
       const svg = document.createElementNS(SVG, 'svg');
       svg.setAttribute('class', 'fb-svg');
-      svg.innerHTML = '<defs><marker id="fb-arrow-' + tabId + '" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="fb-edge-arrow"/></marker><marker id="fb-arrow-heal-' + tabId + '" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#f472b6"/></marker><marker id="fb-arrow-loop-' + tabId + '" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#c084fc"/></marker></defs>';
-      const BW = 200, BH = 84;
+      svg.innerHTML = '<defs><marker id="fb-arrow-' + tabId + '" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="fb-edge-arrow"/></marker><marker id="fb-arrow-heal-' + tabId + '" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="fb-edge-arrow-heal"/></marker><marker id="fb-arrow-loop-' + tabId + '" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="fb-edge-arrow-loop"/></marker></defs>';
+      const BW = 200, BH = 84, GAP = 14;
       function _e(p1, p2, cls, mk) {
         const mid = (p1.x + p2.x) / 2;
         const path = document.createElementNS(SVG, 'path');
@@ -8943,17 +8945,17 @@
         const from = positions[b.id]; if (!from) continue;
         for (const nid of (b.next || [])) {
           const to = positions[nid]; if (!to) continue;
-          svg.appendChild(_e({ x: from.x + BW, y: from.y + BH/2 }, { x: to.x, y: to.y + BH/2 }, 'fb-edge', 'fb-arrow-' + tabId));
+          svg.appendChild(_e({ x: from.x + BW, y: from.y + BH/2 }, { x: to.x - GAP, y: to.y + BH/2 }, 'fb-edge', 'fb-arrow-' + tabId));
         }
         if (b.healFallback && positions[b.healFallback]) {
           const to = positions[b.healFallback];
-          svg.appendChild(_e({ x: from.x + BW/2, y: from.y + BH }, { x: to.x + BW/2, y: to.y }, 'fb-edge heal', 'fb-arrow-heal-' + tabId));
+          svg.appendChild(_e({ x: from.x + BW/2, y: from.y + BH }, { x: to.x + BW/2, y: to.y - GAP }, 'fb-edge heal', 'fb-arrow-heal-' + tabId));
         }
         if (b.loopback && positions[b.loopback]) {
           const to = positions[b.loopback];
           const path = document.createElementNS(SVG, 'path');
           const p1 = { x: from.x, y: from.y + BH/2 };
-          const p2 = { x: to.x + BW, y: to.y + BH/2 };
+          const p2 = { x: to.x + BW + GAP, y: to.y + BH/2 };
           const dropY = Math.max(p1.y, p2.y) + 60;
           path.setAttribute('d', 'M' + p1.x + ',' + p1.y + ' C' + (p1.x-50) + ',' + dropY + ' ' + (p2.x+50) + ',' + dropY + ' ' + p2.x + ',' + p2.y);
           path.setAttribute('class', 'fb-edge loop');
