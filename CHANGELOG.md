@@ -5,6 +5,43 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [4.14.0] — 2026-05-15 — Flow Builder: dogfood hotfix bundle (path slashes · manual-run stats · fan-out lint)
+
+### Fixed
+
+- **Store path slashes preserved** — previously `target: "scraps/pipelines-out/sub/file.json"` was sanitized into `scraps_pipelines-out_sub_file.json` (all slashes → underscores), silently collapsing subdirectory layout. Now `target` is treated as relative to `pipelines-out/`, the redundant prefix is auto-stripped if present, each path segment is sanitized independently, and intermediate directories are created with `mkdir -p`. `../` segments are dropped to prevent escape.
+- **Manual `/run` + `/run/stream` now track `lastDurationMs` / `lastAttempts`** — previously only the scheduler updated these, so manual runs left the fields stale. Manual runs record `result.durationMs` and `attempts = 1` on both success and failure paths.
+
+### Added
+
+- **`_pipelineWarnings()` structural lint** — surfaces silent-drop risks the linear walker can't expose:
+  - **Fan-out detection** — any block with `next.length > 1` emits a warning naming the followed branch and the dropped siblings. Special hint when an Extract block has multiple Store children: "Merge into one Store with `formats: ['json','csv',…]`" (uses the existing v4.2.0 multi-format Store capability instead of fan-out).
+  - **Emitted at save-time** — `POST /api/scrap/pipelines` returns `{ ok, pipeline, warnings }` so UI/Sidekick can surface immediately.
+  - **Emitted at run-time** — `_executePipeline` pushes warnings into `state.log` (`WARN fan-out-silent-drop: …`), into `state.warnings`, returns them on the result, and fires SSE `{ kind: "warning", … }` events so live runs flag them before block-by-block progress.
+
+### Why
+
+Yesterday's dogfood (`github.com/trending/javascript`) surfaced five real bugs that the synthetic smoke suites had all missed. Three were pure server-side issues with isolated blast radius: path corruption (silent), missing stats parity (cosmetic), and fan-out silent drop (the worst — a Save+Run looks successful but only one branch ran). This hotfix bundle ships the two simple fixes outright and adds a **lint layer** that makes the structural problem visible everywhere it can occur (save UI, run log, SSE stream). The real BFS executor fix is the next ship (v4.15.0); the lint is what stops users hitting it blind in the meantime.
+
+### Files Modified
+
+- `server.js`
+  - `_pipeExecStore()` — split `target` into dirname/basename, strip redundant `scraps/pipelines-out/` prefix, sanitize per-segment, `mkdir -p` the subdir tree
+  - `_pipelineWarnings()` — new helper, fan-out detection with Extract→Store smart hint
+  - `POST /api/scrap/pipelines` — returns `warnings` array
+  - `_executePipeline()` — emits lint warnings up-front into `state.log` + SSE
+  - `POST /api/scrap/pipelines/:id/run` — sets `lastDurationMs` / `lastAttempts` on both success and error
+  - `GET /api/scrap/pipelines/:id/run/stream` — same parity + includes `warnings` in `result` event
+- `package.json` — 4.13.0 → 4.14.0
+- `CHANGELOG.md`
+
+### Notes
+
+- Server-side change → **restart required** (`server.js` modified; the v4.13.0 tab pin change was client-only).
+- Lint warnings are advisory — the executor still runs; users see the warning but pipelines that worked yesterday keep working today.
+
+---
+
 ## [4.13.0] — 2026-05-15 — Tabs: Phase F 🅲 IDE-shell pack (pin · context menu · middle-click)
 
 ### Added

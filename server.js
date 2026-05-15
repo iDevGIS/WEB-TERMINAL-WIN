@@ -8240,8 +8240,20 @@ async function _pipeExecStore(state, config, ctx) {
   const outDir = path.join(SCRAP_DIR, "pipelines-out");
   if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
 
-  const safeBase = target.replace(/[^a-zA-Z0-9_.-]+/g, "_");
+  // v4.14.0 — preserve subdirectory structure in target path; sanitize each segment independently.
+  // `target` is treated as relative to outDir. Strip redundant scraps/pipelines-out/ prefix if present.
+  const sanitizeSeg = (s) => s.replace(/[^a-zA-Z0-9_.-]+/g, "_");
+  let relTarget = target.replace(/\\/g, "/");
+  relTarget = relTarget.replace(/^(\.\/)?scraps\/pipelines-out\//i, "");
+  const rawDir = path.posix.dirname(relTarget);
+  const rawBase = path.posix.basename(relTarget);
+  const safeBase = sanitizeSeg(rawBase);
   const stem = safeBase.replace(/\.[^.]+$/, "") || "rows";
+  const subDirs = (rawDir && rawDir !== "." && rawDir !== "/")
+    ? rawDir.split("/").filter(s => s && s !== "..").map(sanitizeSeg)
+    : [];
+  const finalDir = subDirs.length ? path.join(outDir, ...subDirs) : outDir;
+  if (!fs.existsSync(finalDir)) fs.mkdirSync(finalDir, { recursive: true });
 
   const formatExt = (f) => (f === "jsonl" ? "ndjson" : f === "markdown" ? "md" : f);
   const outputFiles = [];
@@ -8250,7 +8262,7 @@ async function _pipeExecStore(state, config, ctx) {
     if (fmt === "sqlite") {
       try {
         const fname = `${stem}.sqlite`;
-        const fpath = path.join(outDir, fname);
+        const fpath = path.join(finalDir, fname);
         const r = _storeWriteSqlite(rows, fpath, config, state);
         outputFiles.push(path.resolve(fpath));
         state.log.push(`store: sqlite ok (${r.rowsWritten} rows → table '${r.table}', mode=${r.mode})`);
@@ -8260,7 +8272,7 @@ async function _pipeExecStore(state, config, ctx) {
       continue;
     }
     const fname = `${stem}.${formatExt(fmt)}`;
-    const fpath = path.join(outDir, fname);
+    const fpath = path.join(finalDir, fname);
     let content = "";
     if (fmt === "csv") {
       const cols = rows.length ? Object.keys(rows[0]) : [];
@@ -8396,6 +8408,32 @@ async function _pipeExecFollow(state, config, ctx) {
   return state;
 }
 
+// v4.14.0 — pipeline-level lint. Surfaces structural issues that the linear walker silently masks.
+// Today: fan-out branches (executor follows block.next[0] only — siblings are dropped without trace).
+function _pipelineWarnings(pipeline) {
+  const warnings = [];
+  if (!pipeline || !Array.isArray(pipeline.blocks)) return warnings;
+  for (const b of pipeline.blocks) {
+    const outs = Array.isArray(b.next) ? b.next.filter(Boolean) : [];
+    if (outs.length > 1) {
+      const labels = outs.map(id => {
+        const target = pipeline.blocks.find(x => x.id === id);
+        return target ? `${target.type}@${id}` : id;
+      });
+      warnings.push({
+        blockId: b.id,
+        type: b.type,
+        kind: "fan-out-silent-drop",
+        message: `${b.type}@${b.id} has ${outs.length} outgoing edges — executor only follows the first (${labels[0]}). Siblings dropped: ${labels.slice(1).join(", ")}.`,
+        hint: b.type === "extract" && outs.every(id => pipeline.blocks.find(x => x.id === id)?.type === "store")
+          ? "Multiple Store blocks after Extract? Merge into one Store with `formats: ['json','csv',...]`."
+          : "BFS executor is a planned change (v4.15.0). For now, chain blocks linearly.",
+      });
+    }
+  }
+  return warnings;
+}
+
 // v4.5.0 — classify block failure into category + actionable hints (max 3)
 function _pipeClassifyError(blockType, errMsg, blockConfig, state) {
   const msg = String(errMsg || "").toLowerCase();
@@ -8466,6 +8504,7 @@ async function _executePipeline(pipeline, opts = {}) {
     healed: [],
     lastBlockRowCount: 0,
     needsHeal: false,
+    warnings: [],
   };
   const ctx = { lastExtractConfig: null, healedSelectors: null };
   const visited = new Map(); // blockId -> visit count (for follow loops)
@@ -8483,6 +8522,15 @@ async function _executePipeline(pipeline, opts = {}) {
   const onProgress = typeof opts.onProgress === "function" ? opts.onProgress : () => {};
   const startedAt = Date.now();
   const maxMs = Math.max(5000, opts.maxMs || 120_000);
+  // v4.14.0 — emit structural warnings (e.g. fan-out drop) up-front so the user sees them even on success
+  const lintWarnings = _pipelineWarnings(pipeline);
+  if (lintWarnings.length) {
+    state.warnings.push(...lintWarnings);
+    for (const w of lintWarnings) {
+      state.log.push(`WARN ${w.kind}: ${w.message}`);
+      try { onProgress({ kind: "warning", ...w }); } catch {}
+    }
+  }
   try { onProgress({ kind: "start", pipelineId: pipeline.id, blockCount: pipeline.blocks.length, startBlock: startId }); } catch {}
   while (currentId) {
     if (Date.now() - startedAt > maxMs) {
@@ -8542,6 +8590,7 @@ async function _executePipeline(pipeline, opts = {}) {
     rowCount: state.rows.length,
     errors: state.errors,
     errorDetails: state.errorDetails,
+    warnings: state.warnings,
     log: state.log,
     healed: state.healed,
     outputFile: state.outputFile || null,
@@ -8571,7 +8620,9 @@ app.post("/api/scrap/pipelines", requireAuth, express.json({ limit: "2mb" }), (r
     list.push(p);
   }
   savePipelines(list);
-  res.json({ ok: true, pipeline: p });
+  // v4.14.0 — surface structural issues the linear walker would silently mask
+  const warnings = _pipelineWarnings(p);
+  res.json({ ok: true, pipeline: p, warnings });
 });
 
 // v4.7.0 — list snapshots for a pipeline (most recent first, ring buffer 20)
@@ -8624,6 +8675,9 @@ app.post("/api/scrap/pipelines/:id/run", requireAuth, express.json({ limit: "128
     p.lastRunAt = new Date().toISOString();
     p.lastRowCount = result.rowCount;
     p.lastError = result.ok ? null : (result.errors.join("; ") || "errors");
+    // v4.14.0 — manual runs track duration/attempts on parity with scheduled runs
+    p.lastDurationMs = result.durationMs || 0;
+    p.lastAttempts = 1;
     // v4.2.2 — manual successful run resets failure tracking and resumes auto-pause
     if (result.ok) {
       p.consecutiveFailures = 0;
@@ -8637,6 +8691,8 @@ app.post("/api/scrap/pipelines/:id/run", requireAuth, express.json({ limit: "128
     res.json({ ok: result.ok, ...result, pipeline: p });
   } catch (e) {
     p.lastError = String(e.message || e); p.lastRunAt = new Date().toISOString();
+    p.lastDurationMs = 0;
+    p.lastAttempts = 1;
     p.consecutiveFailures = (p.consecutiveFailures || 0) + 1;
     savePipelines(list);
     res.status(500).json({ error: p.lastError });
@@ -8671,6 +8727,9 @@ app.get("/api/scrap/pipelines/:id/run/stream", requireAuth, async (req, res) => 
     p.lastRunAt = new Date().toISOString();
     p.lastRowCount = result.rowCount;
     p.lastError = result.ok ? null : (result.errors.join("; ") || "errors");
+    // v4.14.0 — manual SSE runs track duration/attempts on parity with scheduled runs
+    p.lastDurationMs = result.durationMs || 0;
+    p.lastAttempts = 1;
     // v4.2.2 — successful manual SSE run resets failure tracking + resumes auto-pause
     if (result.ok) {
       p.consecutiveFailures = 0;
@@ -8681,9 +8740,11 @@ app.get("/api/scrap/pipelines/:id/run/stream", requireAuth, async (req, res) => 
       p.consecutiveFailures = (p.consecutiveFailures || 0) + 1;
     }
     savePipelines(list);
-    send("result", { ok: result.ok, rowCount: result.rowCount, durationMs: result.durationMs, outputFile: result.outputFile, outputFiles: result.outputFiles, errors: result.errors, errorDetails: result.errorDetails, pipeline: p });
+    send("result", { ok: result.ok, rowCount: result.rowCount, durationMs: result.durationMs, outputFile: result.outputFile, outputFiles: result.outputFiles, errors: result.errors, errorDetails: result.errorDetails, warnings: result.warnings || [], pipeline: p });
   } catch (e) {
     p.lastError = String(e.message || e); p.lastRunAt = new Date().toISOString();
+    p.lastDurationMs = 0;
+    p.lastAttempts = 1;
     p.consecutiveFailures = (p.consecutiveFailures || 0) + 1;
     savePipelines(list);
     send("fatal", { error: p.lastError });
