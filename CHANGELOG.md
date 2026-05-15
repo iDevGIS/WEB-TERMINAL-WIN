@@ -5,6 +5,27 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [4.25.0] — 2026-05-16 — Dogfood-3 prep: real-world templates + playbook
+
+Closing ship of the overnight v4.20–v4.25 cascade (ship `f`). Replaces the closing stretch of toy-target dogfood (HN/quotes) with four real-world Flow Builder templates that exercise the new ships in actual production-like scenarios.
+
+### Added
+
+- **`reddit-json` template** (category: Social) — Public Reddit subreddit JSON endpoint (`https://www.reddit.com/r/programming.json`). Zero-HTML, multi-format store (json + jsonl). Exercises pass-through-extract path.
+- **`arxiv-recent` template** (category: Research) — arXiv cs.AI recent papers. DOM with `<dt>/<dd>` sibling-pair structure. SQLite upsert by arXiv id. Multi-format store (json + csv + sqlite). Schedule: every 12 hours.
+- **`thairath-news` template** (category: News) — Thai-language news inventory. Tests Unicode field names + multi-format store (json + csv + md). Selectors may drift weekly — self-heal candidate.
+- **`twitter-cdp` template** (category: Social · Login) — Twitter/X timeline scrape using **v4.20.1 block-level engine override**. Pre-configured with `engine: cdp` + `cdpEndpoint: http://localhost:9222` + `scroll: true` + `waitMs: 3000`. The headline test for the entire CDP cascade (v4.19/v4.20).
+- **`docs/DOGFOOD-3.md`** — playbook for the closing dogfood round. Pre-flight checklist (incl. the Chrome `--remote-debugging-port=9222` launch command for CDP testing), friction-hunting protocol with a structured log shape, per-ship dogfood matrix (what to test for each of v4.20.1 → v4.24.0), and next-round (dogfood-4) seed ideas.
+
+### Notes
+
+- All four templates auto-surface via existing `pipeline_list_templates` + `pipeline_create_from_template` Cross-Tab tools. No tool schema changes.
+- Templates use the `formats:[]` array form throughout, so they're already canonical w.r.t. v4.24.0 merge-to-formats.
+- Twitter template's `engine: cdp` requires Chrome `--remote-debugging-port=9222` running on the server. If not running, fetch fails with the actionable launch command in the error message.
+- This closes the overnight cascade `a → b → c → d → e → f`. Total: 6 ships, 6 versions (4.20.1, 4.21.0, 4.22.0, 4.23.0, 4.24.0, 4.25.0), 4 new Sidekick tools (canvas_multi_select, canvas_batch_move, panel_set_preset, pipeline_merge_stores), 1 server-side migration endpoint, 4 dogfood templates, 1 playbook doc.
+
+---
+
 ## [4.24.0] — 2026-05-16 — Pipeline merge-to-formats migration
 
 Ship `e` of the overnight cascade. Closes the long-standing "sibling stores ↔ one store with `formats:[]`" gap noted in the fan-out lint warning (v4.15.0). Two-store-after-extract is a common authoring mistake; this provides both a programmatic fix and an AI-driven path for chatting "merge the stores in pipeline X."

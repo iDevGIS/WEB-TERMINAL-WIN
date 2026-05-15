@@ -7682,6 +7682,83 @@
           };
         },
       },
+      // v4.25.0 — Dogfood-3 templates: surfaces that exercise CDP engine, formats:[] arrays, and varied site shapes
+      {
+        key: 'reddit-json',
+        name: 'Reddit (JSON endpoint)',
+        icon: '👽',
+        category: 'Social',
+        description: 'Public Reddit subreddit JSON endpoint — append .json to any subreddit URL. No login, fast, easy. Stores raw JSON + JSONL.',
+        build() {
+          return {
+            name: 'Reddit r/programming JSON',
+            blocks: [
+              { id: 'fetch', type: 'fetch', name: 'Fetch subreddit JSON', config: { mode: 'static', url: 'https://www.reddit.com/r/programming.json' }, next: ['extract'], position: { x: 60, y: 80 } },
+              { id: 'extract', type: 'extract', name: 'Pass-through (raw JSON)', config: { root: '', fields: {} }, next: ['store'], position: { x: 360, y: 80 } },
+              { id: 'store', type: 'store', name: 'Store JSON + JSONL', config: { format: 'json', formats: ['jsonl'], path: 'scraps/pipelines-out/reddit-programming.json' }, next: [], position: { x: 660, y: 80 } },
+            ],
+            startBlock: 'fetch',
+            schedule: { enabled: false, intervalMin: 60 },
+          };
+        },
+      },
+      {
+        key: 'arxiv-recent',
+        name: 'arXiv cs.AI Recent',
+        icon: '📚',
+        category: 'Research',
+        description: 'arXiv recent papers in cs.AI — title, authors, abstract, arXiv id. Stores JSON + CSV + SQLite upsert by arXiv id.',
+        build() {
+          return {
+            name: 'arXiv cs.AI Recent',
+            blocks: [
+              { id: 'fetch', type: 'fetch', name: 'Fetch arXiv cs.AI recent', config: { mode: 'static', url: 'https://arxiv.org/list/cs.AI/recent' }, next: ['extract'], position: { x: 60, y: 80 } },
+              { id: 'extract', type: 'extract', name: 'Extract paper entries', config: { root: 'dl#articles > dt, dl > dt', fields: { id: 'a[title="Abstract"]', title: '+ dd .list-title', authors: '+ dd .list-authors', subjects: '+ dd .list-subjects' } }, next: ['store'], position: { x: 360, y: 80 } },
+              { id: 'store', type: 'store', name: 'Store JSON + CSV + SQLite (upsert by id)', config: { format: 'json', formats: ['csv', 'sqlite'], path: 'scraps/pipelines-out/arxiv-cs-ai.json', sqlite: { table: 'arxiv_cs_ai', mode: 'upsert', upsertKey: 'id' } }, next: [], position: { x: 660, y: 80 } },
+            ],
+            startBlock: 'fetch',
+            schedule: { enabled: true, intervalMin: 720 },
+          };
+        },
+      },
+      {
+        key: 'thairath-news',
+        name: 'Thairath ข่าวล่าสุด',
+        icon: '🇹🇭',
+        category: 'News',
+        description: 'ดึงข่าวล่าสุดจาก thairath.co.th — รองรับภาษาไทย (Unicode ปกติ) เก็บ JSON + CSV + MD. ตัวอย่าง dogfood-3 สำหรับเว็บไทย.',
+        build() {
+          return {
+            name: 'Thairath ข่าวล่าสุด',
+            blocks: [
+              { id: 'fetch', type: 'fetch', name: 'Fetch thairath.co.th', config: { mode: 'static', url: 'https://www.thairath.co.th/' }, next: ['extract'], position: { x: 60, y: 80 } },
+              { id: 'extract', type: 'extract', name: 'Extract news entries', config: { root: 'article, .css-1ru1b25, a[href*="/news/"]', fields: { title: 'h3, .title, h2', link: 'a@href', section: '.section, .category' } }, next: ['store'], position: { x: 360, y: 80 } },
+              { id: 'store', type: 'store', name: 'Store JSON + CSV + MD', config: { format: 'json', formats: ['csv', 'md'], path: 'scraps/pipelines-out/thairath-news.json' }, next: [], position: { x: 660, y: 80 } },
+            ],
+            startBlock: 'fetch',
+            schedule: { enabled: false, intervalMin: 60 },
+          };
+        },
+      },
+      {
+        key: 'twitter-cdp',
+        name: 'Twitter/X (CDP, logged-in)',
+        icon: '🐦',
+        category: 'Social · Login',
+        description: 'ตัวอย่าง CDP engine — scrape Twitter timeline ด้วย session จริง. ต้องเปิด Chrome --remote-debugging-port=9222 บน ROG และ login Twitter ก่อน. ปรับ URL ก่อนรัน.',
+        build() {
+          return {
+            name: 'Twitter X timeline (CDP)',
+            blocks: [
+              { id: 'fetch', type: 'fetch', name: 'Fetch X timeline (CDP, logged-in)', config: { mode: 'browser', url: 'https://x.com/home', engine: 'cdp', cdpEndpoint: 'http://localhost:9222', waitMs: 3000, scroll: true }, next: ['extract'], position: { x: 60, y: 80 } },
+              { id: 'extract', type: 'extract', name: 'Extract tweets', config: { root: 'article[data-testid="tweet"]', fields: { user: '[data-testid="User-Name"] span', text: '[data-testid="tweetText"]', link: 'a[href*="/status/"]@href' } }, next: ['store'], position: { x: 360, y: 80 } },
+              { id: 'store', type: 'store', name: 'Store JSON + JSONL', config: { format: 'json', formats: ['jsonl'], path: 'scraps/pipelines-out/x-timeline.json' }, next: [], position: { x: 660, y: 80 } },
+            ],
+            startBlock: 'fetch',
+            schedule: { enabled: false, intervalMin: 240 },
+          };
+        },
+      },
     ];
 
     function _fbCloneTemplate(key) {
