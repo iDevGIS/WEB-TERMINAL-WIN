@@ -5,6 +5,19 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [4.19.1] — 2026-05-16 — Tab Browser hotfix: iframe teardown + sticky error
+
+### Fixed
+
+- **CSP console spam on Pro/CDP switch** — when switching mode away from Live/Proxy, the iframe was only hidden (`display:none`) but kept its previous `src` (e.g. `https://github.com/`), so the browser kept retrying to frame it and logged `frame-ancestors 'none'` violations on every reflow. Now `frame.src = 'about:blank'` runs before the iframe is hidden.
+- **`ws.onclose` clobbered actionable error messages** — Pro/CDP `onmessage` could surface a real error frame (e.g. "Cannot connect to Chrome at http://localhost:9222. Start Chrome first: …"), but the close handler then overwrote it with the generic "Disconnected" string milliseconds later. Now `_hadError` is set when an explicit error arrives, and `onerror`/`onclose` skip the overwrite — so the actionable message stays on screen for the user to read.
+
+### Notes
+
+- Client-only diff (index.html). No server restart required — `Ctrl+Shift+R` after pulling is enough.
+
+---
+
 ## [4.19.0] — 2026-05-16 — Tab Browser CDP mode: attach to user's real Chrome
 
 ### Added

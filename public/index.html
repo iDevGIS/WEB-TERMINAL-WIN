@@ -5841,6 +5841,9 @@
       const frame = document.getElementById(tabId + '-bb-frame');
       if (!frame) return;
       _browserTabProStop(tabId);
+      // v4.19.1: blank iframe src BEFORE hiding so CSP'd page (e.g. github.com)
+      // stops re-attempting to load → no more `frame-ancestors` spam in console
+      try { frame.src = 'about:blank'; } catch {}
       frame.style.display = 'none';
       const parent = frame.parentNode;
       const wrap = document.createElement('div');
@@ -5879,6 +5882,8 @@
       const ws = new WebSocket(wsUrl);
 
       let lastUrl = startUrl;
+      // v4.19.1: track explicit error so ws.onclose doesn't clobber actionable message
+      let _hadError = false;
       ws.onopen = () => { status.textContent = isCdp ? '🔧 Loading…' : '🤖 Loading…'; fitCanvas(); };
       ws.onmessage = (ev) => {
         let m; try { m = JSON.parse(ev.data); } catch { return; }
@@ -5917,6 +5922,7 @@
             }
           } catch {}
         } else if (m.type === 'error') {
+          _hadError = true;
           status.style.display = 'block';
           status.textContent = '⚠ ' + (m.message || 'unknown error');
           status.style.color = '#fb7185';
@@ -5928,8 +5934,8 @@
           lastUrl = m.url || startUrl;
         }
       };
-      ws.onerror = () => { status.style.display = 'block'; status.textContent = '⚠ Connection error'; status.style.color = '#fb7185'; };
-      ws.onclose = () => { status.style.display = 'block'; status.textContent = 'Disconnected'; status.style.color = '#fb7185'; };
+      ws.onerror = () => { if (_hadError) return; status.style.display = 'block'; status.textContent = '⚠ Connection error'; status.style.color = '#fb7185'; };
+      ws.onclose = () => { if (_hadError) return; status.style.display = 'block'; status.textContent = 'Disconnected'; status.style.color = '#fb7185'; };
 
       function mapCoords(ev) {
         const r = canvas.getBoundingClientRect();
