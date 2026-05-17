@@ -10046,6 +10046,64 @@ async function _recordingTick() {
 setInterval(_recordingTick, RECORDING_TICK_MS).unref();
 setTimeout(_recordingTick, 30_000).unref?.();
 
+// v4.33.0 — unified scheduler dashboard: list all scheduled pipelines + recordings
+// in one shape so the client can render a single "what is running on this machine" view.
+app.get("/api/scheduler/status", requireAuth, (req, res) => {
+  const out = [];
+  try {
+    const pipelines = loadPipelines();
+    for (const p of pipelines) {
+      const sch = p.schedule;
+      if (!sch || !sch.enabled) continue; // only enabled schedules
+      out.push({
+        type: "pipeline",
+        id: p.id,
+        name: p.name || p.id,
+        enabled: !!sch.enabled,
+        intervalMin: parseInt(sch.intervalMin) || 60,
+        lastRunAt: p.lastRunAt || null,
+        nextRunAt: p.nextRunAt || null,
+        lastError: p.lastError || null,
+        lastDurationMs: p.lastDurationMs || null,
+        lastRowCount: p.lastRowCount || 0,
+        pausedReason: sch.pausedReason || null,
+        consecutiveFailures: p.consecutiveFailures || 0,
+      });
+    }
+  } catch (e) { /* tolerant: pipelines may be unavailable */ }
+  try {
+    const recs = loadRecordings();
+    for (const r of recs) {
+      const sch = r.schedule;
+      if (!sch || !sch.enabled) continue;
+      out.push({
+        type: "recording",
+        id: r.id,
+        name: r.name || r.id,
+        enabled: !!sch.enabled,
+        intervalMin: parseInt(sch.intervalMin) || 60,
+        lastRunAt: sch.lastRunAt || null,
+        nextRunAt: sch.nextRunAt || null,
+        lastError: sch.lastError || null,
+        lastDurationMs: sch.lastDurationMs || null,
+        lastHealedCount: sch.lastHealedCount || 0,
+        pausedReason: sch.pausedReason || null,
+        consecutiveFailures: sch.consecutiveFailures || 0,
+      });
+    }
+  } catch (e) { /* tolerant */ }
+  // sort: paused first (need attention), then by nextRunAt ascending (soonest first)
+  out.sort((a, b) => {
+    const pa = a.pausedReason ? 0 : 1;
+    const pb = b.pausedReason ? 0 : 1;
+    if (pa !== pb) return pa - pb;
+    const na = a.nextRunAt ? new Date(a.nextRunAt).getTime() : Infinity;
+    const nb = b.nextRunAt ? new Date(b.nextRunAt).getTime() : Infinity;
+    return na - nb;
+  });
+  res.json({ items: out, count: out.length, serverTime: new Date().toISOString() });
+});
+
 // === Recordings CRUD ===
 // v4.31.0 — tag normalizer: lowercase, trim, max 20 chars, max 8 tags, alphanumeric+dash+underscore
 function _normalizeTags(input) {

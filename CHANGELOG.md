@@ -5,6 +5,40 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [4.33.0] — 2026-05-17 — Scheduler Dashboard (unified pipelines + recordings)
+
+A single-pane view of "what is running on this machine." After v4.1.0 added pipeline schedules and v4.32.0 added recording schedules, the user had to open Flow Builder for one and the Recordings panel for the other to see active jobs. `GET /api/scheduler/status` collapses both into a single sorted feed — paused-first, then next-run-ascending — and a new 🕒 button in the Recordings panel head opens a read-only table showing type, name, status badge (healthy/failing/paused/idle), interval, last/next run, duration, extra (rows for pipelines, healed-count for recordings), and last error. Auto-refreshes every 30s while open.
+
+### Why
+Schedulers fail silently — that is their entire failure mode. A pipeline runs every hour and quietly accumulates failures for a week before the user notices the row count went to zero; a recording's selectors drift, Self-Heal masks 3 falls, then the 4th breaks but logs are buried in the recording's modal. A dashboard shows "you have 7 scheduled jobs, 2 are paused, 1 is failing, here is why" in 3 seconds of glanceable color. Users do not need clickable actions in the dashboard — clicking through to the entity's own UI (Flow Builder / Recordings panel ⏱) is the right place for state changes. Read-only dashboard = zero state-management complexity, maximum signal density.
+
+### Highlights
+
+- **`GET /api/scheduler/status`** (auth-gated): returns `{items: [], count, serverTime}`. Each item: `{type: "pipeline"|"recording", id, name, enabled, intervalMin, lastRunAt, nextRunAt, lastError, lastDurationMs, pausedReason, consecutiveFailures}` + type-specific extras (`lastRowCount` for pipelines, `lastHealedCount` for recordings). Sorted: paused first (need attention), then nextRunAt ascending (soonest next). Filters to enabled-only to keep noise out of the active view; disabled schedules are hidden.
+- **Dashboard modal** (`.sch-dash-modal`): 9-column table — type chip (blue ⚙ for pipeline, purple 📼 for recording), name, status badge, interval, last run, next run, duration, extra, last error. Sticky header, hover highlights, truncated error column with full text in title tooltip.
+- **Status badge logic**: `pausedReason` → red `⏸ paused`; `consecutiveFailures > 0` → yellow `⚠ failing (N)`; `lastRunAt` set + no failures → green `✓ healthy`; nothing yet → gray `… idle`. Two-tier severity (paused beats failing) so the user can triage at a glance.
+- **Extra column**: pipelines show `N rows` from last run (data freshness signal); recordings show `⚡ N healed` in yellow when Self-Heal fired, else `—`. Each feature surfaces the metric users care most about.
+- **30-second auto-refresh** via `setInterval` while modal open; cleared on close. Manual `⟳ Refresh` button for immediate update without waiting for the next tick. Meta line shows `N active · refreshed HH:MM:SS` so the user knows the data freshness.
+- **Empty state**: "Nothing scheduled. Enable a schedule on a pipeline (Flow Builder → schedule) or recording (📼 panel → ⏱ button)." Points the user at the existing entity-management surfaces — dashboard never accumulates state-change UI of its own.
+- **Entry button**: 🕒 in the Recordings panel head (next to ✕), since most users will land in the Recordings panel first after the v4.31/v4.32 ships. Future Phase H ship could add it to the Browser tab toolbar too.
+
+### Files touched
+- `server.js` — `/api/scheduler/status` endpoint (+55)
+- `public/index.html` — dashboard CSS (+34), `_schDashOpen` / `_schDashClose` / `_schDashRefresh` helpers (+75), 🕒 entry button in panel head (+1)
+- `package.json` — `4.32.0` → `4.33.0`
+- `CHANGELOG.md` — this entry
+
+### Test plan
+1. Enable a recording schedule (📼 → ⏱ → enable → save) and a pipeline schedule (Flow Builder → schedule).
+2. Open Recordings panel → click 🕒 in the head → dashboard modal opens showing both rows.
+3. Verify sort: any paused row appears above any non-paused row; otherwise rows are ordered by next-run-soonest first.
+4. Wait 30s → auto-refresh fires; meta line timestamp updates; failing-counter increments if any schedule fails.
+5. Click ⟳ Refresh manually → immediate update without waiting.
+6. Hover the error cell on a failing row → tooltip shows full error text (truncated in cell).
+7. Disable all schedules → dashboard shows empty state pointing back at entity-management surfaces.
+
+---
+
 ## [4.32.0] — 2026-05-17 — Recording Scheduler (standalone cron)
 
 Recordings get their own scheduler — no need to wrap a recording in a pipeline first to put it on a cron. A `schedule` block on the recording (enabled, intervalMin, engine, cdpEndpoint, vars, continueOnError) drives a 60-second background tick that mirrors the v4.1.0/v4.2.2 pipeline scheduler pattern: lastRunAt + nextRunAt persistence, retry on transient failure (inherited via `_replayRecording`), exponential backoff on real failures, auto-pause after 5 consecutive failures with a resume endpoint.
