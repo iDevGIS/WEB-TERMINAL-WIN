@@ -5,6 +5,44 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [4.32.0] — 2026-05-17 — Recording Scheduler (standalone cron)
+
+Recordings get their own scheduler — no need to wrap a recording in a pipeline first to put it on a cron. A `schedule` block on the recording (enabled, intervalMin, engine, cdpEndpoint, vars, continueOnError) drives a 60-second background tick that mirrors the v4.1.0/v4.2.2 pipeline scheduler pattern: lastRunAt + nextRunAt persistence, retry on transient failure (inherited via `_replayRecording`), exponential backoff on real failures, auto-pause after 5 consecutive failures with a resume endpoint.
+
+The catalog UI gains a green `⏱ 60m · next 14:35` badge next to enabled recordings and a red `⏱ paused` badge when auto-paused. A new ⏱ action button on every row opens a 6-field schedule modal showing interval, engine, CDP endpoint, vars JSON, continue-on-error, plus a status block with last run + duration + healed count + next run + (when paused) the pause reason and resume button.
+
+### Why
+Two flows want the same thing for different reasons. Pipelines: "scrape a paginated list, store rows, repeat every hour." Recordings: "log into the prod dashboard every morning at 9am and screenshot the alerts page." Both need cron, retry, backoff, auto-pause. Wrapping a recording in a 1-block pipeline to get scheduling was the v4.28.0/v4.29.0 workaround; it works but creates orphaned hidden pipelines that confuse the Flow Builder. Native scheduling on the recording entity removes the indirection: the user thinks "schedule THIS recording", clicks ⏱, sets `every 60min · enabled`, done — no pipeline involved.
+
+### Highlights
+
+- **`recording.schedule` schema** (additive, backcompat): `{enabled, intervalMin, engine, cdpEndpoint, continueOnError, vars, lastRunAt, nextRunAt, lastError, lastDurationMs, lastHealedCount, consecutiveFailures, pausedReason, pausedAt}`. Pre-v4.32 recordings have no `schedule` field; missing = no schedule = tick skips, no migration.
+- **`_recordingTick()`** background loop (60s interval, 30s warmup): mirrors `_pipelineTick` exactly — loops loadRecordings(), skips disabled/paused, honors `nextRunAt` with legacy `lastRunAt + intervalMs` fallback, calls `_replayRecording` with sink that captures lastError + lastHealedCount, computes `nextRunAt` with `Math.min(2^(failures-1), 16) * intervalMs` exponential backoff, auto-pauses at `RECORDING_MAX_FAILURES=5`.
+- **`PUT /api/recordings/:id/schedule`**: enable/disable + set interval + engine/cdpEndpoint/vars/continueOnError. Preserves run history (lastRunAt/lastError/etc.) across edits so toggling enabled does not nuke prior stats. When enabling, defaults nextRunAt to "1 second ago" so the next tick fires immediately rather than waiting the full interval.
+- **`POST /api/recordings/:id/schedule/resume`**: clears `pausedReason` + `consecutiveFailures` + forces `nextRunAt` past, so the next tick re-tries an auto-paused recording after the user fixes the upstream issue (selector drift, target site outage, expired session).
+- **`GET /api/recordings`** list response now includes a per-item `schedule` summary: enabled, intervalMin, lastRunAt, nextRunAt, lastError, lastDurationMs, lastHealedCount, pausedReason, consecutiveFailures.
+- **Catalog row badge**: `⏱ 60m · next 14:35` green chip when enabled (locale-formatted next-run time); `⏱ paused` red chip when auto-paused; nothing rendered when no schedule. Both chips clickable → opens modal.
+- **Schedule modal**: 6-field form (enabled/intervalMin/engine/cdpEndpoint/vars/continueOnError) + status block with formatted last-run timestamps + lastHealedCount + lastError. When paused, status row goes red + Resume button appears in footer.
+- **Vars JSON validation client-side**: rejects empty string (becomes null), parse-checks JSON, requires plain object (not array).
+
+### Files touched
+- `server.js` — `_recordingTick` + constants (+85), schedule PUT endpoint (+30), schedule resume endpoint (+15), list response schedule summary (+11)
+- `public/index.html` — schedule badge + modal CSS (+50), badge HTML in row (+13), ⏱ action button (+1), `_recSchedOpen` / `_recSchedClose` / `_recSchedSave` / `_recSchedResume` helpers (+100)
+- `package.json` — `4.31.0` → `4.32.0`
+- `CHANGELOG.md` — this entry
+
+### Test plan
+1. Reload `/` → 📼 panel → ⏱ button on any row → modal opens with current schedule (or empty defaults).
+2. Set Enabled=on, Every=1, Engine=playwright, Save → modal closes → row shows green `⏱ 1m · next HH:MM` badge.
+3. Wait ~60s → server log shows `[recording-tick]` activity; reopen modal → status block shows "Last run: ..., Duration: Nms, Last result: ok, Next run: ...".
+4. Edit a step to use a broken selector → wait next tick → status block shows lastError; consecutiveFailures increments.
+5. After 5 failures → row badge flips to red `⏱ paused`; modal status shows pause reason + Resume button.
+6. Click Resume → consecutiveFailures resets to 0, nextRunAt set to past, scheduler re-tries on next tick.
+7. PUT `/api/recordings/:id/schedule` with `enabled:false` → row badge disappears; tick skips.
+8. Pre-v4.32 recordings (no `schedule`) render no badge; clicking ⏱ opens modal with all defaults.
+
+---
+
 ## [4.31.0] — 2026-05-17 — Recording Catalog (search · sort · tags)
 
 The Recordings panel grows past flat-list ergonomics. With Self-Heal v4.30.0 making recordings durable enough to keep around, users accumulate dozens — and `Ctrl+F` on a `.json` blob does not scale. v4.31.0 adds a **toolbar row** above the recording list with a live search input (matches name + start URL), a sort dropdown (6 orders), per-row **tag chips**, and a yellow active-tag filter pill that says "you are filtered, click X to clear."

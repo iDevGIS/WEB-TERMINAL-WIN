@@ -9969,6 +9969,83 @@ recWss.on("connection", async (ws, req) => {
   }
 });
 
+// v4.32.0 — Recording scheduler tick. Mirrors `_pipelineTick` pattern: 60s interval, per-record schedule
+// state (enabled/intervalMin/lastRunAt/nextRunAt/consecutiveFailures/pausedReason).
+const RECORDING_MAX_FAILURES = 5;       // auto-pause threshold
+const RECORDING_BACKOFF_CAP_X = 16;     // max backoff = interval * 16
+const RECORDING_TICK_MS = 60_000;
+let _recordingTickInFlight = false;
+
+async function _recordingTick() {
+  if (_recordingTickInFlight) return;
+  _recordingTickInFlight = true;
+  try {
+    const list = loadRecordings();
+    if (!list.length) return;
+    const now = Date.now();
+    let mutated = false;
+    for (const rec of list) {
+      const sch = rec.schedule;
+      if (!sch || !sch.enabled) continue;
+      if (sch.pausedReason) continue;
+      const intervalMs = Math.max(60, parseInt(sch.intervalMin) || 60) * 60 * 1000;
+      const nextMs = sch.nextRunAt ? new Date(sch.nextRunAt).getTime() : 0;
+      if (nextMs && now < nextMs) continue;
+      if (!nextMs) {
+        const lastMs = sch.lastRunAt ? new Date(sch.lastRunAt).getTime() : 0;
+        if (lastMs && (now - lastMs) < intervalMs) continue;
+      }
+      const nowIso = new Date().toISOString();
+      const t0 = Date.now();
+      let lastError = null;
+      let healedCount = 0;
+      const events = [];
+      const writeSink = (obj) => {
+        events.push(obj);
+        if (obj && obj.type === 'step-fail') lastError = obj.error || 'step failed';
+        if (obj && obj.type === 'error') lastError = obj.message || 'error';
+        if (obj && obj.type === 'step-ok' && obj.healed) healedCount++;
+      };
+      try {
+        await _replayRecording(rec, {
+          engine: (sch.engine || 'playwright'),
+          cdpEndpoint: (sch.cdpEndpoint || 'http://localhost:9222'),
+          continueOnError: !!sch.continueOnError,
+          vars: (sch.vars && typeof sch.vars === 'object') ? sch.vars : null,
+        }, writeSink);
+      } catch (e) {
+        lastError = String(e.message || e);
+      }
+      sch.lastRunAt = nowIso;
+      sch.lastDurationMs = Date.now() - t0;
+      sch.lastHealedCount = healedCount;
+      if (lastError) {
+        sch.lastError = String(lastError).slice(0, 500);
+        sch.consecutiveFailures = (sch.consecutiveFailures || 0) + 1;
+      } else {
+        sch.lastError = null;
+        sch.consecutiveFailures = 0;
+      }
+      const failures = sch.consecutiveFailures || 0;
+      const backoffX = failures > 0 ? Math.min(Math.pow(2, failures - 1), RECORDING_BACKOFF_CAP_X) : 1;
+      sch.nextRunAt = new Date(Date.now() + intervalMs * backoffX).toISOString();
+      if (failures >= RECORDING_MAX_FAILURES) {
+        sch.pausedReason = `auto-paused after ${failures} consecutive failures`;
+        sch.pausedAt = nowIso;
+        console.warn('[recording-tick]', rec.id, 'auto-paused:', sch.pausedReason, '·', sch.lastError);
+      }
+      mutated = true;
+    }
+    if (mutated) saveRecordings(list);
+  } catch (e) {
+    console.error('[recording-tick]', e.message || e);
+  } finally {
+    _recordingTickInFlight = false;
+  }
+}
+setInterval(_recordingTick, RECORDING_TICK_MS).unref();
+setTimeout(_recordingTick, 30_000).unref?.();
+
 // === Recordings CRUD ===
 // v4.31.0 — tag normalizer: lowercase, trim, max 20 chars, max 8 tags, alphanumeric+dash+underscore
 function _normalizeTags(input) {
@@ -9990,8 +10067,65 @@ app.get("/api/recordings", requireAuth, (req, res) => {
     id: r.id, name: r.name, createdAt: r.createdAt, updatedAt: r.updatedAt || null,
     startUrl: r.startUrl, count: (r.steps || []).length,
     tags: Array.isArray(r.tags) ? r.tags : [],
+    schedule: r.schedule ? {
+      enabled: !!r.schedule.enabled,
+      intervalMin: parseInt(r.schedule.intervalMin) || 60,
+      lastRunAt: r.schedule.lastRunAt || null,
+      nextRunAt: r.schedule.nextRunAt || null,
+      lastError: r.schedule.lastError || null,
+      lastDurationMs: r.schedule.lastDurationMs || null,
+      lastHealedCount: r.schedule.lastHealedCount || 0,
+      pausedReason: r.schedule.pausedReason || null,
+      consecutiveFailures: r.schedule.consecutiveFailures || 0,
+    } : null,
   }));
   res.json({ items });
+});
+
+// v4.32.0 — Schedule mutation: enable/disable + set interval + optional engine/cdpEndpoint/vars/continueOnError
+app.put("/api/recordings/:id/schedule", requireAuth, express.json({ limit: "16kb" }), (req, res) => {
+  const list = loadRecordings();
+  const i = list.findIndex(x => x.id === req.params.id);
+  if (i < 0) return res.status(404).json({ error: "not found" });
+  const body = req.body || {};
+  const prev = list[i].schedule || {};
+  const sch = {
+    enabled: !!body.enabled,
+    intervalMin: Math.max(1, parseInt(body.intervalMin) || prev.intervalMin || 60),
+    engine: (typeof body.engine === 'string') ? body.engine : (prev.engine || 'playwright'),
+    cdpEndpoint: (typeof body.cdpEndpoint === 'string') ? body.cdpEndpoint : (prev.cdpEndpoint || 'http://localhost:9222'),
+    continueOnError: !!body.continueOnError,
+    vars: (body.vars && typeof body.vars === 'object' && !Array.isArray(body.vars)) ? body.vars : (prev.vars || null),
+    // Preserve run history
+    lastRunAt: prev.lastRunAt || null,
+    nextRunAt: body.enabled ? (prev.nextRunAt || new Date(Date.now() - 1000).toISOString()) : null,
+    lastError: prev.lastError || null,
+    lastDurationMs: prev.lastDurationMs || null,
+    lastHealedCount: prev.lastHealedCount || 0,
+    consecutiveFailures: prev.consecutiveFailures || 0,
+    pausedReason: prev.pausedReason || null,
+    pausedAt: prev.pausedAt || null,
+  };
+  list[i].schedule = sch;
+  list[i].updatedAt = Date.now();
+  saveRecordings(list);
+  res.json({ ok: true, schedule: sch });
+});
+
+// v4.32.0 — Resume a recording that auto-paused after N consecutive failures
+app.post("/api/recordings/:id/schedule/resume", requireAuth, (req, res) => {
+  const list = loadRecordings();
+  const i = list.findIndex(x => x.id === req.params.id);
+  if (i < 0) return res.status(404).json({ error: "not found" });
+  const sch = list[i].schedule;
+  if (!sch) return res.status(400).json({ error: "no schedule configured" });
+  sch.pausedReason = null;
+  sch.pausedAt = null;
+  sch.consecutiveFailures = 0;
+  sch.nextRunAt = new Date(Date.now() - 1000).toISOString();
+  list[i].updatedAt = Date.now();
+  saveRecordings(list);
+  res.json({ ok: true, schedule: sch });
 });
 app.get("/api/recordings/:id", requireAuth, (req, res) => {
   const r = loadRecordings().find(x => x.id === req.params.id);

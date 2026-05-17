@@ -1196,6 +1196,48 @@
       cursor: pointer;
     }
     .rec-tag-add:hover { background: rgba(108,99,255,.14); color: #c4b5fd; border-color: rgba(108,99,255,.3); }
+    /* v4.32.0 — Recording scheduler badge + modal */
+    .rec-sched-badge {
+      display: inline-flex; align-items: center; gap: 4px; padding: 1px 7px; margin-left: 6px;
+      border-radius: 10px; font: 10px ui-monospace, monospace; cursor: pointer; vertical-align: middle;
+    }
+    .rec-sched-badge.on { background: rgba(52,211,153,.14); border: 1px solid rgba(52,211,153,.32); color: #6ee7b7; }
+    .rec-sched-badge.paused { background: rgba(239,68,68,.14); border: 1px solid rgba(239,68,68,.35); color: #fda4af; }
+    .rec-sched-badge:hover { filter: brightness(1.15); }
+    .rec-sched-modal {
+      width: min(520px, 92vw); display: flex; flex-direction: column;
+      background: linear-gradient(180deg, #0d0e1f, #0a0a1a);
+      border: 1px solid rgba(108,99,255,.3); border-radius: 14px;
+      box-shadow: 0 24px 60px rgba(0,0,0,.5);
+    }
+    .rec-sched-modal .head { padding: 12px 16px; border-bottom: 1px solid rgba(255,255,255,.06); display: flex; align-items: center; gap: 8px; }
+    .rec-sched-modal .head h3 { margin: 0; font-size: 13px; color: var(--text); flex: 1; }
+    .rec-sched-modal .body { padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+    .rec-sched-modal .row { display: flex; align-items: center; gap: 10px; }
+    .rec-sched-modal .row label { width: 110px; font-size: 11px; color: var(--text3); }
+    .rec-sched-modal .row input, .rec-sched-modal .row select {
+      flex: 1; height: 28px; padding: 0 10px; border-radius: 7px;
+      background: rgba(0,0,0,.32); border: 1px solid rgba(255,255,255,.08); color: var(--text);
+      font: 12px ui-monospace, monospace; outline: none;
+    }
+    .rec-sched-modal .row input:focus, .rec-sched-modal .row select:focus { border-color: rgba(167,139,250,.4); }
+    .rec-sched-modal .status-row {
+      padding: 8px 10px; border-radius: 7px;
+      background: rgba(255,255,255,.025); border: 1px solid rgba(255,255,255,.06);
+      font: 11px ui-monospace, monospace; color: var(--text3); white-space: pre-wrap; line-height: 1.5;
+    }
+    .rec-sched-modal .status-row.paused { background: rgba(239,68,68,.08); border-color: rgba(239,68,68,.25); color: #fda4af; }
+    .rec-sched-modal .foot {
+      padding: 10px 16px; display: flex; gap: 8px; justify-content: flex-end;
+      border-top: 1px solid rgba(255,255,255,.06);
+    }
+    .rec-sched-modal .foot button {
+      height: 30px; padding: 0 14px; border-radius: 7px; cursor: pointer;
+      background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.1); color: var(--text2);
+      font: 12px system-ui, sans-serif;
+    }
+    .rec-sched-modal .foot button.primary { background: rgba(108,99,255,.22); border-color: rgba(108,99,255,.4); color: #ddd6fe; }
+    .rec-sched-modal .foot button.danger { background: rgba(239,68,68,.14); border-color: rgba(239,68,68,.3); color: #fda4af; }
     .rec-log-modal { width: min(720px, 92vw); max-height: 80vh; display: flex; flex-direction: column; background: #0a0a1a; border: 1px solid rgba(108,99,255,.3); border-radius: 14px; overflow: hidden; }
     .rec-log-body { flex: 1; overflow-y: auto; padding: 12px 14px; font: 12px ui-monospace, monospace; color: var(--text2); }
     .rec-log-line { padding: 4px 0; border-bottom: 1px dashed rgba(255,255,255,.04); }
@@ -6371,10 +6413,21 @@
       body.innerHTML = items.map(it => {
         const tags = Array.isArray(it.tags) ? it.tags : [];
         const tagsHtml = tags.map(t => `<span class="rec-tag${t === tag ? ' active' : ''}" onclick="_recCatalogSetTag('${escAttr(t)}')" title="filter by tag">${escHtml(t)}<span class="rm" onclick="event.stopPropagation();_recCatalogRemoveTag('${escAttr(it.id)}','${escAttr(t)}')" title="remove tag">✕</span></span>`).join('');
+        const sch = it.schedule;
+        let schBadge = '';
+        if (sch) {
+          if (sch.pausedReason) {
+            schBadge = `<span class="rec-sched-badge paused" onclick="_recSchedOpen('${escAttr(it.id)}')" title="${escAttr(sch.pausedReason)}">⏱ paused</span>`;
+          } else if (sch.enabled) {
+            const next = sch.nextRunAt ? new Date(sch.nextRunAt) : null;
+            const nextTxt = next ? next.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '?';
+            schBadge = `<span class="rec-sched-badge on" onclick="_recSchedOpen('${escAttr(it.id)}')" title="every ${sch.intervalMin}min · next ${next ? next.toLocaleString() : '?'}">⏱ ${sch.intervalMin}m · next ${escHtml(nextTxt)}</span>`;
+          }
+        }
         return `
           <div class="rec-item" data-id="${escAttr(it.id)}">
             <div class="meta">
-              <div class="name">${escHtml(it.name)}</div>
+              <div class="name">${escHtml(it.name)}${schBadge}</div>
               <div class="sub">${it.count} step${it.count === 1 ? '' : 's'} · ${escHtml(fmt(it.createdAt))} · <span style="color:#a78bfa">${escHtml(it.startUrl || '')}</span></div>
               <div class="rec-item-tags">${tagsHtml}<span class="rec-tag-add" onclick="_recCatalogAddTag('${escAttr(it.id)}')" title="add tag">+ tag</span></div>
             </div>
@@ -6382,6 +6435,7 @@
               <button class="replay" onclick="_browserRecReplay('${escAttr(it.id)}')">▶ Replay</button>
               <button onclick="_browserRecEditOpen('${escAttr(it.id)}')">✏️ Edit</button>
               <button onclick="_browserRecExportToFlow('${escAttr(it.id)}')">🔄 Convert</button>
+              <button onclick="_recSchedOpen('${escAttr(it.id)}')" title="schedule">⏱</button>
               <button onclick="_browserRecView('${escAttr(it.id)}')">View</button>
               <button onclick="_browserRecRename('${escAttr(it.id)}')">Rename</button>
               <button class="danger" onclick="_browserRecDelete('${escAttr(it.id)}')">✕</button>
@@ -6389,6 +6443,104 @@
           </div>
         `;
       }).join('');
+    }
+    // v4.32.0 — Schedule modal: enable/disable + interval + engine + cdp + vars + resume on pause
+    async function _recSchedOpen(id) {
+      try {
+        const r = await fetch('/api/recordings/' + encodeURIComponent(id));
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        const rec = await r.json();
+        const sch = rec.schedule || {};
+        const enabled = !!sch.enabled;
+        const intervalMin = parseInt(sch.intervalMin) || 60;
+        const engine = sch.engine || 'playwright';
+        const cdpEndpoint = sch.cdpEndpoint || 'http://localhost:9222';
+        const continueOnError = !!sch.continueOnError;
+        const varsTxt = (sch.vars && typeof sch.vars === 'object') ? JSON.stringify(sch.vars) : '';
+        const isPaused = !!sch.pausedReason;
+        let statusText = 'Not yet run.';
+        if (sch.lastRunAt) {
+          const ago = new Date(sch.lastRunAt).toLocaleString();
+          statusText = `Last run: ${ago}\nDuration: ${sch.lastDurationMs || '?'}ms`;
+          if (sch.lastHealedCount) statusText += `\nHealed steps: ${sch.lastHealedCount}`;
+          if (sch.lastError) statusText += `\nLast error: ${sch.lastError}`;
+          else statusText += `\nLast result: ok`;
+          if (sch.nextRunAt && !isPaused) statusText += `\nNext run: ${new Date(sch.nextRunAt).toLocaleString()}`;
+        }
+        if (isPaused) statusText = `⚠ ${sch.pausedReason}\nFailures: ${sch.consecutiveFailures || 0}\n` + statusText;
+        let bd = document.getElementById('rec-sched-backdrop');
+        if (bd) bd.remove();
+        bd = document.createElement('div');
+        bd.id = 'rec-sched-backdrop';
+        bd.className = 'rec-panel-backdrop open';
+        bd.style.zIndex = '10000';
+        bd.innerHTML = `
+          <div class="rec-sched-modal" onclick="event.stopPropagation()">
+            <div class="head">
+              <h3>⏱ Schedule — ${escHtml(rec.name || rec.id)}</h3>
+              <button class="x" onclick="_recSchedClose()">✕</button>
+            </div>
+            <div class="body">
+              <div class="row"><label>Enabled</label>
+                <select id="sched-enabled"><option value="1"${enabled?' selected':''}>on</option><option value="0"${!enabled?' selected':''}>off</option></select>
+              </div>
+              <div class="row"><label>Every (min)</label><input id="sched-interval" type="number" min="1" value="${intervalMin}"></div>
+              <div class="row"><label>Engine</label>
+                <select id="sched-engine"><option value="playwright"${engine==='playwright'?' selected':''}>playwright (headless)</option><option value="cdp"${engine==='cdp'?' selected':''}>cdp (attached Chrome)</option></select>
+              </div>
+              <div class="row"><label>CDP endpoint</label><input id="sched-cdp" type="text" value="${escAttr(cdpEndpoint)}"></div>
+              <div class="row"><label>Vars JSON</label><input id="sched-vars" type="text" value="${escAttr(varsTxt)}" placeholder="{}"></div>
+              <div class="row"><label>Continue on error</label>
+                <select id="sched-cont"><option value="0"${!continueOnError?' selected':''}>stop</option><option value="1"${continueOnError?' selected':''}>continue</option></select>
+              </div>
+              <div class="status-row${isPaused?' paused':''}">${escHtml(statusText)}</div>
+            </div>
+            <div class="foot">
+              ${isPaused ? `<button class="primary" onclick="_recSchedResume('${escAttr(id)}')">Resume</button>` : ''}
+              <button onclick="_recSchedClose()">Cancel</button>
+              <button class="primary" onclick="_recSchedSave('${escAttr(id)}')">Save</button>
+            </div>
+          </div>`;
+        bd.addEventListener('click', (e) => { if (e.target === bd) _recSchedClose(); });
+        document.body.appendChild(bd);
+      } catch (e) { alert('Schedule open failed: ' + (e.message || e)); }
+    }
+    function _recSchedClose() {
+      const bd = document.getElementById('rec-sched-backdrop');
+      if (bd) bd.remove();
+    }
+    async function _recSchedSave(id) {
+      try {
+        const varsRaw = (document.getElementById('sched-vars').value || '').trim();
+        let vars = null;
+        if (varsRaw) {
+          try { vars = JSON.parse(varsRaw); }
+          catch { alert('Vars JSON parse error'); return; }
+          if (typeof vars !== 'object' || Array.isArray(vars)) { alert('Vars must be a JSON object'); return; }
+        }
+        const body = {
+          enabled: document.getElementById('sched-enabled').value === '1',
+          intervalMin: parseInt(document.getElementById('sched-interval').value, 10) || 60,
+          engine: document.getElementById('sched-engine').value,
+          cdpEndpoint: document.getElementById('sched-cdp').value,
+          continueOnError: document.getElementById('sched-cont').value === '1',
+          vars,
+        };
+        const r = await fetch('/api/recordings/' + encodeURIComponent(id) + '/schedule', {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+        });
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        _recSchedClose();
+        await _browserRecPanelRefresh();
+      } catch (e) { alert('Schedule save failed: ' + (e.message || e)); }
+    }
+    async function _recSchedResume(id) {
+      try {
+        const r = await fetch('/api/recordings/' + encodeURIComponent(id) + '/schedule/resume', { method: 'POST' });
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        _recSchedClose();
+        await _browserRecPanelRefresh();
+      } catch (e) { alert('Resume failed: ' + (e.message || e)); }
     }
     async function _recCatalogAddTag(id) {
       const raw = prompt('Add tag (a-z, 0-9, -, _, max 20 chars):', '');
