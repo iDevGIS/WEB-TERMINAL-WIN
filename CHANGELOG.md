@@ -5,6 +5,50 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [4.36.0] — 2026-05-17 — Pipeline Run Ledger + Health Badge (symmetry-parity ship)
+
+v4.34.0 + v4.35.0 gave recordings a JSONL ledger and a row-level health badge — pipelines had neither. They tracked only `lastRunAt` / `lastError` / `lastRowCount` snapshots on the doc itself, so silent failures and slow regressions stayed invisible at the list level (the same gap the 3 silent-paused `shop.example.com` pipelines that surfaced in the v4.33 Scheduler Dashboard would have caught weeks earlier with a badge). v4.36.0 mirrors the recordings architecture onto pipelines: per-pipeline JSONL append-only ledger at `scraps/pipelines-runs/<id>.jsonl`, 3 hook sites (`_pipelineTick` scheduled, `/run` manual, `/run/stream` SSE), and a colored health rating computed from the last 10 runs (gray/red/yellow/green, same freshness-downgrade rule). The Scheduler Dashboard gains a new `health` column that's clickable per row, opening the matching runs modal (`_recRunsOpen` for recordings, new `_pipeRunsOpen` for pipelines).
+
+**Server (~90 LOC)**
+
+- `_appendPipelineRunRecord(pipeId, entry)` — appends JSON line to `scraps/pipelines-runs/<id>.jsonl`, tolerant fs.mkdirSync.
+- `_loadRecentPipelineRuns(pipeId, limit=20, cap=500)` — reads tail-N, parses each line, returns newest-first.
+- `_pipelineHealth(pipeId, limit=10)` — same rating logic as `_recordingHealth`: `total === 0` → gray, `rate < 0.6` → red, `rate < 0.9` → yellow, `rate >= 0.9 && latest === 'ok'` → green else yellow. Pipelines don't have a healed count so the field is omitted (no Self-Heal block aggregation yet).
+- `_pipelineRunEntry({ startedAt, result, error, source, attempts })` — canonicalized JSONL entry shape: `{ts, startedAt, endedAt, durationMs, source, status, rowCount, errorCount, warningCount, attempts, error}`. Status is `ok` (no errors) or `fail` (thrown error OR `result.errors.length > 0`).
+- 3 ledger writes hooked: `_pipelineTick` (source=`scheduled`, includes attempts from retry), `POST /api/scrap/pipelines/:id/run` (source=`manual`, both success + thrown error paths), `GET /api/scrap/pipelines/:id/run/stream` (source=`sse`, both paths).
+- `GET /api/scrap/pipelines` now augments each pipeline with `health: { rating, total, ok, fail, latestStatus, latestAt }`.
+- `GET /api/scrap/pipelines/:id/runs?limit=N` — new endpoint mirroring `/api/recordings/:id/runs`.
+- `GET /api/scheduler/status` enriched: pipeline + recording rows both gain a `health` field. (Pipelines use `_pipelineHealth`, recordings use `_recordingHealth`.)
+
+**Frontend (~110 LOC)**
+
+- `_pipeRunsOpen(id, name)` / `_pipeRunsClose` / `_pipeRunsRefresh` — pipeline-shaped run history modal. Clones the recordings modal structure but with pipeline columns: `When · Status · Source (▶ manual / ⚡ sse / ⏱ scheduled) · Duration · Rows · Attempts · Warn · Error`. Summary chips: ok/fail counts, avg duration, avg rows, total.
+- Scheduler Dashboard table gains a `health` column. Per-row `healthCell(it)` renders `.rec-health-badge` (reused CSS from v4.35) with clickable onclick that dispatches to `_pipeRunsOpen` (pipeline rows) or `_recRunsOpen` (recording rows) by `it.type`.
+
+**Symmetry parity recap (4 columns)**
+
+| Feature | v4.34 (recording) | v4.36 (pipeline) |
+|---|---|---|
+| Ledger dir | `scraps/recordings-runs/` | `scraps/pipelines-runs/` |
+| Append helper | `_appendRunRecord` | `_appendPipelineRunRecord` |
+| Tail helper | `_loadRecentRuns` | `_loadRecentPipelineRuns` |
+| Health helper | `_recordingHealth` | `_pipelineHealth` |
+| Runs endpoint | `/api/recordings/:id/runs` | `/api/scrap/pipelines/:id/runs` |
+| List enrichment | `health` on `/api/recordings` | `health` on `/api/scrap/pipelines` |
+| Modal opener | `_recRunsOpen` | `_pipeRunsOpen` |
+| Badge surface | 📼 Recordings panel rows | 🕒 Scheduler Dashboard rows |
+
+The badge lives on the dashboard (not in a separate pipeline list panel) because pipelines don't have a dedicated panel today — they live in the Flow Builder dropdown, where badge integration would compete with the `<option>` text. The dashboard is the canonical pipeline-aware surface.
+
+**Test plan**
+
+- After 1 manual run: `GET /api/scrap/pipelines` shows `health: { rating, total: 1, ok: 1, fail: 0, latestStatus: 'ok' }` on that pipeline.
+- After 5 ok runs: badge in Scheduler Dashboard turns green.
+- After 1 failure (e.g., bad selector): badge stays green until the failure ratio crosses thresholds; if latest run fails, badge downgrades to yellow.
+- Clicking badge → opens correct modal (recording vs pipeline) with full ledger detail.
+
+---
+
 ## [4.35.0] — 2026-05-17 — Recording Health Badge (Run Ledger → row visibility)
 
 v4.34.0 captured the per-recording replay history as JSONL but you still had to click 📊 to see it. v4.35.0 closes the loop: each recording row in the panel now shows a colored health badge computed from the last 10 runs of its ledger. Green = ≥90% ok AND latest run ok. Yellow = 60-89% ok, OR ≥90% but the latest run failed (freshness downgrade — if today's run broke, don't pretend the recording is fine just because last week was clean). Red = <60% ok. Gray = no runs yet. Healed count from Self-Heal is surfaced in the tooltip without altering the color (self-heal is masking, not curing). Click the badge → opens the same Run History modal scoped to that recording. Zero new infra: `_recordingHealth(id, limit=10)` reads the same JSONL tail as `/runs`, augments `GET /api/recordings` with a `health` field, and the panel row renders the badge alongside the existing schedule badge.

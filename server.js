@@ -8052,6 +8052,8 @@ async function _pipelineTick() {
         sch.pausedAt = nowIso;
         console.warn("[pipeline-tick]", p.id, "auto-paused:", sch.pausedReason, "·", p.lastError);
       }
+      // v4.36.0 — append run ledger entry (scheduled source)
+      _appendPipelineRunRecord(p.id, _pipelineRunEntry({ startedAt: t0, result, error, source: 'scheduled', attempts }));
       mutated = true;
     }
     if (mutated) savePipelines(pipelines);
@@ -9129,7 +9131,21 @@ async function _executePipeline(pipeline, opts = {}) {
 
 // === Pipeline endpoints =======================================================
 app.get("/api/scrap/pipelines", requireAuth, (req, res) => {
-  res.json({ ok: true, pipelines: loadPipelines() });
+  const pipelines = loadPipelines();
+  // v4.36.0 — surface per-pipeline health rating (computed from JSONL ledger tail)
+  for (const p of pipelines) {
+    try { p.health = _pipelineHealth(p.id, 10); } catch {}
+  }
+  res.json({ ok: true, pipelines });
+});
+
+// v4.36.0 — Pipeline run history (manual + SSE + scheduled). Tail-N from per-pipeline JSONL.
+app.get("/api/scrap/pipelines/:id/runs", requireAuth, (req, res) => {
+  const p = loadPipelines().find(x => x.id === req.params.id);
+  if (!p) return res.status(404).json({ error: "pipeline not found" });
+  const limit = parseInt(req.query.limit, 10) || 20;
+  const runs = _loadRecentPipelineRuns(req.params.id, limit);
+  res.json({ id: p.id, name: p.name || '', count: runs.length, runs });
 });
 
 app.post("/api/scrap/pipelines", requireAuth, express.json({ limit: "2mb" }), (req, res) => {
@@ -9297,6 +9313,7 @@ app.post("/api/scrap/pipelines/:id/run", requireAuth, express.json({ limit: "128
   const idx = list.findIndex(x => x.id === req.params.id);
   if (idx < 0) return res.status(404).json({ error: "pipeline not found" });
   const p = list[idx];
+  const t0 = Date.now();
   try {
     const result = await _executePipeline(p, { url: req.body?.url || "" });
     p.lastRunAt = new Date().toISOString();
@@ -9315,6 +9332,8 @@ app.post("/api/scrap/pipelines/:id/run", requireAuth, express.json({ limit: "128
       p.consecutiveFailures = (p.consecutiveFailures || 0) + 1;
     }
     savePipelines(list);
+    // v4.36.0 — append run ledger entry (manual source)
+    _appendPipelineRunRecord(p.id, _pipelineRunEntry({ startedAt: t0, result, error: null, source: 'manual', attempts: 1 }));
     res.json({ ok: result.ok, ...result, pipeline: p });
   } catch (e) {
     p.lastError = String(e.message || e); p.lastRunAt = new Date().toISOString();
@@ -9322,6 +9341,8 @@ app.post("/api/scrap/pipelines/:id/run", requireAuth, express.json({ limit: "128
     p.lastAttempts = 1;
     p.consecutiveFailures = (p.consecutiveFailures || 0) + 1;
     savePipelines(list);
+    // v4.36.0 — append run ledger entry (manual source, thrown error)
+    _appendPipelineRunRecord(p.id, _pipelineRunEntry({ startedAt: t0, result: null, error: e, source: 'manual', attempts: 1 }));
     res.status(500).json({ error: p.lastError });
   }
 });
@@ -9346,6 +9367,7 @@ app.get("/api/scrap/pipelines/:id/run/stream", requireAuth, async (req, res) => 
   const hb = setInterval(() => { try { res.write(`: ping\n\n`); } catch {} }, 15000);
   let aborted = false;
   req.on("close", () => { aborted = true; clearInterval(hb); });
+  const t0 = Date.now();
   try {
     const result = await _executePipeline(p, {
       url: String(req.query.url || ""),
@@ -9367,6 +9389,8 @@ app.get("/api/scrap/pipelines/:id/run/stream", requireAuth, async (req, res) => 
       p.consecutiveFailures = (p.consecutiveFailures || 0) + 1;
     }
     savePipelines(list);
+    // v4.36.0 — append run ledger entry (sse source)
+    _appendPipelineRunRecord(p.id, _pipelineRunEntry({ startedAt: t0, result, error: null, source: 'sse', attempts: 1 }));
     send("result", { ok: result.ok, rowCount: result.rowCount, durationMs: result.durationMs, outputFile: result.outputFile, outputFiles: result.outputFiles, errors: result.errors, errorDetails: result.errorDetails, warnings: result.warnings || [], pipeline: p });
   } catch (e) {
     p.lastError = String(e.message || e); p.lastRunAt = new Date().toISOString();
@@ -9374,6 +9398,8 @@ app.get("/api/scrap/pipelines/:id/run/stream", requireAuth, async (req, res) => 
     p.lastAttempts = 1;
     p.consecutiveFailures = (p.consecutiveFailures || 0) + 1;
     savePipelines(list);
+    // v4.36.0 — append run ledger entry (sse source, thrown error)
+    _appendPipelineRunRecord(p.id, _pipelineRunEntry({ startedAt: t0, result: null, error: e, source: 'sse', attempts: 1 }));
     send("fatal", { error: p.lastError });
   } finally {
     clearInterval(hb);
@@ -9825,6 +9851,69 @@ function _recordingHealth(recId, limit) {
   return { rating, total, ok, fail, healed, latestStatus, latestAt };
 }
 
+// v4.36.0 — Pipeline Run Ledger: per-pipeline JSONL append-only history (manual + SSE + scheduled).
+// Symmetry-parity ship with v4.34/v4.35: pipelines previously had only `lastRunAt/lastError/lastRowCount`
+// snapshots on the pipeline doc itself — silent failures and slow regressions were invisible at the
+// list level. Same JSONL-tail + health-rating shape as recordings so the runs modal + badge UI reuse.
+const PIPE_RUNS_DIR = path.join(SCRAP_DIR, "pipelines-runs");
+function _appendPipelineRunRecord(pipeId, entry) {
+  if (!pipeId) return;
+  try {
+    fs.mkdirSync(PIPE_RUNS_DIR, { recursive: true });
+    fs.appendFileSync(path.join(PIPE_RUNS_DIR, pipeId + '.jsonl'), JSON.stringify(entry) + '\n');
+  } catch (e) { console.warn('[pipe-runs-ledger]', pipeId, e.message || e); }
+}
+function _loadRecentPipelineRuns(pipeId, limit) {
+  if (!pipeId) return [];
+  try {
+    const raw = fs.readFileSync(path.join(PIPE_RUNS_DIR, pipeId + '.jsonl'), 'utf8');
+    const lines = raw.split('\n').filter(Boolean);
+    const max = Math.max(1, Math.min(500, parseInt(limit, 10) || 20));
+    return lines.slice(-max).reverse()
+      .map(l => { try { return JSON.parse(l); } catch { return null; } })
+      .filter(Boolean);
+  } catch { return []; }
+}
+function _pipelineHealth(pipeId, limit) {
+  const n = Math.max(1, Math.min(50, parseInt(limit, 10) || 10));
+  const runs = _loadRecentPipelineRuns(pipeId, n);
+  const total = runs.length;
+  if (total === 0) return { rating: 'gray', total: 0, ok: 0, fail: 0, latestStatus: null, latestAt: null };
+  let ok = 0, fail = 0;
+  for (const r of runs) {
+    if (r.status === 'ok') ok++; else fail++;
+  }
+  const latest = runs[0];
+  const latestStatus = latest && latest.status ? latest.status : null;
+  const latestAt = latest && (latest.endedAt || latest.ts) || null;
+  const rate = ok / total;
+  let rating;
+  if (rate < 0.6) rating = 'red';
+  else if (rate < 0.9) rating = 'yellow';
+  else rating = (latestStatus === 'ok') ? 'green' : 'yellow';
+  return { rating, total, ok, fail, latestStatus, latestAt };
+}
+function _pipelineRunEntry({ startedAt, result, error, source, attempts }) {
+  const endedAt = Date.now();
+  const status = error
+    ? 'fail'
+    : (result && Array.isArray(result.errors) && result.errors.length) ? 'fail' : 'ok';
+  return {
+    ts: endedAt,
+    startedAt,
+    endedAt,
+    durationMs: endedAt - startedAt,
+    source: source || 'manual',
+    status,
+    rowCount: result?.rowCount || 0,
+    errorCount: result?.errors?.length || (error ? 1 : 0),
+    warningCount: result?.warnings?.length || 0,
+    attempts: attempts || 1,
+    error: error ? String(error.message || error).slice(0, 500)
+      : (result?.errors?.length ? result.errors.join('; ').slice(0, 500) : null),
+  };
+}
+
 // In-page recorder script. v4.30.0 emits both a primary `selector` (string, backcompat) AND
 // `selectors[]` candidate array of {kind,value} for Self-Heal fallback at replay time.
 // Note: this string is injected via addInitScript so it runs before page scripts on every navigation.
@@ -10114,6 +10203,7 @@ app.get("/api/scheduler/status", requireAuth, (req, res) => {
         lastRowCount: p.lastRowCount || 0,
         pausedReason: sch.pausedReason || null,
         consecutiveFailures: p.consecutiveFailures || 0,
+        health: _pipelineHealth(p.id, 10), // v4.36.0
       });
     }
   } catch (e) { /* tolerant: pipelines may be unavailable */ }
@@ -10135,6 +10225,7 @@ app.get("/api/scheduler/status", requireAuth, (req, res) => {
         lastHealedCount: sch.lastHealedCount || 0,
         pausedReason: sch.pausedReason || null,
         consecutiveFailures: sch.consecutiveFailures || 0,
+        health: _recordingHealth(r.id, 10), // v4.36.0
       });
     }
   } catch (e) { /* tolerant */ }

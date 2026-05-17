@@ -6751,6 +6751,103 @@
         if (meta) meta.textContent = 'error';
       }
     }
+    // v4.36.0 — Pipeline Run History modal (mirror of _recRunsOpen, pipeline-shaped columns)
+    async function _pipeRunsOpen(id, name) {
+      let bd = document.getElementById('pipe-runs-backdrop');
+      if (bd) bd.remove();
+      bd = document.createElement('div');
+      bd.id = 'pipe-runs-backdrop';
+      bd.className = 'rec-panel-backdrop open';
+      bd.style.zIndex = '10001';
+      bd.dataset.pipeId = id;
+      bd.innerHTML = `
+        <div class="rec-runs-modal" onclick="event.stopPropagation()">
+          <div class="head">
+            <h3>📊 Pipeline Run History — ${escHtml(name || id)}</h3>
+            <span class="meta" id="pipe-runs-meta">loading…</span>
+            <button class="refresh" onclick="_pipeRunsRefresh()">⟳ Refresh</button>
+            <button class="x" onclick="_pipeRunsClose()">✕</button>
+          </div>
+          <div class="body" id="pipe-runs-body"><div class="rec-runs-empty">Loading…</div></div>
+          <div class="foot"><button onclick="_pipeRunsClose()">Close</button></div>
+        </div>`;
+      bd.addEventListener('click', (e) => { if (e.target === bd) _pipeRunsClose(); });
+      document.body.appendChild(bd);
+      await _pipeRunsRefresh();
+    }
+    function _pipeRunsClose() {
+      const bd = document.getElementById('pipe-runs-backdrop');
+      if (bd) bd.remove();
+    }
+    async function _pipeRunsRefresh() {
+      const bd = document.getElementById('pipe-runs-backdrop');
+      if (!bd) return;
+      const id = bd.dataset.pipeId;
+      const body = document.getElementById('pipe-runs-body');
+      const meta = document.getElementById('pipe-runs-meta');
+      try {
+        const r = await fetch('/api/scrap/pipelines/' + encodeURIComponent(id) + '/runs?limit=50');
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        const data = await r.json();
+        const runs = Array.isArray(data.runs) ? data.runs : [];
+        if (!runs.length) {
+          body.innerHTML = `<div class="rec-runs-empty">No runs yet. Click ▶ Run in Flow Builder or enable a schedule.</div>`;
+          if (meta) meta.textContent = '0 runs';
+          return;
+        }
+        let okCount = 0, failCount = 0;
+        let totalDuration = 0, totalRows = 0;
+        runs.forEach(rn => {
+          if (rn.status === 'ok') okCount++; else failCount++;
+          totalDuration += (rn.durationMs || 0);
+          totalRows += (rn.rowCount || 0);
+        });
+        const avgMs = runs.length ? Math.round(totalDuration / runs.length) : 0;
+        const avgRows = runs.length ? Math.round(totalRows / runs.length) : 0;
+        const summary = `
+          <div class="rec-runs-summary">
+            <span class="chip ok">✓ ${okCount} ok</span>
+            <span class="chip fail">${failCount > 0 ? '✕' : '·'} ${failCount} fail</span>
+            <span class="chip">⌀ ${avgMs}ms avg</span>
+            <span class="chip">⌀ ${avgRows} rows avg</span>
+            <span class="chip">${runs.length} total (last ${runs.length})</span>
+          </div>`;
+        const rows = runs.map(rn => {
+          const when = rn.ts ? new Date(rn.ts) : null;
+          const whenLabel = when ? when.toLocaleString() : '?';
+          const whenAttr = when ? when.toISOString() : '';
+          const statusCls = rn.status === 'ok' ? 'ok' : 'fail';
+          const statusIcon = rn.status === 'ok' ? '✓' : '✕';
+          const srcCls = rn.source === 'scheduled' ? 'scheduled' : 'manual';
+          const srcIcon = rn.source === 'scheduled' ? '⏱' : (rn.source === 'sse' ? '⚡' : '▶');
+          const warn = (rn.warningCount || 0) > 0
+            ? `<span class="healed" title="${rn.warningCount} warning(s)">⚠${rn.warningCount}</span>`
+            : '<span style="color:#555">·</span>';
+          const err = rn.error ? `<span class="err-cell" title="${escAttr(rn.error)}">${escHtml(rn.error)}</span>` : '<span style="color:#555">—</span>';
+          return `<tr>
+            <td title="${escAttr(whenAttr)}">${escHtml(whenLabel)}</td>
+            <td><span class="status ${statusCls}">${statusIcon} ${escHtml(rn.status || '?')}</span></td>
+            <td><span class="source ${srcCls}">${srcIcon} ${escHtml(rn.source || '?')}</span></td>
+            <td>${escHtml(String(rn.durationMs || 0))}ms</td>
+            <td>${escHtml(String(rn.rowCount || 0))}</td>
+            <td>${escHtml(String(rn.attempts || 1))}</td>
+            <td>${warn}</td>
+            <td>${err}</td>
+          </tr>`;
+        }).join('');
+        body.innerHTML = summary + `
+          <table class="rec-runs-table">
+            <thead><tr>
+              <th>When</th><th>Status</th><th>Source</th><th>Duration</th><th>Rows</th><th>Attempts</th><th>Warn</th><th>Error</th>
+            </tr></thead>
+            <tbody>${rows}</tbody>
+          </table>`;
+        if (meta) meta.textContent = `${runs.length} run${runs.length === 1 ? '' : 's'} · refreshed ${new Date().toLocaleTimeString()}`;
+      } catch (e) {
+        body.innerHTML = `<div class="rec-runs-empty" style="color:#fda4af">Load failed: ${escHtml(String(e.message || e))}</div>`;
+        if (meta) meta.textContent = 'error';
+      }
+    }
     // v4.33.0 — Scheduler Dashboard: unified pipelines+recordings view, auto-refresh every 30s
     let _schDashTimer = null;
     async function _schDashOpen() {
@@ -6808,16 +6905,30 @@
           const h = it.lastHealedCount || 0;
           return h ? `<span title="self-heal fired ${h}× last run" style="color:#fcd34d">⚡ ${h} healed</span>` : `<span style="color:var(--text3)">—</span>`;
         };
+        // v4.36.0 — health badge column (clickable → opens runs modal per type)
+        const healthCell = (it) => {
+          const h = it.health || { rating: 'gray', total: 0, ok: 0, fail: 0 };
+          const opener = it.type === 'pipeline' ? '_pipeRunsOpen' : '_recRunsOpen';
+          const nameArg = escAttr(it.name || '');
+          const idArg = escAttr(it.id);
+          if (h.total === 0) {
+            return `<span class="rec-health-badge gray" onclick="${opener}('${idArg}','${nameArg}')" title="No runs yet">· no runs</span>`;
+          }
+          const sym = h.rating === 'green' ? '✓' : h.rating === 'yellow' ? '⚠' : '✕';
+          const tip = `${h.ok}/${h.total} ok · latest: ${h.latestStatus || '?'}`;
+          return `<span class="rec-health-badge ${h.rating}" onclick="${opener}('${idArg}','${nameArg}')" title="${escAttr(tip)}">${sym} ${h.ok}/${h.total}</span>`;
+        };
         body.innerHTML = `
           <table class="sch-dash-table">
             <thead>
-              <tr><th>type</th><th>name</th><th>status</th><th>every</th><th>last run</th><th>next run</th><th>duration</th><th>extra</th><th>last error</th></tr>
+              <tr><th>type</th><th>name</th><th>health</th><th>status</th><th>every</th><th>last run</th><th>next run</th><th>duration</th><th>extra</th><th>last error</th></tr>
             </thead>
             <tbody>
               ${items.map(it => `
                 <tr>
                   <td><span class="sch-dash-row-type ${escAttr(it.type)}">${it.type === 'pipeline' ? '⚙' : '📼'} ${escHtml(it.type)}</span></td>
                   <td title="${escAttr(it.id)}">${escHtml(it.name || it.id).slice(0, 60)}</td>
+                  <td>${healthCell(it)}</td>
                   <td>${statusBadge(it)}</td>
                   <td>${parseInt(it.intervalMin) || '?'}m</td>
                   <td>${escHtml(fmtTime(it.lastRunAt))}</td>
