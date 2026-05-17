@@ -6250,6 +6250,7 @@
             <div class="actions">
               <button class="replay" onclick="_browserRecReplay('${escAttr(it.id)}')">▶ Replay</button>
               <button onclick="_browserRecEditOpen('${escAttr(it.id)}')">✏️ Edit</button>
+              <button onclick="_browserRecExportToFlow('${escAttr(it.id)}')">🔄 Convert</button>
               <button onclick="_browserRecView('${escAttr(it.id)}')">View</button>
               <button onclick="_browserRecRename('${escAttr(it.id)}')">Rename</button>
               <button class="danger" onclick="_browserRecDelete('${escAttr(it.id)}')">✕</button>
@@ -6295,6 +6296,32 @@
         window.open(url, '_blank');
         setTimeout(() => URL.revokeObjectURL(url), 60000);
       } catch (e) { alert('View failed: ' + (e.message || e)); }
+    }
+    // v4.28.0 — Phase D: Convert recording to Visual Builder pipeline (1 recording block + optional extract/store stub)
+    async function _browserRecExportToFlow(id) {
+      try {
+        const r = await fetch('/api/recordings/' + encodeURIComponent(id));
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        const rec = await r.json();
+        const defaultName = 'Flow: ' + (rec.name || rec.id);
+        const name = prompt('Pipeline name:', defaultName);
+        if (name === null) return;
+        const trimmed = (name || '').trim().slice(0, 120);
+        if (!trimmed) { alert('Pipeline name required.'); return; }
+        const includeStubs = confirm('Include extract + store stub blocks downstream?\n(OK = yes, Cancel = recording block only)');
+        const engine = (Array.isArray(rec.steps) && rec.steps.some(s => s.type === 'goto' && /^https:\/\/(twitter|x|linkedin|facebook|instagram)\./i.test(s.url || '')))
+          ? 'cdp' : 'playwright';
+        const body = { name: trimmed, includeExtract: includeStubs, engine, cdpEndpoint: 'http://localhost:9222' };
+        const r2 = await fetch('/api/recordings/' + encodeURIComponent(id) + '/export-to-pipeline', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+        });
+        if (!r2.ok) {
+          const txt = await r2.text().catch(() => '');
+          throw new Error('HTTP ' + r2.status + (txt ? ' — ' + txt.slice(0, 200) : ''));
+        }
+        const d = await r2.json();
+        alert('✅ Pipeline created: ' + (d.pipeline && d.pipeline.name) + '\n\nID: ' + (d.pipeline && d.pipeline.id) + '\nBlocks: ' + d.blockCount + ' · Engine: ' + engine + '\n\nOpen Scrap tab → Visual Builder → Reload to find it in the dropdown.');
+      } catch (e) { alert('Convert failed: ' + (e.message || e)); }
     }
     async function _browserRecReplay(id) {
       // Build a log modal that streams SSE events
@@ -6770,6 +6797,7 @@
       self_heal: '<svg class="fb-bico" viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 3v3M21 4.5h-3M5 17v2M6 18H4"/></svg>',
       transform: '<svg class="fb-bico" viewBox="0 0 24 24"><path d="M16 3h5v5"/><path d="M4 20L21 3"/><path d="M21 16v5h-5"/><path d="M15 15l6 6"/><path d="M4 4l5 5"/></svg>',
       store:     '<svg class="fb-bico" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.66 4.03 3 9 3s9-1.34 9-3V5"/><path d="M3 12c0 1.66 4.03 3 9 3s9-1.34 9-3"/></svg>',
+      recording: '<svg class="fb-bico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3" fill="currentColor"/></svg>',
     };
     const FB_TYPE_META = {
       fetch:     { ico: FB_BLOCK_SVG.fetch,     label: 'Fetch URL',     bg: 'rgba(6,182,212,.18)'  },
@@ -6779,6 +6807,7 @@
       self_heal: { ico: FB_BLOCK_SVG.self_heal, label: 'AI Self-Heal',  bg: 'rgba(244,114,182,.18)' },
       transform: { ico: FB_BLOCK_SVG.transform, label: 'Transform',     bg: 'rgba(99,102,241,.18)' },
       store:     { ico: FB_BLOCK_SVG.store,     label: 'Store',         bg: 'rgba(234,179,8,.18)'  },
+      recording: { ico: FB_BLOCK_SVG.recording, label: 'Recording',     bg: 'rgba(251,113,133,.18)' },
     };
 
     function fbInit(tabId) {
@@ -7094,6 +7123,7 @@
         }
         else if (b.type === 'self_heal') bodyText = cfg.goal ? _fbTrunc(cfg.goal, 38) : 'AI regen selectors';
         else if (b.type === 'login') bodyText = cfg.mode || 'form';
+        else if (b.type === 'recording') bodyText = (cfg.engine || 'playwright') + (cfg.recordingId ? ' · ' + _fbTrunc(cfg.recordingId, 18) : ' · (pick recording →)');
         const status = b.lastStatus || 'idle';
         const statusText = b.lastStatusText || (b.id === p.startBlock ? '▶ start · ' + b.type : b.type);
         div.innerHTML = '<div class="fb-bh">'
@@ -7235,6 +7265,17 @@
         cfgInputs.push(_row('Table name', _txt('sqliteTable', cfg.sqliteTable, 'rows (default: filename stem)')));
         cfgInputs.push(_row('Mode', _sel('sqliteMode', cfg.sqliteMode || 'replace', ['replace', 'append', 'upsert'])));
         cfgInputs.push(_row('Upsert key <span style="opacity:.55;font-weight:400">(only for upsert)</span>', _txt('sqliteUpsertKey', cfg.sqliteUpsertKey, 'id')));
+      } else if (block.type === 'recording') {
+        // v4.28.0 — Recording block (replay a saved Action Recorder flow inside a pipeline)
+        const recPickerId = tabId + '-rec-picker-' + block.id;
+        cfgInputs.push(_row('Recording ID', `<div style="display:flex;gap:6px;align-items:center"><input type="text" class="val" id="${recPickerId}" style="flex:1;box-sizing:border-box;font-family:ui-monospace,monospace;font-size:11px" value="${escAttr(cfg.recordingId || '')}" placeholder="rec_xxx (pick →)" oninput="fbEditBlockCfg('${tabId}','${block.id}','recordingId', this.value)"><button class="fb-btn" style="padding:6px 10px;font-size:11px;cursor:pointer" onclick="_fbRecordingPick('${tabId}','${block.id}')" title="Pick from recordings">📼 Pick</button></div>`));
+        cfgInputs.push(_row('Engine', _sel('engine', cfg.engine || 'playwright', ['playwright', 'cdp'])));
+        if ((cfg.engine || 'playwright') === 'cdp') {
+          cfgInputs.push(_row('CDP endpoint', _txt('cdpEndpoint', cfg.cdpEndpoint, 'http://localhost:9222')));
+        }
+        cfgInputs.push(_row('Vars (JSON object) <span style="opacity:.55;font-weight:400">{{var}} substitution</span>', `<textarea class="val" style="width:100%;box-sizing:border-box;font-family:ui-monospace,monospace;font-size:11px;min-height:60px;resize:vertical" placeholder='{"key":"value"}' oninput="fbEditBlockCfgJson('${tabId}','${block.id}','vars', this.value, this)">${escHtml(cfg.vars ? JSON.stringify(cfg.vars, null, 2) : '')}</textarea>`));
+        cfgInputs.push(`<div class="row" style="margin-bottom:6px"><label style="text-transform:none;letter-spacing:0;font-size:12px;display:flex;align-items:center;gap:6px;color:var(--text)"><input type="checkbox" ${cfg.captureHtml !== false ? 'checked' : ''} onchange="fbEditBlockCfg('${tabId}','${block.id}','captureHtml', this.checked)"> Capture HTML + URL after replay <span style="color:var(--text3);font-size:10.5px">(for downstream extract)</span></label></div>`);
+        cfgInputs.push(`<div class="row"><label style="text-transform:none;letter-spacing:0;font-size:12px;display:flex;align-items:center;gap:6px;color:var(--text)"><input type="checkbox" ${cfg.continueOnError ? 'checked' : ''} onchange="fbEditBlockCfg('${tabId}','${block.id}','continueOnError', this.checked)"> Continue on step failure</label></div>`);
       }
 
       const isStart = (t && t.fb && t.fb.current && t.fb.current.startBlock === block.id);
@@ -7269,6 +7310,29 @@
       if (key === 'mode' || key === 'engine') {
         fbShowProps(tabId, b);
       }
+    }
+    // v4.28.0 — picker for the recording block: list saved recordings, pick one
+    async function _fbRecordingPick(tabId, blockId) {
+      try {
+        const r = await fetch('/api/recordings');
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        const d = await r.json();
+        const items = Array.isArray(d.items) ? d.items : [];
+        if (!items.length) { alert('No saved recordings.\n\nOpen a Browser tab → switch to 🔴 Rec mode → interact + Save.'); return; }
+        const lines = items.map((it, i) => `[${i + 1}] ${it.name} · ${it.count} step${it.count === 1 ? '' : 's'} · id=${it.id.slice(0, 14)}…`).join('\n');
+        const pick = prompt('Pick a recording (enter number 1-' + items.length + '):\n\n' + lines, '1');
+        if (pick === null) return;
+        const idx = parseInt(pick, 10) - 1;
+        if (!(idx >= 0 && idx < items.length)) { alert('Invalid selection.'); return; }
+        const sel = items[idx];
+        fbEditBlockCfg(tabId, blockId, 'recordingId', sel.id);
+        const b = _fbBlock(tabId, blockId);
+        if (b && !b.name) {
+          b.name = '▶ ' + (sel.name || sel.id);
+          _fbUpdateBlockBody(tabId, blockId);
+        }
+        fbShowProps(tabId, b);
+      } catch (e) { alert('Pick failed: ' + (e.message || e)); }
     }
     function fbEditBlockCfgJson(tabId, blockId, key, raw, el) {
       const b = _fbBlock(tabId, blockId); if (!b) return;
@@ -7331,6 +7395,7 @@
       }
       else if (b.type === 'self_heal') bodyText = cfg.goal ? _fbTrunc(cfg.goal, 38) : 'AI regen selectors';
       else if (b.type === 'login') bodyText = cfg.mode || 'form';
+      else if (b.type === 'recording') bodyText = (cfg.engine || 'playwright') + (cfg.recordingId ? ' · ' + _fbTrunc(cfg.recordingId, 18) : ' · (pick recording →)');
       const el = document.querySelector('#' + tabId + '-fb-canvas .fb-block[data-block-id="' + blockId + '"] .fb-bbody');
       if (el) el.textContent = bodyText;
     }
@@ -8502,6 +8567,7 @@
       else if (type === 'self_heal') base.config = { goal: '', threshold: 0.9 };
       else if (type === 'transform') base.config = { ops: [] };
       else if (type === 'store')   base.config = { format: 'json', path: '' };
+      else if (type === 'recording') base.config = { recordingId: '', engine: 'playwright', cdpEndpoint: 'http://localhost:9222', captureHtml: true, continueOnError: false };
       return base;
     }
 
@@ -13450,6 +13516,7 @@ ${fields}
               <div class="fb-pb fb-pb-ai" draggable="true" ondragstart="fbPaletteDragStart(event,'self_heal')" ondragend="fbPaletteDragEnd(event)" data-fb-type="self_heal"><div class="fb-pb-ico">${FB_BLOCK_SVG.self_heal}</div><div><div class="fb-pb-label">AI Self-Heal</div><div class="fb-pb-sub">Regen selectors</div></div></div>
               <div class="fb-pb fb-pb-transform" draggable="true" ondragstart="fbPaletteDragStart(event,'transform')" ondragend="fbPaletteDragEnd(event)" data-fb-type="transform"><div class="fb-pb-ico">${FB_BLOCK_SVG.transform}</div><div><div class="fb-pb-label">Transform</div><div class="fb-pb-sub">filter / dedupe</div></div></div>
               <div class="fb-pb fb-pb-store" draggable="true" ondragstart="fbPaletteDragStart(event,'store')" ondragend="fbPaletteDragEnd(event)" data-fb-type="store"><div class="fb-pb-ico">${FB_BLOCK_SVG.store}</div><div><div class="fb-pb-label">Store</div><div class="fb-pb-sub">JSON / CSV</div></div></div>
+              <div class="fb-pb fb-pb-recording" draggable="true" ondragstart="fbPaletteDragStart(event,'recording')" ondragend="fbPaletteDragEnd(event)" data-fb-type="recording"><div class="fb-pb-ico">${FB_BLOCK_SVG.recording}</div><div><div class="fb-pb-label">Recording</div><div class="fb-pb-sub">Replay saved flow</div></div></div>
               <h3 style="margin-top:18px">Recent Runs</h3>
               <div id="${tabId}-fb-recent" style="font-size:11.5px;color:var(--text3)">— select pipeline —</div>
             </div>

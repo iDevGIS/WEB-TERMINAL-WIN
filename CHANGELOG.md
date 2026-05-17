@@ -5,6 +5,41 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [4.28.0] — 2026-05-17 — Recorder → Visual Builder export (Phase D — roadmap closure)
+
+Closes Phase D of the v4.26→v4.29 Action Recorder roadmap. A saved recording can now be converted into a Visual Builder pipeline with one click — the recorded flow becomes a single `recording` block (plus optional `extract`+`store` stubs downstream), ready to schedule, chain into a larger pipeline, or wire into a Sidekick run. The `recording` block type is also a first-class palette draggable so users can compose pipelines around existing recordings without going through the convert flow.
+
+### Added
+
+- **Pipeline block type `recording`** — new executor that loads a recording by id and runs its steps via Playwright (default) or CDP (real Chrome attach). Block config: `recordingId` · `engine` (`playwright` | `cdp`) · `cdpEndpoint` · `vars` (object for `{{var}}` substitution) · `captureHtml` (bool, default `true`) · `continueOnError` (bool). When `captureHtml=true`, `state.html` and `state.url` are populated from the final page before close so downstream `extract`/`store` blocks can consume the result.
+- **Convert button** in the 📼 Recordings panel (between **✏️ Edit** and **View**). Prompts for pipeline name (default `Flow: <recName>`), asks whether to include `extract`+`store` stubs, then creates a pipeline via the new `POST /api/recordings/:id/export-to-pipeline` endpoint. Auto-detects the engine: defaults to `cdp` if the recording's first goto lands on Twitter/X/LinkedIn/Facebook/Instagram (login-walled sites), otherwise `playwright`.
+- **`POST /api/recordings/:id/export-to-pipeline`** body: `{name, includeExtract, engine, cdpEndpoint}` → creates a new pipeline with one `recording` block (and a stubbed `extract`→`store` chain when `includeExtract=true`), returns the normalized pipeline.
+- **Visual Builder palette entry** — drag the new "Recording" block onto the canvas. Default config has empty `recordingId`; use the **📼 Pick** button in the properties panel to select from saved recordings.
+- **Properties panel — recording block** — fields: Recording ID (with Pick picker), Engine dropdown, CDP endpoint (conditional on `engine=cdp`), Vars JSON textarea, Capture HTML checkbox, Continue on error checkbox.
+- **`recording` palette tint + canvas SVG icon** — pink/rose accent (matches the 🔴 Rec mode used by the recorder UI).
+
+### Changed
+
+- `executors` map (`_executePipeline`) gains `recording: _pipeExecRecording`.
+- `_fbDefaultBlock` returns the recording config shell on palette-drop.
+- Block body label on canvas: `<engine> · <recordingId|(pick recording →)>`.
+
+### Notes
+
+- **Reference vs copy**: the recording block stores a reference (`recordingId`) — editing the recording via the ✏️ Edit modal updates every pipeline that references it. This makes the recorder + pipeline a true edit-once-everywhere unit.
+- The recording block reuses the existing `_replayOneStep` helper from v4.26.0 and `_interpVars`/`_interpStep` from v4.27.0 — Phase D was almost entirely a wiring change rather than new replay logic.
+- The "Convert to Flow" UX is a `prompt`+`confirm` MVP. A richer modal can come later; this lands the functional roundtrip first.
+- The new endpoint piggybacks on the existing `_normalizePipeline` / `savePipelines` plumbing (no schema migration).
+- **v4.26→v4.29 roadmap closure**: 🅰 Recorder MVP (v4.26.0) · 🅱 Replay engine (v4.26.0 bundle) · 🅲 Step editor + `{{var}}` (v4.27.0) · 🅳 Visual Builder export (v4.28.0). Full record → edit → export → re-run cycle now in place.
+
+### Files
+
+- `server.js` — `_pipeExecRecording` executor (+ executors map registration), `POST /api/recordings/:id/export-to-pipeline` endpoint.
+- `public/index.html` — recording block palette + Convert button + `_browserRecExportToFlow` + `_fbRecordingPick` + properties panel handler + canvas body text + SVG icon + FB_TYPE_META entry.
+- `CHANGELOG.md`, `package.json` — version bump 4.27.0 → 4.28.0.
+
+---
+
 ## [4.27.0] — 2026-05-17 — Recorder step editor (Phase C) — inline CRUD + `{{var}}` parameterize
 
 Closes Phase C of the Action Recorder roadmap. Lets a recorded JSON action flow be edited inline before replay — change selectors, reorder steps, add/delete, parameterize text fields with `{{var}}` substitution. Reuses the existing `/api/recordings/:id` PUT + `/api/recordings/replay-inline` endpoints so the server side is a small additive change; almost all the work is in the client editor modal.

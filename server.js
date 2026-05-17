@@ -8786,6 +8786,65 @@ async function _pipeExecFollow(state, config, ctx) {
   return state;
 }
 
+// v4.28.0 — Recording block. Runs a saved Action Recorder recording (referenced by id)
+// in-pipeline. Final HTML + URL are captured before page close so downstream
+// extract/store blocks can consume the result of the interaction sequence.
+async function _pipeExecRecording(state, config, ctx) {
+  const recId = String(config.recordingId || "").trim();
+  if (!recId) throw new Error("recording: missing recordingId");
+  const rec = loadRecordings().find(r => r.id === recId);
+  if (!rec) throw new Error(`recording: not found (${recId})`);
+  const engine = String(config.engine || (ctx && ctx.engine) || "playwright").toLowerCase();
+  const cdpEndpoint = String(config.cdpEndpoint || (ctx && ctx.cdpEndpoint) || "http://localhost:9222");
+  const vars = (config.vars && typeof config.vars === "object" && !Array.isArray(config.vars)) ? config.vars : null;
+  const continueOnError = !!config.continueOnError;
+  const captureHtml = config.captureHtml !== false; // default true
+  const browser = await _getScrapBrowser({ engine, cdpEndpoint });
+  const ctxResult = await _getScrapContextForEngine(browser, { engine });
+  const context = ctxResult.context;
+  let page = null;
+  try {
+    page = await context.newPage();
+    const steps = Array.isArray(rec.steps) ? rec.steps : [];
+    if (rec.startUrl && rec.startUrl !== "about:blank") {
+      const startUrl = _interpVars(String(rec.startUrl), vars);
+      state.log.push(`recording: goto ${startUrl}`);
+      try { await page.goto(startUrl, { waitUntil: "domcontentloaded", timeout: 25000 }); }
+      catch (e) {
+        const msg = `recording start: ${e.message || e}`;
+        if (!continueOnError) throw new Error(msg);
+        state.errors.push(msg);
+      }
+    }
+    for (let i = 0; i < steps.length; i++) {
+      const s = steps[i];
+      const label = s.type + (s.selector ? ` ${String(s.selector).slice(0, 60)}` : (s.url ? ` ${String(s.url).slice(0, 80)}` : ""));
+      try {
+        await _replayOneStep(page, s, vars);
+        state.log.push(`recording step ${i + 1}/${steps.length}: ${label} ok`);
+      } catch (e) {
+        const msg = `recording step ${i + 1} (${label}): ${e.message || e}`;
+        if (!continueOnError) throw new Error(msg);
+        state.errors.push(msg);
+      }
+    }
+    if (captureHtml && page && !page.isClosed()) {
+      try {
+        state.html = await page.content();
+        state.finalUrl = page.url();
+        state.url = state.finalUrl;
+      } catch (e) {
+        state.log.push(`recording: capture failed (${e.message || e})`);
+      }
+    }
+    state.log.push(`recording '${rec.name || rec.id}' done (${steps.length} step${steps.length === 1 ? "" : "s"}${captureHtml && state.html ? `, html=${state.html.length} chars` : ""})`);
+  } finally {
+    try { if (page && !page.isClosed()) await page.close(); } catch {}
+    if (ctxResult.owned) { try { await context.close(); } catch {} }
+  }
+  return state;
+}
+
 // v4.15.0 — pipeline-level lint. Surfaces structural patterns worth flagging.
 // Today: fan-out (multiple `next[]`). v4.14.0 surfaced this as "silent drop";
 // v4.15.0 executor now visits ALL siblings via BFS, so this is informational —
@@ -8900,6 +8959,7 @@ async function _executePipeline(pipeline, opts = {}) {
     store: _pipeExecStore,
     login: _pipeExecLogin,
     follow: _pipeExecFollow,
+    recording: _pipeExecRecording,
   };
   const onProgress = typeof opts.onProgress === "function" ? opts.onProgress : () => {};
   const startedAt = Date.now();
@@ -9839,6 +9899,62 @@ app.delete("/api/recordings/:id", requireAuth, (req, res) => {
   if (next.length === list.length) return res.status(404).json({ error: "not found" });
   saveRecordings(next);
   res.json({ ok: true });
+});
+
+// v4.28.0 — Phase D: export a recording as a Visual Builder pipeline (Convert to Flow).
+// Creates a 1-block `recording` pipeline (+optional extract/store stubs) so the user
+// can open it in the Visual Builder and wire downstream blocks.
+app.post("/api/recordings/:id/export-to-pipeline", requireAuth, express.json({ limit: "16kb" }), (req, res) => {
+  const rec = loadRecordings().find(x => x.id === req.params.id);
+  if (!rec) return res.status(404).json({ error: "not found" });
+  const body = req.body || {};
+  const name = String(body.name || `Flow: ${rec.name || rec.id}`).slice(0, 120);
+  const includeExtract = !!body.includeExtract;
+  const engine = ["playwright", "cdp"].includes(String(body.engine || "").toLowerCase())
+    ? String(body.engine).toLowerCase() : "playwright";
+  const cdpEndpoint = String(body.cdpEndpoint || "http://localhost:9222");
+  const stepCount = Array.isArray(rec.steps) ? rec.steps.length : 0;
+  const recBlock = {
+    id: "b_rec_" + Math.random().toString(36).slice(2, 8),
+    type: "recording",
+    name: `▶ ${rec.name || rec.id}`,
+    config: { recordingId: rec.id, engine, cdpEndpoint, captureHtml: true, continueOnError: false },
+    next: [],
+    position: { x: 120, y: 120 },
+  };
+  const blocks = [recBlock];
+  if (includeExtract) {
+    const extractBlock = {
+      id: "b_extract_" + Math.random().toString(36).slice(2, 8),
+      type: "extract",
+      name: "Extract (stub)",
+      config: { rules: [] },
+      next: [],
+      position: { x: 380, y: 120 },
+    };
+    const storeBlock = {
+      id: "b_store_" + Math.random().toString(36).slice(2, 8),
+      type: "store",
+      name: "Store",
+      config: { format: "json", formats: [] },
+      next: [],
+      position: { x: 640, y: 120 },
+    };
+    recBlock.next = [extractBlock.id];
+    extractBlock.next = [storeBlock.id];
+    blocks.push(extractBlock, storeBlock);
+  }
+  const pipelineBody = {
+    name,
+    description: `Exported from recording '${rec.name || rec.id}' (${stepCount} step${stepCount === 1 ? "" : "s"}) on ${new Date().toISOString()}`,
+    blocks,
+    startBlock: recBlock.id,
+  };
+  const list = loadPipelines();
+  const p = _normalizePipeline(pipelineBody, null);
+  list.push(p);
+  savePipelines(list);
+  res.json({ ok: true, pipeline: p, blockCount: blocks.length, recordingId: rec.id });
 });
 
 // === Replay engine — executes JSON steps via Playwright/CDP, streams SSE per-step events ===
