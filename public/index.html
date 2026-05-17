@@ -1774,6 +1774,8 @@
     .fb-pb-ai       .fb-pb-ico { background: rgba(244,114,182,.18); color: #f9a8d4; }
     .fb-pb-transform .fb-pb-ico { background: rgba(99,102,241,.18); color: #a5b4fc; }
     .fb-pb-store    .fb-pb-ico { background: rgba(234,179,8,.18);  color: #fde68a; }
+    .fb-pb-recording .fb-pb-ico { background: rgba(251,113,133,.18); color: #fda4af; }
+    .fb-pb-browser-action .fb-pb-ico { background: rgba(34,211,238,.18); color: #67e8f9; }
     /* v4.10.0 — lucide-style stroke icons for block types (palette / canvas / props heading / error cards) */
     .fb-bico { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
     .fb-pb-ico .fb-bico { width: 16px; height: 16px; }
@@ -6298,20 +6300,27 @@
       } catch (e) { alert('View failed: ' + (e.message || e)); }
     }
     // v4.28.0 — Phase D: Convert recording to Visual Builder pipeline (1 recording block + optional extract/store stub)
-    async function _browserRecExportToFlow(id) {
+    // v4.29.0 — Phase E: `mode` picker — single (legacy) or explode (1 browser_action block per step, chained)
+    async function _browserRecExportToFlow(id, modeArg) {
       try {
         const r = await fetch('/api/recordings/' + encodeURIComponent(id));
         if (!r.ok) throw new Error('HTTP ' + r.status);
         const rec = await r.json();
-        const defaultName = 'Flow: ' + (rec.name || rec.id);
+        let mode = (modeArg === 'single' || modeArg === 'explode') ? modeArg : null;
+        if (!mode) {
+          const pick = prompt('Convert mode:\n  1 = single (one Recording block — opaque, edit-once-everywhere)\n  2 = explode (one Browser Action block per step — atomized, editable on canvas)\n\nEnter 1 or 2:', '2');
+          if (pick === null) return;
+          mode = (String(pick).trim() === '1') ? 'single' : 'explode';
+        }
+        const defaultName = (mode === 'explode' ? 'Exploded: ' : 'Flow: ') + (rec.name || rec.id);
         const name = prompt('Pipeline name:', defaultName);
         if (name === null) return;
         const trimmed = (name || '').trim().slice(0, 120);
         if (!trimmed) { alert('Pipeline name required.'); return; }
-        const includeStubs = confirm('Include extract + store stub blocks downstream?\n(OK = yes, Cancel = recording block only)');
+        const includeStubs = confirm('Include extract + store stub blocks downstream?\n(OK = yes, Cancel = no stubs)');
         const engine = (Array.isArray(rec.steps) && rec.steps.some(s => s.type === 'goto' && /^https:\/\/(twitter|x|linkedin|facebook|instagram)\./i.test(s.url || '')))
           ? 'cdp' : 'playwright';
-        const body = { name: trimmed, includeExtract: includeStubs, engine, cdpEndpoint: 'http://localhost:9222' };
+        const body = { name: trimmed, mode, includeExtract: includeStubs, engine, cdpEndpoint: 'http://localhost:9222' };
         const r2 = await fetch('/api/recordings/' + encodeURIComponent(id) + '/export-to-pipeline', {
           method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
         });
@@ -6320,7 +6329,7 @@
           throw new Error('HTTP ' + r2.status + (txt ? ' — ' + txt.slice(0, 200) : ''));
         }
         const d = await r2.json();
-        alert('✅ Pipeline created: ' + (d.pipeline && d.pipeline.name) + '\n\nID: ' + (d.pipeline && d.pipeline.id) + '\nBlocks: ' + d.blockCount + ' · Engine: ' + engine + '\n\nOpen Scrap tab → Visual Builder → Reload to find it in the dropdown.');
+        alert('✅ Pipeline created: ' + (d.pipeline && d.pipeline.name) + '\n\nID: ' + (d.pipeline && d.pipeline.id) + '\nMode: ' + (d.mode || mode) + '\nBlocks: ' + d.blockCount + ' · Engine: ' + engine + '\n\nOpen Scrap tab → Visual Builder → Reload to find it in the dropdown.');
       } catch (e) { alert('Convert failed: ' + (e.message || e)); }
     }
     async function _browserRecReplay(id) {
@@ -6798,6 +6807,7 @@
       transform: '<svg class="fb-bico" viewBox="0 0 24 24"><path d="M16 3h5v5"/><path d="M4 20L21 3"/><path d="M21 16v5h-5"/><path d="M15 15l6 6"/><path d="M4 4l5 5"/></svg>',
       store:     '<svg class="fb-bico" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.66 4.03 3 9 3s9-1.34 9-3V5"/><path d="M3 12c0 1.66 4.03 3 9 3s9-1.34 9-3"/></svg>',
       recording: '<svg class="fb-bico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3" fill="currentColor"/></svg>',
+      browser_action: '<svg class="fb-bico" viewBox="0 0 24 24"><path d="M3 3l7 19 2.5-8L20 11z"/><line x1="13" y1="13" x2="20" y2="20"/></svg>',
     };
     const FB_TYPE_META = {
       fetch:     { ico: FB_BLOCK_SVG.fetch,     label: 'Fetch URL',     bg: 'rgba(6,182,212,.18)'  },
@@ -6808,6 +6818,7 @@
       transform: { ico: FB_BLOCK_SVG.transform, label: 'Transform',     bg: 'rgba(99,102,241,.18)' },
       store:     { ico: FB_BLOCK_SVG.store,     label: 'Store',         bg: 'rgba(234,179,8,.18)'  },
       recording: { ico: FB_BLOCK_SVG.recording, label: 'Recording',     bg: 'rgba(251,113,133,.18)' },
+      browser_action: { ico: FB_BLOCK_SVG.browser_action, label: 'Browser Action', bg: 'rgba(34,211,238,.22)' },
     };
 
     function fbInit(tabId) {
@@ -7265,6 +7276,41 @@
         cfgInputs.push(_row('Table name', _txt('sqliteTable', cfg.sqliteTable, 'rows (default: filename stem)')));
         cfgInputs.push(_row('Mode', _sel('sqliteMode', cfg.sqliteMode || 'replace', ['replace', 'append', 'upsert'])));
         cfgInputs.push(_row('Upsert key <span style="opacity:.55;font-weight:400">(only for upsert)</span>', _txt('sqliteUpsertKey', cfg.sqliteUpsertKey, 'id')));
+      } else if (block.type === 'browser_action') {
+        // v4.29.0 — Phase E: 1-step-per-block. Action dropdown + type-aware fields. Sibling blocks
+        // share a Playwright page via ctx, so a chain reuses cookies/scroll/JS state.
+        const actions = ['goto', 'click', 'fill', 'press', 'select', 'check', 'submit', 'waitFor', 'waitForDialog', 'wait', 'scroll'];
+        const act = (cfg.action || 'click').toLowerCase();
+        cfgInputs.push(_row('Action', _sel('action', act, actions)));
+        if (act === 'goto') {
+          cfgInputs.push(_row('URL', _txt('url', cfg.url, 'https://example.com')));
+        } else if (act === 'wait') {
+          cfgInputs.push(_row('Wait (ms)', _num('ms', cfg.ms == null ? 1000 : cfg.ms, '1000')));
+        } else if (act === 'scroll') {
+          cfgInputs.push(_row('Scroll Δy (px) <span style="opacity:.55;font-weight:400">positive = down</span>', _num('value', cfg.value == null ? 400 : cfg.value, '400')));
+        } else {
+          cfgInputs.push(_row('Selector', _txt('selector', cfg.selector, 'button[type=submit] · input[name=q]')));
+          if (act === 'fill') {
+            cfgInputs.push(_row('Value <span style="opacity:.55;font-weight:400">{{var}} ok</span>', _txt('value', cfg.value, 'hello {{name}}')));
+          } else if (act === 'press') {
+            cfgInputs.push(_row('Key', _txt('key', cfg.key || 'Enter', 'Enter · Tab · ArrowDown')));
+          } else if (act === 'select') {
+            cfgInputs.push(_row('Option value', _txt('value', cfg.value, 'option-value')));
+          } else if (act === 'check') {
+            cfgInputs.push(_row('Checked', _sel('value', String(cfg.value === true || cfg.value === 'true'), ['true', 'false'])));
+          } else if (act === 'waitFor') {
+            cfgInputs.push(_row('State', _sel('state', cfg.state || 'visible', ['visible', 'hidden', 'attached', 'detached'])));
+            cfgInputs.push(_row('Timeout (ms)', _num('timeout', cfg.timeout == null ? 15000 : cfg.timeout, '15000')));
+          } else if (act === 'waitForDialog') {
+            cfgInputs.push(_row('Timeout (ms)', _num('timeout', cfg.timeout == null ? 15000 : cfg.timeout, '15000')));
+          }
+        }
+        cfgInputs.push(_row('Engine', _sel('engine', cfg.engine || 'playwright', ['playwright', 'cdp'])));
+        if ((cfg.engine || 'playwright') === 'cdp') {
+          cfgInputs.push(_row('CDP endpoint', _txt('cdpEndpoint', cfg.cdpEndpoint, 'http://localhost:9222')));
+        }
+        cfgInputs.push(`<div class="row"><label style="text-transform:none;letter-spacing:0;font-size:12px;display:flex;align-items:center;gap:6px;color:var(--text)"><input type="checkbox" ${cfg.captureHtml ? 'checked' : ''} onchange="fbEditBlockCfg('${tabId}','${block.id}','captureHtml', this.checked)"> Capture HTML + URL after this action <span style="color:var(--text3);font-size:10.5px">(for downstream extract)</span></label></div>`);
+        cfgInputs.push(`<div class="row" style="margin-top:4px;padding:6px 8px;background:rgba(34,211,238,.06);border-left:2px solid rgba(34,211,238,.4);font-size:10.5px;color:var(--text2);line-height:1.4">💡 Chained <code>browser_action</code> blocks share the SAME page (cookies, scroll, JS state persist). First block in chain opens the page; cleanup happens at pipeline end.</div>`);
       } else if (block.type === 'recording') {
         // v4.28.0 — Recording block (replay a saved Action Recorder flow inside a pipeline)
         const recPickerId = tabId + '-rec-picker-' + block.id;
@@ -7396,6 +7442,16 @@
       else if (b.type === 'self_heal') bodyText = cfg.goal ? _fbTrunc(cfg.goal, 38) : 'AI regen selectors';
       else if (b.type === 'login') bodyText = cfg.mode || 'form';
       else if (b.type === 'recording') bodyText = (cfg.engine || 'playwright') + (cfg.recordingId ? ' · ' + _fbTrunc(cfg.recordingId, 18) : ' · (pick recording →)');
+      else if (b.type === 'browser_action') {
+        const a = (cfg.action || 'click').toLowerCase();
+        const detail = a === 'goto' ? _fbTrunc(cfg.url, 26)
+          : a === 'wait' ? (cfg.ms || 1000) + 'ms'
+          : a === 'scroll' ? (cfg.value || 400) + 'px'
+          : a === 'press' ? (cfg.key || 'Enter')
+          : a === 'waitForDialog' ? '[dialog]'
+          : _fbTrunc(cfg.selector || '(no selector)', 24);
+        bodyText = a + ' · ' + detail;
+      }
       const el = document.querySelector('#' + tabId + '-fb-canvas .fb-block[data-block-id="' + blockId + '"] .fb-bbody');
       if (el) el.textContent = bodyText;
     }
@@ -8568,6 +8624,7 @@
       else if (type === 'transform') base.config = { ops: [] };
       else if (type === 'store')   base.config = { format: 'json', path: '' };
       else if (type === 'recording') base.config = { recordingId: '', engine: 'playwright', cdpEndpoint: 'http://localhost:9222', captureHtml: true, continueOnError: false };
+      else if (type === 'browser_action') base.config = { action: 'click', selector: '', value: '', engine: 'playwright', cdpEndpoint: 'http://localhost:9222', timeout: 10000, captureHtml: false };
       return base;
     }
 
@@ -13517,6 +13574,7 @@ ${fields}
               <div class="fb-pb fb-pb-transform" draggable="true" ondragstart="fbPaletteDragStart(event,'transform')" ondragend="fbPaletteDragEnd(event)" data-fb-type="transform"><div class="fb-pb-ico">${FB_BLOCK_SVG.transform}</div><div><div class="fb-pb-label">Transform</div><div class="fb-pb-sub">filter / dedupe</div></div></div>
               <div class="fb-pb fb-pb-store" draggable="true" ondragstart="fbPaletteDragStart(event,'store')" ondragend="fbPaletteDragEnd(event)" data-fb-type="store"><div class="fb-pb-ico">${FB_BLOCK_SVG.store}</div><div><div class="fb-pb-label">Store</div><div class="fb-pb-sub">JSON / CSV</div></div></div>
               <div class="fb-pb fb-pb-recording" draggable="true" ondragstart="fbPaletteDragStart(event,'recording')" ondragend="fbPaletteDragEnd(event)" data-fb-type="recording"><div class="fb-pb-ico">${FB_BLOCK_SVG.recording}</div><div><div class="fb-pb-label">Recording</div><div class="fb-pb-sub">Replay saved flow</div></div></div>
+              <div class="fb-pb fb-pb-browser-action" draggable="true" ondragstart="fbPaletteDragStart(event,'browser_action')" ondragend="fbPaletteDragEnd(event)" data-fb-type="browser_action"><div class="fb-pb-ico">${FB_BLOCK_SVG.browser_action}</div><div><div class="fb-pb-label">Browser Action</div><div class="fb-pb-sub">1 step · chain shares page</div></div></div>
               <h3 style="margin-top:18px">Recent Runs</h3>
               <div id="${tabId}-fb-recent" style="font-size:11.5px;color:var(--text3)">— select pipeline —</div>
             </div>

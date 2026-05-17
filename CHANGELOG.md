@@ -5,6 +5,45 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [4.29.0] — 2026-05-17 — Recorder Explode export + `browser_action` block (Phase E)
+
+Extends the Phase D Convert flow with a second emission mode: **explode**. Instead of a single opaque `recording` block, a recording can now be emitted as **N `browser_action` blocks chained linearly** — one block per step — so each step is drag-reorderable, deletable, and individually editable on the canvas. A new `browser_action` block type lands as a first-class palette draggable, so users can also author chains by hand (a click → fill → submit sequence without recording first).
+
+The key architectural choice: chained `browser_action` blocks **share a single Playwright page** via the pipeline `ctx`. The first block in a chain opens the page; subsequent blocks reuse it (cookies/scroll/JS state persist); the executor cleans up at pipeline end.
+
+### Added
+
+- **Pipeline block type `browser_action`** — new executor `_pipeExecBrowserAction` that runs ONE browser step per block via the existing `_replayOneStep` helper. Block config: `action` (`goto`/`click`/`fill`/`press`/`select`/`check`/`submit`/`waitFor`/`waitForDialog`/`wait`/`scroll`) · `selector` · `value` · `url` (goto only) · `key` (press only) · `state` (waitFor only) · `ms`/`timeout` · `engine` (`playwright`/`cdp`) · `cdpEndpoint` · `captureHtml` (default `false` — opt-in per block).
+- **Ctx-shared browser session** — `ctx._sharedBrowserPage` + `ctx._sharedBrowserContext` lazily created on first `browser_action` of the chain; reused by subsequent blocks; closed at pipeline-end (`_executePipeline` post-loop cleanup, regardless of success/failure).
+- **`mode: "explode"` flag on `/api/recordings/:id/export-to-pipeline`** — emits 1 `browser_action` block per recorded step (plus a leading `goto` block for `startUrl` if present), chained linearly via `next[]`, laid out in a 5×N grid (240px x-step, 130px y-step). Last action gets `captureHtml=true` so downstream extract has HTML. `mode: "single"` (default) preserves v4.28.0 behavior.
+- **Visual Builder palette entry** — drag the new "Browser Action" block onto the canvas. Cyan accent (`rgba(34,211,238,.22)`) to differentiate from the pink/rose `recording` block.
+- **Properties panel — `browser_action`** — action dropdown + action-aware fields (Selector for click/fill/etc., URL for goto, Value with `{{var}}` for fill/select, Key for press, State + Timeout for waitFor, etc.) + Engine + CDP endpoint (conditional) + Capture HTML opt-in + a "chained blocks share a page" hint card.
+- **Convert UI mode picker** — first prompt asks `1 = single` (legacy opaque) or `2 = explode` (atomized). Default `2`. `_browserRecExportToFlow(id, modeArg?)` now accepts an optional mode arg for programmatic callers.
+- **`_actionBlockName(s)` + `_actionBlockConfig(s, engine, cdp, isLast)`** server helpers — translate a recorded step into a `browser_action` block's display name + minimal config.
+
+### Changed
+
+- `executors` map gains `browser_action: _pipeExecBrowserAction`.
+- `_executePipeline` final cleanup loop: closes `ctx._sharedBrowserPage` and (if owned) `ctx._sharedBrowserContext` before returning the result.
+- `/api/recordings/:id/export-to-pipeline` response now echoes `mode` so the client knows which schema was emitted.
+- `_fbDefaultBlock` returns the `browser_action` config shell on palette-drop.
+- Block body text on canvas: `<action> · <selector|url|ms|key>`.
+
+### Notes
+
+- **Reference (single) vs atomized (explode)**: pick `single` when the recording is a black-box prerequisite (e.g., a login step) — edit-once-everywhere via the Step editor. Pick `explode` when you want to weave per-step branches/heal fallbacks into a larger pipeline.
+- **Chain semantics**: `browser_action` blocks share `ctx._sharedBrowserPage`. A pipeline with mixed types still works — `fetch`/`extract`/`store` operate on `state`, while `browser_action` operates on the live page. If you want a fresh page mid-pipeline, just close the run and start a new one (page lifetime = pipeline lifetime).
+- **Action-name case-insensitive**: `waitFor` and `waitfor` and `WAITFOR` all canonicalize to the same action. Falls back to a helpful error listing all valid actions if the canonical lookup misses.
+- **Capture HTML default off for chained actions**: capturing every step would emit N HTML snapshots and stomp `state.html` on each block. Last action in an exploded chain auto-enables it so the downstream extract sees the final page; users can opt-in any intermediate block via the checkbox.
+
+### Files
+
+- `server.js` — `_pipeExecBrowserAction` + executors map registration + `_executePipeline` cleanup hook + `_actionBlockName`/`_actionBlockConfig` helpers + `/api/recordings/:id/export-to-pipeline` `mode` flag.
+- `public/index.html` — `FB_BLOCK_SVG.browser_action` + `FB_TYPE_META.browser_action` + palette entry + palette CSS tint (`fb-pb-browser-action` + `fb-pb-recording`) + `_fbDefaultBlock` config shell + props panel branch + body text branch + Convert UI mode picker.
+- `CHANGELOG.md`, `package.json` — version bump 4.28.0 → 4.29.0.
+
+---
+
 ## [4.28.0] — 2026-05-17 — Recorder → Visual Builder export (Phase D — roadmap closure)
 
 Closes Phase D of the v4.26→v4.29 Action Recorder roadmap. A saved recording can now be converted into a Visual Builder pipeline with one click — the recorded flow becomes a single `recording` block (plus optional `extract`+`store` stubs downstream), ready to schedule, chain into a larger pipeline, or wire into a Sidekick run. The `recording` block type is also a first-class palette draggable so users can compose pipelines around existing recordings without going through the convert flow.

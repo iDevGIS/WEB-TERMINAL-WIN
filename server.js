@@ -8845,6 +8845,69 @@ async function _pipeExecRecording(state, config, ctx) {
   return state;
 }
 
+// v4.29.0 — Phase E: 1-step-per-block executor. Shares browser/context/page across blocks via ctx,
+// so a chain of `browser_action` blocks runs against the SAME page (cookies/scroll/JS state preserved).
+// Cleanup happens in _executePipeline finally (close page + close owned context).
+async function _pipeExecBrowserAction(state, config, ctx) {
+  const rawAction = String(config.action || config.type || "click").trim();
+  const validActions = ["goto", "click", "fill", "press", "select", "check", "submit", "waitFor", "waitForDialog", "wait", "scroll"];
+  // case-insensitive match → canonical action name (so "waitfor" and "waitFor" both work)
+  const action = validActions.find(a => a.toLowerCase() === rawAction.toLowerCase());
+  if (!action) throw new Error(`browser_action: unknown action "${rawAction}" (valid: ${validActions.join(", ")})`);
+  const engine = String(config.engine || (ctx && ctx.engine) || "playwright").toLowerCase();
+  const cdpEndpoint = String(config.cdpEndpoint || (ctx && ctx.cdpEndpoint) || "http://localhost:9222");
+  const vars = (config.vars && typeof config.vars === "object" && !Array.isArray(config.vars)) ? config.vars : (ctx && ctx._sharedVars) || null;
+  const captureHtml = !!config.captureHtml; // default OFF for action blocks (avoid N captures); explicit per-block opt-in
+  // Lazy-create shared page on first browser_action block of the chain
+  if (!ctx._sharedBrowserPage || ctx._sharedBrowserPage.isClosed?.()) {
+    const browser = await _getScrapBrowser({ engine, cdpEndpoint });
+    const ctxResult = await _getScrapContextForEngine(browser, { engine });
+    ctx._sharedBrowserContext = ctxResult.context;
+    ctx._sharedBrowserContextOwned = !!ctxResult.owned;
+    ctx._sharedBrowserPage = await ctxResult.context.newPage();
+    ctx._sharedBrowserEngine = engine;
+    state.log.push(`browser_action: opened shared page (engine=${engine}${engine === "cdp" ? `, cdp=${cdpEndpoint}` : ""})`);
+  }
+  if (vars && !ctx._sharedVars) ctx._sharedVars = vars;
+  const page = ctx._sharedBrowserPage;
+  const step = {
+    type: action === "scroll" ? "wait" : action, // scroll handled inline below; everything else goes through _replayOneStep
+    selector: config.selector || "",
+    value: config.value == null ? "" : config.value,
+    url: config.url || "",
+    key: config.key || "",
+    state: config.state || "",
+    ms: parseInt(config.ms, 10) || 0,
+    timeout: parseInt(config.timeout, 10) || 0,
+  };
+  try {
+    if (action === "scroll") {
+      const dy = parseInt(config.value, 10) || 400;
+      await page.evaluate((y) => window.scrollBy({ top: y, behavior: "instant" }), dy);
+      state.log.push(`browser_action: scroll by ${dy}px ok`);
+    } else {
+      await _replayOneStep(page, step, vars);
+      const label = step.type + (step.selector ? ` ${String(step.selector).slice(0, 60)}` : (step.url ? ` ${String(step.url).slice(0, 60)}` : ""));
+      state.log.push(`browser_action: ${label} ok`);
+    }
+    if (captureHtml && page && !page.isClosed()) {
+      try {
+        state.html = await page.content();
+        state.finalUrl = page.url();
+        state.url = state.finalUrl;
+      } catch (e) {
+        state.log.push(`browser_action: capture failed (${e.message || e})`);
+      }
+    } else if (action === "goto" && page && !page.isClosed()) {
+      // Always update state.url after a goto so downstream blocks see the right URL
+      try { state.finalUrl = page.url(); state.url = state.finalUrl; } catch {}
+    }
+  } catch (e) {
+    throw new Error(`browser_action (${action}): ${e.message || e}`);
+  }
+  return state;
+}
+
 // v4.15.0 — pipeline-level lint. Surfaces structural patterns worth flagging.
 // Today: fan-out (multiple `next[]`). v4.14.0 surfaced this as "silent drop";
 // v4.15.0 executor now visits ALL siblings via BFS, so this is informational —
@@ -8960,6 +9023,7 @@ async function _executePipeline(pipeline, opts = {}) {
     login: _pipeExecLogin,
     follow: _pipeExecFollow,
     recording: _pipeExecRecording,
+    browser_action: _pipeExecBrowserAction, // v4.29.0 — Phase E: 1-step-per-block
   };
   const onProgress = typeof opts.onProgress === "function" ? opts.onProgress : () => {};
   const startedAt = Date.now();
@@ -9034,6 +9098,14 @@ async function _executePipeline(pipeline, opts = {}) {
     for (const nid of (block.next || []).filter(Boolean)) {
       if (blockMap.has(nid)) queue.push(nid);
     }
+  }
+  // v4.29.0 — Phase E: close shared browser page/context opened by browser_action chains
+  if (ctx._sharedBrowserPage) {
+    try { if (!ctx._sharedBrowserPage.isClosed?.()) await ctx._sharedBrowserPage.close(); } catch {}
+    state.log.push("browser_action: closed shared page");
+  }
+  if (ctx._sharedBrowserContext && ctx._sharedBrowserContextOwned) {
+    try { await ctx._sharedBrowserContext.close(); } catch {}
   }
   const result = {
     ok: state.errors.length === 0,
@@ -9913,49 +9985,146 @@ app.post("/api/recordings/:id/export-to-pipeline", requireAuth, express.json({ l
   const engine = ["playwright", "cdp"].includes(String(body.engine || "").toLowerCase())
     ? String(body.engine).toLowerCase() : "playwright";
   const cdpEndpoint = String(body.cdpEndpoint || "http://localhost:9222");
-  const stepCount = Array.isArray(rec.steps) ? rec.steps.length : 0;
-  const recBlock = {
-    id: "b_rec_" + Math.random().toString(36).slice(2, 8),
-    type: "recording",
-    name: `▶ ${rec.name || rec.id}`,
-    config: { recordingId: rec.id, engine, cdpEndpoint, captureHtml: true, continueOnError: false },
-    next: [],
-    position: { x: 120, y: 120 },
-  };
-  const blocks = [recBlock];
-  if (includeExtract) {
-    const extractBlock = {
-      id: "b_extract_" + Math.random().toString(36).slice(2, 8),
-      type: "extract",
-      name: "Extract (stub)",
-      config: { rules: [] },
+  const mode = ["single", "explode"].includes(String(body.mode || "").toLowerCase())
+    ? String(body.mode).toLowerCase() : "single";
+  const steps = Array.isArray(rec.steps) ? rec.steps : [];
+  const stepCount = steps.length;
+  const blocks = [];
+  let startBlockId = null;
+  let lastBlockId = null;
+
+  if (mode === "explode") {
+    // v4.29.0 — Phase E: emit 1 `browser_action` block per recorded step (+ leading goto for startUrl).
+    // Linear chain via next[]. Grid layout: 5 cols × N rows, 240px x-step, 130px y-step.
+    const COLS = 5, X0 = 120, Y0 = 120, DX = 240, DY = 130;
+    const expanded = [];
+    if (rec.startUrl && rec.startUrl !== "about:blank") {
+      expanded.push({ type: "goto", url: rec.startUrl });
+    }
+    expanded.push(...steps);
+    expanded.forEach((s, i) => {
+      const col = i % COLS, row = Math.floor(i / COLS);
+      const blk = {
+        id: "b_act_" + Math.random().toString(36).slice(2, 8),
+        type: "browser_action",
+        name: _actionBlockName(s),
+        config: _actionBlockConfig(s, engine, cdpEndpoint, i === expanded.length - 1),
+        next: [],
+        position: { x: X0 + col * DX, y: Y0 + row * DY },
+      };
+      if (lastBlockId) {
+        const prev = blocks.find(b => b.id === lastBlockId);
+        if (prev) prev.next = [blk.id];
+      } else {
+        startBlockId = blk.id;
+      }
+      blocks.push(blk);
+      lastBlockId = blk.id;
+    });
+    if (includeExtract && lastBlockId) {
+      const tailRow = Math.floor(expanded.length / COLS);
+      const tailX = X0 + ((expanded.length - 1) % COLS + 1) * DX;
+      const extractBlock = {
+        id: "b_extract_" + Math.random().toString(36).slice(2, 8),
+        type: "extract",
+        name: "Extract (stub)",
+        config: { rules: [] },
+        next: [],
+        position: { x: tailX, y: Y0 + tailRow * DY },
+      };
+      const storeBlock = {
+        id: "b_store_" + Math.random().toString(36).slice(2, 8),
+        type: "store",
+        name: "Store",
+        config: { format: "json", formats: [] },
+        next: [],
+        position: { x: tailX + DX, y: Y0 + tailRow * DY },
+      };
+      const tail = blocks.find(b => b.id === lastBlockId);
+      if (tail) {
+        // ensure the last action captures HTML so Extract has something to chew on
+        tail.config.captureHtml = true;
+        tail.next = [extractBlock.id];
+      }
+      extractBlock.next = [storeBlock.id];
+      blocks.push(extractBlock, storeBlock);
+    }
+  } else {
+    // mode === "single" — legacy v4.28.0 behavior: one `recording` block + optional extract/store stub
+    const recBlock = {
+      id: "b_rec_" + Math.random().toString(36).slice(2, 8),
+      type: "recording",
+      name: `▶ ${rec.name || rec.id}`,
+      config: { recordingId: rec.id, engine, cdpEndpoint, captureHtml: true, continueOnError: false },
       next: [],
-      position: { x: 380, y: 120 },
+      position: { x: 120, y: 120 },
     };
-    const storeBlock = {
-      id: "b_store_" + Math.random().toString(36).slice(2, 8),
-      type: "store",
-      name: "Store",
-      config: { format: "json", formats: [] },
-      next: [],
-      position: { x: 640, y: 120 },
-    };
-    recBlock.next = [extractBlock.id];
-    extractBlock.next = [storeBlock.id];
-    blocks.push(extractBlock, storeBlock);
+    blocks.push(recBlock);
+    startBlockId = recBlock.id;
+    if (includeExtract) {
+      const extractBlock = {
+        id: "b_extract_" + Math.random().toString(36).slice(2, 8),
+        type: "extract",
+        name: "Extract (stub)",
+        config: { rules: [] },
+        next: [],
+        position: { x: 380, y: 120 },
+      };
+      const storeBlock = {
+        id: "b_store_" + Math.random().toString(36).slice(2, 8),
+        type: "store",
+        name: "Store",
+        config: { format: "json", formats: [] },
+        next: [],
+        position: { x: 640, y: 120 },
+      };
+      recBlock.next = [extractBlock.id];
+      extractBlock.next = [storeBlock.id];
+      blocks.push(extractBlock, storeBlock);
+    }
   }
+
   const pipelineBody = {
     name,
-    description: `Exported from recording '${rec.name || rec.id}' (${stepCount} step${stepCount === 1 ? "" : "s"}) on ${new Date().toISOString()}`,
+    description: `Exported from recording '${rec.name || rec.id}' (${stepCount} step${stepCount === 1 ? "" : "s"}, mode=${mode}) on ${new Date().toISOString()}`,
     blocks,
-    startBlock: recBlock.id,
+    startBlock: startBlockId,
   };
   const list = loadPipelines();
   const p = _normalizePipeline(pipelineBody, null);
   list.push(p);
   savePipelines(list);
-  res.json({ ok: true, pipeline: p, blockCount: blocks.length, recordingId: rec.id });
+  res.json({ ok: true, pipeline: p, blockCount: blocks.length, recordingId: rec.id, mode });
 });
+
+// v4.29.0 helpers — translate a recorded step into a browser_action block's display name + config
+function _actionBlockName(s) {
+  const t = String(s.type || "").toLowerCase();
+  const trim = (str, n) => { const v = String(str || ""); return v.length > n ? v.slice(0, n - 1) + "…" : v; };
+  if (t === "goto") return `→ ${trim(s.url, 28)}`;
+  if (t === "click") return `🖱 click ${trim(s.selector, 26)}`;
+  if (t === "fill") return `⌨ fill ${trim(s.selector, 22)}`;
+  if (t === "press") return `⏎ press ${s.key || "Enter"}`;
+  if (t === "select") return `▾ select ${trim(s.selector, 24)}`;
+  if (t === "check") return `☑ check ${trim(s.selector, 24)}`;
+  if (t === "submit") return `📤 submit ${trim(s.selector, 22)}`;
+  if (t === "waitFor") return `⏳ wait ${trim(s.selector, 26)}`;
+  if (t === "waitForDialog") return `🪟 wait dialog`;
+  if (t === "wait") return `⏱ wait ${s.ms || 1000}ms`;
+  return t || "(unknown)";
+}
+function _actionBlockConfig(s, engine, cdpEndpoint, isLast) {
+  const cfg = { action: s.type, engine, cdpEndpoint };
+  if (s.selector) cfg.selector = s.selector;
+  if (s.url) cfg.url = s.url;
+  if (s.value != null && s.value !== "") cfg.value = s.value;
+  if (s.key) cfg.key = s.key;
+  if (s.state) cfg.state = s.state;
+  if (s.ms) cfg.ms = s.ms;
+  if (s.timeout) cfg.timeout = s.timeout;
+  if (isLast) cfg.captureHtml = true; // last action grabs HTML/url for downstream
+  return cfg;
+}
 
 // === Replay engine — executes JSON steps via Playwright/CDP, streams SSE per-step events ===
 // v4.27.0 — `{{var}}` interpolation. Replaces `{{name}}` tokens with vars[name] in string fields.
