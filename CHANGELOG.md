@@ -5,6 +5,35 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [4.35.0] — 2026-05-17 — Recording Health Badge (Run Ledger → row visibility)
+
+v4.34.0 captured the per-recording replay history as JSONL but you still had to click 📊 to see it. v4.35.0 closes the loop: each recording row in the panel now shows a colored health badge computed from the last 10 runs of its ledger. Green = ≥90% ok AND latest run ok. Yellow = 60-89% ok, OR ≥90% but the latest run failed (freshness downgrade — if today's run broke, don't pretend the recording is fine just because last week was clean). Red = <60% ok. Gray = no runs yet. Healed count from Self-Heal is surfaced in the tooltip without altering the color (self-heal is masking, not curing). Click the badge → opens the same Run History modal scoped to that recording. Zero new infra: `_recordingHealth(id, limit=10)` reads the same JSONL tail as `/runs`, augments `GET /api/recordings` with a `health` field, and the panel row renders the badge alongside the existing schedule badge.
+
+**Server (~24 LOC)**
+
+- `_recordingHealth(recId, limit=10)`: reads JSONL tail, tallies `ok` (status==='ok') and `fail` (everything else: 'fail' + 'aborted'), surfaces `healed` count (runs with `healedCount > 0`), and computes `latestStatus` + `latestAt` from `runs[0]`. Returns `{ rating: 'gray'|'red'|'yellow'|'green', total, ok, fail, healed, latestStatus, latestAt }`.
+- Rating logic: `total === 0` → gray. `rate = ok/total`. `rate < 0.6` → red. `rate < 0.9` → yellow. `rate >= 0.9` AND `latestStatus === 'ok'` → green; else yellow (freshness downgrade).
+- `GET /api/recordings` response map: adds `health: _recordingHealth(r.id, 10)` per row.
+
+**Client (~25 LOC + CSS)**
+
+- `.rec-health-badge` with 4 color variants (green/yellow/red/gray) using the same border-radius/font/padding as `.rec-sched-badge` for visual consistency.
+- Row renderer: inserts the badge into `.name` div alongside `schBadge`. Format: `✓ ok/total` (green), `⚠ ok/total` (yellow), `✕ ok/total` (red), `· no runs` (gray). Optional `· ⚡N` suffix when self-heal fired in any run of the window.
+- Tooltip: `X/Y ok last Y · Z healed · latest <status> <localeString>` — captures the whole story in hover.
+- onclick → `_recRunsOpen(id, name)` — same modal as the 📊 button, no new UI surface.
+
+**Smoke** (4 rating cases verified end-to-end against running server)
+
+1. **gray** — `plus-login` recording with zero ledger entries → badge "· no runs" ✅
+2. **yellow** — synthetic recording with 7 ok / 2 fail / 1 aborted, latest=ok (rate 0.7) → badge "⚠ 7/10" ✅
+3. **green** — 10 ok runs, latest=ok (rate 1.0) → badge "✓ 10/10" ✅
+4. **yellow-via-freshness** — 9 ok + 1 fail with fail=latest (rate 0.9 but latestStatus='fail') → "⚠ 9/10" ✅
+5. **red** — 5 ok / 5 fail (rate 0.5) → badge "✕ 5/10" ✅
+
+**Roadmap closure**: Recording vertical = record (v4.26) → replay (v4.26) → edit + vars (v4.27) → convert single (v4.28) → explode + browser_action (v4.29) → self-heal (v4.30) → catalog (v4.31) → schedule (v4.32) → dashboard (v4.33) → run ledger (v4.34) → health badge (v4.35). Ten ships across one vertical, each closing the loop the prior ship opened. The badge is the first list-level health signal — every prior surface was modal or detail-page.
+
+---
+
 ## [4.34.0] — 2026-05-17 — Recording Run Ledger (per-recording replay history)
 
 The v4.33.0 Scheduler Dashboard surfaced *latest-run* state per recording but a single row per row tells you "the last attempt was ok" without revealing the trend behind it: was it ok because Self-Heal silently masked 3 selector drifts? Did the duration drift from 600ms to 8 seconds over the past two days? Is the scheduled run drifting later each fire because of failure backoff? v4.34.0 wraps every `_replayRecording` invocation with a tally-and-persist envelope and writes each completion to a per-recording append-only JSONL file. A new 📊 button in the Recordings panel opens a sortable history modal with five summary chips and an 8-column table over the last 50 runs.

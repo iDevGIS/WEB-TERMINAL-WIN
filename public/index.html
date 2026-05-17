@@ -1204,6 +1204,17 @@
     .rec-sched-badge.on { background: rgba(52,211,153,.14); border: 1px solid rgba(52,211,153,.32); color: #6ee7b7; }
     .rec-sched-badge.paused { background: rgba(239,68,68,.14); border: 1px solid rgba(239,68,68,.35); color: #fda4af; }
     .rec-sched-badge:hover { filter: brightness(1.15); }
+    /* v4.35.0 — Health badge derived from per-recording Run Ledger (last 10 runs). Click → Run History modal. */
+    .rec-health-badge {
+      display: inline-flex; align-items: center; gap: 4px; padding: 1px 7px; margin-left: 6px;
+      border-radius: 10px; font: 10px ui-monospace, monospace; cursor: pointer; vertical-align: middle;
+    }
+    .rec-health-badge.green { background: rgba(52,211,153,.14); border: 1px solid rgba(52,211,153,.32); color: #6ee7b7; }
+    .rec-health-badge.yellow { background: rgba(251,191,36,.16); border: 1px solid rgba(251,191,36,.38); color: #fde68a; }
+    .rec-health-badge.red { background: rgba(239,68,68,.14); border: 1px solid rgba(239,68,68,.35); color: #fda4af; }
+    .rec-health-badge.gray { background: rgba(148,163,184,.10); border: 1px solid rgba(148,163,184,.22); color: #94a3b8; }
+    .rec-health-badge:hover { filter: brightness(1.18); }
+    .rec-health-badge .heal-dot { opacity: .85; }
     .rec-sched-modal {
       width: min(520px, 92vw); display: flex; flex-direction: column;
       background: linear-gradient(180deg, #0d0e1f, #0a0a1a);
@@ -6506,10 +6517,22 @@
             schBadge = `<span class="rec-sched-badge on" onclick="_recSchedOpen('${escAttr(it.id)}')" title="every ${sch.intervalMin}min · next ${next ? next.toLocaleString() : '?'}">⏱ ${sch.intervalMin}m · next ${escHtml(nextTxt)}</span>`;
           }
         }
+        // v4.35.0 — Health badge from per-recording Run Ledger (last 10 runs). Click → Run History modal.
+        const h = it.health || { rating: 'gray', total: 0, ok: 0, fail: 0, healed: 0, latestStatus: null, latestAt: null };
+        let healthBadge = '';
+        if (h.rating === 'gray') {
+          healthBadge = `<span class="rec-health-badge gray" onclick="_recRunsOpen('${escAttr(it.id)}','${escAttr(it.name || '')}')" title="No replays yet. Click ▶ Replay or enable ⏱ schedule to populate.">· no runs</span>`;
+        } else {
+          const sym = h.rating === 'green' ? '✓' : (h.rating === 'red' ? '✕' : '⚠');
+          const healPart = h.healed > 0 ? `<span class="heal-dot">· ⚡${h.healed}</span>` : '';
+          const latestPart = h.latestStatus ? ` · latest ${h.latestStatus}${h.latestAt ? ' ' + new Date(h.latestAt).toLocaleString() : ''}` : '';
+          const tip = `${h.ok}/${h.total} ok last ${h.total}${h.healed ? ` · ${h.healed} healed` : ''}${latestPart}`;
+          healthBadge = `<span class="rec-health-badge ${h.rating}" onclick="_recRunsOpen('${escAttr(it.id)}','${escAttr(it.name || '')}')" title="${escAttr(tip)}">${sym} ${h.ok}/${h.total}${healPart}</span>`;
+        }
         return `
           <div class="rec-item" data-id="${escAttr(it.id)}">
             <div class="meta">
-              <div class="name">${escHtml(it.name)}${schBadge}</div>
+              <div class="name">${escHtml(it.name)}${healthBadge}${schBadge}</div>
               <div class="sub">${it.count} step${it.count === 1 ? '' : 's'} · ${escHtml(fmt(it.createdAt))} · <span style="color:#a78bfa">${escHtml(it.startUrl || '')}</span></div>
               <div class="rec-item-tags">${tagsHtml}<span class="rec-tag-add" onclick="_recCatalogAddTag('${escAttr(it.id)}')" title="add tag">+ tag</span></div>
             </div>

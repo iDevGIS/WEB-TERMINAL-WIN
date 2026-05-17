@@ -9801,6 +9801,29 @@ function _loadRecentRuns(recId, limit) {
       .filter(Boolean);
   } catch { return []; }
 }
+// v4.35.0 — Health summary: success rate over last N runs + latest status freshness gate.
+// rating: 'gray' (no data) → 'red' (<60%) → 'yellow' (60-89% OR latest fail despite >=90% history)
+// → 'green' (>=90% AND latest ok). Healed count surfaced for tooltip only (not rating-altering).
+function _recordingHealth(recId, limit) {
+  const n = Math.max(1, Math.min(50, parseInt(limit, 10) || 10));
+  const runs = _loadRecentRuns(recId, n);
+  const total = runs.length;
+  if (total === 0) return { rating: 'gray', total: 0, ok: 0, fail: 0, healed: 0, latestStatus: null, latestAt: null };
+  let ok = 0, fail = 0, healed = 0;
+  for (const r of runs) {
+    if (r.status === 'ok') ok++; else fail++;
+    if (r.healedCount > 0) healed++;
+  }
+  const latest = runs[0];
+  const latestStatus = latest && latest.status ? latest.status : null;
+  const latestAt = latest && (latest.endedAt || latest.ts) || null;
+  const rate = ok / total;
+  let rating;
+  if (rate < 0.6) rating = 'red';
+  else if (rate < 0.9) rating = 'yellow';
+  else rating = (latestStatus === 'ok') ? 'green' : 'yellow';
+  return { rating, total, ok, fail, healed, latestStatus, latestAt };
+}
 
 // In-page recorder script. v4.30.0 emits both a primary `selector` (string, backcompat) AND
 // `selectors[]` candidate array of {kind,value} for Self-Heal fallback at replay time.
@@ -10148,6 +10171,7 @@ app.get("/api/recordings", requireAuth, (req, res) => {
     id: r.id, name: r.name, createdAt: r.createdAt, updatedAt: r.updatedAt || null,
     startUrl: r.startUrl, count: (r.steps || []).length,
     tags: Array.isArray(r.tags) ? r.tags : [],
+    health: _recordingHealth(r.id, 10),
     schedule: r.schedule ? {
       enabled: !!r.schedule.enabled,
       intervalMin: parseInt(r.schedule.intervalMin) || 60,
