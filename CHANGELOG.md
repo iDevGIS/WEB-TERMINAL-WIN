@@ -5,6 +5,45 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [4.31.0] — 2026-05-17 — Recording Catalog (search · sort · tags)
+
+The Recordings panel grows past flat-list ergonomics. With Self-Heal v4.30.0 making recordings durable enough to keep around, users accumulate dozens — and `Ctrl+F` on a `.json` blob does not scale. v4.31.0 adds a **toolbar row** above the recording list with a live search input (matches name + start URL), a sort dropdown (6 orders), per-row **tag chips**, and a yellow active-tag filter pill that says "you are filtered, click X to clear."
+
+### Why
+The recordings file is one append-only list; at 5 recordings it is browsable, at 30 it is a haystack. Tags let users group by intent (`work`, `login`, `prod`, `daily`) without folder hierarchies that always devolve. Sort by step-count surfaces "the recording that is probably broken" (you saved it after 2 clicks, now it has 47). Search lets `twitter` find the 3 recordings you made on Twitter without scrolling.
+
+### Highlights
+
+- **Tags schema** (additive, backcompat): `recording.tags: string[]` — optional, max 8 per recording, normalized to `[a-z0-9_-]{1,20}` (server-side enforcement so client cannot inject formatting). Pre-v4.31 recordings have no `tags` field; missing = no tags = render no chips, no migration needed.
+- **`GET /api/recordings`** list response now includes `tags: string[]` per item + `updatedAt` (was previously omitted from list, only on detail).
+- **`PUT /api/recordings/:id`** accepts `tags: string[]` patch field — `_normalizeTags()` server-side guarantees only valid tags persist regardless of client behavior. Response echoes the normalized tags so the client can update its local cache.
+- **Toolbar row** (`.rec-panel-toolbar`): search input + sort dropdown + active filter chip + stats counter. Sticky at top of modal, scrolls with no items.
+- **Client state** (`_recCatalog`): `{ q, activeTag, sort, items }` — single source of truth. Server fetch populates `items` once; all filter/sort happens client-side. ~30ms render even for 200 recordings.
+- **Sort orders**: newest first (default), oldest first, name A→Z / Z→A, most/fewest steps.
+- **Per-row tag chips**: blue clickable; click toggles tag filter; hover reveals `✕` to remove tag (stops event propagation so click does not also filter). `+ tag` dashed-border chip prompts for new tag, validates + posts to API.
+- **Stats counter** (e.g., `12/47 rec · 1,238 steps`): shows filtered/total recordings + sum of step counts. Updates live as user types / clicks tags.
+- **Empty states**: no recordings yet → existing "🔴 Rec mode" guide; recordings exist but filtered to zero → "No matches. Clear search or tag filter to see all N."
+- **Filter pill** (yellow, top-right of toolbar): when a tag is active, shows `tag: <name> ✕` chip; click anywhere on it clears the filter.
+
+### Files touched
+- `server.js` — `_normalizeTags()` (+13), list response (+4), PUT branch (+1), response echoes tags (+1)
+- `public/index.html` — toolbar + tag CSS (+45), panel HTML restructured w/ toolbar div (+10), full `_browserRecPanelRefresh` + 8 new `_recCatalog*` helpers (+120)
+- `package.json` — `4.30.0` → `4.31.0`
+- `CHANGELOG.md` — this entry
+
+### Test plan
+1. Reload `/` → toolbar `📼` → Recordings panel opens with search/sort/stats row at top.
+2. Type `twit` in search → list filters live to recordings whose name or startUrl includes "twit".
+3. Click sort dropdown → "name A→Z" → recordings reorder alphabetically.
+4. Click `+ tag` on a row → prompt → enter `prod` → tag chip appears in row; reload panel → tag persists.
+5. Click the new `prod` chip → list filters to only that tag; yellow `tag: prod ✕` pill appears in toolbar.
+6. Click the `✕` on the pill (or click the `prod` chip again) → filter clears.
+7. Hover a tag chip → small `✕` appears; click → tag is removed from that recording (PUT), persists.
+8. Add 9th tag to a recording → alert "Max 8 tags".
+9. Try to add tag with invalid chars (`my tag!`) → normalized to `mytag`.
+
+---
+
 ## [4.30.0] — 2026-05-17 — Recorder Self-Heal (selector fallback chain)
 
 Recordings now survive selector drift. The in-page recorder emits an **ordered candidate list** per element (`testid > id > role+aria > aria > name > placeholder > text > css-path`) instead of a single string. At replay time, `_resolveLocator` probes each candidate in order — falling back to the next if the primary fails — and the SSE log marks which candidate actually matched. The step editor renders all candidates as clickable chips beneath each step row: click any non-primary chip to promote it to primary (the next replay tries it first).

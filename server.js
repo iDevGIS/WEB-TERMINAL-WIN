@@ -9970,8 +9970,27 @@ recWss.on("connection", async (ws, req) => {
 });
 
 // === Recordings CRUD ===
+// v4.31.0 — tag normalizer: lowercase, trim, max 20 chars, max 8 tags, alphanumeric+dash+underscore
+function _normalizeTags(input) {
+  if (!Array.isArray(input)) return [];
+  const seen = new Set();
+  const out = [];
+  for (const t of input) {
+    if (typeof t !== 'string') continue;
+    const norm = t.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 20);
+    if (!norm || seen.has(norm)) continue;
+    seen.add(norm);
+    out.push(norm);
+    if (out.length >= 8) break;
+  }
+  return out;
+}
 app.get("/api/recordings", requireAuth, (req, res) => {
-  const items = loadRecordings().map(r => ({ id: r.id, name: r.name, createdAt: r.createdAt, startUrl: r.startUrl, count: (r.steps || []).length }));
+  const items = loadRecordings().map(r => ({
+    id: r.id, name: r.name, createdAt: r.createdAt, updatedAt: r.updatedAt || null,
+    startUrl: r.startUrl, count: (r.steps || []).length,
+    tags: Array.isArray(r.tags) ? r.tags : [],
+  }));
   res.json({ items });
 });
 app.get("/api/recordings/:id", requireAuth, (req, res) => {
@@ -9987,9 +10006,10 @@ app.put("/api/recordings/:id", requireAuth, express.json({ limit: "5mb" }), (req
   if (typeof patch.name === 'string') list[i].name = patch.name.slice(0, 80);
   if (Array.isArray(patch.steps)) list[i].steps = patch.steps;
   if (typeof patch.startUrl === 'string') list[i].startUrl = patch.startUrl.slice(0, 2000);
+  if (Array.isArray(patch.tags)) list[i].tags = _normalizeTags(patch.tags);
   list[i].updatedAt = Date.now();
   saveRecordings(list);
-  res.json({ ok: true });
+  res.json({ ok: true, tags: list[i].tags || [] });
 });
 app.delete("/api/recordings/:id", requireAuth, (req, res) => {
   const list = loadRecordings();
