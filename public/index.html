@@ -1155,6 +1155,77 @@
     .rec-log-line.ok { color: #6ee7b7; }
     .rec-log-line.fail { color: #fb7185; }
     .rec-log-line.info { color: #a78bfa; }
+
+    /* v4.27.0 — Step editor modal */
+    .rec-edit-modal {
+      width: min(920px, 96vw); max-height: 88vh; display: flex; flex-direction: column;
+      background: linear-gradient(180deg, #0d0e1f, #0a0a1a);
+      border: 1px solid rgba(108,99,255,.3); border-radius: 14px;
+      box-shadow: 0 24px 60px rgba(0,0,0,.5); overflow: hidden;
+    }
+    .rec-edit-meta { display: grid; grid-template-columns: 80px 1fr; gap: 6px 10px; padding: 12px 16px; border-bottom: 1px solid rgba(255,255,255,.06); }
+    .rec-edit-meta label { font-size: 11px; color: var(--text3); align-self: center; }
+    .rec-edit-meta input {
+      width: 100%; box-sizing: border-box; padding: 5px 9px; height: 28px;
+      background: rgba(0,0,0,.3); border: 1px solid rgba(255,255,255,.08); border-radius: 6px;
+      color: var(--text); font: 12px ui-monospace, monospace; outline: none;
+    }
+    .rec-edit-meta input:focus { border-color: rgba(167,139,250,.45); background: rgba(0,0,0,.4); }
+    .rec-edit-steps-head { display: flex; align-items: center; gap: 8px; padding: 10px 16px; border-bottom: 1px solid rgba(255,255,255,.06); }
+    .rec-edit-steps-head h4 { margin: 0; font-size: 12px; color: var(--text2); flex: 1; }
+    .rec-edit-steps-head .hint { font-size: 11px; color: var(--text3); }
+    .rec-edit-steps-head .add-step {
+      height: 26px; padding: 0 12px; border-radius: 6px; cursor: pointer;
+      background: rgba(52,211,153,.15); border: 1px solid rgba(52,211,153,.3); color: #6ee7b7;
+      font: 11px system-ui, sans-serif;
+    }
+    .rec-edit-steps-head .add-step:hover { background: rgba(52,211,153,.25); }
+    .rec-edit-steps { flex: 1; overflow-y: auto; padding: 8px 10px; }
+    .rec-step-row {
+      display: flex; align-items: center; gap: 6px; padding: 6px 8px; margin-bottom: 4px;
+      background: rgba(255,255,255,.025); border: 1px solid rgba(255,255,255,.05); border-radius: 8px;
+    }
+    .rec-step-row:hover { background: rgba(108,99,255,.06); border-color: rgba(108,99,255,.15); }
+    .rec-step-row .idx { width: 26px; text-align: right; font: 11px ui-monospace, monospace; color: var(--text3); }
+    .rec-step-row .move-btns { display: flex; flex-direction: column; gap: 1px; }
+    .rec-step-row .move-btns button {
+      width: 18px; height: 14px; padding: 0; line-height: 1; font-size: 9px;
+      background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.08);
+      border-radius: 3px; cursor: pointer; color: var(--text3);
+    }
+    .rec-step-row .move-btns button:hover { background: rgba(108,99,255,.25); color: #c4b5fd; }
+    .rec-step-row select.type-pick {
+      height: 26px; padding: 0 6px; border-radius: 6px;
+      background: rgba(108,99,255,.12); border: 1px solid rgba(108,99,255,.3); color: #c4b5fd;
+      font: 11px ui-monospace, monospace; cursor: pointer; min-width: 92px;
+    }
+    .rec-step-row input.field, .rec-step-row select.field {
+      height: 26px; padding: 0 8px; flex: 1; min-width: 60px;
+      background: rgba(0,0,0,.28); border: 1px solid rgba(255,255,255,.08); border-radius: 6px;
+      color: var(--text); font: 11px ui-monospace, monospace; outline: none;
+    }
+    .rec-step-row input.field:focus, .rec-step-row select.field:focus { border-color: rgba(167,139,250,.4); background: rgba(0,0,0,.38); }
+    .rec-step-row input.field.flex2 { flex: 2; }
+    .rec-step-row input.field.narrow { flex: 0 0 70px; }
+    .rec-step-row .field-label { font-size: 10px; color: var(--text3); white-space: nowrap; }
+    .rec-step-row .del-btn {
+      width: 24px; height: 24px; padding: 0; border-radius: 6px; cursor: pointer; font-size: 11px;
+      background: rgba(239,68,68,.1); border: 1px solid rgba(239,68,68,.2); color: #fda4af;
+    }
+    .rec-step-row .del-btn:hover { background: rgba(239,68,68,.25); }
+    .rec-edit-foot { padding: 10px 16px; display: flex; gap: 8px; justify-content: flex-end; border-top: 1px solid rgba(255,255,255,.06); }
+    .rec-edit-foot button {
+      height: 30px; padding: 0 14px; border-radius: 7px; cursor: pointer;
+      font: 12px system-ui, sans-serif;
+      background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.1); color: var(--text);
+    }
+    .rec-edit-foot button:hover { background: rgba(108,99,255,.2); }
+    .rec-edit-foot button.preview { background: rgba(167,139,250,.15); border-color: rgba(167,139,250,.35); color: #c4b5fd; }
+    .rec-edit-foot button.preview:hover { background: rgba(167,139,250,.3); }
+    .rec-edit-foot button.save { background: rgba(52,211,153,.18); border-color: rgba(52,211,153,.4); color: #6ee7b7; }
+    .rec-edit-foot button.save:hover { background: rgba(52,211,153,.3); }
+    .rec-edit-foot .footer-status { font-size: 11px; color: var(--text3); align-self: center; margin-right: auto; }
+    .rec-step-empty { padding: 28px; text-align: center; color: var(--text3); font-size: 12px; }
     .browser-tab-frame {
       flex: 1;
       min-height: 0;
@@ -6178,6 +6249,7 @@
             </div>
             <div class="actions">
               <button class="replay" onclick="_browserRecReplay('${escAttr(it.id)}')">▶ Replay</button>
+              <button onclick="_browserRecEditOpen('${escAttr(it.id)}')">✏️ Edit</button>
               <button onclick="_browserRecView('${escAttr(it.id)}')">View</button>
               <button onclick="_browserRecRename('${escAttr(it.id)}')">Rename</button>
               <button class="danger" onclick="_browserRecDelete('${escAttr(it.id)}')">✕</button>
@@ -6277,6 +6349,286 @@
           }
         }
       } catch (e) { append('fail', 'Replay error: ' + (e.message || e)); }
+    }
+
+    // v4.27.0 — Step editor (inline CRUD, reorder, {{var}} parameterize, preview)
+    const _RecStepTypes = ['goto', 'click', 'fill', 'press', 'select', 'check', 'submit', 'waitFor', 'waitForDialog', 'wait', 'scroll'];
+    let _recEdit = null; // { id, name, startUrl, steps:[], vars:'', dirty:false }
+
+    async function _browserRecEditOpen(id) {
+      try {
+        const r = await fetch('/api/recordings/' + encodeURIComponent(id));
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        const rec = await r.json();
+        _recEdit = {
+          id: rec.id,
+          name: rec.name || '',
+          startUrl: rec.startUrl || '',
+          steps: Array.isArray(rec.steps) ? JSON.parse(JSON.stringify(rec.steps)) : [],
+          vars: localStorage.getItem('recVarsLast') || '',
+          dirty: false,
+        };
+        _recEditRender();
+      } catch (e) { alert('Open edit failed: ' + (e.message || e)); }
+    }
+
+    function _recEditRender() {
+      const old = document.getElementById('rec-edit-backdrop');
+      if (old) old.remove();
+      if (!_recEdit) return;
+      const bd = document.createElement('div');
+      bd.id = 'rec-edit-backdrop';
+      bd.className = 'rec-panel-backdrop open';
+      bd.innerHTML = `
+        <div class="rec-edit-modal" onclick="event.stopPropagation()">
+          <div class="rec-panel-head">
+            <h3>✏️ Edit recording</h3>
+            <span style="font-size:11px;color:var(--text3)">${_recEdit.steps.length} step${_recEdit.steps.length === 1 ? '' : 's'} · use <code style="color:#c4b5fd">{{var}}</code> for params</span>
+            <button class="x" onclick="_recEditClose()">✕</button>
+          </div>
+          <div class="rec-edit-meta">
+            <label>Name</label>
+            <input id="rec-edit-name" type="text" maxlength="80" />
+            <label>StartUrl</label>
+            <input id="rec-edit-starturl" type="text" placeholder="https://example.com" />
+            <label>Vars JSON</label>
+            <input id="rec-edit-vars" type="text" placeholder='{"q":"test","email":"a@b.com"}' />
+          </div>
+          <div class="rec-edit-steps-head">
+            <h4>Steps</h4>
+            <span class="hint">drag-free reorder via ↑↓ · ✕ delete · click type to change</span>
+            <button class="add-step" onclick="_recAddStep()">+ Add step</button>
+          </div>
+          <div class="rec-edit-steps" id="rec-edit-steps"></div>
+          <div class="rec-edit-foot">
+            <span class="footer-status" id="rec-edit-status"></span>
+            <button class="preview" onclick="_recPreview()">▶ Preview</button>
+            <button class="save" onclick="_recSave()">💾 Save</button>
+            <button onclick="_recEditClose()">Cancel</button>
+          </div>
+        </div>`;
+      bd.addEventListener('click', (e) => { if (e.target === bd) _recEditClose(); });
+      document.body.appendChild(bd);
+      document.getElementById('rec-edit-name').value = _recEdit.name;
+      document.getElementById('rec-edit-starturl').value = _recEdit.startUrl;
+      document.getElementById('rec-edit-vars').value = _recEdit.vars;
+      document.getElementById('rec-edit-name').oninput = (e) => { _recEdit.name = e.target.value; _recEdit.dirty = true; };
+      document.getElementById('rec-edit-starturl').oninput = (e) => { _recEdit.startUrl = e.target.value; _recEdit.dirty = true; };
+      document.getElementById('rec-edit-vars').oninput = (e) => { _recEdit.vars = e.target.value; };
+      _recRenderSteps();
+    }
+
+    function _recRenderSteps() {
+      const host = document.getElementById('rec-edit-steps');
+      if (!host) return;
+      if (!_recEdit.steps.length) {
+        host.innerHTML = '<div class="rec-step-empty">No steps. Click <b>+ Add step</b> to start.</div>';
+        return;
+      }
+      host.innerHTML = _recEdit.steps.map((s, i) => _recStepRowHtml(s, i)).join('');
+    }
+
+    function _recStepRowHtml(s, i) {
+      const types = _RecStepTypes.map(t => `<option value="${t}"${t === s.type ? ' selected' : ''}>${t}</option>`).join('');
+      let fields = '';
+      const sel = (s.selector != null) ? escAttr(String(s.selector)) : '';
+      const val = (s.value != null) ? escAttr(String(s.value)) : '';
+      switch (s.type) {
+        case 'goto':
+          fields = `<span class="field-label">url</span><input class="field flex2" type="text" value="${(s.url != null) ? escAttr(String(s.url)) : ''}" oninput="_recField(${i},'url',this.value)" placeholder="https://...">`;
+          break;
+        case 'click': case 'submit':
+          fields = `<span class="field-label">sel</span><input class="field flex2" type="text" value="${sel}" oninput="_recField(${i},'selector',this.value)" placeholder="css-or-text">`;
+          break;
+        case 'fill':
+          fields = `<span class="field-label">sel</span><input class="field" type="text" value="${sel}" oninput="_recField(${i},'selector',this.value)" placeholder="#input">
+                    <span class="field-label">val</span><input class="field" type="text" value="${val}" oninput="_recField(${i},'value',this.value)" placeholder="text or {{var}}">`;
+          break;
+        case 'press':
+          fields = `<span class="field-label">sel</span><input class="field" type="text" value="${sel}" oninput="_recField(${i},'selector',this.value)" placeholder="#input">
+                    <span class="field-label">key</span><input class="field narrow" type="text" value="${(s.key != null) ? escAttr(String(s.key)) : 'Enter'}" oninput="_recField(${i},'key',this.value)">`;
+          break;
+        case 'select':
+          fields = `<span class="field-label">sel</span><input class="field" type="text" value="${sel}" oninput="_recField(${i},'selector',this.value)" placeholder="select">
+                    <span class="field-label">val</span><input class="field" type="text" value="${val}" oninput="_recField(${i},'value',this.value)" placeholder="option-value">`;
+          break;
+        case 'check':
+          fields = `<span class="field-label">sel</span><input class="field" type="text" value="${sel}" oninput="_recField(${i},'selector',this.value)" placeholder="checkbox">
+                    <span class="field-label">checked</span>
+                    <select class="field narrow" onchange="_recField(${i},'value',this.value==='true')">
+                      <option value="true"${s.value ? ' selected' : ''}>true</option>
+                      <option value="false"${!s.value ? ' selected' : ''}>false</option>
+                    </select>`;
+          break;
+        case 'waitFor':
+          fields = `<span class="field-label">sel</span><input class="field" type="text" value="${sel}" oninput="_recField(${i},'selector',this.value)" placeholder="css">
+                    <span class="field-label">state</span>
+                    <select class="field narrow" onchange="_recField(${i},'state',this.value)">
+                      ${['visible','hidden','attached','detached'].map(o => `<option value="${o}"${(s.state||'visible')===o?' selected':''}>${o}</option>`).join('')}
+                    </select>
+                    <span class="field-label">ms</span><input class="field narrow" type="number" value="${parseInt(s.timeout, 10) || 15000}" oninput="_recField(${i},'timeout',parseInt(this.value,10)||15000)">`;
+          break;
+        case 'waitForDialog':
+          fields = `<span class="field-label">sel</span><input class="field flex2" type="text" value="${sel}" oninput="_recField(${i},'selector',this.value)" placeholder="(default: [role=dialog])">
+                    <span class="field-label">ms</span><input class="field narrow" type="number" value="${parseInt(s.timeout, 10) || 15000}" oninput="_recField(${i},'timeout',parseInt(this.value,10)||15000)">`;
+          break;
+        case 'wait':
+          fields = `<span class="field-label">ms</span><input class="field narrow" type="number" value="${parseInt(s.ms, 10) || 1000}" oninput="_recField(${i},'ms',parseInt(this.value,10)||0)">`;
+          break;
+        case 'scroll':
+          fields = `<span class="field-label">x</span><input class="field narrow" type="number" value="${parseInt(s.x, 10) || 0}" oninput="_recField(${i},'x',parseInt(this.value,10)||0)">
+                    <span class="field-label">y</span><input class="field narrow" type="number" value="${parseInt(s.y, 10) || 0}" oninput="_recField(${i},'y',parseInt(this.value,10)||0)">`;
+          break;
+        default:
+          fields = `<span class="field-label">(unknown)</span>`;
+      }
+      return `
+        <div class="rec-step-row">
+          <span class="idx">${i + 1}</span>
+          <span class="move-btns">
+            <button onclick="_recMove(${i},-1)" title="up">▲</button>
+            <button onclick="_recMove(${i},1)" title="down">▼</button>
+          </span>
+          <select class="type-pick" onchange="_recType(${i},this.value)">${types}</select>
+          ${fields}
+          <button class="del-btn" onclick="_recDel(${i})" title="delete">✕</button>
+        </div>`;
+    }
+
+    function _recField(i, k, v) {
+      if (!_recEdit || !_recEdit.steps[i]) return;
+      _recEdit.steps[i][k] = v;
+      _recEdit.dirty = true;
+    }
+    function _recType(i, t) {
+      if (!_recEdit || !_recEdit.steps[i]) return;
+      _recEdit.steps[i].type = t;
+      _recEdit.dirty = true;
+      _recRenderSteps();
+    }
+    function _recMove(i, dir) {
+      if (!_recEdit) return;
+      const j = i + dir;
+      if (j < 0 || j >= _recEdit.steps.length) return;
+      const a = _recEdit.steps;
+      [a[i], a[j]] = [a[j], a[i]];
+      _recEdit.dirty = true;
+      _recRenderSteps();
+    }
+    function _recDel(i) {
+      if (!_recEdit) return;
+      _recEdit.steps.splice(i, 1);
+      _recEdit.dirty = true;
+      _recEditRender();
+    }
+    function _recAddStep() {
+      if (!_recEdit) return;
+      _recEdit.steps.push({ type: 'click', selector: '' });
+      _recEdit.dirty = true;
+      _recEditRender();
+    }
+    function _recEditClose() {
+      if (_recEdit && _recEdit.dirty && !confirm('Discard unsaved changes?')) return;
+      const bd = document.getElementById('rec-edit-backdrop');
+      if (bd) bd.remove();
+      _recEdit = null;
+    }
+    function _recStatus(msg, kind) {
+      const el = document.getElementById('rec-edit-status');
+      if (!el) return;
+      el.textContent = msg || '';
+      el.style.color = kind === 'err' ? '#fda4af' : (kind === 'ok' ? '#6ee7b7' : 'var(--text3)');
+    }
+    function _recParseVars() {
+      const s = (_recEdit && _recEdit.vars || '').trim();
+      if (!s) return null;
+      try {
+        const v = JSON.parse(s);
+        if (v && typeof v === 'object' && !Array.isArray(v)) return v;
+        throw new Error('vars must be an object');
+      } catch (e) { throw new Error('Vars JSON parse: ' + (e.message || e)); }
+    }
+    async function _recSave() {
+      if (!_recEdit) return;
+      _recStatus('Saving…');
+      try {
+        const r = await fetch('/api/recordings/' + encodeURIComponent(_recEdit.id), {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: _recEdit.name, startUrl: _recEdit.startUrl, steps: _recEdit.steps }),
+        });
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        if (_recEdit.vars) try { localStorage.setItem('recVarsLast', _recEdit.vars); } catch {}
+        _recEdit.dirty = false;
+        _recStatus('Saved ✓', 'ok');
+        await _browserRecPanelRefresh();
+      } catch (e) {
+        _recStatus('Save failed: ' + (e.message || e), 'err');
+      }
+    }
+    async function _recPreview() {
+      if (!_recEdit) return;
+      let vars = null;
+      try { vars = _recParseVars(); }
+      catch (e) { _recStatus(e.message, 'err'); return; }
+      _recStatus('Preview running… (see log)', 'ok');
+      // Reuse the replay log modal — POST to replay-inline
+      const old = document.getElementById('rec-log-backdrop');
+      if (old) old.remove();
+      const bd = document.createElement('div');
+      bd.id = 'rec-log-backdrop';
+      bd.className = 'rec-panel-backdrop open';
+      bd.innerHTML = `
+        <div class="rec-log-modal" onclick="event.stopPropagation()">
+          <div class="rec-panel-head">
+            <h3>▶ Preview (inline replay)</h3>
+            <span id="rec-log-meta" style="font-size:11px;color:var(--text3)">starting…</span>
+            <button class="x" onclick="document.getElementById('rec-log-backdrop').remove()">✕</button>
+          </div>
+          <div class="rec-log-body" id="rec-log-body"></div>
+        </div>`;
+      bd.addEventListener('click', (e) => { if (e.target === bd) bd.remove(); });
+      document.body.appendChild(bd);
+      const body = document.getElementById('rec-log-body');
+      const meta = document.getElementById('rec-log-meta');
+      const append = (cls, text) => { const d = document.createElement('div'); d.className = 'rec-log-line ' + cls; d.textContent = text; body.appendChild(d); body.scrollTop = body.scrollHeight; };
+      try {
+        const r = await fetch('/api/recordings/replay-inline', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: _recEdit.name, startUrl: _recEdit.startUrl, steps: _recEdit.steps,
+            vars, continueOnError: false,
+          }),
+        });
+        if (!r.ok || !r.body) throw new Error('HTTP ' + r.status);
+        const reader = r.body.getReader();
+        const dec = new TextDecoder();
+        let buf = '', okCount = 0, failCount = 0, total = 0;
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buf += dec.decode(value, { stream: true });
+          const lines = buf.split('\n');
+          buf = lines.pop();
+          for (const ln of lines) {
+            if (!ln.startsWith('data:')) continue;
+            let m; try { m = JSON.parse(ln.slice(5).trim()); } catch { continue; }
+            if (m.type === 'start') { total = m.total; append('info', `Starting (${m.total} steps, engine: ${m.engine})`); meta.textContent = `0 / ${total}`; }
+            else if (m.type === 'step-start') {
+              const s = m.step || {};
+              const desc = s.type + (s.selector ? ' ' + s.selector : '') + (s.value != null ? ' = ' + JSON.stringify(s.value).slice(0, 60) : '') + (s.url ? ' ' + s.url : '');
+              append('info', `[${m.index + 1}] ${desc}`);
+            }
+            else if (m.type === 'step-ok') { okCount++; meta.textContent = `${okCount} ok · ${failCount} fail / ${total}`; }
+            else if (m.type === 'step-fail') { failCount++; append('fail', `  ↳ FAIL: ${m.error}`); meta.textContent = `${okCount} ok · ${failCount} fail / ${total}`; }
+            else if (m.type === 'done') { append('ok', m.aborted ? '✕ Aborted' : '✓ Done'); meta.textContent = `${okCount} ok · ${failCount} fail / ${total} · ${m.aborted ? 'aborted' : 'done'}`; }
+            else if (m.type === 'error') { append('fail', '✕ ' + m.message); }
+          }
+        }
+        _recStatus('Preview done', 'ok');
+      } catch (e) {
+        append('fail', 'Preview error: ' + (e.message || e));
+        _recStatus('Preview failed', 'err');
+      }
     }
 
     // v4.19.0: CDP settings modal — endpoint + Chrome launch helper instructions

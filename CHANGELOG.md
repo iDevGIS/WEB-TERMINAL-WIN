@@ -5,6 +5,44 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [4.27.0] — 2026-05-17 — Recorder step editor (Phase C) — inline CRUD + `{{var}}` parameterize
+
+Closes Phase C of the Action Recorder roadmap. Lets a recorded JSON action flow be edited inline before replay — change selectors, reorder steps, add/delete, parameterize text fields with `{{var}}` substitution. Reuses the existing `/api/recordings/:id` PUT + `/api/recordings/replay-inline` endpoints so the server side is a small additive change; almost all the work is in the client editor modal.
+
+### Added
+
+- **Edit button** in the 📼 Recordings panel (between **▶ Replay** and **View**). Opens an inline step editor over the existing recording.
+- **Step editor modal** — large modal (920 px max) with three regions: metadata (name / startUrl / vars JSON) · scrollable step list · sticky footer (Preview / Save / Cancel).
+- **Per-step row** — compact one-line layout: `# · ↑/↓ · type-dropdown · fields-per-type · ✕`. Type dropdown swaps the input layout on the fly (e.g., switching `click` → `fill` reveals a value input).
+- **Type-aware field surfacing** — only the relevant inputs render per step type: `goto` shows `url`; `click/submit` shows `selector`; `fill/select` show `selector + value`; `press` shows `selector + key`; `check` shows `selector + checked toggle`; `waitFor` shows `selector + state(visible/hidden/attached/detached) + timeout`; `waitForDialog` shows `selector(optional) + timeout`; `wait` shows `ms`; `scroll` shows `x + y`.
+- **Reorder + delete + add** — `↑/↓` buttons swap with neighbour; `✕` deletes; `+ Add step` appends `{type:'click', selector:''}` for the user to fill in.
+- **`{{var}}` parameterization** — value/url/key/selector/state strings can include `{{name}}` tokens that get substituted from a JSON `vars` object at replay time. Server-side `_interpVars` handles the substitution; unknown tokens are left intact for visibility.
+- **Vars JSON input** — top-of-modal one-line input accepts a JSON object (e.g., `{"q":"test","email":"a@b.com"}`). Persists to `localStorage('recVarsLast')` for next-open convenience. Parse errors surface in the footer status line, not blocking save.
+- **Preview button** — runs the **current unsaved buffer** through `POST /api/recordings/replay-inline` with the parsed vars. Streams the same SSE log modal used by Replay, so iterating selector/value tweaks is a tight loop without touching the persisted recording.
+- **Save button** — writes back via `PUT /api/recordings/:id` (`{name, startUrl, steps}`). Refreshes the Recordings panel underneath to reflect new step count / name.
+- **Discard-confirm guard** — closing the modal with unsaved changes prompts before discarding. Footer status line shows save/preview state inline (✓ Saved · Preview running · errors in red).
+
+### Changed
+
+- `_replayOneStep(page, s)` → `_replayOneStep(page, s, vars)`. Step is run through `_interpStep` first so `{{var}}` tokens in `selector`, `url`, `value`, `key`, `state` resolve before reaching Playwright. Zero-vars callers are unaffected (the helper is a no-op when `vars` is null).
+- `_replayRecording` accepts `opts.vars`. The persisted `startUrl` also runs through `_interpVars` so a recording can be parameterized end-to-end.
+- `POST /api/recordings/:id/replay` + `POST /api/recordings/replay-inline` both accept a top-level `vars` body field (object). Backward compatible — omitting the field preserves prior behavior.
+
+### Notes
+
+- The editor stores a **deep clone** of the loaded recording so accidental in-memory edits never leak to other panels.
+- Type switching keeps unrelated fields on the step object (e.g., flipping `fill` → `click` preserves the `value` so flipping back doesn't lose it).
+- `{{var}}` matching uses `/\{\{\s*([\w.-]+)\s*\}\}/g` — alphanumeric + `_`, `.`, `-`. Whitespace around the name is tolerated.
+- Phase D (v4.28.0) — "Convert to flow" — will emit one `browser_action` block per step into a Visual Builder pipeline, completing the v4.26→v4.29 roadmap.
+
+### Files
+
+- `server.js` — `_interpVars`, `_interpStep`, `_replayOneStep(page,s,vars)` signature, `_replayRecording` threads `opts.vars` (incl. startUrl interpolation), both replay endpoints accept `vars`.
+- `public/index.html` — new `.rec-edit-modal` CSS, new JS `_browserRecEditOpen` / `_recEditRender` / `_recStepRowHtml` / `_recField/_recType/_recMove/_recDel/_recAddStep/_recSave/_recPreview/_recParseVars/_recEditClose/_recStatus`, Edit button added to `_browserRecPanelRefresh` row markup.
+- `package.json` — version → `4.27.0`.
+
+---
+
 ## [4.26.0] — 2026-05-17 — Browser Action Recorder MVP + Replay engine
 
 User-facing primitive: **record real interactions on any web page, save as JSON, replay later via Playwright**. Bundles `🅰 Recorder MVP` + `🅱 Replay engine` (Phase A+B of the v4.26→v4.29 plan). Phase C (inline step editor) + Phase D (Visual Builder export) follow as separate ships.

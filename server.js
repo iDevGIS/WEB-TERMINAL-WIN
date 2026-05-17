@@ -9842,7 +9842,21 @@ app.delete("/api/recordings/:id", requireAuth, (req, res) => {
 });
 
 // === Replay engine — executes JSON steps via Playwright/CDP, streams SSE per-step events ===
-async function _replayOneStep(page, s) {
+// v4.27.0 — `{{var}}` interpolation. Replaces `{{name}}` tokens with vars[name] in string fields.
+function _interpVars(str, vars) {
+  if (typeof str !== 'string' || !vars || typeof vars !== 'object') return str;
+  return str.replace(/\{\{\s*([\w.-]+)\s*\}\}/g, (m, k) => (vars[k] != null ? String(vars[k]) : m));
+}
+function _interpStep(s, vars) {
+  if (!vars) return s;
+  const out = Object.assign({}, s);
+  for (const k of ['selector', 'url', 'value', 'key', 'state']) {
+    if (typeof out[k] === 'string') out[k] = _interpVars(out[k], vars);
+  }
+  return out;
+}
+async function _replayOneStep(page, raw, vars) {
+  const s = _interpStep(raw, vars);
   const sel = s.selector;
   const T = 10000;
   switch (s.type) {
@@ -9900,6 +9914,7 @@ async function _replayRecording(rec, opts, write) {
   const engine = (opts && opts.engine) || 'playwright';
   const cdpEndpoint = (opts && opts.cdpEndpoint) || 'http://localhost:9222';
   const continueOnError = !!(opts && opts.continueOnError);
+  const vars = (opts && opts.vars && typeof opts.vars === 'object') ? opts.vars : null;
   let browser, context, page, ctxResult;
   try {
     browser = await _getScrapBrowser({ engine, cdpEndpoint });
@@ -9909,9 +9924,10 @@ async function _replayRecording(rec, opts, write) {
     const steps = Array.isArray(rec.steps) ? rec.steps : [];
     write({ type: 'start', total: steps.length, name: rec.name || '', engine });
     if (rec.startUrl && rec.startUrl !== 'about:blank') {
-      write({ type: 'step-start', index: -1, step: { type: 'goto', url: rec.startUrl } });
+      const startUrl = _interpVars(String(rec.startUrl), vars);
+      write({ type: 'step-start', index: -1, step: { type: 'goto', url: startUrl } });
       try {
-        await page.goto(String(rec.startUrl), { waitUntil: 'domcontentloaded', timeout: 25000 });
+        await page.goto(startUrl, { waitUntil: 'domcontentloaded', timeout: 25000 });
         write({ type: 'step-ok', index: -1 });
       } catch (e) {
         write({ type: 'step-fail', index: -1, error: String(e.message || e) });
@@ -9922,7 +9938,7 @@ async function _replayRecording(rec, opts, write) {
       const s = steps[i];
       write({ type: 'step-start', index: i, step: s });
       try {
-        await _replayOneStep(page, s);
+        await _replayOneStep(page, s, vars);
         write({ type: 'step-ok', index: i });
       } catch (e) {
         write({ type: 'step-fail', index: i, error: String(e.message || e) });
@@ -9956,6 +9972,7 @@ app.post("/api/recordings/:id/replay", requireAuth, express.json({ limit: "1mb" 
     engine: String(body.engine || req.query.engine || 'playwright'),
     cdpEndpoint: String(body.cdpEndpoint || req.query.cdp || 'http://localhost:9222'),
     continueOnError: !!(body.continueOnError || req.query.continueOnError),
+    vars: (body.vars && typeof body.vars === 'object') ? body.vars : null,
   };
   try { await _replayRecording(rec, opts, write); }
   catch (e) { write({ type: 'error', message: String(e.message || e) }); }
@@ -9976,6 +9993,7 @@ app.post("/api/recordings/replay-inline", requireAuth, express.json({ limit: "5m
     engine: String(body.engine || 'playwright'),
     cdpEndpoint: String(body.cdpEndpoint || 'http://localhost:9222'),
     continueOnError: !!body.continueOnError,
+    vars: (body.vars && typeof body.vars === 'object') ? body.vars : null,
   };
   try { await _replayRecording(rec, opts, write); }
   catch (e) { write({ type: 'error', message: String(e.message || e) }); }
