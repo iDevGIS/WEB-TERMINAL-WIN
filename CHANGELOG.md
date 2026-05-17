@@ -5,6 +5,58 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [4.30.0] — 2026-05-17 — Recorder Self-Heal (selector fallback chain)
+
+Recordings now survive selector drift. The in-page recorder emits an **ordered candidate list** per element (`testid > id > role+aria > aria > name > placeholder > text > css-path`) instead of a single string. At replay time, `_resolveLocator` probes each candidate in order — falling back to the next if the primary fails — and the SSE log marks which candidate actually matched. The step editor renders all candidates as clickable chips beneath each step row: click any non-primary chip to promote it to primary (the next replay tries it first).
+
+### Why
+Real-world recordings break when React/Vue regenerate class hashes, vendors rename form labels, or DOM trees shift depth. A single selector means one DOM change = entire recording broken. Self-Heal turns a single point of failure into a graceful chain: when `[data-testid="x"]` disappears, the executor seamlessly tries the captured `[aria-label="Sign in"]` next, logs `healed via aria (fallback #1)`, and the user later sees in the step editor which candidate became the working one.
+
+### Highlights
+
+- **In-page recorder** (`RECORDER_INIT_JS`): `selFor(el)` → `selCandidates(el)` — returns ordered `{kind,value}[]`. Every emitted step now carries both `selector` (string primary, backwards-compatible with v4.26→v4.29 recordings) and `selectors[]` (full candidate array). Adds `placeholder` as a new candidate kind for `<input>`/`<textarea>`.
+- **`_resolveLocator(page, step, timeout)`**: builds effective candidate list (`selectors[]` if present, else `[{kind:"manual", value: selector}]`), iterates with `loc.waitFor({ state: probeState, timeout: per })`, returns `{locator, candidate, fellBack}` — or throws aggregate error listing every kind that was attempted with its failure reason.
+- **`_replayOneStep`**: per-element actions (`click`/`fill`/`press`/`select`/`check`/`submit`/`waitFor`/`waitForDialog`) route through `_resolveLocator`. Returns `healed: {kind, index}` only if a fallback (index > 0) was used; `null` when primary worked.
+- **SSE step-ok events**: now include `healed` field when fallback fired. Replay log modal shows a yellow `↳ healed via <kind> (fallback #N)` line directly under the failing step, so users see exactly which alternative kicked in.
+- **`_pipeExecRecording` + `_pipeExecBrowserAction`**: append `(healed: <kind>)` suffix to the pipeline `state.log` line for each step that fell back, so scheduled runs surface heal events too.
+- **Step editor candidate chips** (`_recCandsRowHtml`): below each step row, a row of chips — `[kind] <value-preview>` — primary chip is purple/non-clickable, fallbacks are blue/clickable. Click any fallback → `_recPromoteSel(i, j)` swaps it to the front of `selectors[]` and updates `selector` to match. Skipped for `goto`/`wait`/`scroll` (no selector needed).
+- **`_recField('selector', v)`**: when the user types in the primary selector input, `selectors[0]` is rewritten to `{kind: 'manual', value: v}` so the chip row stays in sync.
+- **`_interpStep`**: `{{var}}` interpolation now walks `selectors[].value` too, so parameterized selectors work in candidate arrays.
+
+### Schema
+
+```jsonc
+{
+  "type": "click",
+  "selector": "[data-testid=\"login-btn\"]",       // primary (backcompat)
+  "selectors": [                                   // v4.30.0 candidate chain
+    { "kind": "testid", "value": "[data-testid=\"login-btn\"]" },
+    { "kind": "aria",   "value": "[aria-label=\"Sign in\"]" },
+    { "kind": "text",   "value": "button:has-text(\"Sign in\")" },
+    { "kind": "css",    "value": "div.auth > form > button:nth-of-type(2)" }
+  ]
+}
+```
+
+Old recordings (pre-v4.30 — `selector` only, no `selectors[]`) replay unchanged: the resolver wraps `selector` into a single-item `[{kind:"manual", ...}]` list. Mixing old + new in the same recording works too — the editor renders chips only for steps that have `selectors[]`.
+
+### Files touched
+- `server.js` — `RECORDER_INIT_JS` rewrite (+~50 LOC), `_interpStep` (+5), new `_resolveLocator` (+30), `_replayOneStep` refactor (~+40 net), `_pipeExecRecording`/`_pipeExecBrowserAction` healed-suffix (+~6)
+- `public/index.html` — candidate chip CSS (+22), `_recCandsRowHtml` + `_recPromoteSel` (+30), step-row HTML hook (+1), `_recField` selectors[0] sync (+4), SSE step-ok healed line (+1), `.rec-log-line.warn` color (+1)
+- `package.json` — `4.29.0` → `4.30.0`
+- `CHANGELOG.md` — this entry
+
+### Test plan
+1. Reload `/` — Browser tab → Rec mode → record a few clicks/fills/submits on any site → Save.
+2. Open Recordings panel → Edit the new recording → each step row now has a `candidates →` chip row beneath it.
+3. Click a non-primary chip — primary updates to that selector + chips reorder (chosen moves to front).
+4. Edit the primary `sel` input manually — first chip's value follows.
+5. Replay the recording — when primary succeeds, log shows nothing extra; if primary fails (e.g., target site changed), log shows `↳ healed via <kind> (fallback #N)` in yellow.
+6. Run a recording inside a pipeline — `state.log` step lines suffix `(healed: <kind>)` when fallback fires.
+7. Pre-v4.30 recordings (no `selectors[]`) replay normally; editor shows no chip row (rather than empty rows).
+
+---
+
 ## [4.29.0] — 2026-05-17 — Recorder Explode export + `browser_action` block (Phase E)
 
 Extends the Phase D Convert flow with a second emission mode: **explode**. Instead of a single opaque `recording` block, a recording can now be emitted as **N `browser_action` blocks chained linearly** — one block per step — so each step is drag-reorderable, deletable, and individually editable on the canvas. A new `browser_action` block type lands as a first-class palette draggable, so users can also author chains by hand (a click → fill → submit sequence without recording first).

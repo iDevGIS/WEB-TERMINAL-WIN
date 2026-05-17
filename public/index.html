@@ -1155,6 +1155,7 @@
     .rec-log-line.ok { color: #6ee7b7; }
     .rec-log-line.fail { color: #fb7185; }
     .rec-log-line.info { color: #a78bfa; }
+    .rec-log-line.warn { color: #fbbf24; }
 
     /* v4.27.0 — Step editor modal */
     .rec-edit-modal {
@@ -1213,6 +1214,25 @@
       background: rgba(239,68,68,.1); border: 1px solid rgba(239,68,68,.2); color: #fda4af;
     }
     .rec-step-row .del-btn:hover { background: rgba(239,68,68,.25); }
+    /* v4.30.0 — Self-Heal candidate chips */
+    .rec-step-cands {
+      display: flex; flex-wrap: wrap; gap: 4px;
+      padding: 4px 8px 6px 70px; margin-top: -2px; margin-bottom: 4px;
+      background: rgba(255,255,255,.015); border: 1px solid rgba(255,255,255,.04);
+      border-top: none; border-radius: 0 0 8px 8px;
+    }
+    .rec-cand-label { font-size: 10px; color: var(--text3); align-self: center; margin-right: 4px; }
+    .rec-cand-chip {
+      display: inline-flex; align-items: center; gap: 4px; cursor: pointer;
+      padding: 2px 7px; border-radius: 10px; font: 10px ui-monospace, monospace;
+      background: rgba(96,165,250,.08); border: 1px solid rgba(96,165,250,.18); color: #93c5fd;
+      max-width: 280px;
+    }
+    .rec-cand-chip:hover { background: rgba(96,165,250,.18); border-color: rgba(96,165,250,.35); }
+    .rec-cand-chip.primary { background: rgba(167,139,250,.22); border-color: rgba(167,139,250,.45); color: #ddd6fe; cursor: default; }
+    .rec-cand-chip .kind { color: var(--text3); font-weight: 600; }
+    .rec-cand-chip.primary .kind { color: #c4b5fd; }
+    .rec-cand-chip .val { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .rec-edit-foot { padding: 10px 16px; display: flex; gap: 8px; justify-content: flex-end; border-top: 1px solid rgba(255,255,255,.06); }
     .rec-edit-foot button {
       height: 30px; padding: 0 14px; border-radius: 7px; cursor: pointer;
@@ -6378,7 +6398,7 @@
               const desc = s.type + (s.selector ? ' ' + s.selector : '') + (s.value != null ? ' = ' + JSON.stringify(s.value).slice(0, 60) : '') + (s.url ? ' ' + s.url : '');
               append('info', `[${m.index + 1}] ${desc}`);
             }
-            else if (m.type === 'step-ok') { okCount++; meta.textContent = `${okCount} ok · ${failCount} fail / ${total}`; }
+            else if (m.type === 'step-ok') { okCount++; if (m.healed) { append('warn', `  ↳ healed via ${m.healed.kind} (fallback #${m.healed.index})`); } meta.textContent = `${okCount} ok · ${failCount} fail / ${total}`; }
             else if (m.type === 'step-fail') { failCount++; append('fail', `  ↳ FAIL: ${m.error}`); meta.textContent = `${okCount} ok · ${failCount} fail / ${total}`; }
             else if (m.type === 'done') { append('ok', m.aborted ? '✕ Aborted' : '✓ Done'); meta.textContent = `${okCount} ok · ${failCount} fail / ${total} · ${m.aborted ? 'aborted' : 'done'}`; }
             else if (m.type === 'error') { append('fail', '✕ ' + m.message); }
@@ -6518,6 +6538,7 @@
         default:
           fields = `<span class="field-label">(unknown)</span>`;
       }
+      const candsHtml = _recCandsRowHtml(s, i);
       return `
         <div class="rec-step-row">
           <span class="idx">${i + 1}</span>
@@ -6528,12 +6549,46 @@
           <select class="type-pick" onchange="_recType(${i},this.value)">${types}</select>
           ${fields}
           <button class="del-btn" onclick="_recDel(${i})" title="delete">✕</button>
-        </div>`;
+        </div>${candsHtml}`;
+    }
+    // v4.30.0 — Self-Heal: render candidate chips beneath step row, click-to-promote
+    function _recCandsRowHtml(s, i) {
+      if (!Array.isArray(s.selectors) || s.selectors.length === 0) return '';
+      // Skip if step type doesn't use a selector
+      if (s.type === 'goto' || s.type === 'wait' || s.type === 'scroll') return '';
+      const primary = s.selector || (s.selectors[0] && s.selectors[0].value) || '';
+      const chips = s.selectors.map((c, j) => {
+        if (!c || typeof c.value !== 'string') return '';
+        const isPrimary = c.value === primary;
+        const cls = 'rec-cand-chip' + (isPrimary ? ' primary' : '');
+        const title = isPrimary ? `primary: ${c.value}` : `promote to primary: ${c.value}`;
+        const onclick = isPrimary ? '' : ` onclick="_recPromoteSel(${i},${j})"`;
+        return `<span class="${cls}" title="${escAttr(title)}"${onclick}><span class="kind">${escAttr(c.kind || '?')}</span><span class="val">${escAttr(String(c.value).slice(0, 64))}</span></span>`;
+      }).filter(Boolean).join('');
+      if (!chips) return '';
+      return `<div class="rec-step-cands"><span class="rec-cand-label">candidates →</span>${chips}</div>`;
+    }
+    function _recPromoteSel(i, j) {
+      if (!_recEdit || !_recEdit.steps[i]) return;
+      const s = _recEdit.steps[i];
+      if (!Array.isArray(s.selectors) || !s.selectors[j]) return;
+      const chosen = s.selectors[j];
+      s.selector = chosen.value;
+      // Move chosen to index 0 for replay-order alignment with primary
+      const rest = s.selectors.filter((_, k) => k !== j);
+      s.selectors = [chosen, ...rest];
+      _recEdit.dirty = true;
+      _recRenderSteps();
     }
 
     function _recField(i, k, v) {
       if (!_recEdit || !_recEdit.steps[i]) return;
-      _recEdit.steps[i][k] = v;
+      const s = _recEdit.steps[i];
+      s[k] = v;
+      // v4.30.0 — keep primary `selector` and `selectors[0]` in sync when user edits selector field
+      if (k === 'selector' && Array.isArray(s.selectors) && s.selectors.length) {
+        s.selectors[0] = { kind: 'manual', value: String(v || '') };
+      }
       _recEdit.dirty = true;
     }
     function _recType(i, t) {
@@ -6654,7 +6709,7 @@
               const desc = s.type + (s.selector ? ' ' + s.selector : '') + (s.value != null ? ' = ' + JSON.stringify(s.value).slice(0, 60) : '') + (s.url ? ' ' + s.url : '');
               append('info', `[${m.index + 1}] ${desc}`);
             }
-            else if (m.type === 'step-ok') { okCount++; meta.textContent = `${okCount} ok · ${failCount} fail / ${total}`; }
+            else if (m.type === 'step-ok') { okCount++; if (m.healed) { append('warn', `  ↳ healed via ${m.healed.kind} (fallback #${m.healed.index})`); } meta.textContent = `${okCount} ok · ${failCount} fail / ${total}`; }
             else if (m.type === 'step-fail') { failCount++; append('fail', `  ↳ FAIL: ${m.error}`); meta.textContent = `${okCount} ok · ${failCount} fail / ${total}`; }
             else if (m.type === 'done') { append('ok', m.aborted ? '✕ Aborted' : '✓ Done'); meta.textContent = `${okCount} ok · ${failCount} fail / ${total} · ${m.aborted ? 'aborted' : 'done'}`; }
             else if (m.type === 'error') { append('fail', '✕ ' + m.message); }

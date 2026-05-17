@@ -8820,8 +8820,9 @@ async function _pipeExecRecording(state, config, ctx) {
       const s = steps[i];
       const label = s.type + (s.selector ? ` ${String(s.selector).slice(0, 60)}` : (s.url ? ` ${String(s.url).slice(0, 80)}` : ""));
       try {
-        await _replayOneStep(page, s, vars);
-        state.log.push(`recording step ${i + 1}/${steps.length}: ${label} ok`);
+        const healed = await _replayOneStep(page, s, vars);
+        const tail = healed ? ` ok (healed: ${healed.kind})` : " ok";
+        state.log.push(`recording step ${i + 1}/${steps.length}: ${label}${tail}`);
       } catch (e) {
         const msg = `recording step ${i + 1} (${label}): ${e.message || e}`;
         if (!continueOnError) throw new Error(msg);
@@ -8873,6 +8874,7 @@ async function _pipeExecBrowserAction(state, config, ctx) {
   const step = {
     type: action === "scroll" ? "wait" : action, // scroll handled inline below; everything else goes through _replayOneStep
     selector: config.selector || "",
+    selectors: Array.isArray(config.selectors) ? config.selectors : undefined,
     value: config.value == null ? "" : config.value,
     url: config.url || "",
     key: config.key || "",
@@ -8886,9 +8888,10 @@ async function _pipeExecBrowserAction(state, config, ctx) {
       await page.evaluate((y) => window.scrollBy({ top: y, behavior: "instant" }), dy);
       state.log.push(`browser_action: scroll by ${dy}px ok`);
     } else {
-      await _replayOneStep(page, step, vars);
+      const healed = await _replayOneStep(page, step, vars);
       const label = step.type + (step.selector ? ` ${String(step.selector).slice(0, 60)}` : (step.url ? ` ${String(step.url).slice(0, 60)}` : ""));
-      state.log.push(`browser_action: ${label} ok`);
+      const tail = healed ? ` ok (healed: ${healed.kind})` : " ok";
+      state.log.push(`browser_action: ${label}${tail}`);
     }
     if (captureHtml && page && !page.isClosed()) {
       try {
@@ -9777,28 +9780,34 @@ function saveRecordings(list) {
   fs.writeFileSync(RECORDINGS_FILE, JSON.stringify(list, null, 2));
 }
 
-// In-page recorder script. Selector cascade (data-testid > id > aria > name > text > CSS path).
+// In-page recorder script. v4.30.0 emits both a primary `selector` (string, backcompat) AND
+// `selectors[]` candidate array of {kind,value} for Self-Heal fallback at replay time.
 // Note: this string is injected via addInitScript so it runs before page scripts on every navigation.
 const RECORDER_INIT_JS = `(() => {
   if (window.__recInstalled) return; window.__recInstalled = true;
   function cssEsc(s) { return String(s).replace(/(["\\\\])/g, '\\\\$1'); }
-  function selFor(el) {
-    if (!el || !el.tagName) return '';
+  // Returns ordered candidate list. Quality > quantity: skip kinds that don't apply.
+  function selCandidates(el) {
+    const out = [];
+    if (!el || !el.tagName) return out;
+    const tag = el.tagName.toLowerCase();
     const tid = el.getAttribute && el.getAttribute('data-testid');
-    if (tid) return '[data-testid="' + cssEsc(tid) + '"]';
+    if (tid) out.push({ kind: 'testid', value: '[data-testid="' + cssEsc(tid) + '"]' });
     const id = el.id;
-    if (id && !/^\\d/.test(id) && /^[A-Za-z_-][A-Za-z0-9_-]*$/.test(id)) return '#' + id;
+    if (id && !/^\\d/.test(id) && /^[A-Za-z_-][A-Za-z0-9_-]*$/.test(id)) out.push({ kind: 'id', value: '#' + id });
     const role = el.getAttribute && el.getAttribute('role');
     const aria = el.getAttribute && el.getAttribute('aria-label');
-    if (role && aria) return '[role="' + role + '"][aria-label="' + cssEsc(aria) + '"]';
-    if (aria) return '[aria-label="' + cssEsc(aria) + '"]';
+    if (role && aria) out.push({ kind: 'role+aria', value: '[role="' + role + '"][aria-label="' + cssEsc(aria) + '"]' });
+    if (aria) out.push({ kind: 'aria', value: '[aria-label="' + cssEsc(aria) + '"]' });
     const name = el.getAttribute && el.getAttribute('name');
-    if (name) return el.tagName.toLowerCase() + '[name="' + cssEsc(name) + '"]';
+    if (name) out.push({ kind: 'name', value: tag + '[name="' + cssEsc(name) + '"]' });
+    const ph = el.getAttribute && el.getAttribute('placeholder');
+    if (ph && (tag === 'input' || tag === 'textarea')) out.push({ kind: 'placeholder', value: tag + '[placeholder="' + cssEsc(ph) + '"]' });
     const txt = ((el.innerText || el.textContent || '') + '').trim();
-    const tag = el.tagName.toLowerCase();
     if (txt && txt.length <= 40 && (tag === 'button' || tag === 'a')) {
-      return tag + ':has-text("' + txt.replace(/"/g, '\\\\"') + '")';
+      out.push({ kind: 'text', value: tag + ':has-text("' + txt.replace(/"/g, '\\\\"') + '")' });
     }
+    // CSS path always last — most fragile, always available
     const parts = [];
     let cur = el;
     while (cur && cur.nodeType === 1 && parts.length < 5) {
@@ -9813,10 +9822,19 @@ const RECORDER_INIT_JS = `(() => {
       parts.unshift(s);
       cur = cur.parentElement;
     }
-    return parts.join(' > ');
+    const cssPath = parts.join(' > ');
+    if (cssPath && (out.length === 0 || !out.some(c => c.value === cssPath))) {
+      out.push({ kind: 'css', value: cssPath });
+    }
+    return out;
   }
   function emit(step) {
     try { window._recEmit && window._recEmit(Object.assign({ ts: Date.now(), url: location.href }, step)); } catch {}
+  }
+  // Build {selector, selectors[]} from element (primary = first candidate, backcompat)
+  function selPair(el) {
+    const cs = selCandidates(el);
+    return { selector: cs.length ? cs[0].value : '', selectors: cs };
   }
   document.addEventListener('click', (ev) => {
     let t = ev.target;
@@ -9824,15 +9842,17 @@ const RECORDER_INIT_JS = `(() => {
     // Walk up to a meaningful interactive ancestor
     const cl = t.closest && t.closest('a,button,[role=button],input[type=submit],input[type=button],[onclick]');
     if (cl) t = cl;
-    emit({ type: 'click', selector: selFor(t), tag: t.tagName.toLowerCase(), text: ((t.innerText || '') + '').trim().slice(0, 80) });
+    const p = selPair(t);
+    emit({ type: 'click', selector: p.selector, selectors: p.selectors, tag: t.tagName.toLowerCase(), text: ((t.innerText || '') + '').trim().slice(0, 80) });
   }, true);
   document.addEventListener('change', (ev) => {
     const t = ev.target;
     if (!t || !t.tagName) return;
     const tag = t.tagName.toLowerCase();
-    if (tag === 'select') emit({ type: 'select', selector: selFor(t), value: String(t.value || '') });
-    else if (t.type === 'checkbox' || t.type === 'radio') emit({ type: 'check', selector: selFor(t), value: !!t.checked });
-    else emit({ type: 'fill', selector: selFor(t), value: String(t.value || '').slice(0, 500) });
+    const p = selPair(t);
+    if (tag === 'select') emit({ type: 'select', selector: p.selector, selectors: p.selectors, value: String(t.value || '') });
+    else if (t.type === 'checkbox' || t.type === 'radio') emit({ type: 'check', selector: p.selector, selectors: p.selectors, value: !!t.checked });
+    else emit({ type: 'fill', selector: p.selector, selectors: p.selectors, value: String(t.value || '').slice(0, 500) });
   }, true);
   // also catch input fills with debounce-via-blur for fields that don't fire change
   document.addEventListener('blur', (ev) => {
@@ -9840,16 +9860,21 @@ const RECORDER_INIT_JS = `(() => {
     if (!t || !t.tagName) return;
     const tag = t.tagName.toLowerCase();
     if ((tag === 'input' || tag === 'textarea') && t.type !== 'checkbox' && t.type !== 'radio' && t.value != null) {
-      emit({ type: 'fill', selector: selFor(t), value: String(t.value || '').slice(0, 500), blur: true });
+      const p = selPair(t);
+      emit({ type: 'fill', selector: p.selector, selectors: p.selectors, value: String(t.value || '').slice(0, 500), blur: true });
     }
   }, true);
   document.addEventListener('submit', (ev) => {
-    emit({ type: 'submit', selector: selFor(ev.target) });
+    const p = selPair(ev.target);
+    emit({ type: 'submit', selector: p.selector, selectors: p.selectors });
   }, true);
   document.addEventListener('keydown', (ev) => {
     if (ev.key === 'Enter' || ev.key === 'Escape' || ev.key === 'Tab') {
       const t = ev.target;
-      if (t && t.tagName) emit({ type: 'press', selector: selFor(t), key: ev.key });
+      if (t && t.tagName) {
+        const p = selPair(t);
+        emit({ type: 'press', selector: p.selector, selectors: p.selectors, key: ev.key });
+      }
     }
   }, true);
   // Popup/dialog detection
@@ -9861,7 +9886,8 @@ const RECORDER_INIT_JS = `(() => {
           const role = n.getAttribute && n.getAttribute('role');
           const cls = ((n.className || '') + '');
           if (role === 'dialog' || role === 'alertdialog' || /\\b(modal|dialog|popup|overlay)\\b/i.test(cls)) {
-            emit({ type: 'waitForDialog', selector: selFor(n), role: role || '' });
+            const p = selPair(n);
+            emit({ type: 'waitForDialog', selector: p.selector, selectors: p.selectors, role: role || '' });
           }
         }
       }
@@ -10138,58 +10164,109 @@ function _interpStep(s, vars) {
   for (const k of ['selector', 'url', 'value', 'key', 'state']) {
     if (typeof out[k] === 'string') out[k] = _interpVars(out[k], vars);
   }
+  if (Array.isArray(s.selectors)) {
+    out.selectors = s.selectors.map(c => (c && typeof c.value === 'string')
+      ? { kind: c.kind, value: _interpVars(c.value, vars) }
+      : c);
+  }
   return out;
 }
+
+// v4.30.0 — Self-Heal. Build effective candidate list and probe each in order until one resolves.
+// Returns { locator, candidate: {kind,value,index}, fellBack: boolean }. Throws aggregate error if none work.
+async function _resolveLocator(page, step, defaultTimeout) {
+  const candidates = [];
+  if (Array.isArray(step.selectors) && step.selectors.length) {
+    for (const c of step.selectors) {
+      if (c && typeof c.value === 'string' && c.value.trim()) candidates.push({ kind: c.kind || 'unknown', value: c.value });
+    }
+  }
+  if (typeof step.selector === 'string' && step.selector.trim()) {
+    if (!candidates.length || candidates[0].value !== step.selector) {
+      candidates.unshift({ kind: 'manual', value: step.selector });
+    }
+  }
+  if (!candidates.length) throw new Error(step.type + ': no selector candidates');
+  const probeState = (step.type === 'waitFor') ? (step.state || 'visible') : 'attached';
+  const perTimeout = Math.max(500, Math.min(defaultTimeout, Math.floor(defaultTimeout / Math.max(1, candidates.length))));
+  const errs = [];
+  for (let i = 0; i < candidates.length; i++) {
+    const c = candidates[i];
+    try {
+      const loc = page.locator(c.value).first();
+      await loc.waitFor({ state: probeState, timeout: perTimeout });
+      return { locator: loc, candidate: { kind: c.kind, value: c.value, index: i }, fellBack: i > 0 };
+    } catch (e) {
+      errs.push(c.kind + ':' + String(e.message || e).slice(0, 80));
+    }
+  }
+  throw new Error(step.type + ': all ' + candidates.length + ' selector candidates failed [' + errs.join(' | ') + ']');
+}
+
 async function _replayOneStep(page, raw, vars) {
   const s = _interpStep(raw, vars);
-  const sel = s.selector;
   const T = 10000;
+  let healed = null;
+  const resolve = async (timeoutMs) => {
+    const r = await _resolveLocator(page, s, timeoutMs || T);
+    if (r.fellBack) healed = { kind: r.candidate.kind, index: r.candidate.index };
+    return r.locator;
+  };
   switch (s.type) {
     case 'goto':
       await page.goto(String(s.url), { waitUntil: 'domcontentloaded', timeout: 25000 });
-      return;
-    case 'click':
-      if (!sel) throw new Error('click: missing selector');
-      await page.locator(sel).first().click({ timeout: T });
-      return;
-    case 'fill':
-      if (!sel) throw new Error('fill: missing selector');
-      await page.locator(sel).first().fill(String(s.value == null ? '' : s.value), { timeout: T });
-      return;
-    case 'press':
-      if (!sel) throw new Error('press: missing selector');
-      await page.locator(sel).first().press(String(s.key || 'Enter'), { timeout: T });
-      return;
-    case 'select':
-      if (!sel) throw new Error('select: missing selector');
-      await page.locator(sel).first().selectOption(String(s.value || ''), { timeout: T });
-      return;
-    case 'check':
-      if (!sel) throw new Error('check: missing selector');
-      if (s.value) await page.locator(sel).first().check({ timeout: T });
-      else await page.locator(sel).first().uncheck({ timeout: T });
-      return;
-    case 'submit':
-      if (!sel) throw new Error('submit: missing selector');
-      await page.locator(sel).first().evaluate(el => {
+      return null;
+    case 'click': {
+      const loc = await resolve(T); await loc.click({ timeout: T }); return healed;
+    }
+    case 'fill': {
+      const loc = await resolve(T); await loc.fill(String(s.value == null ? '' : s.value), { timeout: T }); return healed;
+    }
+    case 'press': {
+      const loc = await resolve(T); await loc.press(String(s.key || 'Enter'), { timeout: T }); return healed;
+    }
+    case 'select': {
+      const loc = await resolve(T); await loc.selectOption(String(s.value || ''), { timeout: T }); return healed;
+    }
+    case 'check': {
+      const loc = await resolve(T);
+      if (s.value) await loc.check({ timeout: T });
+      else await loc.uncheck({ timeout: T });
+      return healed;
+    }
+    case 'submit': {
+      const loc = await resolve(T);
+      await loc.evaluate(el => {
         if (el.requestSubmit) el.requestSubmit();
         else if (el.submit) el.submit();
         else el.click();
       });
-      return;
-    case 'waitFor':
-      if (!sel) throw new Error('waitFor: missing selector');
-      await page.locator(sel).first().waitFor({ state: s.state || 'visible', timeout: parseInt(s.timeout, 10) || 15000 });
-      return;
-    case 'waitForDialog':
-      await page.locator(sel || '[role="dialog"], [role="alertdialog"]').first().waitFor({ state: 'visible', timeout: parseInt(s.timeout, 10) || 15000 });
-      return;
+      return healed;
+    }
+    case 'waitFor': {
+      const t = parseInt(s.timeout, 10) || 15000;
+      const loc = await resolve(t);
+      // _resolveLocator already waited for state=s.state, so we're done.
+      return healed;
+    }
+    case 'waitForDialog': {
+      const t = parseInt(s.timeout, 10) || 15000;
+      const sel = s.selector;
+      const hasCandidates = Array.isArray(s.selectors) && s.selectors.length;
+      if (!sel && !hasCandidates) {
+        await page.locator('[role="dialog"], [role="alertdialog"]').first().waitFor({ state: 'visible', timeout: t });
+        return null;
+      }
+      const r = await _resolveLocator(page, Object.assign({}, s, { type: 'waitFor', state: 'visible' }), t);
+      if (r.fellBack) healed = { kind: r.candidate.kind, index: r.candidate.index };
+      return healed;
+    }
     case 'wait':
       await page.waitForTimeout(Math.min(60000, parseInt(s.ms, 10) || 1000));
-      return;
+      return null;
     case 'scroll':
       await page.evaluate(({ x, y }) => window.scrollTo(x || 0, y || 0), { x: parseInt(s.x, 10) || 0, y: parseInt(s.y, 10) || 0 });
-      return;
+      return null;
     default:
       throw new Error('Unknown step type: ' + s.type);
   }
@@ -10223,8 +10300,10 @@ async function _replayRecording(rec, opts, write) {
       const s = steps[i];
       write({ type: 'step-start', index: i, step: s });
       try {
-        await _replayOneStep(page, s, vars);
-        write({ type: 'step-ok', index: i });
+        const healed = await _replayOneStep(page, s, vars);
+        const okMsg = { type: 'step-ok', index: i };
+        if (healed) okMsg.healed = healed;
+        write(okMsg);
       } catch (e) {
         write({ type: 'step-fail', index: i, error: String(e.message || e) });
         if (!continueOnError) { write({ type: 'done', aborted: true }); return; }
