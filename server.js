@@ -9779,6 +9779,28 @@ function loadRecordings() {
 function saveRecordings(list) {
   fs.writeFileSync(RECORDINGS_FILE, JSON.stringify(list, null, 2));
 }
+// v4.34.0 — Run Ledger: per-recording JSONL append-only history of every replay (manual + scheduled).
+// Surfaces selector decay (healedCount trend), regression detection, and silent-failure visibility
+// that the v4.33.0 Scheduler Dashboard caps off at one row per recording.
+const RUNS_DIR = path.join(SCRAP_DIR, "recordings-runs");
+function _appendRunRecord(recId, entry) {
+  if (!recId) return;
+  try {
+    fs.mkdirSync(RUNS_DIR, { recursive: true });
+    fs.appendFileSync(path.join(RUNS_DIR, recId + '.jsonl'), JSON.stringify(entry) + '\n');
+  } catch (e) { console.warn('[runs-ledger]', recId, e.message || e); }
+}
+function _loadRecentRuns(recId, limit) {
+  if (!recId) return [];
+  try {
+    const raw = fs.readFileSync(path.join(RUNS_DIR, recId + '.jsonl'), 'utf8');
+    const lines = raw.split('\n').filter(Boolean);
+    const max = Math.max(1, Math.min(500, parseInt(limit, 10) || 20));
+    return lines.slice(-max).reverse()
+      .map(l => { try { return JSON.parse(l); } catch { return null; } })
+      .filter(Boolean);
+  } catch { return []; }
+}
 
 // In-page recorder script. v4.30.0 emits both a primary `selector` (string, backcompat) AND
 // `selectors[]` candidate array of {kind,value} for Self-Heal fallback at replay time.
@@ -10012,6 +10034,7 @@ async function _recordingTick() {
           cdpEndpoint: (sch.cdpEndpoint || 'http://localhost:9222'),
           continueOnError: !!sch.continueOnError,
           vars: (sch.vars && typeof sch.vars === 'object') ? sch.vars : null,
+          source: 'scheduled',
         }, writeSink);
       } catch (e) {
         lastError = String(e.message || e);
@@ -10209,6 +10232,15 @@ app.delete("/api/recordings/:id", requireAuth, (req, res) => {
   if (next.length === list.length) return res.status(404).json({ error: "not found" });
   saveRecordings(next);
   res.json({ ok: true });
+});
+
+// v4.34.0 — Recording run history (manual + scheduled replays). Tail-N from per-recording JSONL.
+app.get("/api/recordings/:id/runs", requireAuth, (req, res) => {
+  const rec = loadRecordings().find(x => x.id === req.params.id);
+  if (!rec) return res.status(404).json({ error: "not found" });
+  const limit = parseInt(req.query.limit, 10) || 20;
+  const runs = _loadRecentRuns(req.params.id, limit);
+  res.json({ id: rec.id, name: rec.name || '', count: runs.length, runs });
 });
 
 // v4.28.0 — Phase D: export a recording as a Visual Builder pipeline (Convert to Flow).
@@ -10489,6 +10521,32 @@ async function _replayRecording(rec, opts, write) {
   const cdpEndpoint = (opts && opts.cdpEndpoint) || 'http://localhost:9222';
   const continueOnError = !!(opts && opts.continueOnError);
   const vars = (opts && opts.vars && typeof opts.vars === 'object') ? opts.vars : null;
+  const source = (opts && opts.source) || 'manual';
+  // v4.34.0 — ledger wrap: tally stats from emitted events. The single bottleneck of
+  // the write callback means we capture identical stats whether the call originates
+  // from /replay, scheduled tick, or inline (inline skips persistence at the end).
+  const startedAt = Date.now();
+  let total = 0, okCount = 0, failCount = 0, healedCount = 0, aborted = false, lastError = null;
+  let gotoFailed = false;
+  const origWrite = write;
+  write = (obj) => {
+    try {
+      if (obj && obj.type === 'start') total = obj.total || 0;
+      else if (obj && obj.type === 'step-ok') {
+        if (obj.index >= 0) okCount++;
+        if (obj.healed) healedCount++;
+      } else if (obj && obj.type === 'step-fail') {
+        if (obj.index >= 0) failCount++;
+        else gotoFailed = true;
+        lastError = obj.error || lastError;
+      } else if (obj && obj.type === 'error') {
+        lastError = obj.message || lastError;
+      } else if (obj && obj.type === 'done' && obj.aborted) {
+        aborted = true;
+      }
+    } catch {}
+    origWrite(obj);
+  };
   let browser, context, page, ctxResult;
   try {
     browser = await _getScrapBrowser({ engine, cdpEndpoint });
@@ -10527,6 +10585,30 @@ async function _replayRecording(rec, opts, write) {
   } finally {
     try { if (page && !page.isClosed()) await page.close(); } catch {}
     if (ctxResult && ctxResult.owned) { try { await context.close(); } catch {} }
+    // v4.34.0 — persist ledger entry. Skip inline replays (no rec.id) since they're
+    // ephemeral preview runs from the step editor and would pollute the history.
+    if (rec && rec.id) {
+      const endedAt = Date.now();
+      const status = aborted ? 'aborted'
+        : (failCount > 0 || gotoFailed || lastError) ? 'fail'
+        : 'ok';
+      _appendRunRecord(rec.id, {
+        ts: endedAt,
+        startedAt,
+        endedAt,
+        durationMs: endedAt - startedAt,
+        engine,
+        source,
+        status,
+        total,
+        okCount,
+        failCount,
+        healedCount,
+        aborted,
+        gotoFailed,
+        error: lastError ? String(lastError).slice(0, 500) : null,
+      });
+    }
   }
 }
 
@@ -10549,6 +10631,7 @@ app.post("/api/recordings/:id/replay", requireAuth, express.json({ limit: "1mb" 
     cdpEndpoint: String(body.cdpEndpoint || req.query.cdp || 'http://localhost:9222'),
     continueOnError: !!(body.continueOnError || req.query.continueOnError),
     vars: (body.vars && typeof body.vars === 'object') ? body.vars : null,
+    source: 'manual',
   };
   try { await _replayRecording(rec, opts, write); }
   catch (e) { write({ type: 'error', message: String(e.message || e) }); }

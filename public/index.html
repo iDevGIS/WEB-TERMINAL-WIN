@@ -1272,6 +1272,53 @@
     .sch-dash-status.idle { background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08); color: var(--text3); }
     .sch-dash-empty { padding: 50px 20px; text-align: center; color: var(--text3); font-size: 13px; }
     .sch-dash-modal .err-cell { color: #fda4af; max-width: 240px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    /* v4.34.0 — Recording run history modal: per-recording replay ledger w/ status/duration/healed */
+    .rec-runs-modal {
+      width: min(820px, 96vw); max-height: 85vh; display: flex; flex-direction: column;
+      background: linear-gradient(180deg, #0d0e1f, #0a0a1a);
+      border: 1px solid rgba(108,99,255,.3); border-radius: 14px;
+      box-shadow: 0 24px 60px rgba(0,0,0,.5); overflow: hidden;
+    }
+    .rec-runs-modal .head { padding: 12px 16px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid rgba(255,255,255,.06); }
+    .rec-runs-modal .head h3 { margin: 0; font-size: 13px; color: var(--text); flex: 1; }
+    .rec-runs-modal .head .meta { font-size: 11px; color: var(--text3); }
+    .rec-runs-modal .head button.refresh {
+      height: 26px; padding: 0 10px; border-radius: 6px; cursor: pointer; font: 11px system-ui, sans-serif;
+      background: rgba(108,99,255,.18); border: 1px solid rgba(108,99,255,.35); color: #c4b5fd;
+    }
+    .rec-runs-modal .body { flex: 1; overflow-y: auto; padding: 0; }
+    .rec-runs-summary {
+      display: flex; gap: 12px; padding: 10px 16px; border-bottom: 1px solid rgba(255,255,255,.06);
+      font: 11px ui-monospace, monospace; color: var(--text3); flex-wrap: wrap;
+    }
+    .rec-runs-summary .chip { padding: 2px 8px; border-radius: 8px; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08); }
+    .rec-runs-summary .chip.ok { background: rgba(52,211,153,.1); border-color: rgba(52,211,153,.3); color: #6ee7b7; }
+    .rec-runs-summary .chip.fail { background: rgba(239,68,68,.1); border-color: rgba(239,68,68,.32); color: #fda4af; }
+    .rec-runs-summary .chip.heal { background: rgba(251,191,36,.1); border-color: rgba(251,191,36,.3); color: #fcd34d; }
+    .rec-runs-table { width: 100%; border-collapse: collapse; font: 11px ui-monospace, monospace; }
+    .rec-runs-table th {
+      position: sticky; top: 0; padding: 8px 10px; text-align: left; font-size: 10px; color: var(--text3);
+      text-transform: uppercase; background: #0a0a1a; border-bottom: 1px solid rgba(255,255,255,.08);
+      z-index: 1; font-weight: 600;
+    }
+    .rec-runs-table td { padding: 7px 10px; border-bottom: 1px dashed rgba(255,255,255,.04); color: var(--text2); vertical-align: top; }
+    .rec-runs-table tr:hover td { background: rgba(108,99,255,.06); }
+    .rec-runs-table .status { display: inline-flex; align-items: center; gap: 4px; padding: 1px 7px; border-radius: 8px; font-size: 10px; font-weight: 600; }
+    .rec-runs-table .status.ok { background: rgba(52,211,153,.14); border: 1px solid rgba(52,211,153,.32); color: #6ee7b7; }
+    .rec-runs-table .status.fail { background: rgba(239,68,68,.14); border: 1px solid rgba(239,68,68,.35); color: #fda4af; }
+    .rec-runs-table .status.aborted { background: rgba(251,191,36,.14); border: 1px solid rgba(251,191,36,.32); color: #fcd34d; }
+    .rec-runs-table .source { display: inline-flex; align-items: center; gap: 4px; padding: 1px 6px; border-radius: 8px; font-size: 10px; }
+    .rec-runs-table .source.manual { background: rgba(96,165,250,.12); border: 1px solid rgba(96,165,250,.28); color: #93c5fd; }
+    .rec-runs-table .source.scheduled { background: rgba(168,85,247,.12); border: 1px solid rgba(168,85,247,.28); color: #d8b4fe; }
+    .rec-runs-table .healed { color: #fcd34d; }
+    .rec-runs-table .err-cell { color: #fda4af; max-width: 260px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .rec-runs-empty { padding: 50px 20px; text-align: center; color: var(--text3); font-size: 13px; }
+    .rec-runs-modal .foot { padding: 10px 16px; display: flex; gap: 8px; justify-content: flex-end; border-top: 1px solid rgba(255,255,255,.06); }
+    .rec-runs-modal .foot button {
+      height: 30px; padding: 0 14px; border-radius: 7px; cursor: pointer;
+      background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.1); color: var(--text2);
+      font: 12px system-ui, sans-serif;
+    }
     .rec-log-modal { width: min(720px, 92vw); max-height: 80vh; display: flex; flex-direction: column; background: #0a0a1a; border: 1px solid rgba(108,99,255,.3); border-radius: 14px; overflow: hidden; }
     .rec-log-body { flex: 1; overflow-y: auto; padding: 12px 14px; font: 12px ui-monospace, monospace; color: var(--text2); }
     .rec-log-line { padding: 4px 0; border-bottom: 1px dashed rgba(255,255,255,.04); }
@@ -6470,6 +6517,7 @@
               <button class="replay" onclick="_browserRecReplay('${escAttr(it.id)}')">▶ Replay</button>
               <button onclick="_browserRecEditOpen('${escAttr(it.id)}')">✏️ Edit</button>
               <button onclick="_browserRecExportToFlow('${escAttr(it.id)}')">🔄 Convert</button>
+              <button onclick="_recRunsOpen('${escAttr(it.id)}', '${escAttr(it.name || '')}')" title="run history">📊</button>
               <button onclick="_recSchedOpen('${escAttr(it.id)}')" title="schedule">⏱</button>
               <button onclick="_browserRecView('${escAttr(it.id)}')">View</button>
               <button onclick="_browserRecRename('${escAttr(it.id)}')">Rename</button>
@@ -6576,6 +6624,109 @@
         _recSchedClose();
         await _browserRecPanelRefresh();
       } catch (e) { alert('Resume failed: ' + (e.message || e)); }
+    }
+    // v4.34.0 — Per-recording run history modal. Surfaces the ledger entries written by
+    // _replayRecording on each manual/scheduled run: status, duration, healed steps, source, error.
+    async function _recRunsOpen(id, name) {
+      let bd = document.getElementById('rec-runs-backdrop');
+      if (bd) bd.remove();
+      bd = document.createElement('div');
+      bd.id = 'rec-runs-backdrop';
+      bd.className = 'rec-panel-backdrop open';
+      bd.style.zIndex = '10001';
+      bd.dataset.recId = id;
+      bd.innerHTML = `
+        <div class="rec-runs-modal" onclick="event.stopPropagation()">
+          <div class="head">
+            <h3>📊 Run History — ${escHtml(name || id)}</h3>
+            <span class="meta" id="rec-runs-meta">loading…</span>
+            <button class="refresh" onclick="_recRunsRefresh()">⟳ Refresh</button>
+            <button class="x" onclick="_recRunsClose()">✕</button>
+          </div>
+          <div class="body" id="rec-runs-body"><div class="rec-runs-empty">Loading…</div></div>
+          <div class="foot"><button onclick="_recRunsClose()">Close</button></div>
+        </div>`;
+      bd.addEventListener('click', (e) => { if (e.target === bd) _recRunsClose(); });
+      document.body.appendChild(bd);
+      await _recRunsRefresh();
+    }
+    function _recRunsClose() {
+      const bd = document.getElementById('rec-runs-backdrop');
+      if (bd) bd.remove();
+    }
+    async function _recRunsRefresh() {
+      const bd = document.getElementById('rec-runs-backdrop');
+      if (!bd) return;
+      const id = bd.dataset.recId;
+      const body = document.getElementById('rec-runs-body');
+      const meta = document.getElementById('rec-runs-meta');
+      try {
+        const r = await fetch('/api/recordings/' + encodeURIComponent(id) + '/runs?limit=50');
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        const data = await r.json();
+        const runs = Array.isArray(data.runs) ? data.runs : [];
+        if (!runs.length) {
+          body.innerHTML = `<div class="rec-runs-empty">No replays yet. Click ▶ Replay or enable ⏱ schedule.</div>`;
+          if (meta) meta.textContent = '0 runs';
+          return;
+        }
+        // Summary chips
+        let okCount = 0, failCount = 0, abortedCount = 0, healedRuns = 0;
+        let totalDuration = 0;
+        runs.forEach(rn => {
+          if (rn.status === 'ok') okCount++;
+          else if (rn.status === 'aborted') abortedCount++;
+          else failCount++;
+          if ((rn.healedCount || 0) > 0) healedRuns++;
+          totalDuration += (rn.durationMs || 0);
+        });
+        const avgMs = runs.length ? Math.round(totalDuration / runs.length) : 0;
+        const summary = `
+          <div class="rec-runs-summary">
+            <span class="chip ok">✓ ${okCount} ok</span>
+            <span class="chip fail">${failCount + abortedCount > 0 ? '✕' : '·'} ${failCount} fail · ${abortedCount} aborted</span>
+            <span class="chip heal">⚡ ${healedRuns} run${healedRuns === 1 ? '' : 's'} w/ heal</span>
+            <span class="chip">⌀ ${avgMs}ms avg</span>
+            <span class="chip">${runs.length} total (last ${runs.length})</span>
+          </div>`;
+        // Rows
+        const rows = runs.map(rn => {
+          const when = rn.ts ? new Date(rn.ts) : null;
+          const whenLabel = when ? when.toLocaleString() : '?';
+          const whenAttr = when ? when.toISOString() : '';
+          const statusCls = rn.status === 'ok' ? 'ok' : rn.status === 'aborted' ? 'aborted' : 'fail';
+          const statusIcon = rn.status === 'ok' ? '✓' : rn.status === 'aborted' ? '⏸' : '✕';
+          const srcCls = rn.source === 'scheduled' ? 'scheduled' : 'manual';
+          const srcIcon = rn.source === 'scheduled' ? '⏱' : '▶';
+          const heal = (rn.healedCount || 0) > 0
+            ? `<span class="healed">⚡${rn.healedCount}</span>`
+            : '<span style="color:#555">·</span>';
+          const fails = (rn.failCount || 0) + (rn.gotoFailed ? 1 : 0);
+          const counts = `${rn.okCount || 0}/${(rn.total || 0) + (rn.startedAt ? 0 : 0)}`;
+          const err = rn.error ? `<span class="err-cell" title="${escAttr(rn.error)}">${escHtml(rn.error)}</span>` : '<span style="color:#555">—</span>';
+          return `<tr>
+            <td title="${escAttr(whenAttr)}">${escHtml(whenLabel)}</td>
+            <td><span class="status ${statusCls}">${statusIcon} ${escHtml(rn.status || '?')}</span></td>
+            <td><span class="source ${srcCls}">${srcIcon} ${escHtml(rn.source || '?')}</span></td>
+            <td>${escHtml(String(rn.durationMs || 0))}ms</td>
+            <td>${escHtml(rn.engine || '?')}</td>
+            <td>${escHtml(counts)}${fails > 0 ? ` <span style="color:#fb7185">(${fails} fail)</span>` : ''}</td>
+            <td>${heal}</td>
+            <td>${err}</td>
+          </tr>`;
+        }).join('');
+        body.innerHTML = summary + `
+          <table class="rec-runs-table">
+            <thead><tr>
+              <th>When</th><th>Status</th><th>Source</th><th>Duration</th><th>Engine</th><th>Steps</th><th>Healed</th><th>Error</th>
+            </tr></thead>
+            <tbody>${rows}</tbody>
+          </table>`;
+        if (meta) meta.textContent = `${runs.length} run${runs.length === 1 ? '' : 's'} · refreshed ${new Date().toLocaleTimeString()}`;
+      } catch (e) {
+        body.innerHTML = `<div class="rec-runs-empty" style="color:#fda4af">Load failed: ${escHtml(String(e.message || e))}</div>`;
+        if (meta) meta.textContent = 'error';
+      }
     }
     // v4.33.0 — Scheduler Dashboard: unified pipelines+recordings view, auto-refresh every 30s
     let _schDashTimer = null;

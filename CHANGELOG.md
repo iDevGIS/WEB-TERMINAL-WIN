@@ -5,6 +5,28 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [4.34.0] — 2026-05-17 — Recording Run Ledger (per-recording replay history)
+
+The v4.33.0 Scheduler Dashboard surfaced *latest-run* state per recording but a single row per row tells you "the last attempt was ok" without revealing the trend behind it: was it ok because Self-Heal silently masked 3 selector drifts? Did the duration drift from 600ms to 8 seconds over the past two days? Is the scheduled run drifting later each fire because of failure backoff? v4.34.0 wraps every `_replayRecording` invocation with a tally-and-persist envelope and writes each completion to a per-recording append-only JSONL file. A new 📊 button in the Recordings panel opens a sortable history modal with five summary chips and an 8-column table over the last 50 runs.
+
+### Why
+A scheduler that pauses after 5 consecutive failures only tells you the disease at the moment of death. The interesting signal is everything before — the slow march from healthy → healed-once → healed-thrice → first hard fail → cascade. Without a ledger, every recording's history lives in browser console output that vanishes when the modal closes. With it, the user can ask "did this selector chain start drifting last week?" by glancing at the Healed column over the last 20 runs. The same primitive (per-row JSONL with status/duration/healedCount/error fields) also gives Self-Heal v4.30 something to validate against: an effective heal chain produces lots of `⚡N healed → ok` rows; an ineffective one produces alternating `ok` and `fail` rows where the same step number flips. The data was already being computed and discarded — capturing it costs ~100 lines.
+
+### Highlights
+
+- **Ledger file format**: `scraps/recordings-runs/<recordingId>.jsonl`, one JSON entry per line, append-only. Schema: `{ts, startedAt, endedAt, durationMs, engine, source, status, total, okCount, failCount, healedCount, aborted, gotoFailed, error}`. `status` is one of `ok|fail|aborted`. `source` is `manual|scheduled`. Inline replays (preview from the step editor) intentionally skip the ledger since they have no recording id and would pollute history with throwaway runs.
+- **`_replayRecording` ledger wrap**: a thin shim around the `write` callback tallies events as they fire — single point of capture, identical accounting whether the call originates from `/api/recordings/:id/replay`, `_recordingTick`, or `_pipeExecRecording`. The original `write` is preserved verbatim; the wrap only observes. `finally` block writes the entry after the page+context close so the ledger reflects total wall-clock time including teardown.
+- **`GET /api/recordings/:id/runs?limit=20`** (auth-gated): tail-N from the JSONL, reversed (newest first), capped at 500. Returns `{id, name, count, runs:[]}`. 404 when the recording is gone.
+- **📊 Run History modal** (`.rec-runs-modal`): opens from a new button in each Recordings panel row, between 🔄 Convert and ⏱ schedule. Header has a refresh button (no auto-refresh — historical data is not live). 5 summary chips at the top: `✓ N ok`, `N fail · N aborted`, `⚡ N runs w/ heal`, `⌀ Nms avg`, `N total`. 8-column table: When, Status badge (green/red/yellow), Source badge (blue ▶ manual / purple ⏱ scheduled), Duration, Engine, Steps (`ok/total`), Healed (`⚡N` in yellow when fired), Error (truncated with full text in title attr).
+- **Empty state**: "No replays yet. Click ▶ Replay or enable ⏱ schedule." Tells the user how to populate the ledger rather than leaving them confused by an empty table.
+- **Source threading**: `_recordingTick` now passes `source: 'scheduled'` and `/api/recordings/:id/replay` passes `source: 'manual'` so the ledger can distinguish unattended runs from hand-fired ones. Useful for diagnostics like "are scheduled runs slower than manual ones?"
+- **Storage cap**: ledger files grow unbounded by design — each entry is ~250 bytes so 1000 runs = ~250 KB. We do not garbage-collect because the value is exactly the long tail. If users want to reset, they delete the JSONL file or `scraps/recordings-runs/` directory.
+
+### Files touched
+`server.js` (+50 lines: ledger helpers, `_replayRecording` wrap, `/runs` endpoint, source threading in 2 callers) · `public/index.html` (+130 lines: 📊 button, `_recRunsOpen`/`Refresh`/`Close`, run history modal CSS) · `package.json` · `CHANGELOG.md`.
+
+---
+
 ## [4.33.0] — 2026-05-17 — Scheduler Dashboard (unified pipelines + recordings)
 
 A single-pane view of "what is running on this machine." After v4.1.0 added pipeline schedules and v4.32.0 added recording schedules, the user had to open Flow Builder for one and the Recordings panel for the other to see active jobs. `GET /api/scheduler/status` collapses both into a single sorted feed — paused-first, then next-run-ascending — and a new 🕒 button in the Recordings panel head opens a read-only table showing type, name, status badge (healthy/failing/paused/idle), interval, last/next run, duration, extra (rows for pipelines, healed-count for recordings), and last error. Auto-refreshes every 30s while open.
