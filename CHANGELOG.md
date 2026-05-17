@@ -5,6 +5,30 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [4.38.0] — 2026-05-17 — Recorder Quality Fixes (shadow DOM pierce + cascade + dropdown + cross-nav)
+
+Phase I-1 dogfood (v4.37.0 trend sparkline) exposed 5 concrete friction points in the Recorder:
+
+1. **Bing-style shadow DOMs masked inner inputs** — `event.target` returned the outer custom element (`<bing-homepage-feed>`) instead of the `<input>` inside, so `fill` steps captured wrappers that aren't fillable and replay aborted at "Element is not <input>/<textarea>/<select>/[contenteditable]".
+2. **Selector cascade had only 2-3 candidates for some elements** — Self-Heal can't teleport across same DOM node; thin cascades meant 0 heals on real-world sites.
+3. **`fill` steps emitted with wrapper as target** — even when shadow pierce was unavailable, blur captured non-fillable elements as "fill" steps.
+4. **Click on custom dropdown options didn't capture** — `closest('a,button,[role=button],...')` filter was too narrow; `role=option`/`role=menuitem`/`role=combobox`/`<select>`/`<label>` fell through to outer body click.
+5. **Click that navigates to a different URL didn't replay the navigation** — only the click was recorded, so replay would click the link on page A but then try to find the next selector still on page A.
+
+**Fixes (all in `RECORDER_INIT_JS` + one server-side framenavigated listener)**
+
+- **A — Shadow DOM pierce** (`evTarget(ev)`): use `event.composedPath()[0]` to reach the inner real target across shadow boundaries.
+- **B — Ancestor walk for fill** (`nearestFillable(el)`): walk up DOM (and across shadow hosts via `getRootNode().host`) to find the nearest `input`/`textarea`/`select`/`contenteditable`. Skip blur events on non-fillable.
+- **C — Strengthened selector cascade**: added `data-test-id` / `data-test` / `data-cy` / `data-qa` / `data-automation-id` as testid variants, plus `title` and broader `text` (extended to `role=link/menuitem/option/tab`, `<label>`, `<summary>` — was only `<button>`/`<a>`).
+- **D — Expanded click closest list**: `[role=link]`, `[role=menuitem]`, `[role=menuitemcheckbox]`, `[role=menuitemradio]`, `[role=option]`, `[role=tab]`, `[role=checkbox]`, `[role=radio]`, `[role=switch]`, `[role=combobox]`, `[role=listbox]`, `<select>`, `<label>`, `<summary>`, `input[type=checkbox|radio]`, `[tabindex]:not([tabindex="-1"])`. Closes the gap where custom dropdowns/list items used to fall through to the outer body click.
+- **E — Cross-nav auto-emit** (server-side `page.on('framenavigated', ...)`): when top-frame navigates to a NEW URL (not `about:blank`, not the initial recStartUrl), emit a `goto` step into the recording. Both manual URL-bar navigation AND click-triggered link navigation now produce explicit `goto` steps that replay correctly. ContentEditable elements also now properly captured by the blur handler.
+
+**Impact**: real-world sites (Bing/Reddit/X/Twitter/etc.) now record selectors that Self-Heal can actually heal across, dropdowns capture as clicks on the right element, and multi-page flows replay end-to-end instead of stalling on page A.
+
+**Files**: `server.js` (~75 LOC), `CHANGELOG.md`, `package.json`.
+
+---
+
 ## [4.37.0] — 2026-05-17 — Trend Sparkline (20-bar inline mini-chart next to health badge)
 
 v4.35.0 + v4.36.0 collapsed each recording/pipeline's recent history into a single rating dot (green/yellow/red/gray). That's enough to spot "something is broken NOW" but lossy for "this has been flaky for a week" or "this just regressed after 10 clean runs". v4.37.0 surfaces the underlying ledger as a 20-bar sparkline rendered inline beside the badge — oldest left, newest right, color-coded by status (green ok / yellow healed / red fail), bar height optionally scaled by duration. Same JSONL tail (zero extra IO), same click target as the badge (opens the Run History modal).

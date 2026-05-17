@@ -9936,6 +9936,33 @@ function _pipelineRunEntry({ startedAt, result, error, source, attempts }) {
 const RECORDER_INIT_JS = `(() => {
   if (window.__recInstalled) return; window.__recInstalled = true;
   function cssEsc(s) { return String(s).replace(/(["\\\\])/g, '\\\\$1'); }
+  // v4.38.0 — shadow DOM pierce: composedPath()[0] returns the inner real target
+  // (custom-element wrappers like <bing-homepage-feed> otherwise mask the inner input).
+  function evTarget(ev) {
+    try { const p = ev.composedPath && ev.composedPath(); if (p && p.length) return p[0]; } catch {}
+    return ev.target;
+  }
+  function isFillable(el) {
+    if (!el || el.nodeType !== 1) return false;
+    const tag = (el.tagName || '').toLowerCase();
+    return tag === 'input' || tag === 'textarea' || tag === 'select' || el.isContentEditable === true;
+  }
+  // Walk up DOM (and across shadow boundaries) to nearest fillable ancestor.
+  function nearestFillable(el) {
+    let cur = el;
+    while (cur && cur.nodeType === 1) {
+      if (isFillable(cur)) return cur;
+      cur = cur.parentElement || (cur.getRootNode && cur.getRootNode().host) || null;
+    }
+    return null;
+  }
+  // v4.38.0 — expanded interactive set: role=option/menuitem/tab/combobox/listbox + label/summary
+  // closes the gap where custom dropdowns and clickable list items used to fall through to <body>.
+  const CLICK_CLOSEST = 'a,button,[role=button],[role=link],[role=menuitem],[role=menuitemcheckbox],[role=menuitemradio],[role=option],[role=tab],[role=checkbox],[role=radio],[role=switch],[role=combobox],[role=listbox],select,label,summary,input[type=submit],input[type=button],input[type=checkbox],input[type=radio],[onclick],[tabindex]:not([tabindex="-1"])';
+  function clickClosest(t) {
+    if (!t || !t.closest) return t;
+    try { return t.closest(CLICK_CLOSEST) || t; } catch { return t; }
+  }
   // Returns ordered candidate list. Quality > quantity: skip kinds that don't apply.
   function selCandidates(el) {
     const out = [];
@@ -9943,6 +9970,13 @@ const RECORDER_INIT_JS = `(() => {
     const tag = el.tagName.toLowerCase();
     const tid = el.getAttribute && el.getAttribute('data-testid');
     if (tid) out.push({ kind: 'testid', value: '[data-testid="' + cssEsc(tid) + '"]' });
+    // v4.38.0 — additional testid variants (Cypress / Playwright / Vue / common conventions)
+    const testAttrs = ['data-test-id', 'data-test', 'data-cy', 'data-qa', 'data-automation-id'];
+    for (let i = 0; i < testAttrs.length; i++) {
+      const k = testAttrs[i];
+      const v = el.getAttribute && el.getAttribute(k);
+      if (v) out.push({ kind: k, value: '[' + k + '="' + cssEsc(v) + '"]' });
+    }
     const id = el.id;
     if (id && !/^\\d/.test(id) && /^[A-Za-z_-][A-Za-z0-9_-]*$/.test(id)) out.push({ kind: 'id', value: '#' + id });
     const role = el.getAttribute && el.getAttribute('role');
@@ -9953,9 +9987,15 @@ const RECORDER_INIT_JS = `(() => {
     if (name) out.push({ kind: 'name', value: tag + '[name="' + cssEsc(name) + '"]' });
     const ph = el.getAttribute && el.getAttribute('placeholder');
     if (ph && (tag === 'input' || tag === 'textarea')) out.push({ kind: 'placeholder', value: tag + '[placeholder="' + cssEsc(ph) + '"]' });
+    // v4.38.0 — title is often the only stable attr on toolbar buttons / icon links
+    const ttl = el.getAttribute && el.getAttribute('title');
+    if (ttl && ttl.length <= 60) out.push({ kind: 'title', value: tag + '[title="' + cssEsc(ttl) + '"]' });
     const txt = ((el.innerText || el.textContent || '') + '').trim();
-    if (txt && txt.length <= 40 && (tag === 'button' || tag === 'a')) {
-      out.push({ kind: 'text', value: tag + ':has-text("' + txt.replace(/"/g, '\\\\"') + '")' });
+    // v4.38.0 — broaden text candidate to any interactive role (was button/a only)
+    if (txt && txt.length <= 40) {
+      const r2 = role || '';
+      const isInteractiveTxt = (tag === 'button' || tag === 'a' || tag === 'label' || tag === 'summary' || r2 === 'button' || r2 === 'link' || r2 === 'menuitem' || r2 === 'option' || r2 === 'tab');
+      if (isInteractiveTxt) out.push({ kind: 'text', value: tag + ':has-text("' + txt.replace(/"/g, '\\\\"') + '")' });
     }
     // CSS path always last — most fragile, always available
     const parts = [];
@@ -9987,17 +10027,18 @@ const RECORDER_INIT_JS = `(() => {
     return { selector: cs.length ? cs[0].value : '', selectors: cs };
   }
   document.addEventListener('click', (ev) => {
-    let t = ev.target;
+    let t = evTarget(ev);
     if (!t || !t.tagName) return;
-    // Walk up to a meaningful interactive ancestor
-    const cl = t.closest && t.closest('a,button,[role=button],input[type=submit],input[type=button],[onclick]');
-    if (cl) t = cl;
+    // Walk up to a meaningful interactive ancestor (expanded set — v4.38.0)
+    t = clickClosest(t);
     const p = selPair(t);
     emit({ type: 'click', selector: p.selector, selectors: p.selectors, tag: t.tagName.toLowerCase(), text: ((t.innerText || '') + '').trim().slice(0, 80) });
   }, true);
   document.addEventListener('change', (ev) => {
-    const t = ev.target;
-    if (!t || !t.tagName) return;
+    const raw = evTarget(ev);
+    if (!raw || !raw.tagName) return;
+    // v4.38.0 — climb to fillable ancestor if event fired on wrapper element (custom inputs / shadow hosts)
+    const t = nearestFillable(raw) || raw;
     const tag = t.tagName.toLowerCase();
     const p = selPair(t);
     if (tag === 'select') emit({ type: 'select', selector: p.selector, selectors: p.selectors, value: String(t.value || '') });
@@ -10006,21 +10047,25 @@ const RECORDER_INIT_JS = `(() => {
   }, true);
   // also catch input fills with debounce-via-blur for fields that don't fire change
   document.addEventListener('blur', (ev) => {
-    const t = ev.target;
-    if (!t || !t.tagName) return;
+    const raw = evTarget(ev);
+    if (!raw || !raw.tagName) return;
+    const t = nearestFillable(raw);
+    if (!t) return; // skip blurs on non-fillable (v4.38.0 — was capturing shadow hosts as 'fill' steps)
     const tag = t.tagName.toLowerCase();
-    if ((tag === 'input' || tag === 'textarea') && t.type !== 'checkbox' && t.type !== 'radio' && t.value != null) {
+    if ((tag === 'input' || tag === 'textarea' || t.isContentEditable) && t.type !== 'checkbox' && t.type !== 'radio') {
       const p = selPair(t);
-      emit({ type: 'fill', selector: p.selector, selectors: p.selectors, value: String(t.value || '').slice(0, 500), blur: true });
+      const val = (t.isContentEditable ? ((t.innerText || t.textContent || '') + '') : String(t.value == null ? '' : t.value)).slice(0, 500);
+      emit({ type: 'fill', selector: p.selector, selectors: p.selectors, value: val, blur: true });
     }
   }, true);
   document.addEventListener('submit', (ev) => {
-    const p = selPair(ev.target);
+    const t = evTarget(ev);
+    const p = selPair(t || ev.target);
     emit({ type: 'submit', selector: p.selector, selectors: p.selectors });
   }, true);
   document.addEventListener('keydown', (ev) => {
     if (ev.key === 'Enter' || ev.key === 'Escape' || ev.key === 'Tab') {
-      const t = ev.target;
+      const t = evTarget(ev);
       if (t && t.tagName) {
         const p = selPair(t);
         emit({ type: 'press', selector: p.selector, selectors: p.selectors, key: ev.key });
@@ -10090,6 +10135,28 @@ recWss.on("connection", async (ws, req) => {
     await context.addInitScript({ content: RECORDER_INIT_JS });
     page = await context.newPage();
     cdp = await context.newCDPSession(page);
+    // v4.38.0 — auto-emit a `goto` step whenever the top-level frame navigates to a
+    // NEW URL. This captures cross-page click flows: user clicks a link → new URL
+    // loads → replay must `goto(newUrl)` for subsequent steps to land on the right page.
+    // Without this, the click on a navigating link records correctly but replay continues
+    // on the old page (since the click's navigation side-effect was lost).
+    let _lastEmittedGoto = recStartUrl || 'about:blank';
+    page.on('framenavigated', (frame) => {
+      try {
+        if (!page || page.isClosed()) return;
+        if (frame !== page.mainFrame()) return;
+        const newUrl = frame.url();
+        if (!newUrl || newUrl === 'about:blank') return;
+        if (newUrl === _lastEmittedGoto) return;
+        // Skip if last step is the click that caused this nav AND the next-to-last is already this goto
+        const last = steps[steps.length - 1];
+        if (last && last.type === 'goto' && last.value === newUrl) return;
+        _lastEmittedGoto = newUrl;
+        const step = { ts: Date.now(), url: newUrl, type: 'goto', value: newUrl, source: 'auto-nav' };
+        steps.push(step);
+        sendJSON({ type: 'step', step, total: steps.length });
+      } catch {}
+    });
     // Intercept rec-save / rec-clear control messages alongside the streamer's own handler.
     // Multiple ws.on('message') handlers fan out — streamer ignores unknown types.
     ws.on('message', (raw) => {
