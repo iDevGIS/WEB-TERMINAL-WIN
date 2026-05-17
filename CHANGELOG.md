@@ -5,6 +5,46 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [4.26.0] — 2026-05-17 — Browser Action Recorder MVP + Replay engine
+
+User-facing primitive: **record real interactions on any web page, save as JSON, replay later via Playwright**. Bundles `🅰 Recorder MVP` + `🅱 Replay engine` (Phase A+B of the v4.26→v4.29 plan). Phase C (inline step editor) + Phase D (Visual Builder export) follow as separate ships.
+
+### Added
+
+- **`🔴 Rec` mode** — new entry in Browser tab mode dropdown (Live · Proxy · Pro · CDP · **Rec**). Behaves like Pro mode (headless Chromium screencast) but injects a recorder script that captures every interaction.
+- **In-page recorder** — `addInitScript` injects on every navigation. Captures `click`, `change`, `fill` (on blur to dedupe typing), `select`, `check`, `submit`, `press` (Enter/Tab/Esc), and dialog/modal appearance via `MutationObserver`. Selector cascade: `data-testid > id > [role+aria-label] > [aria-label] > [name] > tag:has-text(...) > CSS path`. Consecutive fills on the same field collapse to the last value; double-fired clicks within 250 ms are deduped.
+- **Recording overlay** — top-right pill (`🔴 REC · N steps`) with `Save` + `Clear` buttons. Switching away from Rec mode with unsaved steps prompts to discard.
+- **Save flow** — `Save` prompts for a name → WS msg `{ type:'rec-save', name }` → server persists to `scraps/recordings.json` (ring buffer: 500). Confirmation pill briefly flips to `✓ Saved`.
+- **📼 Recordings panel** — toolbar button opens modal listing all saved recordings (name · step count · date · start URL). Per-item actions: **▶ Replay**, **View** (raw JSON in new tab), **Rename**, **✕ Delete**.
+- **Replay engine** — server-side step executor that walks JSON steps against a fresh Playwright headless page (or CDP-attached real Chrome via `engine: 'cdp'`). Supported step types: `goto`, `click`, `fill`, `press`, `select`, `check`, `submit`, `waitFor`, `waitForDialog`, `wait`, `scroll`. Each uses Playwright's `locator(sel).first()` with `Locator.click/fill/press/etc.` so the recorded `:has-text(...)` and `[data-testid]` selectors resolve natively. Default 10 s per-step timeout; navigation steps get 25 s.
+- **Replay progress modal** — POST to `/api/recordings/:id/replay` returns Server-Sent Events: `start`/`step-start`/`step-ok`/`step-fail`/`done`. Client renders a streaming log (info/ok/fail rows) plus a live `N ok · M fail / total` counter in the header. `continueOnError: false` (default) aborts on first failure; set `true` to run the whole script.
+
+### Endpoints
+
+- `GET /api/recordings` → `{ items: [{ id, name, createdAt, startUrl, count }] }`
+- `GET /api/recordings/:id` → full recording
+- `PUT /api/recordings/:id` → patch `{ name?, steps?, startUrl? }`
+- `DELETE /api/recordings/:id`
+- `POST /api/recordings/:id/replay` → SSE per-step events
+- `POST /api/recordings/replay-inline` → same SSE shape, accepts `{ name?, startUrl, steps, engine?, cdpEndpoint?, continueOnError? }` body without saving (for the future Phase-C editor preview).
+- `WS /browser-rec-ws?url=...&w=...&h=...` → Pro-mode screencast + capture bindings; control msgs `{type:'rec-save', name}` / `{type:'rec-clear'}`.
+
+### Notes
+
+- Storage: `scraps/recordings.json` (auto-created). Ring buffer caps at 500 most-recent. PUT updates `updatedAt` separately from `createdAt` for future editor surfacing.
+- The recorder uses the **headless Pro browser singleton** for capture — no extra Chrome process. Replay also defaults to Playwright headless; pass `engine: 'cdp'` + `cdpEndpoint` in the replay POST body to run against the user's real Chrome (logged-in sessions, extensions).
+- Recorder shares the existing `_streamPageOverWS` helper from v4.19.0 — only the per-WS setup (binding + initScript) is new. Two `ws.on('message')` handlers fan-out cleanly: the streamer handles `mouse`/`key`/`navigate`/`resize`/etc., the recorder intercepts `rec-save`/`rec-clear` and ignores the rest.
+- Selector cascade is conservative: numeric IDs (e.g. `#x_2`) are skipped because Vue/React often emit unstable ones; classes are filtered to those starting with a letter (skipping `_` BEM-internals); `:has-text(...)` is only emitted for `<a>`/`<button>` with ≤40-char text to avoid overfitting on paragraphs.
+- Phase C (v4.27.0) will add an inline JSON step editor with reorder/delete/edit + parameterization (`{{var}}` substitution at replay time). Phase D (v4.28.0) will add "Convert to flow" — emit one `browser_action` block per step into a Visual Builder pipeline for cross-recipe reuse.
+
+### Files
+
+- `server.js` +386 / -2 — recorder WS, REST CRUD, replay engine, SSE helper.
+- `public/index.html` +260 / -8 — Rec mode dropdown entry, capture overlay, Recordings panel modal, replay log modal, CSS.
+- `package.json` 4.25.0 → 4.26.0.
+
+---
+
 ## [4.25.0] — 2026-05-16 — Dogfood-3 prep: real-world templates + playbook
 
 Closing ship of the overnight v4.20–v4.25 cascade (ship `f`). Replaces the closing stretch of toy-target dogfood (HN/quotes) with four real-world Flow Builder templates that exercise the new ships in actual production-like scenarios.

@@ -1076,6 +1076,85 @@
     .browser-tab-mode[data-mode="proxy"] { color:#a78bfa; border-color: rgba(167,139,250,.35); background: rgba(167,139,250,.08); }
     .browser-tab-mode[data-mode="pro"]   { color:#34d399; border-color: rgba(52,211,153,.35); background: rgba(52,211,153,.08); }
     .browser-tab-mode[data-mode="cdp"]   { color:#fbbf24; border-color: rgba(251,191,36,.35); background: rgba(251,191,36,.08); }
+    .browser-tab-mode[data-mode="rec"]   { color:#fb7185; border-color: rgba(251,113,133,.45); background: rgba(251,113,133,.10); }
+    /* v4.26.0 — recorder overlay (top-right pill + actions) */
+    .browser-rec-overlay {
+      position: absolute; top: 10px; right: 14px; z-index: 5;
+      display: flex; align-items: center; gap: 6px;
+      background: rgba(10,10,26,0.78);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(251,113,133,.35);
+      border-radius: 999px;
+      padding: 4px 6px 4px 12px;
+      font: 12px system-ui, sans-serif;
+      color: #fda4af;
+      box-shadow: 0 4px 14px rgba(0,0,0,.35);
+    }
+    .browser-rec-overlay .rec-dot {
+      width: 8px; height: 8px; border-radius: 50%; background: #ef4444;
+      box-shadow: 0 0 8px rgba(239,68,68,.7);
+      animation: recPulse 1.2s ease-in-out infinite;
+    }
+    @keyframes recPulse { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
+    .browser-rec-overlay .rec-count { font-weight: 600; color: #fecaca; }
+    .browser-rec-overlay button {
+      height: 22px; padding: 0 10px; border-radius: 999px;
+      border: 1px solid rgba(255,255,255,.1);
+      background: rgba(255,255,255,.08); color: #e5e7eb;
+      font: 11px system-ui, sans-serif; cursor: pointer;
+    }
+    .browser-rec-overlay button:hover { background: rgba(255,255,255,.16); }
+    .browser-rec-overlay button.rec-save { background: rgba(52,211,153,.18); border-color: rgba(52,211,153,.4); color: #6ee7b7; }
+    .browser-rec-overlay button.rec-save:hover { background: rgba(52,211,153,.3); }
+    .browser-rec-overlay button.rec-clear { color: #fda4af; }
+
+    /* v4.26.0 — Recordings panel modal */
+    .rec-panel-backdrop {
+      position: fixed; inset: 0; z-index: 9999; background: rgba(5,5,15,.7);
+      backdrop-filter: blur(4px);
+      display: none; align-items: center; justify-content: center;
+    }
+    .rec-panel-backdrop.open { display: flex; }
+    .rec-panel {
+      width: min(720px, 92vw); max-height: 80vh; display: flex; flex-direction: column;
+      background: linear-gradient(180deg, #0d0e1f, #0a0a1a);
+      border: 1px solid rgba(108,99,255,.3); border-radius: 14px;
+      box-shadow: 0 24px 60px rgba(0,0,0,.5);
+      overflow: hidden;
+    }
+    .rec-panel-head {
+      padding: 14px 18px; display: flex; align-items: center; gap: 10px;
+      border-bottom: 1px solid rgba(255,255,255,.06);
+    }
+    .rec-panel-head h3 { margin: 0; font-size: 14px; flex: 1; color: var(--text); }
+    .rec-panel-head .x {
+      background: none; border: none; color: var(--text3); font-size: 18px; cursor: pointer;
+    }
+    .rec-panel-body { flex: 1; overflow-y: auto; padding: 8px; }
+    .rec-item {
+      display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+      border-radius: 10px; transition: background .12s;
+    }
+    .rec-item:hover { background: rgba(108,99,255,.08); }
+    .rec-item .meta { flex: 1; min-width: 0; }
+    .rec-item .name { font-size: 13px; color: var(--text); font-weight: 500; }
+    .rec-item .sub { font-size: 11px; color: var(--text3); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .rec-item .actions { display: flex; gap: 4px; }
+    .rec-item .actions button {
+      height: 26px; padding: 0 10px; border-radius: 6px; cursor: pointer;
+      background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.1); color: var(--text2);
+      font: 11px system-ui, sans-serif;
+    }
+    .rec-item .actions button:hover { background: rgba(108,99,255,.18); color: var(--text); }
+    .rec-item .actions button.danger:hover { background: rgba(239,68,68,.18); color: #fda4af; border-color: rgba(239,68,68,.35); }
+    .rec-item .actions button.replay { color: #6ee7b7; border-color: rgba(52,211,153,.3); }
+    .rec-empty { padding: 40px 20px; text-align: center; color: var(--text3); font-size: 13px; }
+    .rec-log-modal { width: min(720px, 92vw); max-height: 80vh; display: flex; flex-direction: column; background: #0a0a1a; border: 1px solid rgba(108,99,255,.3); border-radius: 14px; overflow: hidden; }
+    .rec-log-body { flex: 1; overflow-y: auto; padding: 12px 14px; font: 12px ui-monospace, monospace; color: var(--text2); }
+    .rec-log-line { padding: 4px 0; border-bottom: 1px dashed rgba(255,255,255,.04); }
+    .rec-log-line.ok { color: #6ee7b7; }
+    .rec-log-line.fail { color: #fb7185; }
+    .rec-log-line.info { color: #a78bfa; }
     .browser-tab-frame {
       flex: 1;
       min-height: 0;
@@ -5823,6 +5902,7 @@
     }
 
     // v4.18.0 — Pro mode: Playwright screencast via WS, canvas paint, mouse/key relay
+    // v4.26.0 — Rec mode reuses this flow (different WS endpoint) + adds capture overlay
     function _browserTabProStop(tabId) {
       const tab = tabs.get(tabId);
       if (!tab || !tab._pro) return;
@@ -5834,6 +5914,7 @@
 
     // v4.19.0: parameterized mode ('pro' | 'cdp') — Pro uses headless Chromium singleton,
     // CDP attaches to user's existing Chrome via --remote-debugging-port endpoint
+    // v4.26.0: 'rec' mode = Pro + addInitScript capture + save/replay overlay
     function _browserTabProStart(tabId, startUrl, mode) {
       mode = mode || 'pro';
       const tab = tabs.get(tabId);
@@ -5853,13 +5934,31 @@
       canvas.tabIndex = 0;
       const status = document.createElement('div');
       const isCdp = mode === 'cdp';
-      const accent = isCdp ? '#fbbf24' : '#a78bfa';
-      const accentBorder = isCdp ? 'rgba(251,191,36,0.3)' : 'rgba(167,139,250,0.3)';
-      const label = isCdp ? '🔧 CDP mode connecting…' : '🤖 Pro mode connecting…';
+      const isRec = mode === 'rec';
+      const accent = isRec ? '#fb7185' : (isCdp ? '#fbbf24' : '#a78bfa');
+      const accentBorder = isRec ? 'rgba(251,113,133,0.35)' : (isCdp ? 'rgba(251,191,36,0.3)' : 'rgba(167,139,250,0.3)');
+      const label = isRec ? '🔴 Recorder connecting…' : (isCdp ? '🔧 CDP mode connecting…' : '🤖 Pro mode connecting…');
       status.textContent = label;
       status.style.cssText = `position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:${accent};font:14px system-ui;pointer-events:none;background:rgba(10,10,26,0.85);padding:8px 14px;border-radius:6px;border:1px solid ${accentBorder};max-width:80%;text-align:center;white-space:pre-wrap`;
       wrap.appendChild(canvas);
       wrap.appendChild(status);
+      // v4.26.0 — recording overlay (only in rec mode)
+      let recOverlay = null, recCountEl = null, recState = { count: 0, lastSavedAt: 0 };
+      if (isRec) {
+        recOverlay = document.createElement('div');
+        recOverlay.className = 'browser-rec-overlay';
+        recOverlay.innerHTML = `
+          <span class="rec-dot"></span>
+          <span>REC</span>
+          <span class="rec-count" data-rec-count>0 steps</span>
+          <button class="rec-save" title="Save recording">Save</button>
+          <button class="rec-clear" title="Clear captured steps">Clear</button>
+        `;
+        wrap.appendChild(recOverlay);
+        recCountEl = recOverlay.querySelector('[data-rec-count]');
+        recOverlay.querySelector('.rec-save').addEventListener('click', () => _browserRecSave(tabId));
+        recOverlay.querySelector('.rec-clear').addEventListener('click', () => _browserRecClear(tabId));
+      }
       if (frame.nextSibling) parent.insertBefore(wrap, frame.nextSibling);
       else parent.appendChild(wrap);
 
@@ -5876,7 +5975,7 @@
       const initW = Math.max(320, Math.round(initRect.width)) || 1280;
       const initH = Math.max(240, Math.round(initRect.height)) || 800;
       const cdpEndpoint = (typeof localStorage !== 'undefined' && localStorage.getItem('cdpEndpoint')) || 'http://localhost:9222';
-      const path = isCdp ? '/browser-cdp-ws' : '/browser-pro-ws';
+      const path = isRec ? '/browser-rec-ws' : (isCdp ? '/browser-cdp-ws' : '/browser-pro-ws');
       const cdpQ = isCdp ? `&cdp=${encodeURIComponent(cdpEndpoint)}` : '';
       const wsUrl = `${proto}//${location.host}${path}?url=${encodeURIComponent(startUrl)}&w=${initW}&h=${initH}${cdpQ}`;
       const ws = new WebSocket(wsUrl);
@@ -5884,7 +5983,7 @@
       let lastUrl = startUrl;
       // v4.19.1: track explicit error so ws.onclose doesn't clobber actionable message
       let _hadError = false;
-      ws.onopen = () => { status.textContent = isCdp ? '🔧 Loading…' : '🤖 Loading…'; fitCanvas(); };
+      ws.onopen = () => { status.textContent = isRec ? '🔴 Loading…' : (isCdp ? '🔧 Loading…' : '🤖 Loading…'); fitCanvas(); };
       ws.onmessage = (ev) => {
         let m; try { m = JSON.parse(ev.data); } catch { return; }
         if (m.type === 'frame') {
@@ -5932,6 +6031,22 @@
           status.textContent = 'Page closed';
         } else if (m.type === 'ready') {
           lastUrl = m.url || startUrl;
+        } else if (m.type === 'step') {
+          // v4.26.0 — recorder step captured
+          recState.count = m.total || (recState.count + 1);
+          if (recCountEl) recCountEl.textContent = recState.count + ' step' + (recState.count === 1 ? '' : 's');
+        } else if (m.type === 'rec-saved') {
+          recState.lastSavedAt = Date.now();
+          if (recOverlay) {
+            const btn = recOverlay.querySelector('.rec-save');
+            const orig = btn.textContent;
+            btn.textContent = '✓ Saved';
+            btn.style.background = 'rgba(52,211,153,0.35)';
+            setTimeout(() => { btn.textContent = orig; btn.style.background = ''; }, 1800);
+          }
+        } else if (m.type === 'rec-cleared') {
+          recState.count = 0;
+          if (recCountEl) recCountEl.textContent = '0 steps';
         }
       };
       ws.onerror = () => { if (_hadError) return; status.style.display = 'block'; status.textContent = '⚠ Connection error'; status.style.color = '#fb7185'; };
@@ -5962,22 +6077,33 @@
 
       let ro = null;
       try { ro = new ResizeObserver(() => fitCanvas()); ro.observe(canvas); } catch {}
-      tab._pro = { ws, canvas, statusEl: status, wrapEl: wrap, ro };
+      tab._pro = { ws, canvas, statusEl: status, wrapEl: wrap, ro, mode, recState };
     }
 
     // v4.19.0: CDP mode now functional — attach to user's Chrome via --remote-debugging-port
+    // v4.26.0: Rec mode added — record actions for replay
     function browserTabSetMode(tabId, mode) {
       const tab = tabs.get(tabId);
       if (!tab || tab.type !== 'browser') return;
       const sel = document.getElementById(tabId + '-bb-mode');
       const prevMode = tab.browserMode || 'live';
-      // Stop existing screencast if switching out of pro/cdp
-      if ((prevMode === 'pro' || prevMode === 'cdp') && mode !== prevMode) _browserTabProStop(tabId);
+      // Stop existing screencast if switching out of pro/cdp/rec
+      const streamModes = ['pro', 'cdp', 'rec'];
+      if (streamModes.includes(prevMode) && mode !== prevMode) {
+        // v4.26.0 — warn before leaving Rec mode if unsaved steps
+        if (prevMode === 'rec' && tab._pro && tab._pro.recState && tab._pro.recState.count > 0 && tab._pro.recState.lastSavedAt < Date.now() - 60000) {
+          if (!confirm(`You have ${tab._pro.recState.count} unsaved recorded steps. Discard them?`)) {
+            if (sel) sel.value = prevMode;
+            return;
+          }
+        }
+        _browserTabProStop(tabId);
+      }
       tab.browserMode = mode;
       if (sel) sel.setAttribute('data-mode', mode);
       const cur = tab.url || tab.history?.[tab.histIdx] || 'https://www.bing.com';
       const frame = document.getElementById(tabId + '-bb-frame');
-      if (mode === 'pro' || mode === 'cdp') {
+      if (streamModes.includes(mode)) {
         _browserTabProStart(tabId, cur, mode);
         return;
       }
@@ -5985,6 +6111,172 @@
         frame.style.display = '';
         frame.src = _browserWrapUrl(cur, mode);
       }
+    }
+
+    // v4.26.0 — recorder save/clear (called from overlay buttons)
+    function _browserRecSave(tabId) {
+      const tab = tabs.get(tabId);
+      if (!tab || !tab._pro || tab._pro.mode !== 'rec') return;
+      const def = 'Recording ' + new Date().toLocaleString();
+      const name = prompt('Recording name:', def);
+      if (name === null) return;
+      const trimmed = (name || def).trim().slice(0, 80) || def;
+      try { tab._pro.ws.send(JSON.stringify({ type: 'rec-save', name: trimmed })); } catch {}
+    }
+    function _browserRecClear(tabId) {
+      const tab = tabs.get(tabId);
+      if (!tab || !tab._pro || tab._pro.mode !== 'rec') return;
+      if (tab._pro.recState && tab._pro.recState.count > 0 && !confirm('Clear ' + tab._pro.recState.count + ' captured steps?')) return;
+      try { tab._pro.ws.send(JSON.stringify({ type: 'rec-clear' })); } catch {}
+    }
+
+    // v4.26.0 — Recordings panel (list / replay / view / delete)
+    async function browserTabRecPanel(tabId) {
+      let bd = document.getElementById('rec-panel-backdrop');
+      if (!bd) {
+        bd = document.createElement('div');
+        bd.id = 'rec-panel-backdrop';
+        bd.className = 'rec-panel-backdrop';
+        bd.innerHTML = `
+          <div class="rec-panel" onclick="event.stopPropagation()">
+            <div class="rec-panel-head">
+              <h3>📼 Recordings</h3>
+              <span style="font-size:11px;color:var(--text3)">JSON action flows · replay via Playwright</span>
+              <button class="x" onclick="_browserRecPanelClose()">✕</button>
+            </div>
+            <div class="rec-panel-body" id="rec-panel-body"><div class="rec-empty">Loading…</div></div>
+          </div>`;
+        bd.addEventListener('click', (e) => { if (e.target === bd) _browserRecPanelClose(); });
+        document.body.appendChild(bd);
+      }
+      bd.classList.add('open');
+      await _browserRecPanelRefresh();
+    }
+    function _browserRecPanelClose() {
+      const bd = document.getElementById('rec-panel-backdrop');
+      if (bd) bd.classList.remove('open');
+    }
+    async function _browserRecPanelRefresh() {
+      const body = document.getElementById('rec-panel-body');
+      if (!body) return;
+      body.innerHTML = '<div class="rec-empty">Loading…</div>';
+      try {
+        const r = await fetch('/api/recordings');
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        const d = await r.json();
+        const items = Array.isArray(d.items) ? d.items : [];
+        if (!items.length) {
+          body.innerHTML = '<div class="rec-empty">No recordings yet.<br><br>Open a Browser tab → switch to <b style="color:#fb7185">🔴 Rec</b> mode → interact with the page → click <b>Save</b>.</div>';
+          return;
+        }
+        const fmt = (ts) => { try { return new Date(ts).toLocaleString(); } catch { return ''; } };
+        body.innerHTML = items.map(it => `
+          <div class="rec-item" data-id="${escAttr(it.id)}">
+            <div class="meta">
+              <div class="name">${escHtml(it.name)}</div>
+              <div class="sub">${it.count} step${it.count === 1 ? '' : 's'} · ${escHtml(fmt(it.createdAt))} · <span style="color:#a78bfa">${escHtml(it.startUrl || '')}</span></div>
+            </div>
+            <div class="actions">
+              <button class="replay" onclick="_browserRecReplay('${escAttr(it.id)}')">▶ Replay</button>
+              <button onclick="_browserRecView('${escAttr(it.id)}')">View</button>
+              <button onclick="_browserRecRename('${escAttr(it.id)}')">Rename</button>
+              <button class="danger" onclick="_browserRecDelete('${escAttr(it.id)}')">✕</button>
+            </div>
+          </div>
+        `).join('');
+      } catch (e) {
+        body.innerHTML = '<div class="rec-empty">Failed to load: ' + escHtml(String(e.message || e)) + '</div>';
+      }
+    }
+    async function _browserRecDelete(id) {
+      if (!confirm('Delete this recording?')) return;
+      try {
+        const r = await fetch('/api/recordings/' + encodeURIComponent(id), { method: 'DELETE' });
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        await _browserRecPanelRefresh();
+      } catch (e) { alert('Delete failed: ' + (e.message || e)); }
+    }
+    async function _browserRecRename(id) {
+      try {
+        const r = await fetch('/api/recordings/' + encodeURIComponent(id));
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        const rec = await r.json();
+        const next = prompt('New name:', rec.name || '');
+        if (next === null) return;
+        const trimmed = (next || '').trim().slice(0, 80);
+        if (!trimmed) return;
+        const r2 = await fetch('/api/recordings/' + encodeURIComponent(id), {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: trimmed })
+        });
+        if (!r2.ok) throw new Error('HTTP ' + r2.status);
+        await _browserRecPanelRefresh();
+      } catch (e) { alert('Rename failed: ' + (e.message || e)); }
+    }
+    async function _browserRecView(id) {
+      try {
+        const r = await fetch('/api/recordings/' + encodeURIComponent(id));
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        const rec = await r.json();
+        const blob = new Blob([JSON.stringify(rec, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        window.open(url, '_blank');
+        setTimeout(() => URL.revokeObjectURL(url), 60000);
+      } catch (e) { alert('View failed: ' + (e.message || e)); }
+    }
+    async function _browserRecReplay(id) {
+      // Build a log modal that streams SSE events
+      const old = document.getElementById('rec-log-backdrop');
+      if (old) old.remove();
+      const bd = document.createElement('div');
+      bd.id = 'rec-log-backdrop';
+      bd.className = 'rec-panel-backdrop open';
+      bd.innerHTML = `
+        <div class="rec-log-modal" onclick="event.stopPropagation()">
+          <div class="rec-panel-head">
+            <h3>▶ Replay progress</h3>
+            <span id="rec-log-meta" style="font-size:11px;color:var(--text3)">starting…</span>
+            <button class="x" onclick="document.getElementById('rec-log-backdrop').remove()">✕</button>
+          </div>
+          <div class="rec-log-body" id="rec-log-body"></div>
+        </div>`;
+      bd.addEventListener('click', (e) => { if (e.target === bd) bd.remove(); });
+      document.body.appendChild(bd);
+      const body = document.getElementById('rec-log-body');
+      const meta = document.getElementById('rec-log-meta');
+      const append = (cls, text) => { const d = document.createElement('div'); d.className = 'rec-log-line ' + cls; d.textContent = text; body.appendChild(d); body.scrollTop = body.scrollHeight; };
+      try {
+        const r = await fetch('/api/recordings/' + encodeURIComponent(id) + '/replay', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ continueOnError: false })
+        });
+        if (!r.ok || !r.body) throw new Error('HTTP ' + r.status);
+        const reader = r.body.getReader();
+        const dec = new TextDecoder();
+        let buf = '';
+        let okCount = 0, failCount = 0, total = 0;
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buf += dec.decode(value, { stream: true });
+          const lines = buf.split('\n');
+          buf = lines.pop();
+          for (const ln of lines) {
+            if (!ln.startsWith('data:')) continue;
+            let m; try { m = JSON.parse(ln.slice(5).trim()); } catch { continue; }
+            if (m.type === 'start') { total = m.total; append('info', `Starting (${m.total} steps, engine: ${m.engine})`); meta.textContent = `0 / ${total}`; }
+            else if (m.type === 'step-start') {
+              const s = m.step || {};
+              const desc = s.type + (s.selector ? ' ' + s.selector : '') + (s.value != null ? ' = ' + JSON.stringify(s.value).slice(0, 60) : '') + (s.url ? ' ' + s.url : '');
+              append('info', `[${m.index + 1}] ${desc}`);
+            }
+            else if (m.type === 'step-ok') { okCount++; meta.textContent = `${okCount} ok · ${failCount} fail / ${total}`; }
+            else if (m.type === 'step-fail') { failCount++; append('fail', `  ↳ FAIL: ${m.error}`); meta.textContent = `${okCount} ok · ${failCount} fail / ${total}`; }
+            else if (m.type === 'done') { append('ok', m.aborted ? '✕ Aborted' : '✓ Done'); meta.textContent = `${okCount} ok · ${failCount} fail / ${total} · ${m.aborted ? 'aborted' : 'done'}`; }
+            else if (m.type === 'error') { append('fail', '✕ ' + m.message); }
+          }
+        }
+      } catch (e) { append('fail', 'Replay error: ' + (e.message || e)); }
     }
 
     // v4.19.0: CDP settings modal — endpoint + Chrome launch helper instructions
@@ -12902,14 +13194,18 @@ ${fields}
             </button>
             <input class="browser-tab-url" id="${tabId}-bb-url" placeholder="URL or search…" value="${escAttr(startUrl)}" onkeydown="if(event.key==='Enter'){browserTabGo('${tabId}',this.value)}" onfocus="this.select()">
             <button onclick="browserTabGo('${tabId}',document.getElementById('${tabId}-bb-url').value)" title="Go" style="padding:5px 12px">Go</button>
-            <select class="browser-tab-mode" id="${tabId}-bb-mode" data-mode="live" onchange="browserTabSetMode('${tabId}', this.value)" title="Render mode — Live: native iframe · Proxy: strips X-Frame-Options/CSP (~60%) · Pro: headless Chromium (~95%) · CDP: attach to your Chrome (~99%, needs --remote-debugging-port)">
+            <select class="browser-tab-mode" id="${tabId}-bb-mode" data-mode="live" onchange="browserTabSetMode('${tabId}', this.value)" title="Render mode — Live: native iframe · Proxy: strips X-Frame-Options/CSP (~60%) · Pro: headless Chromium (~95%) · CDP: attach to your Chrome (~99%, needs --remote-debugging-port) · Rec: record actions to JSON for replay">
               <option value="live">🌐 Live</option>
               <option value="proxy">🛡 Proxy</option>
               <option value="pro">🤖 Pro</option>
               <option value="cdp">🔧 CDP</option>
+              <option value="rec">🔴 Rec</option>
             </select>
             <button onclick="browserTabCdpSettings()" title="Configure CDP endpoint + Chrome launch instructions">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            </button>
+            <button onclick="browserTabRecPanel('${tabId}')" title="Recordings (saved action flows)">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="8" cy="12" r="2"/><circle cx="16" cy="12" r="2"/></svg>
             </button>
             <button onclick="browserTabOpenExternal('${tabId}')" title="Open in real browser">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>

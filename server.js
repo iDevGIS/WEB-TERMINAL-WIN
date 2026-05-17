@@ -4959,6 +4959,10 @@ server.on("upgrade", (req, socket, head) => {
       cdpWss.handleUpgrade(req, socket, head, (ws) => {
         cdpWss.emit("connection", ws, req);
       });
+    } else if (req.url.startsWith("/browser-rec-ws")) {
+      recWss.handleUpgrade(req, socket, head, (ws) => {
+        recWss.emit("connection", ws, req);
+      });
     } else {
       wss.handleUpgrade(req, socket, head, (ws) => {
         wss.emit("connection", ws, req);
@@ -9627,6 +9631,355 @@ app.post("/api/scrap/export", requireAuth, express.json({ limit: "30mb" }), (req
   } catch (e) {
     res.status(500).json({ error: String(e.message || e) });
   }
+});
+
+// === Browser Action Recorder (v4.26.0) — record real user interactions, save as JSON, replay via Playwright ===
+// Architecture: headless Chromium (reuses Pro mode singleton) + addInitScript + exposeFunction binding.
+// In-page script listens for click/input/change/submit/Enter/MutationObserver → emits to server → WS pushes to client.
+// Save flow: WS msg `{type:'rec-save', name}` → persisted to scraps/recordings.json. Replay: SSE per-step events.
+const RECORDINGS_FILE = path.join(SCRAP_DIR, "recordings.json");
+function loadRecordings() {
+  try { return JSON.parse(fs.readFileSync(RECORDINGS_FILE, "utf8")); } catch { return []; }
+}
+function saveRecordings(list) {
+  fs.writeFileSync(RECORDINGS_FILE, JSON.stringify(list, null, 2));
+}
+
+// In-page recorder script. Selector cascade (data-testid > id > aria > name > text > CSS path).
+// Note: this string is injected via addInitScript so it runs before page scripts on every navigation.
+const RECORDER_INIT_JS = `(() => {
+  if (window.__recInstalled) return; window.__recInstalled = true;
+  function cssEsc(s) { return String(s).replace(/(["\\\\])/g, '\\\\$1'); }
+  function selFor(el) {
+    if (!el || !el.tagName) return '';
+    const tid = el.getAttribute && el.getAttribute('data-testid');
+    if (tid) return '[data-testid="' + cssEsc(tid) + '"]';
+    const id = el.id;
+    if (id && !/^\\d/.test(id) && /^[A-Za-z_-][A-Za-z0-9_-]*$/.test(id)) return '#' + id;
+    const role = el.getAttribute && el.getAttribute('role');
+    const aria = el.getAttribute && el.getAttribute('aria-label');
+    if (role && aria) return '[role="' + role + '"][aria-label="' + cssEsc(aria) + '"]';
+    if (aria) return '[aria-label="' + cssEsc(aria) + '"]';
+    const name = el.getAttribute && el.getAttribute('name');
+    if (name) return el.tagName.toLowerCase() + '[name="' + cssEsc(name) + '"]';
+    const txt = ((el.innerText || el.textContent || '') + '').trim();
+    const tag = el.tagName.toLowerCase();
+    if (txt && txt.length <= 40 && (tag === 'button' || tag === 'a')) {
+      return tag + ':has-text("' + txt.replace(/"/g, '\\\\"') + '")';
+    }
+    const parts = [];
+    let cur = el;
+    while (cur && cur.nodeType === 1 && parts.length < 5) {
+      let s = cur.tagName.toLowerCase();
+      if (cur.id && /^[A-Za-z_-][A-Za-z0-9_-]*$/.test(cur.id)) { s = '#' + cur.id; parts.unshift(s); break; }
+      const cls = ((cur.className || '') + '').split(/\\s+/).filter(c => c && /^[A-Za-z_-]/.test(c) && !c.includes(':')).slice(0, 2);
+      if (cls.length) s += '.' + cls.join('.');
+      if (cur.parentElement) {
+        const sib = Array.from(cur.parentElement.children).filter(n => n.tagName === cur.tagName);
+        if (sib.length > 1) s += ':nth-of-type(' + (sib.indexOf(cur) + 1) + ')';
+      }
+      parts.unshift(s);
+      cur = cur.parentElement;
+    }
+    return parts.join(' > ');
+  }
+  function emit(step) {
+    try { window._recEmit && window._recEmit(Object.assign({ ts: Date.now(), url: location.href }, step)); } catch {}
+  }
+  document.addEventListener('click', (ev) => {
+    let t = ev.target;
+    if (!t || !t.tagName) return;
+    // Walk up to a meaningful interactive ancestor
+    const cl = t.closest && t.closest('a,button,[role=button],input[type=submit],input[type=button],[onclick]');
+    if (cl) t = cl;
+    emit({ type: 'click', selector: selFor(t), tag: t.tagName.toLowerCase(), text: ((t.innerText || '') + '').trim().slice(0, 80) });
+  }, true);
+  document.addEventListener('change', (ev) => {
+    const t = ev.target;
+    if (!t || !t.tagName) return;
+    const tag = t.tagName.toLowerCase();
+    if (tag === 'select') emit({ type: 'select', selector: selFor(t), value: String(t.value || '') });
+    else if (t.type === 'checkbox' || t.type === 'radio') emit({ type: 'check', selector: selFor(t), value: !!t.checked });
+    else emit({ type: 'fill', selector: selFor(t), value: String(t.value || '').slice(0, 500) });
+  }, true);
+  // also catch input fills with debounce-via-blur for fields that don't fire change
+  document.addEventListener('blur', (ev) => {
+    const t = ev.target;
+    if (!t || !t.tagName) return;
+    const tag = t.tagName.toLowerCase();
+    if ((tag === 'input' || tag === 'textarea') && t.type !== 'checkbox' && t.type !== 'radio' && t.value != null) {
+      emit({ type: 'fill', selector: selFor(t), value: String(t.value || '').slice(0, 500), blur: true });
+    }
+  }, true);
+  document.addEventListener('submit', (ev) => {
+    emit({ type: 'submit', selector: selFor(ev.target) });
+  }, true);
+  document.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Enter' || ev.key === 'Escape' || ev.key === 'Tab') {
+      const t = ev.target;
+      if (t && t.tagName) emit({ type: 'press', selector: selFor(t), key: ev.key });
+    }
+  }, true);
+  // Popup/dialog detection
+  try {
+    const obs = new MutationObserver((muts) => {
+      for (const m of muts) {
+        for (const n of m.addedNodes) {
+          if (!n || n.nodeType !== 1) continue;
+          const role = n.getAttribute && n.getAttribute('role');
+          const cls = ((n.className || '') + '');
+          if (role === 'dialog' || role === 'alertdialog' || /\\b(modal|dialog|popup|overlay)\\b/i.test(cls)) {
+            emit({ type: 'waitForDialog', selector: selFor(n), role: role || '' });
+          }
+        }
+      }
+    });
+    obs.observe(document.documentElement, { childList: true, subtree: true });
+  } catch {}
+})();`;
+
+const recWss = new WebSocketServer({ noServer: true, perMessageDeflate: false });
+recWss.on("connection", async (ws, req) => {
+  let page = null, context = null, cdp = null;
+  const steps = [];
+  let recStartUrl = "about:blank";
+  const sendJSON = (obj) => { try { if (ws.readyState === 1) ws.send(JSON.stringify(obj)); } catch {} };
+  const cleanup = async () => {
+    try { if (cdp) await cdp.send("Page.stopScreencast").catch(() => {}); } catch {}
+    try { if (page && !page.isClosed()) await page.close().catch(() => {}); } catch {}
+    try { if (context) await context.close().catch(() => {}); } catch {}
+    page = null; context = null; cdp = null;
+  };
+  try {
+    const url = new URL(req.url, "http://localhost");
+    recStartUrl = url.searchParams.get("url") || "about:blank";
+    const w = Math.max(320, Math.min(2560, parseInt(url.searchParams.get("w"), 10) || 1280));
+    const h = Math.max(240, Math.min(1440, parseInt(url.searchParams.get("h"), 10) || 800));
+    const dims = { w, h };
+    const browser = await _getBrowserProBrowser();
+    context = await browser.newContext({
+      viewport: { width: dims.w, height: dims.h },
+      userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36",
+    });
+    await context.exposeFunction("_recEmit", (step) => {
+      // Dedupe consecutive fills on same selector (typing in same field emits many)
+      if (step && step.type === 'fill' && steps.length) {
+        const last = steps[steps.length - 1];
+        if (last.type === 'fill' && last.selector === step.selector) {
+          steps[steps.length - 1] = step;
+          sendJSON({ type: 'step', step, total: steps.length, replaceLast: true });
+          return;
+        }
+      }
+      // Dedupe identical consecutive clicks (double-fire from event bubbling)
+      if (step && step.type === 'click' && steps.length) {
+        const last = steps[steps.length - 1];
+        if (last.type === 'click' && last.selector === step.selector && (step.ts - last.ts) < 250) return;
+      }
+      steps.push(step);
+      sendJSON({ type: 'step', step, total: steps.length });
+    });
+    await context.addInitScript({ content: RECORDER_INIT_JS });
+    page = await context.newPage();
+    cdp = await context.newCDPSession(page);
+    // Intercept rec-save / rec-clear control messages alongside the streamer's own handler.
+    // Multiple ws.on('message') handlers fan out — streamer ignores unknown types.
+    ws.on('message', (raw) => {
+      let msg; try { msg = JSON.parse(String(raw)); } catch { return; }
+      if (!msg || typeof msg !== 'object') return;
+      if (msg.type === 'rec-save') {
+        try {
+          const list = loadRecordings();
+          const id = 'rec_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);
+          const name = String(msg.name || ('Recording ' + new Date().toLocaleString())).slice(0, 80);
+          const rec = { id, name, createdAt: Date.now(), startUrl: recStartUrl, steps: steps.slice() };
+          list.unshift(rec);
+          saveRecordings(list.slice(0, 500));
+          sendJSON({ type: 'rec-saved', id, name, count: rec.steps.length });
+        } catch (e) {
+          sendJSON({ type: 'error', message: 'rec save failed: ' + (e.message || String(e)) });
+        }
+      } else if (msg.type === 'rec-clear') {
+        steps.length = 0;
+        sendJSON({ type: 'rec-cleared', total: 0 });
+      }
+    });
+    await _streamPageOverWS(ws, { page, cdp, startUrl: recStartUrl, dims, cleanup });
+  } catch (e) {
+    sendJSON({ type: 'error', message: 'rec init failed: ' + (e.message || String(e)) });
+    setTimeout(() => { try { ws.close(); } catch {} cleanup(); }, 100);
+  }
+});
+
+// === Recordings CRUD ===
+app.get("/api/recordings", requireAuth, (req, res) => {
+  const items = loadRecordings().map(r => ({ id: r.id, name: r.name, createdAt: r.createdAt, startUrl: r.startUrl, count: (r.steps || []).length }));
+  res.json({ items });
+});
+app.get("/api/recordings/:id", requireAuth, (req, res) => {
+  const r = loadRecordings().find(x => x.id === req.params.id);
+  if (!r) return res.status(404).json({ error: "not found" });
+  res.json(r);
+});
+app.put("/api/recordings/:id", requireAuth, express.json({ limit: "5mb" }), (req, res) => {
+  const list = loadRecordings();
+  const i = list.findIndex(x => x.id === req.params.id);
+  if (i < 0) return res.status(404).json({ error: "not found" });
+  const patch = req.body || {};
+  if (typeof patch.name === 'string') list[i].name = patch.name.slice(0, 80);
+  if (Array.isArray(patch.steps)) list[i].steps = patch.steps;
+  if (typeof patch.startUrl === 'string') list[i].startUrl = patch.startUrl.slice(0, 2000);
+  list[i].updatedAt = Date.now();
+  saveRecordings(list);
+  res.json({ ok: true });
+});
+app.delete("/api/recordings/:id", requireAuth, (req, res) => {
+  const list = loadRecordings();
+  const next = list.filter(x => x.id !== req.params.id);
+  if (next.length === list.length) return res.status(404).json({ error: "not found" });
+  saveRecordings(next);
+  res.json({ ok: true });
+});
+
+// === Replay engine — executes JSON steps via Playwright/CDP, streams SSE per-step events ===
+async function _replayOneStep(page, s) {
+  const sel = s.selector;
+  const T = 10000;
+  switch (s.type) {
+    case 'goto':
+      await page.goto(String(s.url), { waitUntil: 'domcontentloaded', timeout: 25000 });
+      return;
+    case 'click':
+      if (!sel) throw new Error('click: missing selector');
+      await page.locator(sel).first().click({ timeout: T });
+      return;
+    case 'fill':
+      if (!sel) throw new Error('fill: missing selector');
+      await page.locator(sel).first().fill(String(s.value == null ? '' : s.value), { timeout: T });
+      return;
+    case 'press':
+      if (!sel) throw new Error('press: missing selector');
+      await page.locator(sel).first().press(String(s.key || 'Enter'), { timeout: T });
+      return;
+    case 'select':
+      if (!sel) throw new Error('select: missing selector');
+      await page.locator(sel).first().selectOption(String(s.value || ''), { timeout: T });
+      return;
+    case 'check':
+      if (!sel) throw new Error('check: missing selector');
+      if (s.value) await page.locator(sel).first().check({ timeout: T });
+      else await page.locator(sel).first().uncheck({ timeout: T });
+      return;
+    case 'submit':
+      if (!sel) throw new Error('submit: missing selector');
+      await page.locator(sel).first().evaluate(el => {
+        if (el.requestSubmit) el.requestSubmit();
+        else if (el.submit) el.submit();
+        else el.click();
+      });
+      return;
+    case 'waitFor':
+      if (!sel) throw new Error('waitFor: missing selector');
+      await page.locator(sel).first().waitFor({ state: s.state || 'visible', timeout: parseInt(s.timeout, 10) || 15000 });
+      return;
+    case 'waitForDialog':
+      await page.locator(sel || '[role="dialog"], [role="alertdialog"]').first().waitFor({ state: 'visible', timeout: parseInt(s.timeout, 10) || 15000 });
+      return;
+    case 'wait':
+      await page.waitForTimeout(Math.min(60000, parseInt(s.ms, 10) || 1000));
+      return;
+    case 'scroll':
+      await page.evaluate(({ x, y }) => window.scrollTo(x || 0, y || 0), { x: parseInt(s.x, 10) || 0, y: parseInt(s.y, 10) || 0 });
+      return;
+    default:
+      throw new Error('Unknown step type: ' + s.type);
+  }
+}
+
+async function _replayRecording(rec, opts, write) {
+  const engine = (opts && opts.engine) || 'playwright';
+  const cdpEndpoint = (opts && opts.cdpEndpoint) || 'http://localhost:9222';
+  const continueOnError = !!(opts && opts.continueOnError);
+  let browser, context, page, ctxResult;
+  try {
+    browser = await _getScrapBrowser({ engine, cdpEndpoint });
+    ctxResult = await _getScrapContextForEngine(browser, { engine });
+    context = ctxResult.context;
+    page = await context.newPage();
+    const steps = Array.isArray(rec.steps) ? rec.steps : [];
+    write({ type: 'start', total: steps.length, name: rec.name || '', engine });
+    if (rec.startUrl && rec.startUrl !== 'about:blank') {
+      write({ type: 'step-start', index: -1, step: { type: 'goto', url: rec.startUrl } });
+      try {
+        await page.goto(String(rec.startUrl), { waitUntil: 'domcontentloaded', timeout: 25000 });
+        write({ type: 'step-ok', index: -1 });
+      } catch (e) {
+        write({ type: 'step-fail', index: -1, error: String(e.message || e) });
+        if (!continueOnError) { write({ type: 'done', aborted: true }); return; }
+      }
+    }
+    for (let i = 0; i < steps.length; i++) {
+      const s = steps[i];
+      write({ type: 'step-start', index: i, step: s });
+      try {
+        await _replayOneStep(page, s);
+        write({ type: 'step-ok', index: i });
+      } catch (e) {
+        write({ type: 'step-fail', index: i, error: String(e.message || e) });
+        if (!continueOnError) { write({ type: 'done', aborted: true }); return; }
+      }
+    }
+    write({ type: 'done' });
+  } catch (e) {
+    write({ type: 'error', message: String(e.message || e) });
+  } finally {
+    try { if (page && !page.isClosed()) await page.close(); } catch {}
+    if (ctxResult && ctxResult.owned) { try { await context.close(); } catch {} }
+  }
+}
+
+function _sseHeaders(res) {
+  res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-cache, no-transform');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+  if (typeof res.flushHeaders === 'function') res.flushHeaders();
+}
+
+app.post("/api/recordings/:id/replay", requireAuth, express.json({ limit: "1mb" }), async (req, res) => {
+  const rec = loadRecordings().find(x => x.id === req.params.id);
+  if (!rec) return res.status(404).json({ error: "not found" });
+  _sseHeaders(res);
+  const write = (obj) => { try { res.write('data: ' + JSON.stringify(obj) + '\n\n'); } catch {} };
+  const body = req.body || {};
+  const opts = {
+    engine: String(body.engine || req.query.engine || 'playwright'),
+    cdpEndpoint: String(body.cdpEndpoint || req.query.cdp || 'http://localhost:9222'),
+    continueOnError: !!(body.continueOnError || req.query.continueOnError),
+  };
+  try { await _replayRecording(rec, opts, write); }
+  catch (e) { write({ type: 'error', message: String(e.message || e) }); }
+  try { res.end(); } catch {}
+});
+
+// Inline replay — POST steps without saving (useful for editor preview)
+app.post("/api/recordings/replay-inline", requireAuth, express.json({ limit: "5mb" }), async (req, res) => {
+  _sseHeaders(res);
+  const write = (obj) => { try { res.write('data: ' + JSON.stringify(obj) + '\n\n'); } catch {} };
+  const body = req.body || {};
+  const rec = {
+    name: String(body.name || 'inline').slice(0, 80),
+    startUrl: String(body.startUrl || ''),
+    steps: Array.isArray(body.steps) ? body.steps : [],
+  };
+  const opts = {
+    engine: String(body.engine || 'playwright'),
+    cdpEndpoint: String(body.cdpEndpoint || 'http://localhost:9222'),
+    continueOnError: !!body.continueOnError,
+  };
+  try { await _replayRecording(rec, opts, write); }
+  catch (e) { write({ type: 'error', message: String(e.message || e) }); }
+  try { res.end(); } catch {}
 });
 
 // Restore persisted Claude Code sessions before accepting connections
