@@ -1215,6 +1215,23 @@
     .rec-health-badge.gray { background: rgba(148,163,184,.10); border: 1px solid rgba(148,163,184,.22); color: #94a3b8; }
     .rec-health-badge:hover { filter: brightness(1.18); }
     .rec-health-badge .heal-dot { opacity: .85; }
+    /* v4.37.0 — Trend sparkline: inline 20-bar mini-chart next to health badge */
+    .rec-trend-bar {
+      display: inline-flex; align-items: flex-end; gap: 1px; height: 14px; padding: 2px 4px;
+      margin-left: 6px; border-radius: 6px; background: rgba(255,255,255,.03);
+      border: 1px solid rgba(255,255,255,.06); cursor: pointer; vertical-align: middle;
+    }
+    .rec-trend-bar:hover { background: rgba(255,255,255,.07); border-color: rgba(255,255,255,.14); }
+    .rec-trend-bar .bar { width: 3px; min-height: 3px; border-radius: 1px; }
+    .rec-trend-bar .bar.ok      { background: #34d399; }
+    .rec-trend-bar .bar.healed  { background: #fbbf24; }
+    .rec-trend-bar .bar.fail    { background: #ef4444; }
+    .rec-trend-bar .bar:hover   { filter: brightness(1.3); transform: scaleY(1.1); }
+    .rec-trend-bar.empty { opacity: 0.4; }
+    .rec-trend-bar.empty::after {
+      content: "—"; color: var(--text3); font: 9px ui-monospace, monospace;
+      align-self: center; padding: 0 4px;
+    }
     .rec-sched-modal {
       width: min(520px, 92vw); display: flex; flex-direction: column;
       background: linear-gradient(180deg, #0d0e1f, #0a0a1a);
@@ -6517,8 +6534,10 @@
             schBadge = `<span class="rec-sched-badge on" onclick="_recSchedOpen('${escAttr(it.id)}')" title="every ${sch.intervalMin}min · next ${next ? next.toLocaleString() : '?'}">⏱ ${sch.intervalMin}m · next ${escHtml(nextTxt)}</span>`;
           }
         }
-        // v4.35.0 — Health badge from per-recording Run Ledger (last 10 runs). Click → Run History modal.
-        const h = it.health || { rating: 'gray', total: 0, ok: 0, fail: 0, healed: 0, latestStatus: null, latestAt: null };
+        // v4.35.0 — Health badge from per-recording Run Ledger. Click → Run History modal.
+        // v4.37.0 — Trend sparkline rendered alongside badge (last 20 runs as colored bars).
+        const h = it.health || { rating: 'gray', total: 0, ok: 0, fail: 0, healed: 0, latestStatus: null, latestAt: null, trend: [] };
+        const trendHtml = _recTrendHtml(h.trend, '_recRunsOpen', escAttr(it.id), escAttr(it.name || ''));
         let healthBadge = '';
         if (h.rating === 'gray') {
           healthBadge = `<span class="rec-health-badge gray" onclick="_recRunsOpen('${escAttr(it.id)}','${escAttr(it.name || '')}')" title="No replays yet. Click ▶ Replay or enable ⏱ schedule to populate.">· no runs</span>`;
@@ -6529,6 +6548,7 @@
           const tip = `${h.ok}/${h.total} ok last ${h.total}${h.healed ? ` · ${h.healed} healed` : ''}${latestPart}`;
           healthBadge = `<span class="rec-health-badge ${h.rating}" onclick="_recRunsOpen('${escAttr(it.id)}','${escAttr(it.name || '')}')" title="${escAttr(tip)}">${sym} ${h.ok}/${h.total}${healPart}</span>`;
         }
+        healthBadge = healthBadge + trendHtml;
         return `
           <div class="rec-item" data-id="${escAttr(it.id)}">
             <div class="meta">
@@ -6906,17 +6926,19 @@
           return h ? `<span title="self-heal fired ${h}× last run" style="color:#fcd34d">⚡ ${h} healed</span>` : `<span style="color:var(--text3)">—</span>`;
         };
         // v4.36.0 — health badge column (clickable → opens runs modal per type)
+        // v4.37.0 — trend sparkline appended after badge for at-a-glance regression spotting
         const healthCell = (it) => {
-          const h = it.health || { rating: 'gray', total: 0, ok: 0, fail: 0 };
+          const h = it.health || { rating: 'gray', total: 0, ok: 0, fail: 0, trend: [] };
           const opener = it.type === 'pipeline' ? '_pipeRunsOpen' : '_recRunsOpen';
           const nameArg = escAttr(it.name || '');
           const idArg = escAttr(it.id);
+          const trendHtml = _recTrendHtml(h.trend, opener, idArg, nameArg);
           if (h.total === 0) {
-            return `<span class="rec-health-badge gray" onclick="${opener}('${idArg}','${nameArg}')" title="No runs yet">· no runs</span>`;
+            return `<span class="rec-health-badge gray" onclick="${opener}('${idArg}','${nameArg}')" title="No runs yet">· no runs</span>${trendHtml}`;
           }
           const sym = h.rating === 'green' ? '✓' : h.rating === 'yellow' ? '⚠' : '✕';
           const tip = `${h.ok}/${h.total} ok · latest: ${h.latestStatus || '?'}`;
-          return `<span class="rec-health-badge ${h.rating}" onclick="${opener}('${idArg}','${nameArg}')" title="${escAttr(tip)}">${sym} ${h.ok}/${h.total}</span>`;
+          return `<span class="rec-health-badge ${h.rating}" onclick="${opener}('${idArg}','${nameArg}')" title="${escAttr(tip)}">${sym} ${h.ok}/${h.total}</span>${trendHtml}`;
         };
         body.innerHTML = `
           <table class="sch-dash-table">
@@ -26219,6 +26241,25 @@ ${fields}
       document.addEventListener('keydown', onKey);
     }
     function escAttr(s) { return String(s||'').replace(/\\/g, '\\\\').replace(/'/g, "\\'"); }
+
+    // v4.37.0 — Trend sparkline builder. Renders up to 20 colored bars from health.trend
+    // (oldest→newest). Click opens the same Run History modal as the badge.
+    function _recTrendHtml(trend, opener, idArg, nameArg) {
+      if (!Array.isArray(trend) || trend.length === 0) {
+        return `<span class="rec-trend-bar empty" onclick="${opener}('${idArg}','${nameArg}')" title="no runs yet"></span>`;
+      }
+      const maxDur = trend.reduce((m,t) => Math.max(m, t.durationMs||0), 0);
+      const bars = trend.map(t => {
+        const cls = t.status === 'fail' ? 'fail' : (t.healed ? 'healed' : 'ok');
+        const h = maxDur > 0 ? Math.max(3, Math.round((t.durationMs||0) / maxDur * 10) + 2) : 6;
+        const ts = t.ts ? new Date(t.ts).toLocaleString() : '?';
+        const tip = `${t.status}${t.healed?' (healed)':''} · ${t.durationMs||0}ms · ${ts}`;
+        return `<span class="bar ${cls}" style="height:${h}px" title="${escAttr(tip)}"></span>`;
+      }).join('');
+      const okCount = trend.filter(t => t.status === 'ok').length;
+      const tip = `${okCount}/${trend.length} ok · click to see history`;
+      return `<span class="rec-trend-bar" onclick="${opener}('${idArg}','${nameArg}')" title="${escAttr(tip)}">${bars}</span>`;
+    }
 
     // === Batch 24 — Plugin system (custom tool block renderers) ===
     window.ccPlugins = (() => {

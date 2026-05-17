@@ -5,6 +5,30 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [4.37.0] — 2026-05-17 — Trend Sparkline (20-bar inline mini-chart next to health badge)
+
+v4.35.0 + v4.36.0 collapsed each recording/pipeline's recent history into a single rating dot (green/yellow/red/gray). That's enough to spot "something is broken NOW" but lossy for "this has been flaky for a week" or "this just regressed after 10 clean runs". v4.37.0 surfaces the underlying ledger as a 20-bar sparkline rendered inline beside the badge — oldest left, newest right, color-coded by status (green ok / yellow healed / red fail), bar height optionally scaled by duration. Same JSONL tail (zero extra IO), same click target as the badge (opens the Run History modal).
+
+**Server (~10 LOC)**
+
+- `_recordingHealth` and `_pipelineHealth` default limit bumped from 10 → 20 (more history for the trend, rating math is total-agnostic so doesn't shift).
+- Each helper now emits a `trend: [{status, healed, durationMs, ts}]` array in chronological order (oldest→newest), same loop as the existing tally — no new IO.
+- All 4 callsites (`/api/scrap/pipelines`, `/api/scheduler/status` ×2, `/api/recordings`) bumped from `, 10` → `, 20`.
+
+**Frontend (~40 LOC)**
+
+- `.rec-trend-bar` CSS — inline-flex container, 14px tall, gap 1px, glassy `rgba(255,255,255,.03)` background; bars are 3px wide with status-driven background colors (`#34d399 ok` / `#fbbf24 healed` / `#ef4444 fail`). Empty state renders a dashed `—` placeholder.
+- `_recTrendHtml(trend, opener, idArg, nameArg)` — global helper: maps trend entries to `<span class="bar">` with proportional height (3-12px scaled to max duration), per-bar `title` tooltip (`status · durationMs · timestamp`), container-level tooltip (`okCount/total · click to see history`), and an onclick that opens the matching runs modal.
+- Wired into 2 render sites: recording panel rows (appended after `healthBadge`) and Scheduler Dashboard `healthCell` (appended after the rating badge). Pipeline + recording rows in the dashboard both get a sparkline now.
+
+**Why height scaling**: equal-height bars are simpler but lose the "this run took 8s, that one took 200ms" signal. Bar height = 3-12px proportional to that recording's local max duration over the last 20 runs (not a global scale — each row has its own baseline so a fast recording's normal run doesn't look like a flat-line versus a slow recording).
+
+**Why empty state isn't hidden**: rendering a placeholder dash keeps the column width stable so rows with vs. without history don't visually jump as new replays populate. Click still opens the modal (which shows `no runs yet`).
+
+**Composition with v4.35/v4.36**: badge = current state (1 number, 1 color). Sparkline = recent history (20 bars). Modal = full audit (click either to open). Three layers, same data, same click target.
+
+---
+
 ## [4.36.0] — 2026-05-17 — Pipeline Run Ledger + Health Badge (symmetry-parity ship)
 
 v4.34.0 + v4.35.0 gave recordings a JSONL ledger and a row-level health badge — pipelines had neither. They tracked only `lastRunAt` / `lastError` / `lastRowCount` snapshots on the doc itself, so silent failures and slow regressions stayed invisible at the list level (the same gap the 3 silent-paused `shop.example.com` pipelines that surfaced in the v4.33 Scheduler Dashboard would have caught weeks earlier with a badge). v4.36.0 mirrors the recordings architecture onto pipelines: per-pipeline JSONL append-only ledger at `scraps/pipelines-runs/<id>.jsonl`, 3 hook sites (`_pipelineTick` scheduled, `/run` manual, `/run/stream` SSE), and a colored health rating computed from the last 10 runs (gray/red/yellow/green, same freshness-downgrade rule). The Scheduler Dashboard gains a new `health` column that's clickable per row, opening the matching runs modal (`_recRunsOpen` for recordings, new `_pipeRunsOpen` for pipelines).

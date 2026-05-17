@@ -9134,7 +9134,7 @@ app.get("/api/scrap/pipelines", requireAuth, (req, res) => {
   const pipelines = loadPipelines();
   // v4.36.0 — surface per-pipeline health rating (computed from JSONL ledger tail)
   for (const p of pipelines) {
-    try { p.health = _pipelineHealth(p.id, 10); } catch {}
+    try { p.health = _pipelineHealth(p.id, 20); } catch {} // v4.37.0 — 20 for trend sparkline
   }
   res.json({ ok: true, pipelines });
 });
@@ -9830,11 +9830,13 @@ function _loadRecentRuns(recId, limit) {
 // v4.35.0 — Health summary: success rate over last N runs + latest status freshness gate.
 // rating: 'gray' (no data) → 'red' (<60%) → 'yellow' (60-89% OR latest fail despite >=90% history)
 // → 'green' (>=90% AND latest ok). Healed count surfaced for tooltip only (not rating-altering).
+// v4.37.0 — Trend sparkline: emit per-run mini-array (oldest→newest) so list-level renderers can
+// draw 20-bar trend chart inline next to the badge. Same JSONL tail (zero extra IO).
 function _recordingHealth(recId, limit) {
-  const n = Math.max(1, Math.min(50, parseInt(limit, 10) || 10));
+  const n = Math.max(1, Math.min(50, parseInt(limit, 10) || 20));
   const runs = _loadRecentRuns(recId, n);
   const total = runs.length;
-  if (total === 0) return { rating: 'gray', total: 0, ok: 0, fail: 0, healed: 0, latestStatus: null, latestAt: null };
+  if (total === 0) return { rating: 'gray', total: 0, ok: 0, fail: 0, healed: 0, latestStatus: null, latestAt: null, trend: [] };
   let ok = 0, fail = 0, healed = 0;
   for (const r of runs) {
     if (r.status === 'ok') ok++; else fail++;
@@ -9848,7 +9850,14 @@ function _recordingHealth(recId, limit) {
   if (rate < 0.6) rating = 'red';
   else if (rate < 0.9) rating = 'yellow';
   else rating = (latestStatus === 'ok') ? 'green' : 'yellow';
-  return { rating, total, ok, fail, healed, latestStatus, latestAt };
+  // trend: oldest→newest (chronological), compact shape for inline rendering
+  const trend = runs.slice().reverse().map(r => ({
+    status: r.status === 'ok' ? 'ok' : 'fail',
+    healed: (r.healedCount || 0) > 0,
+    durationMs: r.durationMs || 0,
+    ts: r.endedAt || r.ts || null,
+  }));
+  return { rating, total, ok, fail, healed, latestStatus, latestAt, trend };
 }
 
 // v4.36.0 — Pipeline Run Ledger: per-pipeline JSONL append-only history (manual + SSE + scheduled).
@@ -9875,10 +9884,10 @@ function _loadRecentPipelineRuns(pipeId, limit) {
   } catch { return []; }
 }
 function _pipelineHealth(pipeId, limit) {
-  const n = Math.max(1, Math.min(50, parseInt(limit, 10) || 10));
+  const n = Math.max(1, Math.min(50, parseInt(limit, 10) || 20));
   const runs = _loadRecentPipelineRuns(pipeId, n);
   const total = runs.length;
-  if (total === 0) return { rating: 'gray', total: 0, ok: 0, fail: 0, latestStatus: null, latestAt: null };
+  if (total === 0) return { rating: 'gray', total: 0, ok: 0, fail: 0, latestStatus: null, latestAt: null, trend: [] };
   let ok = 0, fail = 0;
   for (const r of runs) {
     if (r.status === 'ok') ok++; else fail++;
@@ -9891,7 +9900,14 @@ function _pipelineHealth(pipeId, limit) {
   if (rate < 0.6) rating = 'red';
   else if (rate < 0.9) rating = 'yellow';
   else rating = (latestStatus === 'ok') ? 'green' : 'yellow';
-  return { rating, total, ok, fail, latestStatus, latestAt };
+  // v4.37.0 — chronological trend (oldest→newest) for inline sparkline render
+  const trend = runs.slice().reverse().map(r => ({
+    status: r.status === 'ok' ? 'ok' : 'fail',
+    healed: false,
+    durationMs: r.durationMs || 0,
+    ts: r.endedAt || r.ts || null,
+  }));
+  return { rating, total, ok, fail, latestStatus, latestAt, trend };
 }
 function _pipelineRunEntry({ startedAt, result, error, source, attempts }) {
   const endedAt = Date.now();
@@ -10203,7 +10219,7 @@ app.get("/api/scheduler/status", requireAuth, (req, res) => {
         lastRowCount: p.lastRowCount || 0,
         pausedReason: sch.pausedReason || null,
         consecutiveFailures: p.consecutiveFailures || 0,
-        health: _pipelineHealth(p.id, 10), // v4.36.0
+        health: _pipelineHealth(p.id, 20), // v4.36.0 → 20 for v4.37.0 trend sparkline
       });
     }
   } catch (e) { /* tolerant: pipelines may be unavailable */ }
@@ -10225,7 +10241,7 @@ app.get("/api/scheduler/status", requireAuth, (req, res) => {
         lastHealedCount: sch.lastHealedCount || 0,
         pausedReason: sch.pausedReason || null,
         consecutiveFailures: sch.consecutiveFailures || 0,
-        health: _recordingHealth(r.id, 10), // v4.36.0
+        health: _recordingHealth(r.id, 20), // v4.36.0 → 20 for v4.37.0 trend sparkline
       });
     }
   } catch (e) { /* tolerant */ }
@@ -10262,7 +10278,7 @@ app.get("/api/recordings", requireAuth, (req, res) => {
     id: r.id, name: r.name, createdAt: r.createdAt, updatedAt: r.updatedAt || null,
     startUrl: r.startUrl, count: (r.steps || []).length,
     tags: Array.isArray(r.tags) ? r.tags : [],
-    health: _recordingHealth(r.id, 10),
+    health: _recordingHealth(r.id, 20), // v4.37.0 — 20 for trend sparkline
     schedule: r.schedule ? {
       enabled: !!r.schedule.enabled,
       intervalMin: parseInt(r.schedule.intervalMin) || 60,
