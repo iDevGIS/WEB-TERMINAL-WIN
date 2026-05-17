@@ -5,6 +5,22 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [4.39.0] — 2026-05-17 — Replay eval-fallback for `fill` (Phase I-3)
+
+v4.38.0 fixed recorder-side capture quality (shadow DOM, cascade, dropdowns, cross-nav). v4.39.0 closes the loop on the **replay side**: when `loc.fill()` fails — either because no selector candidate resolves, or because the resolved element is not natively fillable (custom-element wrapper, shadow-host, hidden actual input behind a styling div) — replay now drops to a `page.evaluate` fallback that:
+
+- **Walks shadow DOM** via `deepQueryFirst` to find the first match for each candidate selector through arbitrary shadow boundaries.
+- **Finds nearest fillable** via `nearestFillable` — checks the matched node, then its descendants, then walks up DOM/shadow hosts (up to 8 hops) until it lands on `input`/`textarea`/`select`/`[contenteditable]`.
+- **Sets value via native setter** — uses `Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set` so React/Vue/Svelte controlled-input state syncs correctly (raw `el.value = ...` is intercepted by these frameworks and silently lost).
+- **Dispatches synthetic `input` + `change` events** with `bubbles: true, composed: true` — composed lets the event cross shadow boundaries, bubbles makes framework reactivity see it.
+- **Heals as `eval-fallback`** — the step still reports `step-ok` with a heal marker, so `_recordingHealth` counts it as healed (yellow), surfacing in the trend sparkline + Run History modal that the step needed a recovery path.
+
+**Why this matters**: v4.38.0 fixed prospective recordings, but existing red recordings (e.g. the 22-step `Recording` flow with 0/4 success rate) had wrappers baked into their selector chains. eval-fallback gives them a second chance during replay without re-recording, recovering value from old runs.
+
+**Files**: `server.js` (~90 LOC), `CHANGELOG.md`, `package.json`.
+
+---
+
 ## [4.38.0] — 2026-05-17 — Recorder Quality Fixes (shadow DOM pierce + cascade + dropdown + cross-nav)
 
 Phase I-1 dogfood (v4.37.0 trend sparkline) exposed 5 concrete friction points in the Recorder:

@@ -10645,6 +10645,92 @@ async function _resolveLocator(page, step, defaultTimeout) {
   throw new Error(step.type + ': all ' + candidates.length + ' selector candidates failed [' + errs.join(' | ') + ']');
 }
 
+// v4.39.0 — eval-fallback for fill. When _resolveLocator fails OR loc.fill() throws (e.g. element
+// not fillable because recorder captured a custom-element wrapper), set .value via page.evaluate.
+// Walks shadow DOM, finds nearest fillable, uses native value setter for React/Vue compatibility,
+// dispatches synthetic input/change events with bubbles+composed so framework reactivity fires.
+async function _evalFillFallback(page, rawStep, vars) {
+  const s = _interpStep(rawStep, vars);
+  const candidates = [];
+  if (Array.isArray(s.selectors)) {
+    for (const c of s.selectors) if (c && typeof c.value === 'string' && c.value.trim()) candidates.push(c.value);
+  }
+  if (typeof s.selector === 'string' && s.selector.trim()) {
+    if (!candidates.length || candidates[0] !== s.selector) candidates.unshift(s.selector);
+  }
+  if (!candidates.length) throw new Error('eval-fill: no selector candidates');
+  const value = String(s.value == null ? '' : s.value);
+  const result = await page.evaluate(({ selectors, value }) => {
+    function deepQueryFirst(root, selector) {
+      try { const direct = root.querySelector(selector); if (direct) return direct; } catch {}
+      function walk(node) {
+        const children = node.children || [];
+        for (const child of children) {
+          if (child.shadowRoot) {
+            try { const m = child.shadowRoot.querySelector(selector); if (m) return m; } catch {}
+            const r = walk(child.shadowRoot); if (r) return r;
+          }
+          const r2 = walk(child); if (r2) return r2;
+        }
+        return null;
+      }
+      return walk(root);
+    }
+    function isFillable(el) {
+      if (!el || !el.tagName) return false;
+      const tag = el.tagName.toLowerCase();
+      if (tag === 'input') {
+        const type = (el.type || '').toLowerCase();
+        return !['button', 'submit', 'reset', 'checkbox', 'radio', 'file', 'image', 'hidden'].includes(type);
+      }
+      if (tag === 'textarea' || tag === 'select') return true;
+      if (el.isContentEditable) return true;
+      return false;
+    }
+    function nearestFillable(start) {
+      if (isFillable(start)) return start;
+      try {
+        const desc = start.querySelectorAll('input, textarea, select, [contenteditable=""], [contenteditable="true"]');
+        for (const d of desc) if (isFillable(d)) return d;
+      } catch {}
+      let cur = start.parentNode || (start.getRootNode && start.getRootNode().host) || null;
+      let hops = 0;
+      while (cur && hops < 8) {
+        if (isFillable(cur)) return cur;
+        const next = cur.parentNode || (cur.getRootNode && cur.getRootNode().host) || null;
+        cur = next;
+        hops++;
+      }
+      return null;
+    }
+    for (const sel of selectors) {
+      const hit = deepQueryFirst(document, sel);
+      if (!hit) continue;
+      const target = nearestFillable(hit);
+      if (!target) continue;
+      try { target.focus(); } catch {}
+      const tag = (target.tagName || '').toLowerCase();
+      if (target.isContentEditable) {
+        target.textContent = value;
+      } else if (tag === 'select') {
+        target.value = value;
+      } else {
+        const proto = tag === 'textarea' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+        const desc = Object.getOwnPropertyDescriptor(proto, 'value');
+        const setter = desc && desc.set;
+        if (setter) setter.call(target, value);
+        else target.value = value;
+      }
+      try { target.dispatchEvent(new Event('input', { bubbles: true, composed: true })); } catch {}
+      try { target.dispatchEvent(new Event('change', { bubbles: true, composed: true })); } catch {}
+      return { ok: true, selector: sel, tag, type: target.type || '' };
+    }
+    return { ok: false, tried: selectors.length };
+  }, { selectors: candidates, value });
+  if (!result.ok) throw new Error('eval-fill: no fillable element found via ' + result.tried + ' selectors');
+  return { kind: 'eval-fallback', index: -1 };
+}
+
 async function _replayOneStep(page, raw, vars) {
   const s = _interpStep(raw, vars);
   const T = 10000;
@@ -10662,7 +10748,21 @@ async function _replayOneStep(page, raw, vars) {
       const loc = await resolve(T); await loc.click({ timeout: T }); return healed;
     }
     case 'fill': {
-      const loc = await resolve(T); await loc.fill(String(s.value == null ? '' : s.value), { timeout: T }); return healed;
+      // v4.39.0 — try normal Playwright fill first; on ANY failure (locator unresolvable OR
+      // element-not-fillable) fall back to page.evaluate with shadow DOM walk + native setter.
+      try {
+        const loc = await resolve(T);
+        await loc.fill(String(s.value == null ? '' : s.value), { timeout: T });
+        return healed;
+      } catch (primaryErr) {
+        try {
+          return await _evalFillFallback(page, raw, vars);
+        } catch (evalErr) {
+          const m1 = String(primaryErr.message || primaryErr).slice(0, 140);
+          const m2 = String(evalErr.message || evalErr).slice(0, 140);
+          throw new Error('fill failed: [primary] ' + m1 + ' [eval-fallback] ' + m2);
+        }
+      }
     }
     case 'press': {
       const loc = await resolve(T); await loc.press(String(s.key || 'Enter'), { timeout: T }); return healed;
