@@ -5,6 +5,24 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [4.41.0] — 2026-05-20 — Sidekick Drag-End Click Suppression (v4.40.0 hotfix)
+
+v4.40.0 fixed *intent disambiguation* (when does the gesture become a drag?) but a second bug survived: after a successful drag, the chat box still opened on mouseup. Two defects compounded:
+
+1. **Inverted post-drag guard** — `toggleOpen` filtered `(e.detail || 0) === 0 && launcherWasDragged`. Real mouse clicks always have `e.detail >= 1`, so the guard never tripped and every drag-end fell through to `setOpen()`.
+2. **No event-level suppression** — the browser auto-fires a `click` after any `mousedown` + `mouseup` on the same element regardless of intervening movement; relying on a JS flag alone is fragile across browsers.
+
+Both layers fixed:
+
+- **Guard rewritten**: `if (launcherWasDragged) return;` — drop the broken `detail === 0` clause entirely.
+- **Capture-phase one-shot click suppressor**: when a real drag completes, the drag-end handler installs a `window.addEventListener('click', …, { capture: true, once: true })` that calls `stopImmediatePropagation()` + `preventDefault()` on the next click anywhere, then auto-removes after 80ms. This intercepts the browser's synthetic post-drag click *before* the launcher's own click handler ever sees it — robust across mouse, trackpad, and touch.
+
+Net result: a drag now ends with the launcher repositioned and the chat box untouched, every time.
+
+**Files**: `public/index.html` (4-line guard fix + 6-line capture suppressor in `makeDraggable`), `CHANGELOG.md`, `package.json`.
+
+---
+
 ## [4.40.0] — 2026-05-20 — Sidekick Drag Intent Disambiguation
 
 The floating Sidekick launcher had two overlapping interactions on the same element: **click to open chat** and **drag to reposition**. With a 4px movement threshold, accidental jitter between mousedown and mouseup frequently slipped into drag mode, then the post-drag `launcherWasDragged` guard suppressed the implicit click — leaving the user (and "น้อง" Sidekick itself) confused about which gesture they were performing. v4.40.0 disambiguates intent through a **press-and-hold gate** plus tactile visual feedback:

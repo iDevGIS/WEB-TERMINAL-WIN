@@ -28433,7 +28433,10 @@ ${fields}
       if (state.open) setTimeout(() => $('copilot-input')?.focus(), 50);
     }
     function toggleOpen(e){
-      if (e && (e.detail || 0) === 0 && launcherWasDragged) return;
+      // v4.41.0 — block click that browser auto-fires after a drag-end mouseup.
+      // Previous filter `e.detail === 0 && launcherWasDragged` was inverted: real clicks have
+      // detail === 1, so the guard never tripped and chat opened after every drag.
+      if (launcherWasDragged) return;
       setOpen(!state.open);
     }
     function applyOpenState(){
@@ -28837,6 +28840,12 @@ ${fields}
           el.style.top = top + 'px';
           saveLS(LS_LAUNCHER_POS, { left, top });
           if (state.open && state.mode === 'bubble') positionPanelNearLauncher();
+          // v4.41.0 — capture-phase one-shot click suppressor.
+          // Browsers auto-fire a `click` after the mousedown+mouseup pair even when the
+          // pointer moved between them. Without this, drag-end opens the chat box.
+          const suppressClick = (ev) => { ev.stopImmediatePropagation(); ev.preventDefault(); };
+          window.addEventListener('click', suppressClick, { capture: true, once: true });
+          setTimeout(() => window.removeEventListener('click', suppressClick, true), 80);
         }
         armed = false;
         setTimeout(() => { launcherWasDragged = false; }, 200);
