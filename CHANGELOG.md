@@ -5,6 +5,22 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [4.40.0] — 2026-05-20 — Sidekick Drag Intent Disambiguation
+
+The floating Sidekick launcher had two overlapping interactions on the same element: **click to open chat** and **drag to reposition**. With a 4px movement threshold, accidental jitter between mousedown and mouseup frequently slipped into drag mode, then the post-drag `launcherWasDragged` guard suppressed the implicit click — leaving the user (and "น้อง" Sidekick itself) confused about which gesture they were performing. v4.40.0 disambiguates intent through a **press-and-hold gate** plus tactile visual feedback:
+
+- **Cursor signals draggability**: idle cursor is now `grab` (not `pointer`), `grabbing` on press, matching the OS-level convention for movable UI.
+- **Press-and-hold to arm drag mode**: holding the launcher for 250ms without moving adds an `.arming` class — pulsing ring, scale 1.14, `grabbing` cursor — visually telegraphing "you have entered drag mode" before any motion. Releasing before this timer (or any timer state) and without movement is always a click.
+- **Movement threshold raised 4 → 10px**: jitter-tolerant. The natural micro-movement during a tap (3-7px on touchscreens, 1-3px on a mouse) no longer crosses into drag.
+- **Fast intentional drags preserved**: if movement exceeds 10px before the hold timer fires, drag mode arms immediately — power users who already know it's draggable don't pay the 250ms tax.
+- **`touch-action: none`** on the launcher prevents iOS Safari from interpreting the press as a page-scroll gesture, so touch-and-hold actually fires `touchmove` instead of cancelling.
+
+Net result: a deliberate tap always opens chat; a deliberate drag (long-press or wide swipe) always moves the button; accidental jitter does neither.
+
+**Files**: `public/index.html` (CSS `.copilot-launcher` block + `makeDraggable` function), `CHANGELOG.md`, `package.json`.
+
+---
+
 ## [4.39.0] — 2026-05-17 — Replay eval-fallback for `fill` (Phase I-3)
 
 v4.38.0 fixed recorder-side capture quality (shadow DOM, cascade, dropdowns, cross-nav). v4.39.0 closes the loop on the **replay side**: when `loc.fill()` fails — either because no selector candidate resolves, or because the resolved element is not natively fillable (custom-element wrapper, shadow-host, hidden actual input behind a styling div) — replay now drops to a `page.evaluate` fallback that:

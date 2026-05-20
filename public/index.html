@@ -5254,17 +5254,32 @@
       width: 56px; height: 56px; border-radius: 50%;
       background: linear-gradient(135deg, #a855f7 0%, #06b6d4 100%);
       display: flex; align-items: center; justify-content: center;
-      font-size: 26px; cursor: pointer; z-index: 9999;
+      font-size: 26px; cursor: grab; z-index: 9999;
       box-shadow:
         0 8px 32px rgba(168,85,247,.55),
         0 0 0 6px rgba(168,85,247,.08),
         0 0 24px rgba(6,182,212,.4);
       transition: transform .18s cubic-bezier(.4,0,.2,1), box-shadow .18s, opacity .15s;
       user-select: none;
+      touch-action: none;
     }
     .copilot-launcher:hover { transform: scale(1.08); box-shadow: 0 12px 40px rgba(168,85,247,.7), 0 0 0 8px rgba(168,85,247,.12), 0 0 32px rgba(6,182,212,.55); }
-    .copilot-launcher:active { transform: scale(.95); }
-    .copilot-launcher.dragging { transition: none; cursor: grabbing; opacity: .85; }
+    .copilot-launcher:active { transform: scale(.95); cursor: grabbing; }
+    /* v4.40.0 — press-and-hold arming state (250ms hold without movement = drag mode) */
+    .copilot-launcher.arming {
+      transform: scale(1.14);
+      cursor: grabbing;
+      box-shadow:
+        0 12px 40px rgba(168,85,247,.85),
+        0 0 0 10px rgba(168,85,247,.28),
+        0 0 36px rgba(6,182,212,.7);
+      animation: cf-sk-arm-pulse .6s ease-in-out infinite alternate;
+    }
+    @keyframes cf-sk-arm-pulse {
+      from { box-shadow: 0 12px 40px rgba(168,85,247,.85), 0 0 0 10px rgba(168,85,247,.28), 0 0 36px rgba(6,182,212,.7); }
+      to   { box-shadow: 0 14px 48px rgba(168,85,247,1),   0 0 0 14px rgba(168,85,247,.34), 0 0 48px rgba(6,182,212,.95); }
+    }
+    .copilot-launcher.dragging { transition: none; cursor: grabbing; opacity: .85; animation: none; }
     .copilot-launcher.open { opacity: .4; }
     .copilot-launcher.open:hover { opacity: 1; }
     .copilot-launcher::before {
@@ -28752,17 +28767,29 @@ ${fields}
       }));
     }
 
-    /* ---------- Drag launcher ---------- */
+    /* ---------- Drag launcher ----------
+       v4.40.0 — Intent disambiguation:
+       - Press-and-hold (250ms) to ARM drag mode (visual: pulsing ring, scale up, cursor: grabbing)
+       - Movement threshold raised 4 → 10px (jitter-tolerant)
+       - Quick mousedown→mouseup without hold AND without movement = always click (open chat)
+       - Fast intentional drags still work: if movement > 10px before hold timer, drag mode arms immediately */
     let launcherWasDragged = false;
     function makeDraggable(el){
-      let sx, sy, ox, oy, moving = false;
+      const HOLD_MS = 250;
+      const DRAG_THRESHOLD = 10;
+      let sx, sy, ox, oy, moving = false, armed = false, holdTimer = null;
       el.addEventListener('mousedown', start);
       el.addEventListener('touchstart', e => { const t = e.touches[0]; start({ clientX: t.clientX, clientY: t.clientY, preventDefault: () => e.preventDefault() }); }, { passive: true });
 
       function start(e){
-        moving = false; launcherWasDragged = false;
+        moving = false; armed = false; launcherWasDragged = false;
         const r = el.getBoundingClientRect();
         sx = e.clientX; sy = e.clientY; ox = r.left; oy = r.top;
+        // arm drag after hold timer fires (without movement)
+        clearTimeout(holdTimer);
+        holdTimer = setTimeout(() => {
+          if (!moving) { armed = true; el.classList.add('arming'); }
+        }, HOLD_MS);
         document.addEventListener('mousemove', move);
         document.addEventListener('mouseup', end);
         document.addEventListener('touchmove', tmove, { passive: false });
@@ -28772,8 +28799,16 @@ ${fields}
       function tmove(e){ e.preventDefault(); const t = e.touches[0]; apply(t.clientX, t.clientY); }
       function apply(cx, cy){
         const dx = cx - sx, dy = cy - sy;
-        if (Math.abs(dx) > 4 || Math.abs(dy) > 4) {
+        const dist = Math.max(Math.abs(dx), Math.abs(dy));
+        // movement-based fast-drag path: arm immediately if user clearly swiped past threshold
+        if (!armed && dist > DRAG_THRESHOLD) {
+          armed = true;
+          el.classList.add('arming');
+        }
+        if (!armed) return; // suppress drag until hold-timer or threshold-swipe arms it
+        if (dist > 2) {
           moving = true; launcherWasDragged = true;
+          el.classList.remove('arming');
           el.classList.add('dragging');
           el.style.right = 'auto'; el.style.bottom = 'auto';
           el.style.left = (ox + dx) + 'px';
@@ -28783,10 +28818,12 @@ ${fields}
         }
       }
       function end(){
+        clearTimeout(holdTimer);
         document.removeEventListener('mousemove', move);
         document.removeEventListener('mouseup', end);
         document.removeEventListener('touchmove', tmove);
         document.removeEventListener('touchend', end);
+        el.classList.remove('arming');
         if (moving) {
           el.classList.remove('dragging');
           // free position — clamp inside viewport with 8px margin
@@ -28801,6 +28838,7 @@ ${fields}
           saveLS(LS_LAUNCHER_POS, { left, top });
           if (state.open && state.mode === 'bubble') positionPanelNearLauncher();
         }
+        armed = false;
         setTimeout(() => { launcherWasDragged = false; }, 200);
       }
     }
