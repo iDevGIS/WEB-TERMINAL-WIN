@@ -5,17 +5,31 @@
 //   - Cache-first for static assets in /plugins/, /novnc/, favicon, manifest
 //   - Falls back to cached shell when offline
 
-const CACHE_VERSION = 'cyberframe-v1';
+const CACHE_VERSION = 'cyberframe-v2';
 const SHELL_URLS = [
-  '/',
-  '/index.html',
   '/favicon.svg',
   '/manifest.webmanifest',
 ];
 
+async function safeCacheAddAll(cache, urls) {
+  // addAll is atomic — one redirect-to-login response with 200+HTML body
+  // would poison the whole batch. Fetch+validate each entry individually.
+  await Promise.all(urls.map(async (u) => {
+    try {
+      const resp = await fetch(u, { credentials: 'same-origin' });
+      if (!resp || !resp.ok) return;
+      const ct = (resp.headers.get('content-type') || '').toLowerCase();
+      // Reject if we accidentally got the login HTML for a non-HTML asset
+      if (u.endsWith('.webmanifest') && !ct.includes('manifest') && !ct.includes('json')) return;
+      if (u.endsWith('.svg') && !ct.includes('svg') && !ct.includes('xml')) return;
+      await cache.put(u, resp.clone());
+    } catch {}
+  }));
+}
+
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_VERSION).then((cache) => cache.addAll(SHELL_URLS)).catch(() => {})
+    caches.open(CACHE_VERSION).then((cache) => safeCacheAddAll(cache, SHELL_URLS))
   );
   self.skipWaiting();
 });

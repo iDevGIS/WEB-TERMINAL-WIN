@@ -208,6 +208,16 @@ app.use(sessionMiddleware);
 function requireAuth(req, res, next) {
   if (req.session && req.session.authenticated) return next();
   if (req.path === "/login" || req.path === "/api/login") return next();
+  // Public PWA assets — must be accessible without session so Service Worker
+  // pre-cache (which runs without cookies) does not poison cache with login HTML.
+  if (
+    req.path === "/manifest.webmanifest" ||
+    req.path === "/favicon.svg" ||
+    req.path === "/sw.js" ||
+    req.path === "/robots.txt"
+  ) {
+    return next();
+  }
   // API callers expect JSON; HTML routes get the login page
   if (req.path.startsWith("/api/") || req.xhr || (req.get("accept") || "").includes("application/json")) {
     return res.status(401).json({ error: "unauthorized", reason: "session_expired" });

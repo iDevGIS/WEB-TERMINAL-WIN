@@ -5,6 +5,21 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [4.42.5] — 2026-05-27 — Service Worker manifest cache poison fix
+
+DevTools showed `Manifest: Line: 1, column: 1, Syntax error.` twice on every page load even though `public/manifest.webmanifest` is valid JSON. Root cause: the Service Worker `install` handler ran `cache.addAll(['/', '/index.html', '/favicon.svg', '/manifest.webmanifest'])` without session cookies, so the server's `requireAuth` middleware redirected each request to `/login` and returned the login HTML page with a `200 OK`. `cache.addAll` happily stored that HTML under the `/manifest.webmanifest` key. On every subsequent page load the SW `fetch` handler hit cache-first for static assets and returned the cached HTML — browser tried to parse it as JSON manifest and threw the syntax error.
+
+**Fix — two layers of defense.**
+
+1. **Server (`requireAuth`):** Add `/manifest.webmanifest`, `/favicon.svg`, `/sw.js`, `/robots.txt` to the unauthenticated allowlist. PWA assets have no sensitive data and must be reachable by browser contexts that don't carry session cookies (SW install, manifest fetcher, link-preview crawlers).
+2. **Service Worker:** Bump `CACHE_VERSION` from `cyberframe-v1` to `cyberframe-v2` so the existing poisoned cache is purged by the `activate` handler on next page load. Replace the atomic `cache.addAll` with a `safeCacheAddAll` helper that fetches each URL individually, verifies the response `Content-Type` matches the expected kind (`manifest`/`json` for `.webmanifest`, `svg`/`xml` for `.svg`), and only caches valid entries. Also dropped `/` and `/index.html` from the pre-cache list — they're network-first anyway and pre-caching them adds nothing.
+
+**Action required from user:** hard-refresh once. The bumped `CACHE_VERSION` will trigger the activate handler to delete `cyberframe-v1`, then `safeCacheAddAll` populates `cyberframe-v2` with verified entries. After that the manifest error is gone permanently.
+
+**Files changed:** `server.js` (requireAuth allowlist), `public/sw.js` (CACHE_VERSION bump + safeCacheAddAll), `CHANGELOG.md`, `package.json` (4.42.4 → 4.42.5).
+
+---
+
 ## [4.42.4] — 2026-05-27 — Console PiP/Mini black-canvas hotfix (WebGL preserveDrawingBuffer)
 
 v4.42.3 switched PiP/Mini to `canvas.captureStream` + `<video srcObject>` to dodge the cross-Document WebGL context-loss problem. Dogfood (BudToZai) reported the canvas was **still black** after the switch. Root cause: `canvas.captureStream()` reads from the WebGL drawing buffer, but the browser clears that buffer after every `gl.swap()` unless the context was created with `preserveDrawingBuffer: true`. EmulatorJS does not set that flag (it costs a small amount of perf in normal play), so captured frames were blank.
