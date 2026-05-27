@@ -7780,12 +7780,71 @@
       } catch {}
     }
 
-    // Locate the live <canvas> EJS injected into the player div.
+    // v4.42.7 — pick the LARGEST canvas in the player div. EJS may inject several
+    // canvases (offscreen scratch, 1×1 placeholder, real render target) — the old
+    // `querySelector` returned only the first match. captureStream on a 1×1 placeholder
+    // yields a black frame even when the real render canvas is full of pixels.
     function _consoleGetCanvas(tabId) {
       const player = document.getElementById(tabId + '-csl-player');
       if (!player) return null;
-      return player.querySelector('canvas');
+      const list = player.querySelectorAll('canvas');
+      if (!list.length) return null;
+      let best = null;
+      let bestArea = 0;
+      list.forEach((c) => {
+        const area = (c.width || 0) * (c.height || 0);
+        if (area > bestArea) { best = c; bestArea = area; }
+      });
+      return best || list[0];
     }
+
+    // v4.42.7 — diagnostic command exposed on window so dogfood can paste output
+    // from DevTools. Reports: per-canvas dimensions/parent, hook install state,
+    // tracked AudioContext/Worker/rAF counts, EJS globals, nipplejs availability,
+    // active captureStream track list. Decision-grade signal when PiP/Mini still
+    // misbehaves and we need to know which canvas EJS is rendering into.
+    window.__cyfConsoleDiag = function (tabId) {
+      const player = tabId ? document.getElementById(tabId + '-csl-player') : null;
+      const scope = player || document;
+      const canvases = Array.from(scope.querySelectorAll('canvas'));
+      const out = {
+        tabId: tabId || '(global scan)',
+        playerFound: !!player,
+        canvasCount: canvases.length,
+        canvases: canvases.map((c, i) => ({
+          index: i,
+          width: c.width,
+          height: c.height,
+          clientWidth: c.clientWidth,
+          clientHeight: c.clientHeight,
+          area: (c.width || 0) * (c.height || 0),
+          parentTag: c.parentElement && c.parentElement.tagName,
+          parentId: c.parentElement && c.parentElement.id,
+          parentClass: c.parentElement && c.parentElement.className,
+        })),
+        hooks: {
+          webGL: !!window.__cyfConsoleWebGLHooked,
+          runtime: !!window.__cyfConsoleRuntimeHooked,
+          audioContexts: window.__cyfAudioContexts ? window.__cyfAudioContexts.size : 'not installed',
+          workers: window.__cyfWorkers ? window.__cyfWorkers.size : 'not installed',
+          rafIds: window.__cyfRafIds ? window.__cyfRafIds.size : 'not installed',
+        },
+        nipplejs: typeof window.nipplejs !== 'undefined' ? 'loaded' : 'NOT loaded',
+        ejs: {
+          emulator: !!window.EJS_emulator,
+          player: window.EJS_player,
+          core: window.EJS_core,
+        },
+        documentPiP: 'documentPictureInPicture' in window,
+      };
+      if (tabId && tabs.get && tabs.get(tabId) && tabs.get(tabId).console && tabs.get(tabId).console.captureStream) {
+        const tracks = tabs.get(tabId).console.captureStream.getTracks();
+        out.streamTracks = tracks.map((t) => ({ kind: t.kind, label: t.label, readyState: t.readyState, enabled: t.enabled }));
+      }
+      try { console.table(out.canvases); } catch {}
+      console.log('[__cyfConsoleDiag]', out);
+      return out;
+    };
 
     // v4.42.4 — force WebGL `preserveDrawingBuffer:true` on every context EmulatorJS
     // creates from this point on. Without it, `canvas.captureStream()` produces an
@@ -7802,6 +7861,33 @@
         }
         return orig.call(this, type, attrs);
       };
+    }
+
+    // v4.42.7 — EmulatorJS loader.js expects `window.nipplejs` (virtual analog stick
+    // library) on touch devices. Without it the loader throws `ReferenceError: nipplejs
+    // is not defined`. Keyboard play still works on desktop (caught by EJS try/catch),
+    // but the error spams console + breaks virtual controls on mobile. Preload from
+    // CDN once and resolve a singleton promise so consoleLaunch can await it before
+    // appending the EJS loader script.
+    let _cyfNipplejsLoadPromise = null;
+    function _consoleInstallNipplejs() {
+      if (_cyfNipplejsLoadPromise) return _cyfNipplejsLoadPromise;
+      if (typeof window.nipplejs !== 'undefined') {
+        _cyfNipplejsLoadPromise = Promise.resolve();
+        return _cyfNipplejsLoadPromise;
+      }
+      _cyfNipplejsLoadPromise = new Promise((resolve) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdn.jsdelivr.net/npm/nipplejs@0.10.2/dist/nipplejs.min.js';
+        s.async = true;
+        s.onload = () => resolve();
+        s.onerror = () => {
+          console.warn('[Console] nipplejs failed to load — virtual gamepad disabled, keyboard still works');
+          resolve();
+        };
+        document.head.appendChild(s);
+      });
+      return _cyfNipplejsLoadPromise;
     }
 
     // v4.42.6 — track every AudioContext, Worker, and rAF created during Console
@@ -7869,20 +7955,44 @@
     // <video srcObject> for PiP/Mini instead of reparenting the canvas itself —
     // that was the v4.42.2 mistake (#170): cross-Document appendChild of a
     // WebGL canvas loses its context. captureStream is the correct primitive.
-    function _consoleStartCapture(tabId) {
-      const tab = tabs.get(tabId);
-      if (!tab || !tab.console) return null;
-      const canvas = _consoleGetCanvas(tabId);
-      if (!canvas) return null;
-      if (tab.console.captureStream) return tab.console.captureStream;
-      try {
-        const stream = canvas.captureStream(60);
-        tab.console.captureStream = stream;
-        return stream;
-      } catch (e) {
-        console.warn('[Console] captureStream failed:', e);
-        return null;
-      }
+    //
+    // v4.42.7 — async with rAF retry up to 800ms. If the user clicks PiP/Mini
+    // immediately after Launch, the EJS canvas may not be sized yet (width===0).
+    // captureStream on a zero-sized canvas yields a permanently-black stream that
+    // never recovers even after the canvas resizes. We poll until the canvas has
+    // real dimensions, then capture once. Backoff via requestAnimationFrame keeps
+    // the wait cheap (~16ms per frame, capped at 50 frames).
+    function _consoleStartCapture(tabId, maxWaitMs) {
+      maxWaitMs = typeof maxWaitMs === 'number' ? maxWaitMs : 800;
+      return new Promise((resolve) => {
+        const tab = tabs.get(tabId);
+        if (!tab || !tab.console) return resolve(null);
+        if (tab.console.captureStream) return resolve(tab.console.captureStream);
+        const start = performance.now();
+        const tryOnce = () => {
+          const t = tabs.get(tabId);
+          if (!t || !t.console || !t.console.running) return resolve(null);
+          const canvas = _consoleGetCanvas(tabId);
+          if (canvas && canvas.width > 1 && canvas.height > 1) {
+            try {
+              const stream = canvas.captureStream(60);
+              t.console.captureStream = stream;
+              t.console.captureCanvas = canvas;
+              return resolve(stream);
+            } catch (e) {
+              console.warn('[Console] captureStream failed:', e);
+              return resolve(null);
+            }
+          }
+          if (performance.now() - start >= maxWaitMs) {
+            console.warn('[Console] captureStream timed out — canvas dims:',
+              canvas ? (canvas.width + 'x' + canvas.height) : 'no canvas found');
+            return resolve(null);
+          }
+          requestAnimationFrame(tryOnce);
+        };
+        tryOnce();
+      });
     }
 
     function _consoleBuildVideoEl(stream) {
@@ -8003,7 +8113,7 @@
       }
     }
 
-    function consoleLaunch(tabId) {
+    async function consoleLaunch(tabId) {
       const tab = tabs.get(tabId);
       if (!tab || !tab.console) return;
       if (!tab.console.romUrl) {
@@ -8027,6 +8137,10 @@
       // v4.42.6 — install AudioContext / Worker / rAF tracking hooks BEFORE loader.js
       // so every primitive EJS allocates is registered for Stop to dismantle later.
       _consoleInstallRuntimeHooks();
+      // v4.42.7 — preload nipplejs before EJS loader so virtual gamepad/touch input
+      // doesn't ReferenceError on first init. resolves cheap (~30 KB cached) and is
+      // idempotent across launches.
+      await _consoleInstallNipplejs();
       // Reset game container — EmulatorJS injects canvas into this div
       gameDiv.innerHTML = '<div id="' + tabId + '-csl-player" style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:#71717a;font-size:12px">⏳ Loading core (' + escHtml(sys) + ')…</div>';
       // EmulatorJS reads window.EJS_* config before loader.js runs
@@ -8104,7 +8218,7 @@
     // Fix: leave the canvas where EJS put it. Mirror its frames via captureStream
     // into a <video> placed in PiP/Mini. Audio stays attached to EJS at the origin.
     // Keyboard input is forwarded back to main document via synthetic KeyboardEvent.
-    function consolePipToggle(tabId) {
+    async function consolePipToggle(tabId) {
       const tab = tabs.get(tabId);
       if (!tab || !tab.console || !tab.console.running) return;
       if (tab.console.popMode === 'pip') { consolePipClose(tabId); return; }
@@ -8113,9 +8227,9 @@
         return;
       }
       if (tab.console.popMode === 'mini') consoleMiniClose(tabId, true);
-      const stream = _consoleStartCapture(tabId);
+      const stream = await _consoleStartCapture(tabId);
       if (!stream) {
-        alert('Could not capture the game canvas. The emulator may not have finished loading yet — wait a moment and try again.');
+        alert('Could not capture the game canvas. The emulator may not have finished loading yet — wait a moment and try again. (Run window.__cyfConsoleDiag(\'' + tabId + '\') in DevTools for details.)');
         return;
       }
       const canvas = _consoleGetCanvas(tabId);
@@ -8185,14 +8299,14 @@
       if (pipBtn && tab.console.running) pipBtn.textContent = '📺 PiP';
     }
 
-    function consoleMiniToggle(tabId) {
+    async function consoleMiniToggle(tabId) {
       const tab = tabs.get(tabId);
       if (!tab || !tab.console || !tab.console.running) return;
       if (tab.console.popMode === 'mini') { consoleMiniClose(tabId); return; }
       if (tab.console.popMode === 'pip') consolePipClose(tabId, true);
-      const stream = _consoleStartCapture(tabId);
+      const stream = await _consoleStartCapture(tabId);
       if (!stream) {
-        alert('Could not capture the game canvas. The emulator may not have finished loading yet — wait a moment and try again.');
+        alert('Could not capture the game canvas. The emulator may not have finished loading yet — wait a moment and try again. (Run window.__cyfConsoleDiag(\'' + tabId + '\') in DevTools for details.)');
         return;
       }
       const canvas = _consoleGetCanvas(tabId);

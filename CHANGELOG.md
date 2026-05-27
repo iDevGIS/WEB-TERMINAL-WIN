@@ -5,6 +5,24 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [4.42.7] — 2026-05-27 — Console nipplejs preload + canvas picker rewrite + async captureStream + diagnostic command
+
+Four-fix bundle on top of v4.42.6. The "PiP/Mini still black" report came back after v4.42.4's WebGL `preserveDrawingBuffer` hook, and the recurring `ReferenceError: nipplejs is not defined` in dogfood console pointed to a peer-dep we never loaded. Memory lesson #176 ("symptom unchanged after architecture-correct fix → diagnose the layer below"): rather than guess again, this ship bundles the diagnostic surface itself so the next dogfood report can land with hard data.
+
+**Fix A — `window.__cyfConsoleDiag(tabId)` diagnostic command.** Exposed on `window` so dogfood can paste output from DevTools. Returns + console.tables a structured report: per-canvas dimensions (width, height, clientWidth, clientHeight, area, parent path), hook install state (WebGL + runtime), tracked AudioContext / Worker / rAF counts, EJS globals (`EJS_emulator`, `EJS_player`, `EJS_core`), nipplejs availability, Document PiP support, and active captureStream track list (kind/label/readyState/enabled). Decision-grade signal when "still black" recurs.
+
+**Fix B — `_consoleGetCanvas` rewrite to "largest-area picker".** Previously `querySelector('canvas')` returned the first match. EmulatorJS may inject several canvases inside the player div (offscreen scratch, a 1×1 placeholder during setup, the real render target). `captureStream` on a 1×1 placeholder yields a permanently-black stream that never refreshes. New picker calls `querySelectorAll('canvas')` and returns the one with the largest `width × height`.
+
+**Fix C — `_consoleStartCapture` async with rAF retry up to 800ms.** If the user clicks 📺 PiP or 🗗 Mini immediately after Launch, EJS may not have sized its canvas yet (`width === 0`). `captureStream` on a zero-sized canvas locks in a black stream that doesn't recover when the canvas later resizes. Function is now a Promise; it polls via `requestAnimationFrame` until the canvas has real dimensions, then captures once. Caches both stream + canvas reference on `tab.console.captureStream` / `captureCanvas`. `consolePipToggle` and `consoleMiniToggle` are now `async` and `await` the capture. On timeout the alert directs the user to run `__cyfConsoleDiag()`.
+
+**Fix D — `_consoleInstallNipplejs` preloader.** EmulatorJS `loader.js` expects `window.nipplejs` (virtual analog-stick lib) on touch devices. Without it loader.js throws `ReferenceError: nipplejs is not defined` — caught by EJS's outer try/catch on desktop (keyboard still works), but it spams console + breaks virtual controls on mobile. New helper injects nipplejs from jsDelivr CDN (`nipplejs@0.10.2`, ~30 KB) via a singleton Promise. `consoleLaunch` is now `async` and `await`s nipplejs before appending the EJS loader script. On CDN failure the launch still proceeds (warning only) — keyboard keeps working.
+
+**Action required from user:** hard-refresh once so new helpers + `__cyfConsoleDiag` are available. Try PiP/Mini again. If still black, paste `window.__cyfConsoleDiag('<tabId>')` output and we'll have ground truth instead of another guess.
+
+**Files changed:** `public/index.html` (5 edits: `_consoleGetCanvas` rewrite + `__cyfConsoleDiag` install + `_consoleInstallNipplejs` helper + `_consoleStartCapture` → async + `consolePipToggle`/`consoleMiniToggle` → async), `CHANGELOG.md`, `package.json` (4.42.6 → 4.42.7).
+
+---
+
 ## [4.42.6] — 2026-05-27 — Console Stop full-runtime teardown (constructor hooks for AudioContext, Worker, rAF)
 
 v4.42.3 added an aggressive `_consoleTeardown` helper to fix "Stop ไม่หยุด · ต้อง refresh browser". Dogfood (BudToZai) reported the game still keeps playing audio after Stop and a fresh Launch fails until the browser is refreshed. Root cause: v4.42.3 looked up the AudioContext via known property paths (`EJS_emulator.audioCtx`, `EJS_emulator.gameManager.audioContext`, etc.), but EmulatorJS stores its audio + render loop handles in core-specific closures whose names vary by core/version. The property-name probe missed them — so the AudioContext kept playing and Emscripten's `requestAnimationFrame` loop kept re-arming itself.
