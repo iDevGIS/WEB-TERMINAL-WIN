@@ -5,6 +5,38 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [4.42.11] — 2026-05-28 — Console: nipplejs UMD env-leak guard for PS1 ("แก้ต่ออีกนิด" attempt)
+
+### Fixed (attempt — verification by user pending)
+- **`typeof nipplejs === 'undefined'` after v4.42.10**, even though Network tab
+  shows the jsDelivr UMD script loaded 200 OK. Evidence points to UMD
+  environment-detection misfire: EmulatorJS bundles a CJS-aware loader that
+  leaks `module` / `exports` (and sometimes `define`) to global scope, so the
+  nipplejs UMD header detects those FIRST and assigns to `module.exports`
+  instead of `window.nipplejs`.
+
+### How
+- Save `window.define` / `window.module` / `window.exports` before script
+  inject.
+- Null them across the script load so the UMD header falls through to its
+  browser-global branch (`root.nipplejs = factory()`).
+- After `onload`, recover from the CJS branch too (in case the UMD wrote
+  there via a cached closure ref despite the nulls), then restore originals.
+- Keep the v4.42.10 indirect-eval `var nipplejs = window.nipplejs;` install
+  so bare-identifier lookups in EJS PS1 core still resolve.
+- Log diagnostic message confirming whether `window.nipplejs` was actually
+  assigned, so user can see success/failure in DevTools immediately.
+
+### Authorization
+- Shipped under user's "แก้ต่ออีกนิด เผื่อได้ผล" re-authorization, in
+  evidence-first mode (Network 200 + `typeof undefined` ruled out CDN-fail
+  and `.default` shape candidates from the prior ranking).
+
+### Files
+- `public/index.html` — `_consoleInstallNipplejs` rewrite (~+50 LoC).
+
+---
+
 ## [4.42.10] — 2026-05-27 — Console: install nipplejs as global var binding for PS1 (one-ship attempt)
 
 ### Fixed (attempt — verification by user pending)

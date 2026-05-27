@@ -1,6 +1,6 @@
 {
   "name": "web-terminal",
-  "version": "4.42.10",
+  "version": "4.42.11",
   "description": "Web-based terminal with xterm.js + node-pty",
   "main": "server.js",
   "scripts": {

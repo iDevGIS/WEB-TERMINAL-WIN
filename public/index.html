@@ -7881,23 +7881,71 @@
         return _cyfNipplejsLoadPromise;
       }
       _cyfNipplejsLoadPromise = new Promise((resolve) => {
+        // v4.42.11 — UMD env-leak guard. EmulatorJS bundles a CJS-aware loader
+        // that leaks `module` / `exports` / sometimes `define` to global scope.
+        // nipplejs UMD header (`typeof define === 'function' && define.amd` /
+        // `typeof module === 'object' && module.exports`) detects those FIRST
+        // and assigns to the wrong target, leaving `window.nipplejs` undefined.
+        // Save originals, null them across the script load, then restore +
+        // recover from CJS branch if needed.
+        const _amdDefine = window.define;
+        const _cjsModule = window.module;
+        const _cjsExports = window.exports;
+        try { window.define = undefined; } catch (e) {}
+        try { window.module = undefined; } catch (e) {}
+        try { window.exports = undefined; } catch (e) {}
+
         const s = document.createElement('script');
         s.src = 'https://cdn.jsdelivr.net/npm/nipplejs@0.10.2/dist/nipplejs.min.js';
         s.async = true;
         s.onload = () => {
-          // v4.42.10 — UMD wrapper only assigns window.nipplejs. EJS PS1 core
-          // (mednafen_psx_hw) references bare identifier `nipplejs` inside a
-          // scope that doesn't fall back to window prop (suspected strict-mode
-          // module/closure path that only activates for cores requiring touch
-          // analog controls — GBA never trips this). Install a top-level var
-          // binding via indirect eval so the bare lookup resolves.
+          // Capture from CJS branch BEFORE restoring (in case UMD wrote there
+          // despite the null guards — e.g. inner closure cached `module` ref).
+          let umdCaptured = null;
+          try {
+            if (typeof window.nipplejs === 'undefined') {
+              if (window.module && window.module.exports &&
+                  (typeof window.module.exports === 'function' || typeof window.module.exports === 'object')) {
+                umdCaptured = window.module.exports;
+              } else if (window.exports &&
+                         (typeof window.exports === 'function' || typeof window.exports === 'object')) {
+                umdCaptured = window.exports;
+              }
+            }
+          } catch (e) {}
+
+          // Restore originals
+          try { window.define = _amdDefine; } catch (e) {}
+          try { window.module = _cjsModule; } catch (e) {}
+          try { window.exports = _cjsExports; } catch (e) {}
+
+          // Recover from CJS branch if needed
+          if (umdCaptured && typeof window.nipplejs === 'undefined') {
+            try { window.nipplejs = umdCaptured; } catch (e) {}
+          }
+
+          // v4.42.10 — install bare-identifier global var binding for EJS
+          // PS1 core (mednafen_psx_hw) that does `nipplejs.create(...)` in
+          // a scope that doesn't fall back to window props.
           try {
             (0, eval)('var nipplejs = window.nipplejs;');
             if (typeof globalThis !== 'undefined') globalThis.nipplejs = window.nipplejs;
           } catch (e) { /* ignore — window.nipplejs still set */ }
+
+          // Diagnostic log so user can confirm in DevTools whether fix took
+          if (typeof window.nipplejs === 'undefined') {
+            console.error('[Console] v4.42.11 nipplejs install FAILED — typeof window.nipplejs still undefined after CDN load + env-leak guard + CJS-branch recovery');
+          } else {
+            console.log('[Console] v4.42.11 nipplejs installed:', typeof window.nipplejs,
+                        'keys:', Object.keys(window.nipplejs || {}).slice(0, 5));
+          }
           resolve();
         };
         s.onerror = () => {
+          // Restore even on error path
+          try { window.define = _amdDefine; } catch (e) {}
+          try { window.module = _cjsModule; } catch (e) {}
+          try { window.exports = _cjsExports; } catch (e) {}
           console.warn('[Console] nipplejs failed to load — virtual gamepad disabled, keyboard still works');
           resolve();
         };
