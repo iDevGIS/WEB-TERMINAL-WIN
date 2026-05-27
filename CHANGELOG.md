@@ -5,6 +5,33 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [4.42.10] — 2026-05-27 — Console: install nipplejs as global var binding for PS1 (one-ship attempt)
+
+### Fixed (attempt — verification by user pending)
+- **`Uncaught (in promise) ReferenceError: nipplejs is not defined`** on PS1
+  Launch. The v4.42.7 preload assigned `window.nipplejs` via UMD wrapper, which
+  worked for GBA but not for the PS1 core (`mednafen_psx_hw`). Stack-trace
+  evidence (`emulator.min.js:1` ReferenceError, not TypeError) indicates the
+  bare identifier `nipplejs` is being looked up in a scope that doesn't fall
+  back to window props — most likely a strict-mode/closure path that activates
+  only for cores requiring touch analog controls (DualShock sticks).
+
+### How
+- After the nipplejs `<script>` `onload` resolves, install a top-level `var`
+  binding via indirect eval: `(0, eval)('var nipplejs = window.nipplejs;')`.
+  Also assign `globalThis.nipplejs` defensively. This makes the bare identifier
+  resolvable from any main-thread script scope.
+
+### Scope
+- One-ship cap honored. If PS1 Launch still errors after this ship, the
+  ultimatum stands and Console feature stays in the broken-state documented in
+  the postmortem.
+- Does NOT re-enable PiP / Mini buttons (still hidden from v4.42.9).
+- Does NOT change WebGL hook, AudioContext teardown, or single-loader-inject
+  logic from prior ships.
+
+---
+
 ## [4.42.9] — 2026-05-27 — Console: hide PiP / Mini buttons (feature disabled pending rewrite)
 
 ### Changed

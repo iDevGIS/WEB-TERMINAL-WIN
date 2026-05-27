@@ -7884,7 +7884,19 @@
         const s = document.createElement('script');
         s.src = 'https://cdn.jsdelivr.net/npm/nipplejs@0.10.2/dist/nipplejs.min.js';
         s.async = true;
-        s.onload = () => resolve();
+        s.onload = () => {
+          // v4.42.10 — UMD wrapper only assigns window.nipplejs. EJS PS1 core
+          // (mednafen_psx_hw) references bare identifier `nipplejs` inside a
+          // scope that doesn't fall back to window prop (suspected strict-mode
+          // module/closure path that only activates for cores requiring touch
+          // analog controls — GBA never trips this). Install a top-level var
+          // binding via indirect eval so the bare lookup resolves.
+          try {
+            (0, eval)('var nipplejs = window.nipplejs;');
+            if (typeof globalThis !== 'undefined') globalThis.nipplejs = window.nipplejs;
+          } catch (e) { /* ignore — window.nipplejs still set */ }
+          resolve();
+        };
         s.onerror = () => {
           console.warn('[Console] nipplejs failed to load — virtual gamepad disabled, keyboard still works');
           resolve();
