@@ -989,6 +989,25 @@
       height: 100%;
       border: none;
     }
+    /* v4.42.1 — Console game emulator stage: pixel-perfect scaling, preserve aspect ratio */
+    .csl-stage canvas {
+      image-rendering: pixelated !important;
+      image-rendering: -moz-crisp-edges !important;
+      image-rendering: crisp-edges !important;
+      max-width: 100% !important;
+      max-height: 100% !important;
+      width: auto !important;
+      height: auto !important;
+      display: block !important;
+      background: #000;
+    }
+    .csl-stage:fullscreen,
+    .csl-stage:-webkit-full-screen {
+      max-width: none !important;
+      max-height: none !important;
+      width: 100vw;
+      height: 100vh;
+    }
     .tab-pane .admin-tab-wrap {
       flex: 1;
       min-height: 0;
@@ -7594,15 +7613,67 @@
     // Save states use EmulatorJS built-in IndexedDB persistence.
     // Single-instance limitation: EmulatorJS reads window.EJS_* globals → only one
     // emulator can run across all Console tabs at a time (consoleStop frees globals).
+    // v4.42.1 — per-core native resolution + aspect ratio for pixel-perfect scaling
+    const CONSOLE_NATIVE = {
+      psx_hw:           { w: 320, h: 240, ar: '4/3'  },
+      gambatte:         { w: 160, h: 144, ar: '10/9' },
+      mgba:             { w: 240, h: 160, ar: '3/2'  },
+      snes9x:           { w: 256, h: 224, ar: '8/7'  },
+      fceumm:           { w: 256, h: 240, ar: '16/15'},
+      mupen64plus_next: { w: 320, h: 240, ar: '4/3'  },
+      genesis_plus_gx:  { w: 320, h: 224, ar: '10/7' },
+    };
+
     function openConsoleTab() {
       createTab('console', { name: 'Console', icon: '🎮' });
     }
 
     function consoleSysChanged(tabId) {
-      // System dropdown change — auto-stop active emulator to avoid wrong-core launch
+      // System dropdown change — auto-stop active emulator + re-apply scale for new aspect ratio
       const tab = tabs.get(tabId);
-      if (!tab || !tab.console || !tab.console.running) return;
-      consoleStop(tabId);
+      if (!tab || !tab.console) return;
+      if (tab.console.running) consoleStop(tabId);
+      consoleSetScale(tabId);
+    }
+
+    function consoleSetScale(tabId) {
+      const tab = tabs.get(tabId);
+      if (!tab || !tab.console) return;
+      const sel = document.getElementById(tabId + '-csl-scale');
+      const sysSel = document.getElementById(tabId + '-csl-sys');
+      const stage = document.getElementById(tabId + '-csl-stage');
+      if (!sel || !stage) return;
+      const scale = sel.value;
+      const sys = sysSel ? sysSel.value : 'psx_hw';
+      const native = CONSOLE_NATIVE[sys] || CONSOLE_NATIVE.psx_hw;
+
+      if (scale === 'full') {
+        const target = stage;
+        const req = target.requestFullscreen || target.webkitRequestFullscreen;
+        if (req) {
+          req.call(target).catch(() => {});
+        }
+        // Restore previous scale value in dropdown after fullscreen request (don't persist 'full')
+        sel.value = tab.console.scale || 'fit';
+        return;
+      }
+
+      tab.console.scale = scale;
+      stage.style.aspectRatio = native.ar;
+      if (scale === 'fit') {
+        stage.style.maxWidth = '100%';
+        stage.style.maxHeight = '100%';
+        stage.style.width = '100%';
+        stage.style.height = '100%';
+      } else {
+        const n = parseInt(scale, 10) || 2;
+        const w = native.w * n;
+        const h = native.h * n;
+        stage.style.maxWidth = w + 'px';
+        stage.style.maxHeight = h + 'px';
+        stage.style.width = w + 'px';
+        stage.style.height = h + 'px';
+      }
     }
 
     function consoleRomPicked(tabId, input) {
@@ -7686,6 +7757,8 @@
       const stopBtn = document.getElementById(tabId + '-csl-stop');
       if (launchBtn) launchBtn.disabled = true;
       if (stopBtn) stopBtn.disabled = false;
+      // Re-apply scale + aspect ratio after launch so canvas honors current Display selection
+      consoleSetScale(tabId);
     }
 
     function consoleStopUI(tabId) {
@@ -14238,28 +14311,37 @@ ${fields}
             </label>
             <button onclick="consoleLaunch('${tabId}')" id="${tabId}-csl-launch" style="background:#fb7185;color:#fff;border:0;border-radius:4px;padding:5px 12px;font-size:12px;cursor:pointer;font-weight:600">▶ Launch</button>
             <button onclick="consoleStop('${tabId}')" id="${tabId}-csl-stop" style="background:#475569;color:#fff;border:0;border-radius:4px;padding:5px 12px;font-size:12px;cursor:pointer" disabled>⏹ Stop</button>
+            <select id="${tabId}-csl-scale" onchange="consoleSetScale('${tabId}')" title="Display scale — Fit preserves aspect ratio; 1x–4x are pixel-perfect integer scales of native resolution" style="background:#161620;color:#e4e4e7;border:1px solid #2d2d3e;border-radius:4px;padding:5px 8px;font-size:12px;cursor:pointer">
+              <option value="fit">Fit</option>
+              <option value="1">1×</option>
+              <option value="2" selected>2×</option>
+              <option value="3">3×</option>
+              <option value="4">4×</option>
+              <option value="full">⛶ Fullscreen</option>
+            </select>
             <span id="${tabId}-csl-rom-name" style="color:#a1a1aa;font-size:11px;margin-left:8px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:220px">No ROM loaded</span>
             <span style="flex:1"></span>
             <span style="color:#71717a;font-size:10px;text-transform:uppercase;letter-spacing:.5px">EmulatorJS · cores load on demand</span>
           </div>
-          <div style="flex:1;display:flex;align-items:center;justify-content:center;overflow:auto;background:#000;position:relative;min-height:0">
-            <div id="${tabId}-csl-game" style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:#52525b;font-size:13px;text-align:center;padding:20px;box-sizing:border-box">
-              <div>
-                <div style="font-size:48px;margin-bottom:12px">🎮</div>
-                <div style="font-weight:600;color:#a1a1aa;margin-bottom:8px">Console — Game Emulator</div>
-                <div style="font-size:11.5px;line-height:1.7;max-width:480px;margin:0 auto">
-                  1. เลือก <b style="color:#22c55e">System</b> (PS1, GameBoy, GBA, SNES, NES, N64, Genesis)<br>
-                  2. กด <b style="color:#22c55e">📂 ROM</b> — เลือกไฟล์ ROM ของลูกพี่<br>
-                  3. (PS1) กด <b style="color:#3b82f6">🔧 BIOS</b> — upload <code>SCPH-XXXX.bin</code><br>
-                  4. กด <b style="color:#fb7185">▶ Launch</b> — รอ core โหลดจาก CDN ครั้งแรก<br><br>
-                  <span style="color:#52525b;font-size:10.5px">⚠️ ROM/BIOS เก็บใน browser memory · ลบเมื่อปิด tab · ไม่ upload server · save states ใช้ IndexedDB · single-instance: 1 emulator running across all Console tabs</span>
+          <div style="flex:1;display:flex;align-items:center;justify-content:center;overflow:auto;background:#000;position:relative;min-height:0;padding:8px">
+            <div id="${tabId}-csl-stage" class="csl-stage" style="display:flex;align-items:center;justify-content:center;background:#000;box-shadow:0 0 24px rgba(0,0,0,0.5);aspect-ratio:3/2;max-width:480px;max-height:320px;width:480px;height:320px;transition:max-width .15s,max-height .15s,width .15s,height .15s">
+              <div id="${tabId}-csl-game" style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:#52525b;font-size:13px;text-align:center;padding:20px;box-sizing:border-box">
+                <div>
+                  <div style="font-size:48px;margin-bottom:12px">🎮</div>
+                  <div style="font-weight:600;color:#a1a1aa;margin-bottom:8px">Console — Game Emulator</div>
+                  <div style="font-size:11.5px;line-height:1.7;max-width:480px;margin:0 auto">
+                    1. เลือก <b style="color:#22c55e">System</b> (PS1, GameBoy, GBA, SNES, NES, N64, Genesis)<br>
+                    2. กด <b style="color:#22c55e">📂 ROM</b> — เลือกไฟล์ ROM ของลูกพี่<br>
+                    3. (PS1) กด <b style="color:#3b82f6">🔧 BIOS</b> — upload <code>SCPH-XXXX.bin</code><br>
+                    4. เลือก <b style="color:#a78bfa">Display</b> (Fit / 1×–4× / Fullscreen) แล้วกด <b style="color:#fb7185">▶ Launch</b>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
         </div>`;
         container.appendChild(paneEl);
-        tabData.console = { romUrl: null, biosUrl: null, romName: null, running: false };
+        tabData.console = { romUrl: null, biosUrl: null, romName: null, running: false, scale: '2' };
 
       } else if (type === 'scrap') {
         const startUrl = opts.url || '';

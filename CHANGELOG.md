@@ -5,6 +5,36 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [4.42.1] — 2026-05-27 — Console Display Scaling + Pixel-Perfect Rendering
+
+v4.42.0 dogfood (GBA · Pokemon Mystery Dungeon) confirmed the core stack works but exposed a viewport bug: the emulator canvas stretched to fill the entire browser pane with no aspect-ratio control, blowing GBA's native 240×160 framebuffer to ~1500px wide. Result: severe blur, broken aspect ratio, no way to control display size.
+
+Root cause: `csl-game` div used `width:100%;height:100%` and EmulatorJS injected its canvas with no size constraints. No `image-rendering: pixelated`, no aspect-ratio wrapper, no scale UI.
+
+**Three-layer fix:**
+
+1. **`.csl-stage` wrapper with controlled aspect-ratio** — game container now lives inside a stage div whose `aspect-ratio` + `max-width`/`max-height` reflect the active core's native resolution. Default `2×` (pixel-perfect integer scale) on launch.
+2. **Pixel-perfect canvas CSS** — `image-rendering: pixelated` (+ `crisp-edges` fallback) globally applied to `.csl-stage canvas`. Retro pixel art stays sharp at all integer scales instead of bilinear-blurred.
+3. **Display dropdown in toolbar** — `Fit` (preserve aspect, fill pane) / `1×` / `2×` / `3×` / `4×` (integer scales of native res) / `⛶ Fullscreen` (Fullscreen API on stage).
+
+**Per-core native resolution + aspect ratio table** (`CONSOLE_NATIVE`):
+
+| Core | Native | Aspect |
+|---|---|---|
+| PS1 (`psx_hw`) | 320×240 | 4:3 |
+| GameBoy/GBC (`gambatte`) | 160×144 | 10:9 |
+| GBA (`mgba`) | 240×160 | 3:2 |
+| SNES (`snes9x`) | 256×224 | 8:7 |
+| NES (`fceumm`) | 256×240 | 16:15 |
+| N64 (`mupen64plus_next`) | 320×240 | 4:3 |
+| Genesis (`genesis_plus_gx`) | 320×224 | 10:7 |
+
+Switching System dropdown automatically re-applies the new core's aspect ratio. Launching automatically re-applies the current scale so the EmulatorJS-injected canvas honors it on first frame.
+
+**Files**: `public/index.html` (CSS `.csl-stage canvas` block + toolbar Display select + game container wrapped in `.csl-stage` + `CONSOLE_NATIVE` map + `consoleSetScale` function + `consoleSysChanged` re-apply hook + `consoleLaunch` post-load re-apply), `CHANGELOG.md`, `package.json`.
+
+---
+
 ## [4.42.0] — 2026-05-27 — Console Tab (Web Game Emulator)
 
 Adds a 16th first-class tab: **Console** — a retro game emulator running in the browser via [EmulatorJS](https://emulatorjs.org) (MIT, WASM, CDN-loaded cores). Single tab covers seven cores in one welcome card click:
