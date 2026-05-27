@@ -5,6 +5,23 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [4.42.9] — 2026-05-27 — Console: hide PiP / Mini buttons (feature disabled pending rewrite)
+
+### Changed
+- `📺 PiP` and `🗗 Mini` buttons in the Console toolbar are now hidden
+  (`style="display:none"`). Functionality stays in the source for a future
+  rewrite, but the surface is removed from the UI so users do not encounter the
+  black-canvas and re-launch-blocked bugs documented in v4.42.0–v4.42.8.
+- Game playback inside the Console tab itself is unaffected — only the pop-out
+  affordances are hidden.
+
+### Why
+- Eight ships (v4.42.0 → v4.42.8) over four hours failed to fix the PiP/Mini
+  black-canvas symptom and the Stop / relaunch teardown gaps. Hiding the entry
+  points stops the bleed while the feature awaits a rewrite from scratch.
+
+---
+
 ## [4.42.8] — 2026-05-27 — Console: load EJS once, reuse class across launches (single-root fix for v4.42.0–v4.42.7 cascade)
 
 ### Fixed
