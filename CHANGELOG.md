@@ -5,6 +5,24 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [4.42.6] — 2026-05-27 — Console Stop full-runtime teardown (constructor hooks for AudioContext, Worker, rAF)
+
+v4.42.3 added an aggressive `_consoleTeardown` helper to fix "Stop ไม่หยุด · ต้อง refresh browser". Dogfood (BudToZai) reported the game still keeps playing audio after Stop and a fresh Launch fails until the browser is refreshed. Root cause: v4.42.3 looked up the AudioContext via known property paths (`EJS_emulator.audioCtx`, `EJS_emulator.gameManager.audioContext`, etc.), but EmulatorJS stores its audio + render loop handles in core-specific closures whose names vary by core/version. The property-name probe missed them — so the AudioContext kept playing and Emscripten's `requestAnimationFrame` loop kept re-arming itself.
+
+**Fix — proactive constructor hooks.** Same shape as the v4.42.4 WebGL `getContext` hook: intercept the primitives EJS allocates at construction time and keep our own registry. At Stop we iterate the registry instead of guessing property names.
+
+1. **`_consoleInstallRuntimeHooks()`** installs once, idempotent. Hooks `window.AudioContext` and `window.webkitAudioContext` constructors → every instance lands in `window.__cyfAudioContexts: Set`. Hooks `window.Worker` constructor → `window.__cyfWorkers: Set` (cheap insurance; current EJS cores don't spawn workers but future ones might). Hooks `window.requestAnimationFrame` / `cancelAnimationFrame` → `window.__cyfRafIds: Set` so Emscripten's render-loop callback can be killed even if exit() didn't dismantle it.
+2. **`_consoleTeardown` step 6b/6c/6d** iterates each registry: suspends + closes every AudioContext, terminates every Worker, cancels every rAF id. All idempotent and try-wrapped.
+3. **`consoleLaunch`** calls `_consoleInstallRuntimeHooks()` right after `_consoleInstallWebGLHook()` — both run before the EJS loader script is appended so EJS allocates through the hooked constructors.
+
+The existing v4.42.3 "best-effort" property probe (step 2 in teardown) stays in place — it covers the common case cheaply and the new registry-based teardown is a backstop for hidden handles.
+
+**Action required from user:** hard-refresh once so the new hooks install at the top of the next session. Sessions launched before the hook install have un-tracked AudioContexts (constructor wasn't replaced yet) — those need a refresh to clear. After that Stop should drop audio immediately and Launch should succeed without a browser refresh.
+
+**Files changed:** `public/index.html` (`_consoleInstallRuntimeHooks` + 3 teardown steps + 1 launch wire), `CHANGELOG.md`, `package.json` (4.42.5 → 4.42.6).
+
+---
+
 ## [4.42.5] — 2026-05-27 — Service Worker manifest cache poison fix
 
 DevTools showed `Manifest: Line: 1, column: 1, Syntax error.` twice on every page load even though `public/manifest.webmanifest` is valid JSON. Root cause: the Service Worker `install` handler ran `cache.addAll(['/', '/index.html', '/favicon.svg', '/manifest.webmanifest'])` without session cookies, so the server's `requireAuth` middleware redirected each request to `/login` and returned the login HTML page with a `200 OK`. `cache.addAll` happily stored that HTML under the `/manifest.webmanifest` key. On every subsequent page load the SW `fetch` handler hit cache-first for static assets and returned the cached HTML — browser tried to parse it as JSON manifest and threw the syntax error.

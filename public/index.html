@@ -7740,6 +7740,34 @@
           try { delete window[k]; } catch {}
         });
       } catch {}
+      // 6b. v4.42.6 — close every tracked AudioContext (captures contexts EJS hides
+      // in internal closures that the property-name probe in step 2 missed). Suspend
+      // first to drop the render thread immediately, then close to free hardware.
+      try {
+        if (window.__cyfAudioContexts) {
+          window.__cyfAudioContexts.forEach((c) => {
+            try { if (c && typeof c.suspend === 'function') c.suspend(); } catch {}
+            try { if (c && typeof c.close === 'function' && c.state !== 'closed') c.close(); } catch {}
+          });
+          window.__cyfAudioContexts.clear();
+        }
+      } catch {}
+      // 6c. v4.42.6 — terminate every tracked Worker (cheap insurance for future
+      // cores that may spawn one; current EJS cores typically don't).
+      try {
+        if (window.__cyfWorkers) {
+          window.__cyfWorkers.forEach((w) => { try { w.terminate(); } catch {} });
+          window.__cyfWorkers.clear();
+        }
+      } catch {}
+      // 6d. v4.42.6 — cancel every tracked rAF id. Emscripten's render loop re-arms
+      // itself; if exit() didn't drop that internally we still hold the last id.
+      try {
+        if (window.__cyfRafIds) {
+          window.__cyfRafIds.forEach((id) => { try { cancelAnimationFrame(id); } catch {} });
+          window.__cyfRafIds.clear();
+        }
+      } catch {}
       // 7. Remove loader script so subsequent launch starts fresh (avoids double-init)
       try {
         const prev = document.getElementById('ejs-loader-script');
@@ -7773,6 +7801,67 @@
           attrs = Object.assign({}, attrs || {}, { preserveDrawingBuffer: true });
         }
         return orig.call(this, type, attrs);
+      };
+    }
+
+    // v4.42.6 — track every AudioContext, Worker, and rAF created during Console
+    // sessions. EJS_emulator.exit() doesn't always close the AudioContext (property
+    // name varies by core/version) and Emscripten's Module schedules rAF callbacks
+    // that re-arm themselves — leaving ghost audio + render loop after Stop. We can't
+    // ask EJS internals to expose handles, so we intercept the constructors and
+    // hijack rAF to keep our own registry. Teardown closes every entry.
+    function _consoleInstallRuntimeHooks() {
+      if (window.__cyfConsoleRuntimeHooked) return;
+      window.__cyfConsoleRuntimeHooked = true;
+      window.__cyfAudioContexts = new Set();
+      window.__cyfWorkers = new Set();
+      window.__cyfRafIds = new Set();
+      // Hook AudioContext (+ webkit prefix for older Safari builds)
+      const AC = window.AudioContext;
+      if (AC) {
+        const Hooked = function (...args) {
+          const ctx = new AC(...args);
+          try { window.__cyfAudioContexts.add(ctx); } catch {}
+          return ctx;
+        };
+        Hooked.prototype = AC.prototype;
+        window.AudioContext = Hooked;
+      }
+      const WAC = window.webkitAudioContext;
+      if (WAC && WAC !== AC) {
+        const Hooked = function (...args) {
+          const ctx = new WAC(...args);
+          try { window.__cyfAudioContexts.add(ctx); } catch {}
+          return ctx;
+        };
+        Hooked.prototype = WAC.prototype;
+        window.webkitAudioContext = Hooked;
+      }
+      // Hook Worker constructor — some cores spawn workers; not standard EJS today
+      // but cheap insurance and future-proofs the teardown.
+      const W = window.Worker;
+      if (W) {
+        const Hooked = function (...args) {
+          const w = new W(...args);
+          try { window.__cyfWorkers.add(w); } catch {}
+          return w;
+        };
+        Hooked.prototype = W.prototype;
+        window.Worker = Hooked;
+      }
+      // Hook requestAnimationFrame so we can yank every pending callback at Stop.
+      // Emscripten's render loop re-arms itself inside the rAF callback — if exit()
+      // didn't tear that down internally, we still hold the latest id and cancel it.
+      const origRaf = window.requestAnimationFrame;
+      const origCaf = window.cancelAnimationFrame;
+      window.requestAnimationFrame = function (cb) {
+        const id = origRaf.call(window, cb);
+        try { window.__cyfRafIds.add(id); } catch {}
+        return id;
+      };
+      window.cancelAnimationFrame = function (id) {
+        try { window.__cyfRafIds.delete(id); } catch {}
+        return origCaf.call(window, id);
       };
     }
 
@@ -7935,6 +8024,9 @@
       // v4.42.4 — install WebGL preserveDrawingBuffer hook BEFORE loader.js so EJS's
       // canvas getContext() picks up the flag. Without it captureStream sees blank backbuffer.
       _consoleInstallWebGLHook();
+      // v4.42.6 — install AudioContext / Worker / rAF tracking hooks BEFORE loader.js
+      // so every primitive EJS allocates is registered for Stop to dismantle later.
+      _consoleInstallRuntimeHooks();
       // Reset game container — EmulatorJS injects canvas into this div
       gameDiv.innerHTML = '<div id="' + tabId + '-csl-player" style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:#71717a;font-size:12px">⏳ Loading core (' + escHtml(sys) + ')…</div>';
       // EmulatorJS reads window.EJS_* config before loader.js runs
