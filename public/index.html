@@ -8328,6 +8328,15 @@
       window.EJS_gameName = tab.console.romName || 'game';
       window.EJS_pathtodata = 'https://cdn.emulatorjs.org/stable/data/';
       window.EJS_startOnLoaded = true;
+      // v4.42.12 — PS1 "Error downloading core (psx_hw): empty core data" was NOT a CDN
+      // failure (curl confirms cdn.emulatorjs.org/stable/data/cores/mednafen_psx_hw-wasm.data
+      // returns HTTP 200, 1.2MB, CORS *). Empty payload comes from EJS's own IndexedDB
+      // cache layer returning a stale broken entry. Disable EJS's databases so it always
+      // refetches from CDN. Also log resolved core URL for diagnostic visibility.
+      window.EJS_disableDatabases = true;
+      try {
+        console.log('[Console v4.42.12] launch system=' + sys + ' pathtodata=' + window.EJS_pathtodata + ' disableDatabases=' + window.EJS_disableDatabases);
+      } catch (_) {}
       if (tab.console.biosUrl) window.EJS_biosUrl = tab.console.biosUrl;
       else delete window.EJS_biosUrl;
       // v4.42.8 — load EJS once per page, reuse class on subsequent launches.

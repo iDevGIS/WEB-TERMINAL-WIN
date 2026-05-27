@@ -5,6 +5,43 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [4.42.12] — 2026-05-28 — Console: disable EJS IndexedDB cache for PS1 core download (🅐 "ลองต่ออีก 1 ship")
+
+### Context
+After v4.42.11 PS1 reached UI (chrome renders: Resume / Start / Stop) but failed
+at the next layer: `Error downloading core (psx_hw): empty core data` →
+`Could not load profile settings 'pcsx-rearmed'`. Direct curl against
+`https://cdn.emulatorjs.org/stable/data/cores/mednafen_psx_hw-wasm.data` returns
+HTTP 200, content-length 1,205,465 bytes, with `access-control-allow-origin: *`
+— so the CDN is fine and CORS is open. The "empty core data" payload originates
+client-side, almost certainly from EmulatorJS's own IndexedDB cache layer
+returning a stale broken/zero-length entry written by an earlier failed launch
+attempt (v4.42.0–v4.42.10 cascade left a lot of half-init state).
+
+### Fixed (attempt — verification by user pending)
+- Set `window.EJS_disableDatabases = true` before launch so EJS bypasses its
+  IndexedDB cache and refetches core/data from CDN each time. This is the
+  documented option (already plumbed through `_consoleBuildEJSConfig` as
+  `c.disableDatabases`) — we just hadn't been opting in.
+
+### Added
+- Diagnostic `console.log('[Console v4.42.12] launch system=... pathtodata=... disableDatabases=...')`
+  prints the resolved core URL + cache-bypass flag at launch so it's visible
+  whether the new path is being taken without forcing the user to run a
+  separate `__diag()` call.
+
+### Scope
+- 🅐 menu option "ลองต่ออีก 1 ship" — 1-attempt cap re-authorization from user.
+- Pre-committed failure response: if PS1 still throws "empty core data" after
+  this ship, the EJS-cache hypothesis is wrong; rule = "พอจริง" → postmortem
+  the candidate, no v4.42.13.
+- GBA path untouched (was already working since v4.42.1).
+
+### Files
+- `public/index.html`, `CHANGELOG.md`, `package.json`
+
+---
+
 ## [4.42.11] — 2026-05-28 — Console: nipplejs UMD env-leak guard for PS1 ("แก้ต่ออีกนิด" attempt)
 
 ### Fixed (attempt — verification by user pending)
