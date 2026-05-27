@@ -7759,6 +7759,23 @@
       return player.querySelector('canvas');
     }
 
+    // v4.42.4 — force WebGL `preserveDrawingBuffer:true` on every context EmulatorJS
+    // creates from this point on. Without it, `canvas.captureStream()` produces an
+    // empty/black backbuffer because the WebGL drawing buffer is cleared after every
+    // gl.swap(). EJS does NOT set this flag (perf cost in normal play), so PiP/Mini
+    // saw a black frame. Installed once, idempotent, hook runs before EJS loader.
+    function _consoleInstallWebGLHook() {
+      if (window.__cyfConsoleWebGLHooked) return;
+      window.__cyfConsoleWebGLHooked = true;
+      const orig = HTMLCanvasElement.prototype.getContext;
+      HTMLCanvasElement.prototype.getContext = function (type, attrs) {
+        if (type === 'webgl' || type === 'webgl2' || type === 'experimental-webgl') {
+          attrs = Object.assign({}, attrs || {}, { preserveDrawingBuffer: true });
+        }
+        return orig.call(this, type, attrs);
+      };
+    }
+
     // Start (or reuse) a MediaStream from the game canvas. We pipe this into
     // <video srcObject> for PiP/Mini instead of reparenting the canvas itself —
     // that was the v4.42.2 mistake (#170): cross-Document appendChild of a
@@ -7915,6 +7932,9 @@
       // during-init, abnormal kill, browser back/forward that left zombie audio/globals).
       // Replaces the previous narrow exit() call that left audio + globals hanging.
       _consoleTeardown(tabId);
+      // v4.42.4 — install WebGL preserveDrawingBuffer hook BEFORE loader.js so EJS's
+      // canvas getContext() picks up the flag. Without it captureStream sees blank backbuffer.
+      _consoleInstallWebGLHook();
       // Reset game container — EmulatorJS injects canvas into this div
       gameDiv.innerHTML = '<div id="' + tabId + '-csl-player" style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:#71717a;font-size:12px">⏳ Loading core (' + escHtml(sys) + ')…</div>';
       // EmulatorJS reads window.EJS_* config before loader.js runs

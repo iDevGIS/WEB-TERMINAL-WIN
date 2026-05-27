@@ -5,6 +5,20 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [4.42.4] — 2026-05-27 — Console PiP/Mini black-canvas hotfix (WebGL preserveDrawingBuffer)
+
+v4.42.3 switched PiP/Mini to `canvas.captureStream` + `<video srcObject>` to dodge the cross-Document WebGL context-loss problem. Dogfood (BudToZai) reported the canvas was **still black** after the switch. Root cause: `canvas.captureStream()` reads from the WebGL drawing buffer, but the browser clears that buffer after every `gl.swap()` unless the context was created with `preserveDrawingBuffer: true`. EmulatorJS does not set that flag (it costs a small amount of perf in normal play), so captured frames were blank.
+
+**Fix — install a one-time `HTMLCanvasElement.prototype.getContext` hook before the EJS loader runs.** The hook intercepts `webgl` / `webgl2` / `experimental-webgl` context requests and merges `{ preserveDrawingBuffer: true }` into the attribute bag. EJS then creates its context with the flag set, the drawing buffer survives between swaps, and `captureStream` produces real frames. Hook is idempotent (guarded by `window.__cyfConsoleWebGLHooked`) and runs at the top of `consoleLaunch` right after the teardown step — so the loader's first canvas pickup is already patched.
+
+**Why this is correct rather than a workaround.** The alternative ("manual mirror via `drawImage` + rAF") hits the same constraint — `drawImage` of a WebGL canvas without `preserveDrawingBuffer` also reads a cleared buffer. `gl.readPixels` works but is too slow for 60fps. Patching context attrs is the standard answer when you control the consumer (us) but not the producer (EJS internals).
+
+**Action required from user:** hard-refresh the page once after this ship. Any emulator that booted before the hook installed still has the old (no-flag) context attached to its existing canvas. Stop + relaunch under the new code path yields a flag-set context.
+
+**Files changed:** `public/index.html` (new `_consoleInstallWebGLHook` helper, called from `consoleLaunch` before loader injection), `CHANGELOG.md`, `package.json` (4.42.3 → 4.42.4).
+
+---
+
 ## [4.42.3] — 2026-05-27 — Console PiP/Mini rewrite + aggressive teardown
 
 v4.42.2 PiP/Mini shipped two related bugs from dogfood: **PiP and Mini went black** (game frames not visible) and **Stop / close-tab didn't actually stop the emulator** (audio kept playing, next Launch broken — required browser refresh to recover). v4.42.3 fixes both by rewriting the popout on top of `canvas.captureStream` and adding a real teardown helper.
