@@ -5,6 +5,35 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [4.42.2] — 2026-05-27 — Console Picture-in-Picture (Document PiP + Floating Mini)
+
+After v4.42.1 nailed display scaling, ลูกพี่ asked for a PiP-like mode so the emulator can stay visible while working in other tabs/apps. Shipped a combo: **Document PiP API** (true OS-level always-on-top window) + **Floating Mini** (in-tab draggable overlay). PiP works on Chrome/Edge 116+; Mini works in every browser.
+
+**Two new toolbar buttons** — `📺 PiP` (purple) and `🗗 Mini` (indigo) — sit between `⏹ Stop` and the `Display` dropdown. Both stay disabled until a game is launched. PiP auto-disables on browsers without Document PiP API support.
+
+**Document PiP mode** (`consolePipToggle` → `documentPictureInPicture.requestWindow`):
+
+- Pops the `.csl-stage` element (with its canvas) into a fresh OS-level window — always-on-top, OS-managed resize, survives tab switches.
+- Clones all `<style>` tags + linked stylesheets from main document into the PiP window head so `.csl-stage canvas` rules (`image-rendering: pixelated`, aspect-ratio, max-width/height) still apply.
+- **Forwards keyboard events** from PiP window back to main window via synthetic `KeyboardEvent`. EmulatorJS attaches its keydown/keyup listeners on main document — without forwarding, focused PiP window would swallow inputs. Forward dispatches synthetic events on both `window` and `document` of the main page.
+- `pagehide` listener auto-restores stage when user closes the PiP window via OS controls.
+
+**Floating Mini mode** (`consoleMiniToggle`):
+
+- DIY draggable overlay positioned `fixed` at bottom-right (or last-used position). Reuses Sidekick v4.40.x drag pattern: **hold-gate (250ms) OR distance-gate (>10px)** before drag arms, plus capture-phase click-suppress to prevent post-drag synthetic click from triggering the ✕ button.
+- Pointer events (mouse + touch unified), `touch-action: none` to prevent mobile page-scroll preempt. CSS `resize: both` on the mini so user can resize from the bottom-right corner.
+- Reuses the same `.csl-stage` element via DOM reparent — same canvas, same EmulatorJS instance, no re-init.
+
+**Recovery UX** — when either mode is active, the original tab pane shows a clickable placeholder ("📺 Playing in OS Picture-in-Picture window" or "🗗 Playing in floating Mini overlay") that returns the stage to the tab when clicked. Buttons also flip label to `✕ Close PiP` / `✕ Close Mini` for inline dismissal.
+
+**State**: `tab.console` gains `popMode` (`'normal'` | `'pip'` | `'mini'`), `pipWindow`, `pipFwd`, `miniEl`, `miniPos` (sticky between toggles), `originalParent`. Mutual exclusion — opening one mode closes the other automatically.
+
+**Cleanup**: `consoleStop`, `consoleStopUI`, and `closeTab` all dismiss PiP/Mini before tearing down EmulatorJS. Blob URLs and `window.EJS_*` globals are revoked after the stage is safely restored.
+
+**Files**: `public/index.html` (CSS `.csl-floating-mini` block + 2 toolbar buttons + 6 new functions `consolePipToggle` / `consolePipClose` / `consoleMiniToggle` / `consoleMiniClose` / `consoleMiniDragInit` / `consolePopShowPlaceholder` / `consolePopHidePlaceholder` + state init expansion + `consoleStop`/`consoleStopUI`/`closeTab` cleanup hooks), `CHANGELOG.md`, `package.json`.
+
+---
+
 ## [4.42.1] — 2026-05-27 — Console Display Scaling + Pixel-Perfect Rendering
 
 v4.42.0 dogfood (GBA · Pokemon Mystery Dungeon) confirmed the core stack works but exposed a viewport bug: the emulator canvas stretched to fill the entire browser pane with no aspect-ratio control, blowing GBA's native 240×160 framebuffer to ~1500px wide. Result: severe blur, broken aspect ratio, no way to control display size.
