@@ -5,6 +5,54 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [4.42.8] — 2026-05-27 — Console: load EJS once, reuse class across launches (single-root fix for v4.42.0–v4.42.7 cascade)
+
+### Fixed
+- **`SyntaxError: Identifier 'EJS_STORAGE' has already been declared`** on every 2nd+
+  Launch. This was the single upstream cause of every Console bug since v4.42.0:
+  PiP/Mini black canvas, `EJS_emulator is not a constructor`, `'AL'` undefined,
+  audio `AbortError: play() interrupted by pause()`, and "must refresh browser to
+  relaunch" all collapse to this one error.
+
+### Root cause
+- EmulatorJS's `emulator.min.js` declares `class EJS_STORAGE`, `class EJS_DUMMYSTORAGE`,
+  and `class EmulatorJS` at script top-level. These bindings live in the global
+  **lexical** environment, not on `window`.
+- v4.42.3 → v4.42.7 teardown attempted `delete window.EJS_*`, which clears Window
+  properties but cannot touch lexical class/let/const bindings.
+- Each Launch re-injected `loader.js`, which loaded `emulator.min.js` again → repeated
+  top-level `class` declaration in the same lexical scope → SyntaxError → init halted
+  → black canvas (no render), missing constructor (no instance), audio orphan (init
+  abort left `AudioContext` half-constructed).
+
+### Architecture change
+- **Load EJS exactly once per page session.** First Launch injects `loader.js`, which
+  auto-instantiates `window.EJS_emulator = new EmulatorJS(player, config)`. A 100 ms
+  poll captures `window.__cyfEJSClass = EJS_emulator.constructor` once the instance lands.
+- **2nd+ Launch bypasses loader.js entirely.** `consoleLaunch` checks for `__cyfEJSClass`
+  and calls `new __cyfEJSClass(window.EJS_player, _consoleBuildEJSConfig())` directly —
+  no script re-injection, no re-declaration, no SyntaxError.
+- `_consoleBuildEJSConfig()` mirrors loader.js's 47-field `EJS_*` → config mapping
+  (gameUrl/dataPath/system/biosUrl/shaders/cheats/threads/…).
+- `_consoleCreateEJSInstance()` replicates loader.js's tail: instance creation, `adBlocked`
+  wiring, and the six `EJS_on*` event hooks (`ready`, `start`, `loadState`, `saveState`,
+  `loadSave`, `saveSave`).
+- `_consoleTeardown` step 7 (loader-script DOM removal) is now nominal cleanup, not a
+  correctness measure — leaving the tag in DOM has no effect on lexical scope.
+
+### Notes
+- 1st Launch flow unchanged from v4.42.7 (same loader.js URL, same WebGL/runtime hooks,
+  same nipplejs preload).
+- 2nd+ Launch is **faster** — no network fetch for loader.js/emulator.min.js, no script
+  parse/compile.
+- Defensive: if first-launch class capture times out (60 s), `__cyfEJSLoaderInjected`
+  resets so the next Launch can retry.
+- All v4.42.4 (WebGL `preserveDrawingBuffer`), v4.42.5 (Service Worker manifest fix),
+  v4.42.6 (AudioContext/Worker/rAF hooks), and v4.42.7 (canvas picker + diagnostic)
+  layers stay in place and continue to apply.
+
+---
+
 ## [4.42.7] — 2026-05-27 — Console nipplejs preload + canvas picker rewrite + async captureStream + diagnostic command
 
 Four-fix bundle on top of v4.42.6. The "PiP/Mini still black" report came back after v4.42.4's WebGL `preserveDrawingBuffer` hook, and the recurring `ReferenceError: nipplejs is not defined` in dogfood console pointed to a peer-dep we never loaded. Memory lesson #176 ("symptom unchanged after architecture-correct fix → diagnose the layer below"): rather than guess again, this ship bundles the diagnostic surface itself so the next dogfood report can land with hard data.

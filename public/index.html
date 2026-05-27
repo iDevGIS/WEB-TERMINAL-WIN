@@ -7768,7 +7768,11 @@
           window.__cyfRafIds.clear();
         }
       } catch {}
-      // 7. Remove loader script so subsequent launch starts fresh (avoids double-init)
+      // 7. Remove loader script tag — nominal DOM cleanup. v4.42.8: removing the
+      //    tag does NOT undo class declarations from already-executed code (those
+      //    live in global lexical scope). The real protection against re-declaration
+      //    `SyntaxError` lives in consoleLaunch — it skips loader re-injection once
+      //    `window.__cyfEJSClass` is captured.
       try {
         const prev = document.getElementById('ejs-loader-script');
         if (prev && prev.parentNode) prev.parentNode.removeChild(prev);
@@ -7888,6 +7892,120 @@
         document.head.appendChild(s);
       });
       return _cyfNipplejsLoadPromise;
+    }
+
+    // v4.42.8 — load EmulatorJS exactly once per page session.
+    // Root cause of the v4.42.0–v4.42.7 cascade of "PiP/Mini black + Stop doesn't
+    // silence + relaunch requires page refresh": EJS's `emulator.min.js` declares
+    // `class EJS_STORAGE`, `class EmulatorJS`, etc. at top-level. Re-injecting the
+    // loader re-runs that script in the same global lexical environment → `SyntaxError:
+    // Identifier 'EJS_STORAGE' has already been declared` → init fails halfway →
+    // black canvas, missing constructor, dangling audio.
+    // `delete window.X` clears Window PROPERTIES; it does NOT clear lexical class/let/const
+    // bindings. So the only correct fixes are (a) inject loader.js once + reuse the
+    // captured class on subsequent launches, or (b) iframe sandbox per launch.
+    // We do (a): poll for `window.EJS_emulator` after first inject, capture
+    // `__cyfEJSClass = EJS_emulator.constructor`, and on 2nd+ Launch instantiate
+    // directly via `new __cyfEJSClass(player, config)` — bypassing loader.js entirely.
+    let __cyfEJSLoaderInjected = false;
+    function _consoleInjectEJSLoader(gameDiv, tabId) {
+      __cyfEJSLoaderInjected = true;
+      const loader = document.createElement('script');
+      loader.id = 'ejs-loader-script';
+      loader.src = 'https://cdn.emulatorjs.org/stable/data/loader.js';
+      loader.onerror = () => {
+        gameDiv.innerHTML = '<div style="text-align:center;color:#ef4444;padding:20px"><div style="font-size:32px;margin-bottom:10px">⚠️</div><div>Failed to load EmulatorJS from CDN.<br>Check your network connection.</div></div>';
+        consoleStopUI(tabId);
+      };
+      document.body.appendChild(loader);
+      // Capture the EmulatorJS class as soon as the first instance lands on window.
+      // We only set `__cyfEJSClass` once — subsequent launches won't reach here.
+      const capStart = Date.now();
+      const cap = setInterval(() => {
+        if (window.EJS_emulator && window.EJS_emulator.constructor && !window.__cyfEJSClass) {
+          window.__cyfEJSClass = window.EJS_emulator.constructor;
+          clearInterval(cap);
+        } else if (Date.now() - capStart > 60000) {
+          // Give up after 60s — user likely interrupted; loader can be re-injected later
+          clearInterval(cap);
+          __cyfEJSLoaderInjected = false;
+        }
+      }, 100);
+    }
+    // Mirrors loader.js's config assembly (47 fields). When we instantiate directly
+    // we must rebuild the same shape loader.js would have passed to `new EmulatorJS()`.
+    function _consoleBuildEJSConfig() {
+      const c = {};
+      c.gameUrl = window.EJS_gameUrl;
+      let dp = (typeof window.EJS_pathtodata === 'string') ? window.EJS_pathtodata : 'https://cdn.emulatorjs.org/stable/data/';
+      if (!dp.endsWith('/')) dp += '/';
+      c.dataPath = dp;
+      c.system = window.EJS_core;
+      c.biosUrl = window.EJS_biosUrl;
+      c.gameName = window.EJS_gameName;
+      c.color = window.EJS_color;
+      c.adUrl = window.EJS_AdUrl;
+      c.adMode = window.EJS_AdMode;
+      c.adTimer = window.EJS_AdTimer;
+      c.adSize = window.EJS_AdSize;
+      c.alignStartButton = window.EJS_alignStartButton;
+      c.VirtualGamepadSettings = window.EJS_VirtualGamepadSettings;
+      c.buttonOpts = window.EJS_Buttons;
+      c.volume = window.EJS_volume;
+      c.defaultControllers = window.EJS_defaultControls;
+      c.startOnLoad = window.EJS_startOnLoaded;
+      c.fullscreenOnLoad = window.EJS_fullscreenOnLoaded;
+      c.filePaths = window.EJS_paths;
+      c.loadState = window.EJS_loadStateURL;
+      c.cacheLimit = window.EJS_CacheLimit;
+      c.cheats = window.EJS_cheats;
+      c.defaultOptions = window.EJS_defaultOptions;
+      c.gamePatchUrl = window.EJS_gamePatchUrl;
+      c.gameParentUrl = window.EJS_gameParentUrl;
+      c.netplayUrl = window.EJS_netplayServer;
+      c.gameId = window.EJS_gameID;
+      c.backgroundImg = window.EJS_backgroundImage;
+      c.backgroundBlur = window.EJS_backgroundBlur;
+      c.backgroundColor = window.EJS_backgroundColor;
+      c.controlScheme = window.EJS_controlScheme;
+      c.threads = window.EJS_threads;
+      c.disableCue = window.EJS_disableCue;
+      c.startBtnName = window.EJS_startButtonName;
+      c.softLoad = window.EJS_softLoad;
+      c.capture = window.EJS_screenCapture;
+      c.externalFiles = window.EJS_externalFiles;
+      c.dontExtractBIOS = window.EJS_dontExtractBIOS;
+      c.disableDatabases = window.EJS_disableDatabases;
+      c.disableLocalStorage = window.EJS_disableLocalStorage;
+      c.forceLegacyCores = window.EJS_forceLegacyCores;
+      c.noAutoFocus = window.EJS_noAutoFocus;
+      c.videoRotation = window.EJS_videoRotation;
+      c.hideSettings = window.EJS_hideSettings;
+      c.shaders = Object.assign({}, window.EJS_SHADERS, window.EJS_shaders ? window.EJS_shaders : {});
+      return c;
+    }
+    // For 2nd+ launches — instantiate EJS directly without re-running loader.js.
+    // Mirrors loader.js's tail (instance creation + adBlocked + 6 event hooks).
+    function _consoleCreateEJSInstance() {
+      if (!window.__cyfEJSClass) throw new Error('EmulatorJS class not yet captured (first launch still in flight?)');
+      const config = _consoleBuildEJSConfig();
+      window.EJS_emulator = new window.__cyfEJSClass(window.EJS_player, config);
+      try {
+        window.EJS_adBlocked = (url, del) => window.EJS_emulator.adBlocked(url, del);
+      } catch {}
+      const evts = [
+        ['ready', 'EJS_ready'],
+        ['start', 'EJS_onGameStart'],
+        ['loadState', 'EJS_onLoadState'],
+        ['saveState', 'EJS_onSaveState'],
+        ['loadSave', 'EJS_onLoadSave'],
+        ['saveSave', 'EJS_onSaveSave'],
+      ];
+      for (const [evt, name] of evts) {
+        if (typeof window[name] === 'function') {
+          try { window.EJS_emulator.on(evt, window[name]); } catch {}
+        }
+      }
     }
 
     // v4.42.6 — track every AudioContext, Worker, and rAF created during Console
@@ -8152,17 +8270,26 @@
       window.EJS_startOnLoaded = true;
       if (tab.console.biosUrl) window.EJS_biosUrl = tab.console.biosUrl;
       else delete window.EJS_biosUrl;
-      // Drop previous loader script (idempotent reload)
-      const prev = document.getElementById('ejs-loader-script');
-      if (prev) prev.remove();
-      const loader = document.createElement('script');
-      loader.id = 'ejs-loader-script';
-      loader.src = 'https://cdn.emulatorjs.org/stable/data/loader.js';
-      loader.onerror = () => {
-        gameDiv.innerHTML = '<div style="text-align:center;color:#ef4444;padding:20px"><div style="font-size:32px;margin-bottom:10px">⚠️</div><div>Failed to load EmulatorJS from CDN.<br>Check your network connection.</div></div>';
-        consoleStopUI(tabId);
-      };
-      document.body.appendChild(loader);
+      // v4.42.8 — load EJS once per page, reuse class on subsequent launches.
+      // Re-injecting loader.js re-runs `emulator.min.js`, which top-level-declares
+      // `class EJS_STORAGE` / `class EmulatorJS` → SyntaxError in the same lexical
+      // scope. That single error caused the v4.42.0–v4.42.7 cascade (PiP/Mini black,
+      // Stop doesn't silence, relaunch needs page refresh). Fix: capture the class
+      // on first launch, instantiate directly thereafter.
+      if (window.__cyfEJSClass) {
+        try {
+          _consoleCreateEJSInstance();
+        } catch (e) {
+          console.error('[Console] direct instantiation failed:', e);
+          gameDiv.innerHTML = '<div style="text-align:center;color:#ef4444;padding:20px"><div style="font-size:32px;margin-bottom:10px">⚠️</div><div>Failed to create emulator instance.<br>Check the DevTools console.</div></div>';
+          consoleStopUI(tabId);
+          return;
+        }
+      } else {
+        // First launch ever (or recovery after failed capture). Inject loader.js;
+        // it will set window.EJS_emulator, and our poll captures the class for next time.
+        _consoleInjectEJSLoader(gameDiv, tabId);
+      }
       tab.console.running = true;
       const launchBtn = document.getElementById(tabId + '-csl-launch');
       const stopBtn = document.getElementById(tabId + '-csl-stop');
