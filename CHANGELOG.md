@@ -5,6 +5,57 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [4.42.3] — 2026-05-27 — Console PiP/Mini rewrite + aggressive teardown
+
+v4.42.2 PiP/Mini shipped two related bugs from dogfood: **PiP and Mini went black** (game frames not visible) and **Stop / close-tab didn't actually stop the emulator** (audio kept playing, next Launch broken — required browser refresh to recover). v4.42.3 fixes both by rewriting the popout on top of `canvas.captureStream` and adding a real teardown helper.
+
+**Bug 1 — Black PiP/Mini canvas.** v4.42.2 moved the `<canvas>` element across DOM (and across `Document` for PiP). Two problems with that:
+
+1. Cross-`Document` `appendChild` of a WebGL canvas **loses its WebGL context** (per spec — context is bound to the original document). EmulatorJS canvas is WebGL → context lost → black.
+2. Reparenting the stage left EmulatorJS's `<audio>` sibling elements orphaned at the original DOM position. We thought we'd dismissed the popout but audio kept playing because we moved the wrong subtree.
+
+**Fix — `canvas.captureStream` + `<video srcObject>`.** Leave the canvas where EmulatorJS put it. Create a `MediaStream` from it via `canvas.captureStream(60)` and pipe that into a `<video>` element that lives inside PiP/Mini. Audio stays attached to the EJS-managed AudioContext on the main page. Works in every browser that supports `captureStream` (all evergreen ones).
+
+Two new helpers do the heavy lifting:
+
+- `_consoleStartCapture(tabId)` — finds the live canvas via `_consoleGetCanvas` (looks inside `#<tabId>-csl-player`), calls `captureStream(60)`, caches the stream on `tab.console.captureStream` (so PiP→Mini swap reuses one stream).
+- `_consoleBuildVideoEl(stream)` — returns a muted, autoplay, playsInline `<video>` with `srcObject=stream`, `object-fit:contain`, `image-rendering:pixelated`. Muted because EJS plays audio via its own AudioContext on the main page — the captured video has no audio track.
+- `_consoleBuildKeyboardOverlay()` — a transparent `tabIndex=0` div placed on top of the video that captures keyboard and forwards synthetic `KeyboardEvent` instances back to the main `window`/`document` (where EmulatorJS listeners live). Auto-focuses on creation and on pointerdown.
+
+**Bug 2 — Stop / close-tab leaks audio + globals.** v4.42.2's `consoleStop` called `EJS_emulator.exit()` and deleted seven `EJS_*` globals — but EmulatorJS leaks more state than that:
+
+- An `AudioContext` (under `EJS_emulator.audioCtx`, sometimes `gameManager.audioContext`) keeps producing sound.
+- Sibling `<audio>` elements attached to `document.body` (not the stage), invisible to the stage-targeted cleanup.
+- The CDN `loader.js` `<script>` element stays in the DOM, so subsequent Launches re-run the loader with stale state.
+- `window.EJS_emulator` itself (and a handful of other `EJS_*` keys we missed) keep guard checks failing inside `consoleLaunch`.
+
+**Fix — `_consoleTeardown(tabId)` runs an 8-step cleanup checklist:**
+
+1. `EJS_emulator.exit()` if present.
+2. Close every `AudioContext` we can find on the emulator/gameManager.
+3. Pause + null + remove every `<audio>` element on the page (defensible because Console is the only feature that uses raw HTML audio).
+4. `cancelAnimationFrame` on `EJS_emulator._raf` if exposed.
+5. Stop every track on `tab.console.captureStream` (kills PiP/Mini media stream).
+6. `delete window[k]` for **every** `EJS_*` key (not just the seven we knew about).
+7. Remove the `#ejs-loader-script` `<script>` so the next Launch starts fresh.
+8. `replaceChildren()` on the game container.
+
+The same helper is called from three sites:
+
+- `consoleStop(tabId)` — explicit Stop button.
+- `closeTab(tabId)` — when the Console tab is closed entirely.
+- **Defensive at the top of `consoleLaunch(tabId)`** — covers tab-close-during-init, abnormal kill (e.g. browser back/forward), and recovery from any state where the user managed to dodge the Stop/close path. Treats prior session state as untrusted.
+
+**Placeholder & UX changes.** Because the stage no longer migrates out of `csl-game`, the recovery placeholder now `display:none`s the stage in place and inserts itself as a sibling inside the same `csl-game` container. `consolePopHidePlaceholder` restores the previous `display` value (recorded on `stage.dataset.prevDisplay`).
+
+**State diff.** New on `tab.console`: `captureStream` (MediaStream), `pipVideo` / `miniVideo` (the `<video>` instance currently rendering the stream). Removed: `originalParent` (no reparenting now).
+
+**Testing.** Dogfood path: Launch GBA → 📺 PiP → game visible in OS window, keys work, audio plays from main tab · close PiP → game returns · 🗗 Mini → same · ✕ Mini → game returns · ⏹ Stop → **no audio after Stop**, button returns to disabled · click ▶ Launch again → starts cleanly. Repeat for tab close (no audio after `closeTab`).
+
+**Files**: `public/index.html`. **Server changes**: none.
+
+---
+
 ## [4.42.2] — 2026-05-27 — Console Picture-in-Picture (Document PiP + Floating Mini)
 
 After v4.42.1 nailed display scaling, ลูกพี่ asked for a PiP-like mode so the emulator can stay visible while working in other tabs/apps. Shipped a combo: **Document PiP API** (true OS-level always-on-top window) + **Floating Mini** (in-tab draggable overlay). PiP works on Chrome/Edge 116+; Mini works in every browser.

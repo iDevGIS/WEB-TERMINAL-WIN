@@ -7688,6 +7688,133 @@
       createTab('console', { name: 'Console', icon: '🎮' });
     }
 
+    // v4.42.3 — aggressive teardown of EmulatorJS state.
+    // Why needed: EJS_emulator.exit() returns but leaves audio (AudioContext + sibling
+    // <audio> elements), animation frame loops, EJS_* globals, and the loader script
+    // behind. That's the root cause of "Stop ไม่หยุด · ต้อง refresh browser" — ghost
+    // audio and zombie globals block the next Launch. This helper is called from
+    // consoleStop, closeTab, AND defensively at top of consoleLaunch (covers tab-close-
+    // during-init, abnormal kill, browser back/forward leftovers).
+    function _consoleTeardown(tabId) {
+      // 1. exit() if instance exists
+      try {
+        if (window.EJS_emulator && typeof window.EJS_emulator.exit === 'function') {
+          window.EJS_emulator.exit();
+        }
+      } catch {}
+      // 2. close any AudioContext EJS stashed on the emulator instance
+      try {
+        if (window.EJS_emulator) {
+          const e = window.EJS_emulator;
+          const ctxs = [e.audioCtx, e.audio && e.audio.ctx,
+                        e.gameManager && e.gameManager.audioContext,
+                        e.gameManager && e.gameManager.audioCtx];
+          ctxs.forEach((c) => { try { if (c && typeof c.close === 'function') c.close(); } catch {} });
+        }
+      } catch {}
+      // 3. Pause/remove every <audio> element on the page — EJS injects these as
+      //    siblings of the stage, not children, so reparenting the stage leaves
+      //    them orphaned and still playing. Heuristic: kill every <audio>.
+      try {
+        document.querySelectorAll('audio').forEach((a) => {
+          try { a.pause(); a.src = ''; a.srcObject = null; if (a.parentNode) a.parentNode.removeChild(a); } catch {}
+        });
+      } catch {}
+      // 4. Cancel any rAF EJS exposes on itself (best-effort)
+      try {
+        if (window.EJS_emulator && window.EJS_emulator._raf) {
+          cancelAnimationFrame(window.EJS_emulator._raf);
+        }
+      } catch {}
+      // 5. Stop MediaStream tracks from canvas.captureStream (PiP/Mini)
+      try {
+        const tab = tabs.get(tabId);
+        if (tab && tab.console && tab.console.captureStream) {
+          tab.console.captureStream.getTracks().forEach((t) => { try { t.stop(); } catch {} });
+          tab.console.captureStream = null;
+        }
+      } catch {}
+      // 6. Clear ALL EJS_* globals (window.EJS_emulator, EJS_player, EJS_core, etc.)
+      try {
+        Object.keys(window).filter((k) => k.startsWith('EJS_')).forEach((k) => {
+          try { delete window[k]; } catch {}
+        });
+      } catch {}
+      // 7. Remove loader script so subsequent launch starts fresh (avoids double-init)
+      try {
+        const prev = document.getElementById('ejs-loader-script');
+        if (prev && prev.parentNode) prev.parentNode.removeChild(prev);
+      } catch {}
+      // 8. Empty the game container so EJS-injected canvas + UI is gone
+      try {
+        const gameDiv = document.getElementById(tabId + '-csl-game');
+        if (gameDiv) gameDiv.replaceChildren();
+      } catch {}
+    }
+
+    // Locate the live <canvas> EJS injected into the player div.
+    function _consoleGetCanvas(tabId) {
+      const player = document.getElementById(tabId + '-csl-player');
+      if (!player) return null;
+      return player.querySelector('canvas');
+    }
+
+    // Start (or reuse) a MediaStream from the game canvas. We pipe this into
+    // <video srcObject> for PiP/Mini instead of reparenting the canvas itself —
+    // that was the v4.42.2 mistake (#170): cross-Document appendChild of a
+    // WebGL canvas loses its context. captureStream is the correct primitive.
+    function _consoleStartCapture(tabId) {
+      const tab = tabs.get(tabId);
+      if (!tab || !tab.console) return null;
+      const canvas = _consoleGetCanvas(tabId);
+      if (!canvas) return null;
+      if (tab.console.captureStream) return tab.console.captureStream;
+      try {
+        const stream = canvas.captureStream(60);
+        tab.console.captureStream = stream;
+        return stream;
+      } catch (e) {
+        console.warn('[Console] captureStream failed:', e);
+        return null;
+      }
+    }
+
+    function _consoleBuildVideoEl(stream) {
+      const v = document.createElement('video');
+      v.autoplay = true;
+      v.muted = true; // EJS plays audio via AudioContext on main page — video has no audio track
+      v.playsInline = true;
+      v.srcObject = stream;
+      v.style.cssText = 'width:100%;height:100%;object-fit:contain;image-rendering:pixelated;background:#000;display:block';
+      return v;
+    }
+
+    // Keyboard overlay forwards events back to main document — EJS listeners
+    // live on main page document/window, so PiP/Mini focused video would
+    // otherwise swallow input.
+    function _consoleBuildKeyboardOverlay() {
+      const ov = document.createElement('div');
+      ov.tabIndex = 0;
+      ov.style.cssText = 'position:absolute;inset:0;outline:none;cursor:default';
+      ov.setAttribute('aria-label', 'Game keyboard input — focused captures keys for emulator');
+      const fwd = (type) => (ev) => {
+        ev.preventDefault();
+        const synth = new KeyboardEvent(type, {
+          key: ev.key, code: ev.code, keyCode: ev.keyCode, which: ev.which,
+          ctrlKey: ev.ctrlKey, altKey: ev.altKey, shiftKey: ev.shiftKey, metaKey: ev.metaKey,
+          bubbles: true, cancelable: true,
+        });
+        window.dispatchEvent(synth);
+        document.dispatchEvent(synth);
+      };
+      ov.addEventListener('keydown', fwd('keydown'));
+      ov.addEventListener('keyup', fwd('keyup'));
+      // Auto-focus on click anywhere, and once on creation
+      ov.addEventListener('pointerdown', () => { try { ov.focus(); } catch {} });
+      setTimeout(() => { try { ov.focus(); } catch {} }, 50);
+      return ov;
+    }
+
     function consoleSysChanged(tabId) {
       // System dropdown change — auto-stop active emulator + re-apply scale for new aspect ratio
       const tab = tabs.get(tabId);
@@ -7784,12 +7911,10 @@
       }
       const gameDiv = document.getElementById(tabId + '-csl-game');
       if (!gameDiv) return;
-      // Clear any prior EmulatorJS instance from another Console tab (single-instance limit)
-      try {
-        if (window.EJS_emulator && typeof window.EJS_emulator.exit === 'function') {
-          window.EJS_emulator.exit();
-        }
-      } catch {}
+      // v4.42.3 — defensive teardown of any leftover EJS state (covers tab-close-
+      // during-init, abnormal kill, browser back/forward that left zombie audio/globals).
+      // Replaces the previous narrow exit() call that left audio + globals hanging.
+      _consoleTeardown(tabId);
       // Reset game container — EmulatorJS injects canvas into this div
       gameDiv.innerHTML = '<div id="' + tabId + '-csl-player" style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:#71717a;font-size:12px">⏳ Loading core (' + escHtml(sys) + ')…</div>';
       // EmulatorJS reads window.EJS_* config before loader.js runs
@@ -7841,30 +7966,32 @@
     function consoleStop(tabId) {
       const tab = tabs.get(tabId);
       if (!tab || !tab.console) return;
-      // Restore stage from PiP/Mini before destroying emulator
+      // Dismiss PiP/Mini first so capture stream is stopped + UI is restored
       if (tab.console.popMode === 'pip') consolePipClose(tabId, true);
       else if (tab.console.popMode === 'mini') consoleMiniClose(tabId, true);
-      try {
-        if (window.EJS_emulator && typeof window.EJS_emulator.exit === 'function') {
-          window.EJS_emulator.exit();
-        }
-      } catch {}
+      // v4.42.3 — full teardown: exit() + AudioContext close + audio elements +
+      // captureStream tracks + ALL EJS_* globals + loader script + game container.
+      // Replaces the previous narrow exit() + 7 delete statements which left
+      // sibling <audio> + AudioContext playing (the "ได้ยินเสียงเกม" bug).
+      _consoleTeardown(tabId);
       const gameDiv = document.getElementById(tabId + '-csl-game');
       if (gameDiv) {
         gameDiv.innerHTML = '<div style="text-align:center;color:#52525b;padding:24px"><div style="font-size:48px;margin-bottom:12px">🎮</div><div style="font-weight:600;color:#a1a1aa">Stopped</div><div style="font-size:11.5px;margin-top:6px">Click ▶ Launch to resume.</div></div>';
       }
-      delete window.EJS_player; delete window.EJS_core; delete window.EJS_gameUrl;
-      delete window.EJS_gameName; delete window.EJS_biosUrl; delete window.EJS_pathtodata;
-      delete window.EJS_startOnLoaded;
       consoleStopUI(tabId);
     }
 
-    // v4.42.2 — Picture-in-Picture (Document PiP API) + Floating Mini overlay
-    // Document PiP API spec: https://wicg.github.io/document-picture-in-picture/
-    // Chrome/Edge 116+ implements it; Firefox/Safari fall back to Mini.
-    // Why two modes: Document PiP = true OS-level always-on-top window (great for
-    // play-while-working), but limited browser support. Floating Mini = in-tab
-    // draggable overlay that works everywhere with same UX surface.
+    // v4.42.3 — Picture-in-Picture (Document PiP API) + Floating Mini overlay,
+    // rewritten on top of canvas.captureStream() + <video srcObject>.
+    // Why the rewrite: v4.42.2 moved the <canvas> across DOM (and across Document
+    // for PiP). That blacked the screen because:
+    //   - Cross-Document appendChild of a WebGL canvas loses its WebGL context.
+    //   - Reparenting also leaves EJS's sibling <audio> elements orphaned at the
+    //     original DOM position, so audio kept playing after we thought we'd
+    //     dismissed the popout.
+    // Fix: leave the canvas where EJS put it. Mirror its frames via captureStream
+    // into a <video> placed in PiP/Mini. Audio stays attached to EJS at the origin.
+    // Keyboard input is forwarded back to main document via synthetic KeyboardEvent.
     function consolePipToggle(tabId) {
       const tab = tabs.get(tabId);
       if (!tab || !tab.console || !tab.console.running) return;
@@ -7874,29 +8001,31 @@
         return;
       }
       if (tab.console.popMode === 'mini') consoleMiniClose(tabId, true);
-      const stage = document.getElementById(tabId + '-csl-stage');
-      const pane = document.getElementById(tabId + '-csl-game') && document.getElementById(tabId + '-csl-game').parentElement && document.getElementById(tabId + '-csl-game').parentElement.parentElement;
-      if (!stage) return;
-      const rect = stage.getBoundingClientRect();
-      const w = Math.max(320, Math.round(rect.width)) || 480;
-      const h = Math.max(240, Math.round(rect.height) + 32) || 360;
+      const stream = _consoleStartCapture(tabId);
+      if (!stream) {
+        alert('Could not capture the game canvas. The emulator may not have finished loading yet — wait a moment and try again.');
+        return;
+      }
+      const canvas = _consoleGetCanvas(tabId);
+      const w = canvas ? Math.max(320, canvas.width * 2) : 480;
+      const h = canvas ? Math.max(240, canvas.height * 2 + 32) : 360;
       window.documentPictureInPicture.requestWindow({ width: w, height: h }).then((pipWin) => {
         tab.console.pipWindow = pipWin;
         tab.console.popMode = 'pip';
-        // Copy all main-document <style> tags + linked stylesheets into PiP window
-        // so .csl-stage CSS (image-rendering pixelated, aspect-ratio) applies.
-        document.querySelectorAll('style, link[rel="stylesheet"]').forEach((node) => {
-          pipWin.document.head.appendChild(node.cloneNode(true));
-        });
         pipWin.document.title = 'CYBERFRAME Console — PiP';
-        pipWin.document.body.style.cssText = 'margin:0;background:#000;display:flex;align-items:center;justify-content:center;min-height:100vh;overflow:hidden';
-        // Remember the original parent so we can restore the stage when PiP closes
-        tab.console.originalParent = stage.parentElement;
-        pipWin.document.body.appendChild(stage);
-        // Forward keyboard events from PiP window to main window — EmulatorJS
-        // attaches its keydown/keyup listeners on main document; PiP window has
-        // its own document, so without forwarding, the keyboard wouldn't drive
-        // the emulator. We dispatch synthetic events on main window.
+        pipWin.document.body.style.cssText = 'margin:0;background:#000;display:flex;align-items:center;justify-content:center;min-height:100vh;overflow:hidden;position:relative';
+        const container = document.createElement('div');
+        container.style.cssText = 'position:relative;width:100%;height:100vh;display:flex;align-items:center;justify-content:center';
+        const v = _consoleBuildVideoEl(stream);
+        const kb = _consoleBuildKeyboardOverlay();
+        container.appendChild(v);
+        container.appendChild(kb);
+        pipWin.document.body.appendChild(container);
+        try { v.play(); } catch {}
+        tab.console.pipVideo = v;
+        pipWin.addEventListener('pagehide', () => consolePipClose(tabId));
+        // Optional: also forward keys from the PiP window itself (e.g. if user
+        // clicks the body chrome instead of the overlay). Same synthetic dispatch.
         const fwd = (type) => (ev) => {
           const synth = new KeyboardEvent(type, {
             key: ev.key, code: ev.code, keyCode: ev.keyCode, which: ev.which,
@@ -7911,8 +8040,6 @@
         pipWin.addEventListener('keydown', fwdDown);
         pipWin.addEventListener('keyup', fwdUp);
         tab.console.pipFwd = { down: fwdDown, up: fwdUp };
-        pipWin.addEventListener('pagehide', () => consolePipClose(tabId));
-        // Show "Playing in PiP" placeholder in the original pane
         consolePopShowPlaceholder(tabId, 'pip');
         const pipBtn = document.getElementById(tabId + '-csl-pip');
         if (pipBtn) pipBtn.textContent = '✕ Close PiP';
@@ -7926,23 +8053,22 @@
       const tab = tabs.get(tabId);
       if (!tab || !tab.console || tab.console.popMode !== 'pip') return;
       const pipWin = tab.console.pipWindow;
-      const stage = pipWin && pipWin.document && pipWin.document.body && pipWin.document.body.querySelector('.csl-stage');
       if (tab.console.pipFwd && pipWin) {
         try {
           pipWin.removeEventListener('keydown', tab.console.pipFwd.down);
           pipWin.removeEventListener('keyup', tab.console.pipFwd.up);
         } catch {}
       }
-      if (stage && tab.console.originalParent) {
-        tab.console.originalParent.appendChild(stage);
+      // Detach video srcObject before window closes (defensive)
+      if (tab.console.pipVideo) {
+        try { tab.console.pipVideo.pause(); tab.console.pipVideo.srcObject = null; } catch {}
+        tab.console.pipVideo = null;
       }
       try { if (pipWin && !pipWin.closed) pipWin.close(); } catch {}
       tab.console.pipWindow = null;
       tab.console.pipFwd = null;
       tab.console.popMode = 'normal';
-      tab.console.originalParent = null;
       consolePopHidePlaceholder(tabId);
-      if (!silent) consoleSetScale(tabId);
       const pipBtn = document.getElementById(tabId + '-csl-pip');
       if (pipBtn && tab.console.running) pipBtn.textContent = '📺 PiP';
     }
@@ -7952,11 +8078,14 @@
       if (!tab || !tab.console || !tab.console.running) return;
       if (tab.console.popMode === 'mini') { consoleMiniClose(tabId); return; }
       if (tab.console.popMode === 'pip') consolePipClose(tabId, true);
-      const stage = document.getElementById(tabId + '-csl-stage');
-      if (!stage) return;
-      const rect = stage.getBoundingClientRect();
-      const startW = Math.max(280, Math.round(rect.width)) || 480;
-      const startH = Math.max(200, Math.round(rect.height)) || 320;
+      const stream = _consoleStartCapture(tabId);
+      if (!stream) {
+        alert('Could not capture the game canvas. The emulator may not have finished loading yet — wait a moment and try again.');
+        return;
+      }
+      const canvas = _consoleGetCanvas(tabId);
+      const startW = canvas ? Math.max(280, canvas.width * 2) : 480;
+      const startH = canvas ? Math.max(200, canvas.height * 2) : 320;
       const startX = tab.console.miniPos ? tab.console.miniPos.x : Math.max(16, window.innerWidth - startW - 32);
       const startY = tab.console.miniPos ? tab.console.miniPos.y : Math.max(16, window.innerHeight - startH - 80);
       const mini = document.createElement('div');
@@ -7965,13 +8094,18 @@
       mini.style.cssText = 'left:' + startX + 'px;top:' + startY + 'px;width:' + startW + 'px;height:' + (startH + 28) + 'px;resize:both';
       mini.innerHTML =
         '<div class="csl-mini-header" id="' + tabId + '-csl-mini-header">' +
-        '<span>🗗 Console — drag to move</span>' +
+        '<span>🗗 Console — drag header to move · click stage for keys</span>' +
         '<button class="csl-mini-close" onclick="consoleMiniClose(\'' + tabId + '\')">✕</button>' +
         '</div>' +
-        '<div class="csl-mini-stage" id="' + tabId + '-csl-mini-stage"></div>';
+        '<div class="csl-mini-stage" id="' + tabId + '-csl-mini-stage" style="position:relative;background:#000"></div>';
       document.body.appendChild(mini);
-      tab.console.originalParent = stage.parentElement;
-      document.getElementById(tabId + '-csl-mini-stage').appendChild(stage);
+      const stagePane = document.getElementById(tabId + '-csl-mini-stage');
+      const v = _consoleBuildVideoEl(stream);
+      const kb = _consoleBuildKeyboardOverlay();
+      stagePane.appendChild(v);
+      stagePane.appendChild(kb);
+      try { v.play(); } catch {}
+      tab.console.miniVideo = v;
       tab.console.miniEl = mini;
       tab.console.popMode = 'mini';
       consoleMiniDragInit(tabId);
@@ -7984,21 +8118,19 @@
       const tab = tabs.get(tabId);
       if (!tab || !tab.console || tab.console.popMode !== 'mini') return;
       const mini = tab.console.miniEl;
-      const stage = mini && mini.querySelector('.csl-stage');
       if (mini) {
         const rect = mini.getBoundingClientRect();
         tab.console.miniPos = { x: rect.left, y: rect.top };
         tab.console.miniSize = { w: rect.width, h: rect.height };
       }
-      if (stage && tab.console.originalParent) {
-        tab.console.originalParent.appendChild(stage);
+      if (tab.console.miniVideo) {
+        try { tab.console.miniVideo.pause(); tab.console.miniVideo.srcObject = null; } catch {}
+        tab.console.miniVideo = null;
       }
       if (mini && mini.parentNode) mini.parentNode.removeChild(mini);
       tab.console.miniEl = null;
       tab.console.popMode = 'normal';
-      tab.console.originalParent = null;
       consolePopHidePlaceholder(tabId);
-      if (!silent) consoleSetScale(tabId);
       const miniBtn = document.getElementById(tabId + '-csl-mini');
       if (miniBtn && tab.console.running) miniBtn.textContent = '🗗 Mini';
     }
@@ -8064,12 +8196,15 @@
       });
     }
 
+    // v4.42.3 — Stage stays in place (no reparenting); we just hide it visually
+    // while popped and insert a placeholder next to it inside the same csl-game
+    // container. Clicking the placeholder restores the stage and dismisses popout.
     function consolePopShowPlaceholder(tabId, mode) {
+      const stage = document.getElementById(tabId + '-csl-stage');
       const gamePane = document.getElementById(tabId + '-csl-game');
-      const stagePane = document.getElementById(tabId + '-csl-stage');
-      // The stage was removed from its parent — show placeholder in the outer pane
-      const tab = tabs.get(tabId);
-      if (!tab || !tab.console || !tab.console.originalParent) return;
+      if (!stage || !gamePane) return;
+      stage.dataset.prevDisplay = stage.style.display || '';
+      stage.style.display = 'none';
       const ph = document.createElement('div');
       ph.id = tabId + '-csl-placeholder';
       ph.className = 'csl-pip-placeholder';
@@ -8083,12 +8218,17 @@
         '<div style="font-size:11.5px;color:#a1a1aa">Click here to recover — game returns to this tab.</div>' +
         '</div>';
       ph.onclick = () => window[action](tabId);
-      tab.console.originalParent.appendChild(ph);
+      gamePane.appendChild(ph);
     }
 
     function consolePopHidePlaceholder(tabId) {
       const ph = document.getElementById(tabId + '-csl-placeholder');
       if (ph && ph.parentNode) ph.parentNode.removeChild(ph);
+      const stage = document.getElementById(tabId + '-csl-stage');
+      if (stage) {
+        stage.style.display = stage.dataset.prevDisplay || '';
+        delete stage.dataset.prevDisplay;
+      }
     }
 
     // === Flow Builder helpers (v4.0.0-alpha.2 — Phase A: view-only) ============
@@ -15928,15 +16068,13 @@ ${fields}
       }
       // Clean up Console (EmulatorJS) — close PiP/Mini, revoke blob URLs + exit emulator if this tab owns it
       if (tab.type === 'console' && tab.console) {
-        // v4.42.2 — dismiss PiP window / floating Mini if open
+        // Dismiss PiP/Mini popouts first
         if (tab.console.popMode === 'pip') consolePipClose(tabId, true);
         else if (tab.console.popMode === 'mini') consoleMiniClose(tabId, true);
-        if (tab.console.running) {
-          try { if (window.EJS_emulator && typeof window.EJS_emulator.exit === 'function') window.EJS_emulator.exit(); } catch {}
-          delete window.EJS_player; delete window.EJS_core; delete window.EJS_gameUrl;
-          delete window.EJS_gameName; delete window.EJS_biosUrl; delete window.EJS_pathtodata;
-          delete window.EJS_startOnLoaded;
-        }
+        // v4.42.3 — full teardown (AudioContext close + sibling <audio> removal +
+        // ALL EJS_* globals + captureStream tracks + loader script). Closing the
+        // tab without this leaves the game's audio playing in the background.
+        if (tab.console.running) _consoleTeardown(tabId);
         if (tab.console.romUrl) URL.revokeObjectURL(tab.console.romUrl);
         if (tab.console.biosUrl) URL.revokeObjectURL(tab.console.biosUrl);
       }
