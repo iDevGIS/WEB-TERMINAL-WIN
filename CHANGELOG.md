@@ -5,6 +5,48 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [4.42.13] — 2026-05-28 — Console: map UI system ID → CDN core filename for PS1 (🅐 reference-impl-verified)
+
+### Context
+After v4.42.12 disabled EJS IndexedDB cache (layer 3 cleared), PS1 launch revealed
+layer 4 — `404` on `cdn.emulatorjs.org/stable/data/cores/psx_hw.json` and
+`psx_hw-legacy-wasm.data`. CDN holds `mednafen_psx_hw-*.data` and `pcsx_rearmed-*.data`
+under vendor-prefixed names, NOT under the UI system identifier `psx_hw` directly.
+
+Reference-implementation scout of `https://gam.onl/psx/#game` (working PS1 emulator
+using same EmulatorJS lib) confirmed:
+- **loader.js line 75 (verbatim):** `'undefined' != typeof EJS_core && (config.system = EJS_core);`
+- → `EJS_core` value is taken **1-to-1** as `config.system`, NO internal mapping.
+- → Their assignment: `EJS_core = 'mednafen_psx_hw'` (not `'psx_hw'`).
+- → Direct curl confirms `cdn.emulatorjs.org/stable/data/cores/mednafen_psx_hw-wasm.data`
+  returns HTTP 200, 1.2 MB.
+
+### Fix
+Add `CONSOLE_CORE_MAP = { psx_hw: 'mednafen_psx_hw' }` lookup before assigning
+`window.EJS_core`. Other systems (`nes`/`snes`/`gba`/`gb`/`gbc`) have UI IDs that
+already match CDN filenames, so map only needs PS1 entry. Format extensible if
+more systems hit the same pattern later.
+
+### Changed
+- `public/index.html` `consoleLaunch()` — system identifier → core filename mapping
+- `public/index.html` diagnostic `console.log` — adds `core=` field to show resolved name
+- `package.json` — `4.42.12` → `4.42.13`
+
+### Authorization
+Single-letter pick "A" after post-close postmortem-candidate presentation. 1-ship cap.
+Failure response pre-committed: if PS1 still fails → "พอจริง", postmortem only, no v4.42.14.
+
+### What does NOT regress
+GBA/SNES/NES/GB/GBC unchanged (map lookup falls through to `sys` unchanged for them).
+v4.42.10 (indirect-eval `nipplejs` bare-ID install), v4.42.11 (UMD env-leak guard),
+v4.42.12 (`EJS_disableDatabases = true`) all preserved.
+
+### Known still-broken
+- PiP / Mini buttons hidden (v4.42.9 `display:none`).
+- Audio teardown post-Stop untested.
+
+---
+
 ## [4.42.12] — 2026-05-28 — Console: disable EJS IndexedDB cache for PS1 core download (🅐 "ลองต่ออีก 1 ship")
 
 ### Context

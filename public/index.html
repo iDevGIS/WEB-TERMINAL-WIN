@@ -8323,7 +8323,14 @@
       gameDiv.innerHTML = '<div id="' + tabId + '-csl-player" style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:#71717a;font-size:12px">⏳ Loading core (' + escHtml(sys) + ')…</div>';
       // EmulatorJS reads window.EJS_* config before loader.js runs
       window.EJS_player = '#' + tabId + '-csl-player';
-      window.EJS_core = sys;
+      // v4.42.13 — Map UI system identifier → CDN core filename. EJS loader.js line 75
+      // takes `EJS_core` verbatim as `config.system` (1-to-1, no mapping). PS1 dropdown
+      // value `psx_hw` is EJS's system identifier but the actual core file on CDN is
+      // `mednafen_psx_hw-*.data`. gam.onl reference impl confirms `EJS_core = 'mednafen_psx_hw'`
+      // direct assignment. Verified via curl: HTTP 200, 1.2MB. Other systems
+      // (nes/snes/gba/gb/gbc) match CDN filenames directly so map is empty for them.
+      const CONSOLE_CORE_MAP = { psx_hw: 'mednafen_psx_hw' };
+      window.EJS_core = CONSOLE_CORE_MAP[sys] || sys;
       window.EJS_gameUrl = tab.console.romUrl;
       window.EJS_gameName = tab.console.romName || 'game';
       window.EJS_pathtodata = 'https://cdn.emulatorjs.org/stable/data/';
@@ -8335,7 +8342,7 @@
       // refetches from CDN. Also log resolved core URL for diagnostic visibility.
       window.EJS_disableDatabases = true;
       try {
-        console.log('[Console v4.42.12] launch system=' + sys + ' pathtodata=' + window.EJS_pathtodata + ' disableDatabases=' + window.EJS_disableDatabases);
+        console.log('[Console v4.42.13] launch system=' + sys + ' core=' + window.EJS_core + ' pathtodata=' + window.EJS_pathtodata + ' disableDatabases=' + window.EJS_disableDatabases);
       } catch (_) {}
       if (tab.console.biosUrl) window.EJS_biosUrl = tab.console.biosUrl;
       else delete window.EJS_biosUrl;
