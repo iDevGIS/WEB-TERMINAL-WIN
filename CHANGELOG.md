@@ -5,6 +5,27 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [4.42.0] — 2026-05-27 — Console Tab (Web Game Emulator)
+
+Adds a 16th first-class tab: **Console** — a retro game emulator running in the browser via [EmulatorJS](https://emulatorjs.org) (MIT, WASM, CDN-loaded cores). Single tab covers seven cores in one welcome card click:
+
+- **PlayStation** — PS1 (`mednafen_psx_hw`)
+- **Nintendo Game Boy** — GameBoy / GBC (`gambatte`), GBA (`mgba`)
+- **Nintendo Console** — SNES (`snes9x`), NES (`fceumm`), N64 (`mupen64plus_next`)
+- **Sega** — Genesis (`genesis_plus_gx`)
+
+UX is a single-row toolbar — system dropdown · 📂 ROM picker · 🔧 BIOS picker · ▶ Launch · ⏹ Stop · ROM-name pill. Pick a system, drop in a ROM file, hit Launch. Cores stream from `cdn.emulatorjs.org/stable/data/` on demand (first run downloads ~1-5 MB depending on core); subsequent launches are cached.
+
+**Files stay client-side.** ROM and BIOS go through the File API → `URL.createObjectURL` → blob URL passed to EmulatorJS as `EJS_gameUrl` / `EJS_biosUrl`. Nothing uploads to the CYBERFRAME server. Save states use EmulatorJS's built-in IndexedDB persistence (per-origin, survives refresh, lost on browser-data-clear).
+
+**Single-instance limit (acknowledged trade-off):** EmulatorJS reads `window.EJS_*` globals, so only one emulator can run across all Console tabs simultaneously. Launching in tab B with tab A still running auto-exits A's instance. `closeTab` revokes both ROM/BIOS blob URLs and clears EJS globals if this tab owned the active emulator.
+
+**Legal:** ROM files are user-supplied dumps of games they own. PS1 BIOS (Sony copyright) is **not** bundled — user uploads `SCPH-XXXX.bin` themselves. Same posture as every web-based PS1 emulator (Internet Archive, etc.).
+
+**Files**: `public/index.html` (welcome card + 6 helper functions + `else if (type === 'console')` tab branch + `closeTab` cleanup hook), `CHANGELOG.md`, `package.json`.
+
+---
+
 ## [4.41.0] — 2026-05-20 — Sidekick Drag-End Click Suppression (v4.40.0 hotfix)
 
 v4.40.0 fixed *intent disambiguation* (when does the gesture become a drag?) but a second bug survived: after a successful drag, the chat box still opened on mouseup. Two defects compounded:

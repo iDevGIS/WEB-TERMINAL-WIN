@@ -6016,6 +6016,11 @@
               <span class="feat-label">Claude Code</span>
               <span class="feat-sub">AI Agent</span>
             </div>
+            <div class="feature" onclick="openConsoleTab()" title="Console — Retro game emulator (PS1, GameBoy, GBA, SNES, NES, N64, Genesis)">
+              <span class="fi"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="4"/><line x1="6" y1="12" x2="10" y2="12"/><line x1="8" y1="10" x2="8" y2="14"/><circle cx="16" cy="11" r="1"/><circle cx="18" cy="13" r="1"/></svg></span>
+              <span class="feat-label">Console</span>
+              <span class="feat-sub">Game Emulator</span>
+            </div>
           </div>
 
         </div>
@@ -7580,6 +7585,134 @@
 
     function openFlowBuilderTab(opts) {
       createTab('flow-builder', { name: 'Flow Builder', icon: '🎨', ...(opts||{}) });
+    }
+
+    // === Console (Game Emulator — v4.42.0) ============================
+    // Powered by EmulatorJS (MIT, CDN-hosted, WASM). Supports PS1 (mednafen_psx_hw),
+    // GameBoy/GBC (gambatte), GBA (mGBA), SNES, NES, N64, Genesis cores.
+    // ROM/BIOS files stay client-side via File API → blob URLs (never uploaded to server).
+    // Save states use EmulatorJS built-in IndexedDB persistence.
+    // Single-instance limitation: EmulatorJS reads window.EJS_* globals → only one
+    // emulator can run across all Console tabs at a time (consoleStop frees globals).
+    function openConsoleTab() {
+      createTab('console', { name: 'Console', icon: '🎮' });
+    }
+
+    function consoleSysChanged(tabId) {
+      // System dropdown change — auto-stop active emulator to avoid wrong-core launch
+      const tab = tabs.get(tabId);
+      if (!tab || !tab.console || !tab.console.running) return;
+      consoleStop(tabId);
+    }
+
+    function consoleRomPicked(tabId, input) {
+      const tab = tabs.get(tabId);
+      if (!tab || !tab.console) return;
+      const file = input && input.files && input.files[0];
+      if (!file) return;
+      if (tab.console.romUrl) URL.revokeObjectURL(tab.console.romUrl);
+      tab.console.romUrl = URL.createObjectURL(file);
+      tab.console.romName = file.name;
+      const lbl = document.getElementById(tabId + '-csl-rom-name');
+      if (lbl) {
+        const suffix = tab.console.biosUrl ? ' + BIOS ✓' : '';
+        lbl.textContent = '📀 ' + file.name + suffix;
+        lbl.style.color = '#22c55e';
+      }
+    }
+
+    function consoleBiosPicked(tabId, input) {
+      const tab = tabs.get(tabId);
+      if (!tab || !tab.console) return;
+      const file = input && input.files && input.files[0];
+      if (!file) return;
+      if (tab.console.biosUrl) URL.revokeObjectURL(tab.console.biosUrl);
+      tab.console.biosUrl = URL.createObjectURL(file);
+      const lbl = document.getElementById(tabId + '-csl-rom-name');
+      if (lbl && tab.console.romName) {
+        if (!lbl.textContent.includes('+ BIOS')) {
+          lbl.textContent = lbl.textContent + ' + BIOS ✓';
+        }
+      } else if (lbl) {
+        lbl.textContent = '🔧 BIOS: ' + file.name;
+        lbl.style.color = '#3b82f6';
+      }
+    }
+
+    function consoleLaunch(tabId) {
+      const tab = tabs.get(tabId);
+      if (!tab || !tab.console) return;
+      if (!tab.console.romUrl) {
+        alert('Pick a ROM first (📂 button).');
+        return;
+      }
+      const sysSel = document.getElementById(tabId + '-csl-sys');
+      const sys = sysSel ? sysSel.value : 'psx_hw';
+      if (sys === 'psx_hw' && !tab.console.biosUrl) {
+        if (!confirm('PS1 emulation usually requires a BIOS file (SCPH-XXXX.bin). Launch anyway?')) return;
+      }
+      const gameDiv = document.getElementById(tabId + '-csl-game');
+      if (!gameDiv) return;
+      // Clear any prior EmulatorJS instance from another Console tab (single-instance limit)
+      try {
+        if (window.EJS_emulator && typeof window.EJS_emulator.exit === 'function') {
+          window.EJS_emulator.exit();
+        }
+      } catch {}
+      // Reset game container — EmulatorJS injects canvas into this div
+      gameDiv.innerHTML = '<div id="' + tabId + '-csl-player" style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:#71717a;font-size:12px">⏳ Loading core (' + escHtml(sys) + ')…</div>';
+      // EmulatorJS reads window.EJS_* config before loader.js runs
+      window.EJS_player = '#' + tabId + '-csl-player';
+      window.EJS_core = sys;
+      window.EJS_gameUrl = tab.console.romUrl;
+      window.EJS_gameName = tab.console.romName || 'game';
+      window.EJS_pathtodata = 'https://cdn.emulatorjs.org/stable/data/';
+      window.EJS_startOnLoaded = true;
+      if (tab.console.biosUrl) window.EJS_biosUrl = tab.console.biosUrl;
+      else delete window.EJS_biosUrl;
+      // Drop previous loader script (idempotent reload)
+      const prev = document.getElementById('ejs-loader-script');
+      if (prev) prev.remove();
+      const loader = document.createElement('script');
+      loader.id = 'ejs-loader-script';
+      loader.src = 'https://cdn.emulatorjs.org/stable/data/loader.js';
+      loader.onerror = () => {
+        gameDiv.innerHTML = '<div style="text-align:center;color:#ef4444;padding:20px"><div style="font-size:32px;margin-bottom:10px">⚠️</div><div>Failed to load EmulatorJS from CDN.<br>Check your network connection.</div></div>';
+        consoleStopUI(tabId);
+      };
+      document.body.appendChild(loader);
+      tab.console.running = true;
+      const launchBtn = document.getElementById(tabId + '-csl-launch');
+      const stopBtn = document.getElementById(tabId + '-csl-stop');
+      if (launchBtn) launchBtn.disabled = true;
+      if (stopBtn) stopBtn.disabled = false;
+    }
+
+    function consoleStopUI(tabId) {
+      const tab = tabs.get(tabId);
+      if (tab && tab.console) tab.console.running = false;
+      const launchBtn = document.getElementById(tabId + '-csl-launch');
+      const stopBtn = document.getElementById(tabId + '-csl-stop');
+      if (launchBtn) launchBtn.disabled = false;
+      if (stopBtn) stopBtn.disabled = true;
+    }
+
+    function consoleStop(tabId) {
+      const tab = tabs.get(tabId);
+      if (!tab || !tab.console) return;
+      try {
+        if (window.EJS_emulator && typeof window.EJS_emulator.exit === 'function') {
+          window.EJS_emulator.exit();
+        }
+      } catch {}
+      const gameDiv = document.getElementById(tabId + '-csl-game');
+      if (gameDiv) {
+        gameDiv.innerHTML = '<div style="text-align:center;color:#52525b;padding:24px"><div style="font-size:48px;margin-bottom:12px">🎮</div><div style="font-weight:600;color:#a1a1aa">Stopped</div><div style="font-size:11.5px;margin-top:6px">Click ▶ Launch to resume.</div></div>';
+      }
+      delete window.EJS_player; delete window.EJS_core; delete window.EJS_gameUrl;
+      delete window.EJS_gameName; delete window.EJS_biosUrl; delete window.EJS_pathtodata;
+      delete window.EJS_startOnLoaded;
+      consoleStopUI(tabId);
     }
 
     // === Flow Builder helpers (v4.0.0-alpha.2 — Phase A: view-only) ============
@@ -13749,8 +13882,8 @@ ${fields}
       const tabEl = document.createElement('div');
       tabEl.className = 'tab-item';
       tabEl.dataset.tabId = tabId;
-      const icon = opts.icon || (type === 'terminal' ? '⚡' : type === 'editor' ? '📝' : type === 'preview' ? '👁' : type === 'admin' ? '🛡️' : type === 'chat' ? '💬' : type === 'agent-monitor' ? '🤖' : type === 'vscode' ? '💻' : type === 'vnc' ? '🖥️' : type === 'docker' ? '🐳' : type === 'spy' ? '👁' : type === 'claude-code' ? '⚡' : type === 'browser' ? '🌐' : type === 'scrap' ? '🪝' : type === 'flow-builder' ? '🎨' : '📂');
-      const label = opts.name || (type === 'terminal' ? 'Shell' : type === 'editor' ? 'Editor' : type === 'preview' ? 'Preview' : type === 'admin' ? 'Admin' : type === 'chat' ? 'AI Chat' : type === 'agent-monitor' ? 'Agent Monitor' : type === 'vscode' ? 'VS Code' : type === 'vnc' ? 'Remote Desktop' : type === 'docker' ? 'Docker' : type === 'spy' ? 'Spy' : type === 'claude-code' ? 'Claude Code' : type === 'browser' ? 'Browser' : type === 'scrap' ? 'Scrap' : type === 'flow-builder' ? 'Flow Builder' : 'Files');
+      const icon = opts.icon || (type === 'terminal' ? '⚡' : type === 'editor' ? '📝' : type === 'preview' ? '👁' : type === 'admin' ? '🛡️' : type === 'chat' ? '💬' : type === 'agent-monitor' ? '🤖' : type === 'vscode' ? '💻' : type === 'vnc' ? '🖥️' : type === 'docker' ? '🐳' : type === 'spy' ? '👁' : type === 'claude-code' ? '⚡' : type === 'browser' ? '🌐' : type === 'scrap' ? '🪝' : type === 'flow-builder' ? '🎨' : type === 'console' ? '🎮' : '📂');
+      const label = opts.name || (type === 'terminal' ? 'Shell' : type === 'editor' ? 'Editor' : type === 'preview' ? 'Preview' : type === 'admin' ? 'Admin' : type === 'chat' ? 'AI Chat' : type === 'agent-monitor' ? 'Agent Monitor' : type === 'vscode' ? 'VS Code' : type === 'vnc' ? 'Remote Desktop' : type === 'docker' ? 'Docker' : type === 'spy' ? 'Spy' : type === 'claude-code' ? 'Claude Code' : type === 'browser' ? 'Browser' : type === 'scrap' ? 'Scrap' : type === 'flow-builder' ? 'Flow Builder' : type === 'console' ? 'Console' : 'Files');
       tabEl.innerHTML = `<span class="tab-pin-ind" title="Pinned">📌</span><span class="tab-icon">${icon}</span><span class="tab-label">${escHtml(label)}</span><span class="tab-close" onclick="event.stopPropagation();closeTab('${tabId}')">✕</span>`;
       if (type === 'claude-code') tabEl.style.color = '#f97316';
       tabEl.onclick = () => switchTab(tabId);
@@ -14074,6 +14207,59 @@ ${fields}
         const vncUrl = '/novnc/index.html?host=' + h + '&port=' + location.port + '&path=vnc-ws&resize=remote&autoconnect=true&reconnect=true&reconnect_delay=3000';
         paneEl.innerHTML = '<div class="vnc-tab-wrap"><iframe src="' + vncUrl + '" allow="clipboard-read; clipboard-write"></iframe></div>';
         container.appendChild(paneEl);
+
+      } else if (type === 'console') {
+        paneEl.innerHTML = `<div class="console-tab-wrap" style="display:flex;flex-direction:column;height:100%;background:#000;color:#e4e4e7">
+          <div class="console-toolbar" style="display:flex;gap:6px;padding:8px 10px;background:#0d0d12;border-bottom:1px solid #1f1f2e;flex-wrap:wrap;align-items:center">
+            <select id="${tabId}-csl-sys" style="background:#161620;color:#e4e4e7;border:1px solid #2d2d3e;border-radius:4px;padding:5px 8px;font-size:12px;cursor:pointer" onchange="consoleSysChanged('${tabId}')" title="Choose console core">
+              <optgroup label="PlayStation">
+                <option value="psx_hw">PS1 (mednafen)</option>
+              </optgroup>
+              <optgroup label="Nintendo — Game Boy">
+                <option value="gambatte">GameBoy / GBC</option>
+                <option value="mgba">Game Boy Advance</option>
+              </optgroup>
+              <optgroup label="Nintendo — Console">
+                <option value="snes9x">SNES</option>
+                <option value="fceumm">NES</option>
+                <option value="mupen64plus_next">N64</option>
+              </optgroup>
+              <optgroup label="Sega">
+                <option value="genesis_plus_gx">Genesis</option>
+              </optgroup>
+            </select>
+            <label class="csl-btn" style="display:inline-flex;align-items:center;gap:5px;padding:5px 10px;background:#22c55e;color:#000;border-radius:4px;font-size:12px;cursor:pointer;font-weight:600" title="Pick ROM file from your computer (stays in browser)">
+              📂 ROM
+              <input type="file" id="${tabId}-csl-rom" accept=".bin,.iso,.cue,.gb,.gbc,.gba,.smc,.sfc,.nes,.n64,.z64,.md,.gen,.zip,.7z,.chd,.pbp,.img" style="display:none" onchange="consoleRomPicked('${tabId}',this)">
+            </label>
+            <label class="csl-btn" style="display:inline-flex;align-items:center;gap:5px;padding:5px 10px;background:#3b82f6;color:#fff;border-radius:4px;font-size:12px;cursor:pointer" title="PS1 needs a BIOS — upload SCPH-XXXX.bin yourself (copyrighted, not bundled)">
+              🔧 BIOS
+              <input type="file" id="${tabId}-csl-bios" accept=".bin,.rom" style="display:none" onchange="consoleBiosPicked('${tabId}',this)">
+            </label>
+            <button onclick="consoleLaunch('${tabId}')" id="${tabId}-csl-launch" style="background:#fb7185;color:#fff;border:0;border-radius:4px;padding:5px 12px;font-size:12px;cursor:pointer;font-weight:600">▶ Launch</button>
+            <button onclick="consoleStop('${tabId}')" id="${tabId}-csl-stop" style="background:#475569;color:#fff;border:0;border-radius:4px;padding:5px 12px;font-size:12px;cursor:pointer" disabled>⏹ Stop</button>
+            <span id="${tabId}-csl-rom-name" style="color:#a1a1aa;font-size:11px;margin-left:8px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:220px">No ROM loaded</span>
+            <span style="flex:1"></span>
+            <span style="color:#71717a;font-size:10px;text-transform:uppercase;letter-spacing:.5px">EmulatorJS · cores load on demand</span>
+          </div>
+          <div style="flex:1;display:flex;align-items:center;justify-content:center;overflow:auto;background:#000;position:relative;min-height:0">
+            <div id="${tabId}-csl-game" style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:#52525b;font-size:13px;text-align:center;padding:20px;box-sizing:border-box">
+              <div>
+                <div style="font-size:48px;margin-bottom:12px">🎮</div>
+                <div style="font-weight:600;color:#a1a1aa;margin-bottom:8px">Console — Game Emulator</div>
+                <div style="font-size:11.5px;line-height:1.7;max-width:480px;margin:0 auto">
+                  1. เลือก <b style="color:#22c55e">System</b> (PS1, GameBoy, GBA, SNES, NES, N64, Genesis)<br>
+                  2. กด <b style="color:#22c55e">📂 ROM</b> — เลือกไฟล์ ROM ของลูกพี่<br>
+                  3. (PS1) กด <b style="color:#3b82f6">🔧 BIOS</b> — upload <code>SCPH-XXXX.bin</code><br>
+                  4. กด <b style="color:#fb7185">▶ Launch</b> — รอ core โหลดจาก CDN ครั้งแรก<br><br>
+                  <span style="color:#52525b;font-size:10.5px">⚠️ ROM/BIOS เก็บใน browser memory · ลบเมื่อปิด tab · ไม่ upload server · save states ใช้ IndexedDB · single-instance: 1 emulator running across all Console tabs</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>`;
+        container.appendChild(paneEl);
+        tabData.console = { romUrl: null, biosUrl: null, romName: null, running: false };
 
       } else if (type === 'scrap') {
         const startUrl = opts.url || '';
@@ -15352,6 +15538,17 @@ ${fields}
         if (window._ws && window._ws.readyState === 1) {
           window._ws.send(JSON.stringify({ type: 'claude-detach', id: tab.ccSessionId }));
         }
+      }
+      // Clean up Console (EmulatorJS) — revoke blob URLs + exit emulator if this tab owns it
+      if (tab.type === 'console' && tab.console) {
+        if (tab.console.running) {
+          try { if (window.EJS_emulator && typeof window.EJS_emulator.exit === 'function') window.EJS_emulator.exit(); } catch {}
+          delete window.EJS_player; delete window.EJS_core; delete window.EJS_gameUrl;
+          delete window.EJS_gameName; delete window.EJS_biosUrl; delete window.EJS_pathtodata;
+          delete window.EJS_startOnLoaded;
+        }
+        if (tab.console.romUrl) URL.revokeObjectURL(tab.console.romUrl);
+        if (tab.console.biosUrl) URL.revokeObjectURL(tab.console.biosUrl);
       }
       // Clean up spy streams
       if (tab.type === 'spy') {
