@@ -989,6 +989,16 @@
       height: 100%;
       border: none;
     }
+    .tab-pane .psx-tab-wrap {
+      flex: 1;
+      min-height: 0;
+      overflow: hidden;
+    }
+    .tab-pane .psx-tab-wrap iframe {
+      width: 100%;
+      height: 100%;
+      border: none;
+    }
     /* v4.42.1 — Console game emulator stage: pixel-perfect scaling, preserve aspect ratio */
     .csl-stage canvas {
       image-rendering: pixelated !important;
@@ -6060,6 +6070,11 @@
               <span class="feat-label">VS Code</span>
               <span class="feat-sub">Code editor</span>
             </div>
+            <div class="feature" onclick="openPSXConsoleTab()" title="PSX Console — PlayStation emulator via gam.onl">
+              <span class="fi" style="font-size:22px;line-height:1">🕹️</span>
+              <span class="feat-label">PSX Console</span>
+              <span class="feat-sub">PlayStation</span>
+            </div>
             <div class="feature" onclick="openAgentMonitorTab()" title="Agent Monitor">
               <span class="fi"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg></span>
               <span class="feat-label">Agent</span>
@@ -7686,6 +7701,17 @@
 
     function openConsoleTab() {
       createTab('console', { name: 'Console', icon: '🎮' });
+    }
+
+    // v4.43.0 — PSX Console: iframe-wrap gam.onl PS1 via /api/browser-proxy.
+    // Why: in-place EmulatorJS fix-cap exhausted at v4.42.13 with PS1 stuck on
+    // layer-5 CORS sub-asset. gam.onl uses same EmulatorJS stack but self-hosts
+    // /data/ so no CORS issue. Outsources the broken layer via iframe.
+    function openPSXConsoleTab() {
+      for (const [tabId, tab] of tabs) {
+        if (tab.type === 'psx') { switchTab(tabId); return; }
+      }
+      createTab('psx', { name: 'PSX Console', icon: '🕹️' });
     }
 
     // v4.42.3 — aggressive teardown of EmulatorJS state.
@@ -14827,8 +14853,8 @@ ${fields}
       const tabEl = document.createElement('div');
       tabEl.className = 'tab-item';
       tabEl.dataset.tabId = tabId;
-      const icon = opts.icon || (type === 'terminal' ? '⚡' : type === 'editor' ? '📝' : type === 'preview' ? '👁' : type === 'admin' ? '🛡️' : type === 'chat' ? '💬' : type === 'agent-monitor' ? '🤖' : type === 'vscode' ? '💻' : type === 'vnc' ? '🖥️' : type === 'docker' ? '🐳' : type === 'spy' ? '👁' : type === 'claude-code' ? '⚡' : type === 'browser' ? '🌐' : type === 'scrap' ? '🪝' : type === 'flow-builder' ? '🎨' : type === 'console' ? '🎮' : '📂');
-      const label = opts.name || (type === 'terminal' ? 'Shell' : type === 'editor' ? 'Editor' : type === 'preview' ? 'Preview' : type === 'admin' ? 'Admin' : type === 'chat' ? 'AI Chat' : type === 'agent-monitor' ? 'Agent Monitor' : type === 'vscode' ? 'VS Code' : type === 'vnc' ? 'Remote Desktop' : type === 'docker' ? 'Docker' : type === 'spy' ? 'Spy' : type === 'claude-code' ? 'Claude Code' : type === 'browser' ? 'Browser' : type === 'scrap' ? 'Scrap' : type === 'flow-builder' ? 'Flow Builder' : type === 'console' ? 'Console' : 'Files');
+      const icon = opts.icon || (type === 'terminal' ? '⚡' : type === 'editor' ? '📝' : type === 'preview' ? '👁' : type === 'admin' ? '🛡️' : type === 'chat' ? '💬' : type === 'agent-monitor' ? '🤖' : type === 'vscode' ? '💻' : type === 'vnc' ? '🖥️' : type === 'docker' ? '🐳' : type === 'spy' ? '👁' : type === 'claude-code' ? '⚡' : type === 'browser' ? '🌐' : type === 'scrap' ? '🪝' : type === 'flow-builder' ? '🎨' : type === 'console' ? '🎮' : type === 'psx' ? '🕹️' : '📂');
+      const label = opts.name || (type === 'terminal' ? 'Shell' : type === 'editor' ? 'Editor' : type === 'preview' ? 'Preview' : type === 'admin' ? 'Admin' : type === 'chat' ? 'AI Chat' : type === 'agent-monitor' ? 'Agent Monitor' : type === 'vscode' ? 'VS Code' : type === 'vnc' ? 'Remote Desktop' : type === 'docker' ? 'Docker' : type === 'spy' ? 'Spy' : type === 'claude-code' ? 'Claude Code' : type === 'browser' ? 'Browser' : type === 'scrap' ? 'Scrap' : type === 'flow-builder' ? 'Flow Builder' : type === 'console' ? 'Console' : type === 'psx' ? 'PSX Console' : 'Files');
       tabEl.innerHTML = `<span class="tab-pin-ind" title="Pinned">📌</span><span class="tab-icon">${icon}</span><span class="tab-label">${escHtml(label)}</span><span class="tab-close" onclick="event.stopPropagation();closeTab('${tabId}')">✕</span>`;
       if (type === 'claude-code') tabEl.style.color = '#f97316';
       tabEl.onclick = () => switchTab(tabId);
@@ -15151,6 +15177,12 @@ ${fields}
         const h = location.hostname;
         const vncUrl = '/novnc/index.html?host=' + h + '&port=' + location.port + '&path=vnc-ws&resize=remote&autoconnect=true&reconnect=true&reconnect_delay=3000';
         paneEl.innerHTML = '<div class="vnc-tab-wrap"><iframe src="' + vncUrl + '" allow="clipboard-read; clipboard-write"></iframe></div>';
+        container.appendChild(paneEl);
+
+      } else if (type === 'psx') {
+        const psxTarget = opts.url || 'https://gam.onl/psx/';
+        const psxProxied = '/api/browser-proxy?url=' + encodeURIComponent(psxTarget);
+        paneEl.innerHTML = '<div class="psx-tab-wrap"><iframe src="' + escAttr(psxProxied) + '" allow="clipboard-read; clipboard-write; gamepad; fullscreen; autoplay"></iframe></div>';
         container.appendChild(paneEl);
 
       } else if (type === 'console') {

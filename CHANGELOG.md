@@ -5,6 +5,40 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [4.43.0] — 2026-05-28 — PSX Console tab: iframe-wrap gam.onl via /api/browser-proxy (escape-hatch ship)
+
+### Context
+After v4.42.13 cleared layer 4 (`mednafen_psx_hw` core load OK, Main Menu rendered),
+PS1 hit layer 5 — CORS on dynamic wasm sub-assets fetched by the loaded core. In-place
+fix-cap exhausted; partial-fix Console PS1 path remains broken at gameplay-start.
+
+User pivoted to escape-hatch pattern: a dedicated PSX Console tab that iframes the
+known-good reference implementation `https://gam.onl/psx/` through the existing
+`/api/browser-proxy` (which strips `X-Frame-Options`/CSP for embedding). Outsources
+the broken layer to the working ref-impl while preserving all current Console code
+for GBA/SNES/NES/GB/GBC (still functional).
+
+### Added
+- `public/index.html` welcome card "PSX Console" (🕹️) — between VS Code and Agent cards
+- `public/index.html` `openPSXConsoleTab()` — reuses existing tab if open, else creates new (mirrors `openVNC` pattern)
+- `public/index.html` `createTab` `case 'psx'` — proxies `gam.onl/psx/` through `/api/browser-proxy`, allows `gamepad; fullscreen; autoplay` for emulator UX
+- `public/index.html` `.psx-tab-wrap` CSS — mirrors `.vscode-tab-wrap` / `.vnc-tab-wrap` pattern
+- `public/index.html` icon/label maps in `createTab()` — `'psx' → '🕹️' / 'PSX Console'`
+
+### Changed
+- `package.json` — `4.42.13` → `4.43.0`
+
+### Authorization
+User pick "A" → ship escape-hatch via existing `/api/browser-proxy` (smallest blast radius).
+1-ship cap; if iframe blank/broken → "พอจริง", no v4.43.1.
+
+### Blast radius
+- New tab type 'psx' — orthogonal to existing 'console' (EmulatorJS-in-page); both coexist.
+- Reuses tested `/api/browser-proxy` route — zero server.js changes.
+- No effect on GBA/SNES/NES/GB/GBC via the Console tab.
+
+---
+
 ## [4.42.13] — 2026-05-28 — Console: map UI system ID → CDN core filename for PS1 (🅐 reference-impl-verified)
 
 ### Context
