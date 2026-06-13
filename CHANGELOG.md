@@ -5,6 +5,71 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [4.44.1] — 2026-06-14 — Stale-while-revalidate for `/api/admin/status` (single-mode RTT always)
+
+### Context
+v4.44.0 introduced async + 5s cache, dropping cold-call cost from ~700–1500ms to ~187ms.
+But cache-miss callers still awaited the 187ms refresh, producing residual bimodal:
+4/5 hits ~1.5ms, 1/5 hits ~187ms at the 5s TTL boundary. Sidekick polls every 2s — every
+~3rd poll observed the cold spike.
+
+### Changed
+- `server.js` `_getCachedAdminStatus` — stale-while-revalidate. Cache miss returns STALE
+  data instantly + triggers background refresh (no await). First-ever call (no cache)
+  awaits once. `?force=1` still awaits fresh data.
+- `server.js` — background pre-warm `setInterval` (TTL − 500ms) keeps cache hot so the
+  miss path is never observed under load. `.unref()` so it doesn't keep node alive.
+- `package.json` — `4.44.0` → `4.44.1`
+
+### Why
+- v4.44.0 amortized work but did not eliminate the cold-path latency (memory lesson #297).
+  Stale-while-revalidate is the canonical pattern for operator dashboards where 5s-stale
+  data is acceptable but consistent sub-ms response is required (memory lesson coming).
+- Background pre-warm makes cold path observable only at server boot (one cold start
+  amortized across server uptime).
+
+---
+
+## [4.44.0] — 2026-06-14 — Async + 5s cache for `/api/admin/status` (kills Sidekick heartbeat bimodal RTT)
+
+### Context
+Sidekick heartbeat widget showed bimodal RTT 49ms ↔ 627ms (12.8× variance) sampled on
+`localhost:3000`, ruling out Wi-Fi/VPN/WAN (AWS VPN scout dead-end). Code scout of
+`/api/admin/status` (line 1636) revealed 3 sequential `execSync` PowerShell/CLI calls
+inside the HTTP handler — disk listing, `nvidia-smi`, NPU `Get-PnpDevice` + `Get-Counter`.
+Each PowerShell spawn ~300–700ms on Windows; chained sync = event-loop blocked
+~700–1500ms per request. Symptom: every Nth heartbeat hits a cache miss and stalls.
+
+### Changed
+- `server.js` `/api/admin/status` — sync handler → `async`; 3 subprocess calls now run in
+  `Promise.all` via `util.promisify(exec)` (non-blocking, parallel). Per-call timeouts preserved.
+- `server.js` — added 5s TTL cache + single-flight guard (`_adminStatusCache` +
+  `_adminStatusInflight`). Multi-tab fan-out collapses to 1 subprocess burst per 5s window.
+- `server.js` — query `?force=1` bypasses cache (preserves existing manual-refresh contract;
+  parallels `/api/agent/status?force=1` pattern).
+- `package.json` — `4.43.0` → `4.44.0`
+
+### Why
+- Sync subprocess in HTTP handler = canonical bimodal-latency anti-pattern
+  (memory/2026-06-14.md lesson #297).
+- 5s cache amortizes worst-case 1.5s burst across ≥10 polls (Sidekick polls every 2s);
+  effective per-poll cost drops to ~few ms (just JSON serialize).
+- Single-flight: under burst load (e.g. multiple tabs hitting widget on focus), only one
+  subprocess set runs; later callers await the same Promise.
+
+### Expected outcomes (pre-commit cap shape)
+- ✅ Heartbeat RTT collapses to single-mode <50ms (no more 627ms spikes)
+- ❌ Still bimodal → other endpoint is the culprit (try `/api/agent/status` next) → "พอจริง"
+- 🟡 Single mode but >50ms baseline → JSON serialize dominates → cache TTL win confirmed but baseline acceptable
+- 🟠 First call after server start still bursts (cold cache) → expected; subsequent calls fast
+
+### Files touched (TARGET repo, separate from agent cwd)
+- `C:\Users\BudToZai\.openclaw\workspace\SCRIPT-TOOLS\WEB-TERMINAL\server.js`
+- `C:\Users\BudToZai\.openclaw\workspace\SCRIPT-TOOLS\WEB-TERMINAL\package.json`
+- `C:\Users\BudToZai\.openclaw\workspace\SCRIPT-TOOLS\WEB-TERMINAL\CHANGELOG.md`
+
+---
+
 ## [4.43.0] — 2026-05-28 — PSX Console tab: iframe-wrap gam.onl via /api/browser-proxy (escape-hatch ship)
 
 ### Context

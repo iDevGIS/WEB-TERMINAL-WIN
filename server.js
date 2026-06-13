@@ -1633,11 +1633,27 @@ app.get("/api/sessions/:id/export", requireAuth, (req, res) => {
 });
 
 // === Admin API ===
-app.get("/api/admin/status", requireAuth, (req, res) => {
+// v4.44.0 — async + 5s cache + single-flight (was: execSync x3 blocking event loop ~700-1500ms per call,
+// caused Sidekick heartbeat bimodal RTT 49ms↔627ms; see memory/2026-06-14.md #296–#298).
+const _adminExec = require("util").promisify(require("child_process").exec);
+const ADMIN_STATUS_TTL_MS = 5000;
+let _adminStatusCache = null; // { data, ts }
+let _adminStatusInflight = null;
+
+async function _runAdminCmd(cmd, timeoutMs) {
+  try {
+    const { stdout } = await _adminExec(cmd, { encoding: 'utf-8', timeout: timeoutMs, windowsHide: true, maxBuffer: 2 * 1024 * 1024 });
+    return (stdout || '').toString();
+  } catch {
+    return null;
+  }
+}
+
+async function _gatherAdminStatus() {
   const os = require("os");
   const cpus = os.cpus();
   const cpuModel = cpus[0]?.model || "Unknown";
-  
+
   // CPU usage (average across cores)
   const cpuTimes = cpus.map(c => {
     const total = Object.values(c.times).reduce((a, b) => a + b, 0);
@@ -1651,24 +1667,49 @@ app.get("/api/admin/status", requireAuth, (req, res) => {
   const freeMem = os.freemem();
   const usedMem = totalMem - freeMem;
 
-  // Disks (all fixed drives)
+  // Fan out all 3 subprocess calls in parallel (non-blocking)
+  const [diskOut, gpuOut, npuOut] = await Promise.all([
+    _runAdminCmd("powershell -NoProfile -Command \"Get-CimInstance Win32_LogicalDisk -Filter 'DriveType=3' | Select-Object DeviceID,Size,FreeSpace | ConvertTo-Json\"", 5000),
+    _runAdminCmd('nvidia-smi --query-gpu=name,utilization.gpu,memory.used,memory.total,temperature.gpu,power.draw --format=csv,noheader,nounits', 3000),
+    _runAdminCmd('powershell -NoProfile -Command "Get-PnpDevice | Where-Object { ($_.FriendlyName -match \'\\bNPU\\b|Neural Processing|AI Boost|AI Accelerator|\\bVPU\\b|Ryzen AI\') -and ($_.FriendlyName -notmatch \'USB|Input Device|HID\') -and $_.Status -eq \'OK\' } | Select-Object -First 1 -ExpandProperty FriendlyName"', 5000),
+  ]);
+
+  // Parse disks
   let disk = { totalGB: 0, usedGB: 0, usedPercent: 0 };
   let disks = [];
   try {
-    const { execSync } = require("child_process");
-    const out = execSync("powershell -NoProfile -Command \"Get-CimInstance Win32_LogicalDisk -Filter 'DriveType=3' | Select-Object DeviceID,Size,FreeSpace | ConvertTo-Json\"", { encoding: 'utf-8', timeout: 5000 });
-    let parsed = JSON.parse(out);
-    if (!Array.isArray(parsed)) parsed = [parsed];
-    for (const d of parsed) {
-      if (!d.Size) continue;
-      const totalGB = (d.Size / 1073741824).toFixed(0);
-      const usedGB = ((d.Size - d.FreeSpace) / 1073741824).toFixed(0);
-      const usedPercent = Math.round((d.Size - d.FreeSpace) / d.Size * 100);
-      disks.push({ drive: d.DeviceID, totalGB, usedGB, usedPercent });
+    if (diskOut) {
+      let parsed = JSON.parse(diskOut);
+      if (!Array.isArray(parsed)) parsed = [parsed];
+      for (const d of parsed) {
+        if (!d.Size) continue;
+        const totalGB = (d.Size / 1073741824).toFixed(0);
+        const usedGB = ((d.Size - d.FreeSpace) / 1073741824).toFixed(0);
+        const usedPercent = Math.round((d.Size - d.FreeSpace) / d.Size * 100);
+        disks.push({ drive: d.DeviceID, totalGB, usedGB, usedPercent });
+      }
+      const cDisk = disks.find(d => d.drive === 'C:') || disks[0];
+      if (cDisk) { disk.totalGB = cDisk.totalGB; disk.usedGB = cDisk.usedGB; disk.usedPercent = cDisk.usedPercent; }
     }
-    // Primary disk (C:) for backward compat
-    const cDisk = disks.find(d => d.drive === 'C:') || disks[0];
-    if (cDisk) { disk.totalGB = cDisk.totalGB; disk.usedGB = cDisk.usedGB; disk.usedPercent = cDisk.usedPercent; }
+  } catch {}
+
+  // Parse GPU
+  let gpu = null;
+  try {
+    if (gpuOut && gpuOut.trim()) {
+      const [name, util, memUsed, memTotal, temp, power] = gpuOut.trim().split(',').map(s => s.trim());
+      gpu = { name, util: parseInt(util), memUsed: parseInt(memUsed), memTotal: parseInt(memTotal), temp: parseInt(temp), power: parseFloat(power).toFixed(0) };
+    }
+  } catch {}
+
+  // Parse NPU (+ optional util counter — also async)
+  let npu = null;
+  try {
+    if (npuOut && npuOut.trim()) {
+      npu = { name: npuOut.trim() };
+      const utilOut = await _runAdminCmd('powershell -NoProfile -Command "(Get-Counter \'\\NPU(*)\\*\' -ErrorAction SilentlyContinue).CounterSamples | Where-Object { $_.Path -match \'utilization\' } | Select-Object -First 1 -ExpandProperty CookedValue"', 3000);
+      if (utilOut && !isNaN(parseFloat(utilOut.trim()))) npu.util = Math.round(parseFloat(utilOut.trim()));
+    }
   } catch {}
 
   // Uptime
@@ -1691,31 +1732,7 @@ app.get("/api/admin/status", requireAuth, (req, res) => {
     }
   }
 
-  // GPU (nvidia-smi)
-  let gpu = null;
-  try {
-    const { execSync } = require("child_process");
-    const gpuOut = execSync('nvidia-smi --query-gpu=name,utilization.gpu,memory.used,memory.total,temperature.gpu,power.draw --format=csv,noheader,nounits', { encoding: 'utf-8', timeout: 3000 }).trim();
-    const [name, util, memUsed, memTotal, temp, power] = gpuOut.split(',').map(s => s.trim());
-    gpu = { name, util: parseInt(util), memUsed: parseInt(memUsed), memTotal: parseInt(memTotal), temp: parseInt(temp), power: parseFloat(power).toFixed(0) };
-  } catch {}
-
-  // NPU (Intel Core Ultra / Qualcomm / AMD Ryzen AI)
-  let npu = null;
-  try {
-    const { execSync } = require("child_process");
-    const npuOut = execSync('powershell -NoProfile -Command "Get-PnpDevice | Where-Object { ($_.FriendlyName -match \'\\bNPU\\b|Neural Processing|AI Boost|AI Accelerator|\\bVPU\\b|Ryzen AI\') -and ($_.FriendlyName -notmatch \'USB|Input Device|HID\') -and $_.Status -eq \'OK\' } | Select-Object -First 1 -ExpandProperty FriendlyName"', { encoding: 'utf-8', timeout: 5000 }).trim();
-    if (npuOut) {
-      npu = { name: npuOut };
-      // Try to get utilization via performance counter
-      try {
-        const utilOut = execSync('powershell -NoProfile -Command "(Get-Counter \'\\NPU(*)\\*\' -ErrorAction SilentlyContinue).CounterSamples | Where-Object { $_.Path -match \'utilization\' } | Select-Object -First 1 -ExpandProperty CookedValue"', { encoding: 'utf-8', timeout: 3000 }).trim();
-        if (utilOut && !isNaN(parseFloat(utilOut))) npu.util = Math.round(parseFloat(utilOut));
-      } catch {}
-    }
-  } catch {}
-
-  res.json({
+  return {
     gpu, npu,
     cpu: { percent: cpuPercent, model: cpuModel.replace(/\(R\)|\(TM\)/g, '').replace(/\s+/g, ' ').trim(), cores: cpus.length },
     memory: { totalGB: (totalMem / 1073741824).toFixed(1), usedGB: (usedMem / 1073741824).toFixed(1), freeGB: (freeMem / 1073741824).toFixed(1) },
@@ -1723,7 +1740,40 @@ app.get("/api/admin/status", requireAuth, (req, res) => {
     disks,
     uptime: { seconds: uptimeSec, formatted, since },
     network: { hostname: os.hostname(), localIP, tailscaleIP, port: process.env.PORT || 3000, nodeVersion: process.version, platform: `${os.type()} ${os.release()}` },
-  });
+  };
+}
+
+// v4.44.1 — stale-while-revalidate: cache miss returns STALE data instantly + refreshes in bg.
+// Eliminates the per-5s cold-cache latency spike that produced residual bimodal heartbeat RTT
+// after v4.44.0. Force=1 still awaits fresh data. First-ever call (no cache) awaits once.
+function _refreshAdminCacheBg() {
+  if (_adminStatusInflight) return _adminStatusInflight;
+  _adminStatusInflight = _gatherAdminStatus()
+    .then(data => { _adminStatusCache = { data, ts: Date.now() }; _adminStatusInflight = null; return data; })
+    .catch(err => { _adminStatusInflight = null; throw err; });
+  return _adminStatusInflight;
+}
+
+async function _getCachedAdminStatus(force) {
+  const now = Date.now();
+  if (force) return _refreshAdminCacheBg();
+  if (!_adminStatusCache) return _refreshAdminCacheBg(); // first call only
+  if ((now - _adminStatusCache.ts) >= ADMIN_STATUS_TTL_MS) {
+    _refreshAdminCacheBg(); // fire-and-forget; do NOT await
+  }
+  return _adminStatusCache.data; // always return cached (stale ok)
+}
+
+// Background pre-warm — keeps cache hot so polling clients never block on cold start.
+setInterval(() => { _refreshAdminCacheBg().catch(() => {}); }, ADMIN_STATUS_TTL_MS - 500).unref();
+
+app.get("/api/admin/status", requireAuth, async (req, res) => {
+  try {
+    const data = await _getCachedAdminStatus(req.query.force === '1');
+    res.json(data);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 app.get("/api/admin/processes", requireAuth, async (req, res) => {
