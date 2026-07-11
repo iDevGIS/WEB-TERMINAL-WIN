@@ -7552,6 +7552,40 @@
       }
     }
 
+    // v4.47.0: Spawn Chrome on host w/ --remote-debugging-port → auto-switch tab to CDP mode
+    // Use case: operator working remotely (SSH/Tailscale) — no physical access to host
+    async function browserTabCdpLaunch(tabId) {
+      const _say = (msg, kind) => { if (typeof showToast === 'function') showToast(msg, kind); else console.log('[cdp-launch]', msg); };
+      const endpoint = (localStorage.getItem('cdpEndpoint') || 'http://localhost:9222');
+      _say('🚀 Launching Chrome…');
+      try {
+        const r = await fetch('/api/browser/cdp/launch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ endpoint })
+        });
+        const d = await r.json();
+        if (!r.ok || !d.ok) {
+          _say('❌ Launch failed: ' + (d.error || r.status), 'error');
+          return;
+        }
+        const where = d.endpoint || endpoint;
+        if (d.alreadyRunning) {
+          _say('✅ Chrome already running @ ' + where, 'success');
+        } else {
+          _say('✅ Chrome ready @ ' + where + (d.pid ? ' (pid ' + d.pid + ')' : ''), 'success');
+        }
+        // Auto-switch this tab to CDP mode + reload
+        const sel = document.getElementById(tabId + '-bb-mode');
+        if (sel && sel.value !== 'cdp') {
+          sel.value = 'cdp';
+          if (typeof browserTabSetMode === 'function') browserTabSetMode(tabId, 'cdp');
+        }
+      } catch (e) {
+        _say('❌ Launch error: ' + (e.message || e), 'error');
+      }
+    }
+
     // v4.19.0: CDP settings modal — endpoint + Chrome launch helper instructions
     function browserTabCdpSettings() {
       const cur = (localStorage.getItem('cdpEndpoint') || 'http://localhost:9222');
@@ -15638,6 +15672,9 @@ ${fields}
               <option value="cdp">🔧 CDP</option>
               <option value="rec">🔴 Rec</option>
             </select>
+            <button onclick="browserTabCdpLaunch('${tabId}')" title="Launch Chrome on host with --remote-debugging-port for CDP mode (handy when remote)">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="M12 15l-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/></svg>
+            </button>
             <button onclick="browserTabCdpSettings()" title="Configure CDP endpoint + Chrome launch instructions">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
             </button>
@@ -29744,7 +29781,13 @@ ${fields}
       }
       const bub = document.createElement('div');
       bub.className = m.role === 'user' ? 'bub-u' : 'bub-a';
-      bub.innerHTML = renderContent(m.content || '');
+      if (m.role === 'assistant' && m._pending && !m.content) {
+        bub.innerHTML = '<span class="typing-dots"><span></span><span></span><span></span></span>';
+      } else if (m.role === 'assistant' && m._pending && m.content) {
+        bub.innerHTML = renderContent(m.content) + '<span class="typing-cursor"></span>';
+      } else {
+        bub.innerHTML = renderContent(m.content || '');
+      }
       wrap.appendChild(bub);
       return wrap;
     }
@@ -29915,7 +29958,7 @@ ${fields}
       const body = $('copilot-body');
       if (!body) return;
       const lastBub = body.querySelector('.copilot-msg.assistant:last-of-type .bub-a');
-      if (lastBub) lastBub.innerHTML = renderContent(text);
+      if (lastBub) lastBub.innerHTML = renderContent(text) + '<span class="typing-cursor"></span>';
       body.scrollTop = body.scrollHeight;
     }
     function setSendDisabled(d){

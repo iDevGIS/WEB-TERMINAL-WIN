@@ -1,6 +1,6 @@
 {
   "name": "web-terminal",
-  "version": "4.44.1",
+  "version": "4.47.0",
   "description": "Web-based terminal with xterm.js + node-pty",
   "main": "server.js",
   "scripts": {
@@ -27,6 +27,7 @@
     "msedge-tts": "^2.0.4",
     "multer": "^2.1.1",
     "node-pty": "^1.1.0",
+    "playwright": "1.59.1",
     "ws": "^8.18.0"
   },
   "devDependencies": {

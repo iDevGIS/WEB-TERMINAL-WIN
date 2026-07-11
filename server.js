@@ -1277,6 +1277,103 @@ app.get("/api/browser/cdp/check", requireAuth, async (req, res) => {
   }
 });
 
+// v4.47.0 — Launch local Chrome with --remote-debugging-port for CDP mode
+// Use case: operator is remote (SSH/Tailscale) and needs CDP without physical access to host
+app.post("/api/browser/cdp/launch", requireAuth, async (req, res) => {
+  const endpoint = (req.body && req.body.endpoint) || "http://localhost:9222";
+  // Only allow launching against local endpoints — we can't spawn on a remote host
+  let port = 9222;
+  try {
+    const u = new URL(endpoint);
+    const localHosts = new Set(["localhost", "127.0.0.1", "::1", "0.0.0.0"]);
+    if (!localHosts.has(u.hostname)) {
+      return res.status(400).json({ ok: false, error: "Cannot launch remote endpoint — start Chrome manually on that host" });
+    }
+    if (u.port) port = parseInt(u.port, 10) || 9222;
+  } catch {
+    return res.status(400).json({ ok: false, error: "Invalid endpoint URL" });
+  }
+
+  const probe = async () => {
+    try {
+      const r = await fetch(`http://localhost:${port}/json/version`, { signal: AbortSignal.timeout(1500) });
+      if (!r.ok) return null;
+      return await r.json();
+    } catch { return null; }
+  };
+
+  // Idempotency: if already running, return alreadyRunning:true (safe to re-click)
+  const existing = await probe();
+  if (existing) {
+    return res.json({ ok: true, alreadyRunning: true, browser: existing.Browser, ua: existing["User-Agent"], webSocketDebuggerUrl: existing.webSocketDebuggerUrl, endpoint: `http://localhost:${port}` });
+  }
+
+  // Find Chrome executable
+  const findChrome = () => {
+    if (process.env.CHROME_PATH && fs.existsSync(process.env.CHROME_PATH)) return process.env.CHROME_PATH;
+    const platform = process.platform;
+    const candidates = [];
+    if (platform === "win32") {
+      candidates.push(
+        "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+        "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+        path.join(process.env.LOCALAPPDATA || "", "Google\\Chrome\\Application\\chrome.exe"),
+        "C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe",
+        "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe"
+      );
+    } else if (platform === "darwin") {
+      candidates.push(
+        "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+        "/Applications/Google Chrome Canary.app/Contents/MacOS/Google Chrome Canary",
+        "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge"
+      );
+    } else {
+      candidates.push("/usr/bin/google-chrome", "/usr/bin/chromium", "/usr/bin/chromium-browser", "/snap/bin/chromium");
+    }
+    for (const c of candidates) { try { if (c && fs.existsSync(c)) return c; } catch {} }
+    return null;
+  };
+
+  const chromePath = findChrome();
+  if (!chromePath) {
+    return res.status(404).json({ ok: false, error: "Chrome not found — set CHROME_PATH env var to chrome.exe path" });
+  }
+
+  const { spawn } = require("child_process");
+  const userDataDir = path.join(os.tmpdir(), `chrome-cdp-${port}`);
+  try { fs.mkdirSync(userDataDir, { recursive: true }); } catch {}
+
+  let child;
+  try {
+    child = spawn(chromePath, [
+      `--remote-debugging-port=${port}`,
+      `--user-data-dir=${userDataDir}`,
+      "--no-first-run",
+      "--no-default-browser-check"
+    ], {
+      detached: true,
+      stdio: "ignore",
+      windowsHide: false,
+      shell: false
+    });
+    child.unref();
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: `spawn failed: ${e.message}` });
+  }
+
+  // Poll until /json/version responds (Chrome is slow on cold start)
+  const deadline = Date.now() + 15000;
+  while (Date.now() < deadline) {
+    await new Promise(r => setTimeout(r, 500));
+    const info = await probe();
+    if (info) {
+      logActivity(req, "cdp-launch", `pid=${child.pid} port=${port} chrome=${chromePath}`);
+      return res.json({ ok: true, alreadyRunning: false, pid: child.pid, browser: info.Browser, ua: info["User-Agent"], webSocketDebuggerUrl: info.webSocketDebuggerUrl, endpoint: `http://localhost:${port}`, chromePath });
+    }
+  }
+  return res.status(504).json({ ok: false, error: `Chrome spawned (pid=${child.pid}) but :${port} did not respond within 15s — check Chrome started OK`, pid: child.pid, chromePath });
+});
+
 app.get("/api/files/download", requireAuth, (req, res) => {
   const filePath = req.query.path;
   if (!filePath) return res.status(400).json({ error: "No path" });
