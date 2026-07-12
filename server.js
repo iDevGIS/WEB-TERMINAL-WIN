@@ -3422,13 +3422,21 @@ function _getWorkspaceContext() {
 setInterval(() => { _wsContext = null; }, 300000);
 
 app.post("/api/chat", requireAuth, async (req, res) => {
-  const { messages, model } = req.body;
+  const { messages } = req.body;
+  let model = req.body.model;
   if (!messages || !Array.isArray(messages)) return res.status(400).json({ error: "messages required" });
 
   const { sessionId, sessionName, agentId, enableTools } = req.body;
   // Store session name mapping for Agent Monitor display
   if (sessionId && sessionName) {
     _cyberframeNames[sessionId] = sessionName;
+  }
+  // v4.49.0 — Ollama-only routing: OpenClaw gateway decoupled; Claude bridge TBA.
+  // Legacy model ids (anthropic/*, claude-code/*, 'openclaw') from old sessions or
+  // stale localStorage fall back to the default local Ollama model.
+  if (!model || !model.startsWith('ollama/')) {
+    model = await _defaultOllamaModel();
+    if (!model) return res.status(503).json({ error: "No Ollama models available — start Ollama and pull a model" });
   }
   // Determine routing first — needed before building system prompt
   // (OpenClaw Gateway needs the inline-protocol instruction since it strips native tools).
@@ -4585,141 +4593,35 @@ app.get("/api/admin/routes", requireAuth, (req, res) => {
   });
 });
 
-// === Claude Code model cache (resolve aliases in background) ===
-let _ccModelCache = null;
-let _ccModelCacheTime = 0;
-const CC_CACHE_TTL = 3600000; // 1 hour
-function _getCachedClaudeCodeModels() {
-  if (_ccModelCache && Date.now() - _ccModelCacheTime < CC_CACHE_TTL) return _ccModelCache;
-  // Return placeholder immediately, resolve in background
-  const ccCli = path.join(__dirname, 'node_modules', '@anthropic-ai', 'claude-code', 'cli.js');
-  try { require('fs').accessSync(ccCli); } catch { return []; }
-  const aliases = ['opus', 'sonnet', 'haiku'];
-  const display = { opus: 'Opus', sonnet: 'Sonnet', haiku: 'Haiku' };
-  // If no cache yet, return basic list and resolve in background
-  if (!_ccModelCache) {
-    _ccModelCache = aliases.map(a => ({ id: 'claude-code/' + a, name: 'Claude Code (' + display[a] + ')', provider: 'claude-code' }));
-    _resolveClaudeCodeModels(ccCli, aliases, display);
-  }
-  return _ccModelCache;
+// === Ollama model list (v4.49.0 — Ollama-only) ============================
+// OpenClaw gateway decoupled; anthropic/claude-code selector entries removed
+// (a new Claude bridge will be added as its own provider later).
+// Models come straight from the local Ollama daemon; first tag = default.
+const OLLAMA_CTX_DEFAULT = 32768;
+async function _listOllamaModels() {
+  try {
+    const r = await fetch('http://127.0.0.1:11434/api/tags');
+    if (!r.ok) return [];
+    const d = await r.json();
+    return (d.models || []).map((m, i) => ({
+      id: 'ollama/' + m.name,
+      name: m.name,
+      size: m.size,
+      provider: 'ollama',
+      contextWindow: OLLAMA_CTX_DEFAULT,
+      ...(i === 0 ? { default: true } : {})
+    }));
+  } catch { return []; }
 }
-async function _resolveClaudeCodeModels(ccCli, aliases, display) {
-  const { execSync } = require('child_process');
-  const resolved = [];
-  for (const a of aliases) {
-    try {
-      const out = execSync(`"${process.execPath}" "${ccCli}" --print --model ${a} --output-format json --dangerously-skip-permissions "ok"`, { timeout: 20000, encoding: 'utf8' });
-      const j = JSON.parse(out);
-      const keys = Object.keys(j.modelUsage || {}).filter(k => k.includes(a.slice(0, 4)));
-      const modelId = keys[0] || '';
-      const verMatch = modelId.match(/claude-\w+-(\d+)-(\d+)/);
-      const ver = verMatch ? verMatch[1] + '.' + verMatch[2] : '';
-      resolved.push({ id: 'claude-code/' + a, name: 'Claude Code (' + display[a] + (ver ? ' ' + ver : '') + ')', provider: 'claude-code' });
-    } catch { resolved.push({ id: 'claude-code/' + a, name: 'Claude Code (' + display[a] + ')', provider: 'claude-code' }); }
-  }
-  _ccModelCache = resolved;
-  _ccModelCacheTime = Date.now();
-  console.log('[Claude Code] Models resolved:', resolved.map(m => m.name).join(', '));
+async function _defaultOllamaModel() {
+  const models = await _listOllamaModels();
+  return models[0]?.id || null;
 }
 
-// GET /api/agents — list available agents + models
+// GET /api/agents — list available agents + models (v4.49.0: Ollama local only)
 app.get("/api/agents", requireAuth, async (req, res) => {
-  try {
-    const agents = ['main'];
-    // Read openclaw.json config for models
-    let ocCfg = null;
-    try {
-      const cfgName = _clawdDir.replace(/^\./, '') + '.json'; // e.g. "openclaw.json" or "clawdbot.json"
-      ocCfg = JSON.parse(fs.readFileSync(path.join(process.env.USERPROFILE || process.env.HOME, _clawdDir, cfgName), 'utf8'));
-    } catch {}
-    const registeredModels = ocCfg?.agents?.defaults?.models || {};
-    // Ollama models: show registered from config, or fallback to all running models
-    let ollamaModels = [];
-    const ollamaAllowed = Object.keys(registeredModels).filter(k => k.startsWith('ollama/')).map(k => k.replace('ollama/', ''));
-    const ollamaProviderModels = ocCfg?.models?.providers?.ollama?.models || [];
-    const ollamaNameMap = new Map(ollamaProviderModels.map(m => [m.id, m.name]));
-    try {
-      const r = await fetch('http://127.0.0.1:11434/api/tags');
-      if (r.ok) {
-        const d = await r.json();
-        const allModels = d.models || [];
-        if (ollamaAllowed.length) {
-          const tagMap = new Map(allModels.map(m => [m.name, m]));
-          ollamaModels = ollamaAllowed
-            .filter(name => tagMap.has(name))
-            .map(name => {
-              const m = tagMap.get(name);
-              const ollamaCfg = ollamaProviderModels.find(pm => pm.id === name);
-              return { id: 'ollama/' + m.name, name: ollamaNameMap.get(m.name) || m.name, size: m.size, provider: 'ollama', contextWindow: ollamaCfg?.contextWindow || 32768 };
-            });
-        } else {
-          // No config — show all available ollama models
-          ollamaModels = allModels.map(m => ({
-            id: 'ollama/' + m.name, name: m.name, size: m.size, provider: 'ollama', contextWindow: 32768
-          }));
-        }
-      }
-    } catch {}
-    // Claude Code CLI models from openclaw.json (claude-cli/* entries, deduplicated by alias, latest version wins)
-    const claudeCliAllowed = Object.keys(registeredModels).filter(k => k.startsWith('claude-cli/'));
-    let claudeCliModels = [];
-    if (claudeCliAllowed.length) {
-      const aliasMap = new Map(); // alias → { name, ver }
-      for (const k of claudeCliAllowed) {
-        const modelId = k.replace('claude-cli/', '');
-        const aliasMatch = modelId.match(/claude-(\w+)-/);
-        const alias = aliasMatch ? aliasMatch[1] : modelId;
-        const verMatch = modelId.match(/(\d+)-(\d+)$/);
-        const ver = verMatch ? verMatch[1] + '.' + verMatch[2] : '';
-        const verNum = verMatch ? parseInt(verMatch[1]) * 100 + parseInt(verMatch[2]) : 0;
-        const existing = aliasMap.get(alias);
-        if (!existing || verNum > existing.verNum) {
-          // Find contextWindow from anthropic provider config (claude-cli uses same models)
-          const anthropicModel = (ocCfg?.models?.providers?.anthropic?.models || []).find(m => m.id === modelId);
-          aliasMap.set(alias, { alias, ver, verNum, contextWindow: anthropicModel?.contextWindow || (alias === 'opus' ? 1000000 : 200000) });
-        }
-      }
-      claudeCliModels = [...aliasMap.values()].map(({ alias, ver, contextWindow }) => ({
-        id: 'claude-code/' + alias,
-        name: alias.charAt(0).toUpperCase() + alias.slice(1) + (ver ? ' ' + ver : ''),
-        alias,
-        provider: 'claude-code',
-        contextWindow
-      }));
-    }
-    // Fallback to CLI resolution if no config
-    const claudeCodeModels = claudeCliModels.length ? claudeCliModels : _getCachedClaudeCodeModels();
-    // Dynamic anthropic models from openclaw.json config
-    let anthropicModels = [{ id: 'anthropic/claude-opus-4-7', name: 'Claude Opus 4.7', provider: OPENCLAW_CLI, default: true }];
-    if (ocCfg) {
-      const primaryId = (ocCfg.agents?.defaults?.model?.primary || '').replace(/^anthropic\//, '');
-      const providerModels = ocCfg.models?.providers?.anthropic?.models || [];
-      if (providerModels.length) {
-        // Known context windows for Anthropic models (config may have incorrect values)
-        const knownCtx = { opus: 1000000, sonnet: 200000, haiku: 200000 };
-        anthropicModels = providerModels.map(m => {
-          const alias = (m.id.match(/claude-(\w+)-/) || [])[1] || '';
-          return {
-            id: 'anthropic/' + m.id,
-            name: (m.name || m.id).replace(/\s*\(via\s+.*?\)\s*$/, ''),
-            provider: OPENCLAW_CLI,
-            contextWindow: knownCtx[alias] || m.contextWindow || 200000,
-            ...(m.id === primaryId ? { default: true } : {})
-          };
-        });
-      }
-    }
-    const models = [
-      ...anthropicModels,
-      ...claudeCodeModels,
-      ...ollamaModels
-    ];
-    // Include platform info so frontend can show "openclaw main" / "clawdbot main" etc.
-    const primaryModel = ocCfg?.agents?.defaults?.model?.primary || '';
-    res.json({ agents, models, platform: OPENCLAW_CLI, defaultModel: primaryModel });
-  } catch (e) {
-    res.json({ agents: ['main'], models: [], platform: OPENCLAW_CLI });
-  }
+  const models = await _listOllamaModels();
+  res.json({ agents: ['main'], models, platform: 'ollama', defaultModel: models[0]?.id || '' });
 });
 
 // GET /api/docker/compose-file — read compose file for a network group
@@ -7467,6 +7369,8 @@ function _scrapAIValidate(html, parsed) {
 
 // Single-shot LLM call factored out so retries reuse it.
 async function _scrapAICall({ sys, userMsg, reqModel, agentId, providerHint }) {
+  // v4.49.0 — Ollama-only: normalize any non-ollama model id to the default local model
+  if (!reqModel || !reqModel.startsWith("ollama/")) reqModel = (await _defaultOllamaModel()) || reqModel || "";
   const wantAnthropicSdk = providerHint === "anthropic";
   const isOllama = reqModel.startsWith("ollama/");
   const isClaudeCode = reqModel.startsWith("claude-code/");

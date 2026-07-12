@@ -5546,7 +5546,7 @@
         <span>Sidekick</span>
       </div>
       <div class="right">
-        <span class="copilot-model-pill" id="copilot-model-pill" title="คลิกเปลี่ยน model">openclaw</span>
+        <span class="copilot-model-pill" id="copilot-model-pill" title="คลิกเปลี่ยน model">ollama</span>
         <span class="copilot-ic-btn tools-on" id="copilot-tools-btn" title="Cross-Tab Tools · คลิก toggle">🛠</span>
         <span class="copilot-ic-btn" id="copilot-clear-btn" title="Clear chat history (Shift = ไม่ confirm)">🧹</span>
         <span class="copilot-ic-btn" id="copilot-mode-btn" title="เปลี่ยน mode">⊟</span>
@@ -13217,8 +13217,8 @@ ${fields}
         if (lbl) lbl.textContent = m.name;
         if (ctx) ctx.textContent = typeof _chatMaxTokensStr === 'function' ? _chatMaxTokensStr(m.id) : '';
       } else {
-        if (bdg) { bdg.textContent = 'openclaw'; bdg.style.background = 'rgba(192,132,252,.1)'; bdg.style.color = '#c084fc'; }
-        if (lbl) lbl.textContent = model || 'main (default)';
+        if (bdg) { bdg.textContent = 'ollama'; bdg.style.background = 'rgba(251,191,36,.1)'; bdg.style.color = '#fbbf24'; }
+        if (lbl) lbl.textContent = model || 'default';
         if (ctx) ctx.textContent = '';
       }
     }
@@ -13229,10 +13229,9 @@ ${fields}
       const models = (data && data.models) || [];
       // Pick default: saved > tab > localStorage > data.default (first with default:true) > anthropic primary > first model
       let pick = tab.scrap.aiModel || localStorage.getItem('cf-scrap-ai-model') || '';
-      if (!pick && data.defaultModel) {
-        const cand = 'anthropic/' + String(data.defaultModel).replace(/^anthropic\//, '');
-        if (models.some(m => m.id === cand)) pick = cand;
-      }
+      // v4.49.0 — Ollama-only: drop stale saved ids that are no longer offered
+      if (pick && !models.some(m => m.id === pick)) pick = '';
+      if (!pick && data.defaultModel && models.some(m => m.id === data.defaultModel)) pick = data.defaultModel;
       if (!pick) {
         const defModel = models.find(m => m.default);
         pick = defModel ? defModel.id : (models[0]?.id || '');
@@ -14171,7 +14170,7 @@ ${fields}
                     <div style="display:flex;gap:6px;margin-top:6px;align-items:center">
                       <span style="font-size:11.5px;color:var(--text2);min-width:42px">Model</span>
                       <button id="${tabId}-sc-ai-model-btn" onclick="scrapPickAIModel('${tabId}')" class="scrap-ai-model-btn" title="Click to change model">
-                        <span id="${tabId}-sc-ai-model-badge" style="font-size:8px;padding:1px 5px;border-radius:3px;background:rgba(192,132,252,.1);color:#c084fc;font-weight:600">openclaw</span>
+                        <span id="${tabId}-sc-ai-model-badge" style="font-size:8px;padding:1px 5px;border-radius:3px;background:rgba(251,191,36,.1);color:#fbbf24;font-weight:600">ollama</span>
                         <span id="${tabId}-sc-ai-model-label" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">loading…</span>
                         <span id="${tabId}-sc-ai-model-ctx" style="font-size:9px;color:var(--text3)"></span>
                         <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="opacity:.6"><polyline points="6 9 12 15 18 9"/></svg>
@@ -14181,8 +14180,7 @@ ${fields}
                   </div>
                   <div id="${tabId}-sc-ai-insight" class="scrap-ai-insight"></div>
                   <div style="font-size:11px;color:var(--text3);line-height:1.5">
-                    เลือก model ได้ทั้ง OpenClaw Gateway, Claude Code CLI, หรือ Ollama (local).<br>
-                    Gateway ใช้ token เดียวกับ AI Chat — ไม่ต้องตั้ง API key แยก.<br>
+                    ใช้ Ollama local LLM — เลือกได้ทุก model ที่ติดตั้งในเครื่อง ไม่ต้องตั้ง API key.<br>
                     AI วิเคราะห์ structure + ตรวจ rootSelector + retry ถ้า match 0 elements + ตรวจ pagination อัตโนมัติ.<br>
                     ต้อง Run page ก่อน (ต้องมี HTML ใน memory)
                   </div>
@@ -19451,7 +19449,7 @@ ${fields}
         // For main agent, show platform + default model name + context window
         let mainLabel = platformName + ' · ' + agentRaw;
         if (agentRaw === 'main' && _agentData?.defaultModel) {
-          const dm = _agentData.defaultModel.replace(/^anthropic\//, '').replace(/-/g, ' ').replace(/(\d+)\s(\d+)$/, '$1.$2').replace(/\b\w/g, c => c.toUpperCase());
+          const dm = _agentData.defaultModel.replace(/^(anthropic|ollama)\//, '').replace(/-/g, ' ').replace(/(\d+)\s(\d+)$/, '$1.$2').replace(/\b\w/g, c => c.toUpperCase());
           mainLabel = platformName + ' · ' + dm + ' ' + _chatMaxTokensStr(_agentData.defaultModel);
         }
         const label = isClaudeCode ? ccLabel : isOllama ? sess.model.replace('ollama/', '') : (agentRaw === 'main' ? mainLabel : agentRaw);
@@ -28432,7 +28430,7 @@ ${fields}
       state.open = loadLS(LS_OPEN, false);
       state.mode = loadLS(LS_MODE, 'bubble');
       state.enableTools = loadLS(LS_TOOLS, true);
-      state.model = loadLS(LS_MODEL, 'openclaw');
+      state.model = loadLS(LS_MODEL, '');
       state.messages = loadLS(LS_MESSAGES, []);
 
       const launcher = $('copilot-launcher');
@@ -28456,6 +28454,17 @@ ${fields}
       });
 
       applyOpenState(); applyToolsState(); applyModePosition(); updateModelPill();
+      // v4.49.0 — Ollama-only: migrate stale saved model (openclaw/claude ids) to default Ollama model
+      (async () => {
+        try {
+          const data = typeof _fetchAgents === 'function' ? await _fetchAgents() : await fetch('/api/agents').then(r => r.json());
+          const ids = ((data && data.models) || []).map(m => m.id);
+          if (ids.length && !ids.includes(state.model)) {
+            state.model = data.defaultModel || ids[0];
+            saveLS(LS_MODEL, state.model); updateModelPill();
+          }
+        } catch {}
+      })();
       render();
 
       // re-anchor panel on viewport resize
@@ -28543,17 +28552,23 @@ ${fields}
     }
 
     /* ---------- Model ---------- */
-    function cycleModel(){
-      // simple cycle through common options
-      const options = ['openclaw', 'claude-opus-4-7', 'claude-sonnet-4-6', 'ollama'];
+    // v4.49.0 — Ollama-only: cycle through installed local models from /api/agents
+    async function cycleModel(){
+      let models = [];
+      try {
+        const data = typeof _fetchAgents === 'function' ? await _fetchAgents() : await fetch('/api/agents').then(r => r.json());
+        models = (data && data.models) || [];
+      } catch {}
+      if (!models.length) { toast('No Ollama models available'); return; }
+      const options = models.map(m => m.id);
       const idx = options.indexOf(state.model);
       state.model = options[(idx + 1) % options.length];
       saveLS(LS_MODEL, state.model); updateModelPill();
-      toast(`Model → ${state.model}`);
+      toast(`Model → ${state.model.replace(/^ollama\//, '')}`);
     }
     function updateModelPill(){
       const pill = $('copilot-model-pill');
-      if (pill) pill.textContent = state.model;
+      if (pill) pill.textContent = (state.model || '').replace(/^ollama\//, '') || 'model?';
     }
 
     /* ---------- Clear ---------- */
